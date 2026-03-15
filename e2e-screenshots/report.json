@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-03-13T07:09:35.460Z",
+  "summary": {
+    "total": 1,
+    "critical": 0,
+    "high": 0,
+    "medium": 1
+  },
+  "issues": [
+    {
+      "severity": "MEDIUM",
+      "area": "입금요청 폼",
+      "description": "제출 후 상태 불명확 (15초 대기 후)",
+      "step": 11
+    }
+  ],
+  "consoleErrors": [
+    "Failed to load resource: net::ERR_ALPN_NEGOTIATION_FAILED"
+  ],
+  "networkErrors": []
+}

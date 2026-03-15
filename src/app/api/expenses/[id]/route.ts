@@ -1,0 +1,67 @@
+import { NextRequest, NextResponse } from "next/server";
+import { requireAuth, errorResponse, handleError } from "@/lib/api-utils";
+import { updateExpenseSchema } from "@/lib/validations/expense";
+import {
+  getExpenseById,
+  updateExpense,
+  deleteExpense,
+} from "@/services/expense.service";
+
+type RouteContext = { params: Promise<{ id: string }> };
+
+// ---------------------------------------------------------------------------
+// GET /api/expenses/[id] -- expense detail with attachments
+// ---------------------------------------------------------------------------
+export async function GET(request: NextRequest, context: RouteContext) {
+  try {
+    const user = await requireAuth();
+    const { id } = await context.params;
+
+    const expense = await getExpenseById(id, user.id, user.role);
+
+    return NextResponse.json({ data: expense });
+  } catch (err) {
+    return handleError(err);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// PATCH /api/expenses/[id] -- update expense
+// ---------------------------------------------------------------------------
+export async function PATCH(request: NextRequest, context: RouteContext) {
+  try {
+    const user = await requireAuth();
+    const { id } = await context.params;
+    const body = await request.json();
+
+    const parsed = updateExpenseSchema.safeParse(body);
+    if (!parsed.success) {
+      return errorResponse(
+        "VALIDATION_ERROR",
+        parsed.error.issues.map((i) => i.message).join(", "),
+      );
+    }
+
+    const updated = await updateExpense(id, parsed.data, user.id);
+
+    return NextResponse.json({ data: updated });
+  } catch (err) {
+    return handleError(err);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// DELETE /api/expenses/[id] -- delete expense
+// ---------------------------------------------------------------------------
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  try {
+    const user = await requireAuth();
+    const { id } = await context.params;
+
+    await deleteExpense(id, user.id, user.role);
+
+    return NextResponse.json({ data: { success: true } });
+  } catch (err) {
+    return handleError(err);
+  }
+}
