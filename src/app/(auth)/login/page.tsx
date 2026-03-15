@@ -4,8 +4,8 @@ import { useSearchParams } from 'next/navigation';
 import { useRouter } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
+import { createClient } from '@/lib/supabase/client';
 
-// Hardcoded — this is a public value (embedded in HTML on every Google Sign-In page)
 const GOOGLE_CLIENT_ID = '175310795095-j89iooq6jb6pvgs8u43nl43iv6ksl1gu.apps.googleusercontent.com';
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -18,6 +18,12 @@ const ERROR_MESSAGES: Record<string, string> = {
   exchange_failed: 'Google 인증에 실패했습니다. 다시 시도해 주세요.',
 };
 
+function isMobile(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent;
+  return /Android|iPhone|iPad|iPod|Mobile|webOS|BlackBerry|Opera Mini|IEMobile/i.test(ua);
+}
+
 function LoginContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -27,50 +33,43 @@ function LoginContent() {
   const errorMessage = errorCode ? ERROR_MESSAGES[errorCode] : null;
 
   const [loading, setLoading] = useState(false);
-  const [debugUrl, setDebugUrl] = useState('');
 
   useEffect(() => {
     sessionStorage.removeItem("expense-one-splash-shown");
   }, []);
 
-  // Direct Google OAuth — only 2 hops: our app → Google → our app
-  // Uses /auth/callback which is already registered in Google Cloud Console
   const handleLogin = () => {
     if (loading) return;
     setLoading(true);
 
-    const callbackUrl = `${window.location.origin}/auth/callback`;
-    const params = new URLSearchParams({
-      client_id: GOOGLE_CLIENT_ID,
-      redirect_uri: callbackUrl,
-      response_type: 'code',
-      scope: 'openid email profile',
-      access_type: 'offline',
-      prompt: 'select_account',
-      state: 'google_direct',
-    });
-
-    const url = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-    setDebugUrl(url);
-    window.location.href = url;
-  };
-
-  // Also check if user is already logged in (returning from another tab, etc.)
-  useEffect(() => {
-    const checkExistingSession = async () => {
-      const { createClient } = await import('@/lib/supabase/client');
+    if (isMobile()) {
+      // Mobile: Direct Google OAuth (2-hop, no Supabase in redirect chain)
+      const callbackUrl = `${window.location.origin}/auth/callback`;
+      const params = new URLSearchParams({
+        client_id: GOOGLE_CLIENT_ID,
+        redirect_uri: callbackUrl,
+        response_type: 'code',
+        scope: 'openid email profile',
+        prompt: 'select_account',
+        state: 'google_direct',
+      });
+      window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+    } else {
+      // Desktop: Standard Supabase OAuth (PKCE works fine on desktop browsers)
       const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        const res = await fetch('/api/auth/validate', { method: 'POST' });
-        const result = await res.json();
-        if (res.ok) {
-          router.replace(redirectTo || result.redirect || '/');
+      const callbackUrl = `${window.location.origin}/auth/callback`;
+      supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: callbackUrl,
+        },
+      }).then(({ error }) => {
+        if (error) {
+          setLoading(false);
         }
-      }
-    };
-    checkExistingSession();
-  }, [router, redirectTo]);
+      });
+    }
+  };
 
   return (
     <div className="flex min-h-dvh items-center justify-center px-4 relative">
@@ -119,7 +118,7 @@ function LoginContent() {
             <button
               onClick={handleLogin}
               disabled={loading}
-              className="inline-flex w-full items-center justify-center gap-2.5 h-[52px] rounded-lg text-[15px] font-medium bg-[rgba(255,255,255,0.7)] backdrop-blur-xl border border-[rgba(0,0,0,0.06)] hover:bg-[rgba(255,255,255,0.85)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.08)] hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 text-[var(--apple-label)] disabled:opacity-50"
+              className="inline-flex w-full items-center justify-center gap-2.5 h-[52px] rounded-[10px] text-[15px] font-medium bg-[rgba(255,255,255,0.7)] backdrop-blur-xl border border-[rgba(0,0,0,0.06)] hover:bg-[rgba(255,255,255,0.85)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.08)] hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 text-[var(--apple-label)] disabled:opacity-50"
             >
               {loading ? (
                 <div className="size-5 border-2 border-[#007AFF] border-t-transparent rounded-full animate-spin" />
@@ -133,10 +132,6 @@ function LoginContent() {
               )}
               Google 계정으로 로그인
             </button>
-
-            {debugUrl && (
-              <p className="text-[10px] text-[#8e8e93] break-all text-left">{debugUrl}</p>
-            )}
 
             <p className="text-[13px] text-[var(--apple-secondary-label)]">
               HanahOne 계정으로 로그인해주세요
