@@ -183,6 +183,35 @@ export function Sidebar({ user }: SidebarProps) {
 
 export function MobileSidebar({ user }: SidebarProps) {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+
+  // Close sidebar whenever page changes (back gesture, link tap, etc.)
+  React.useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  // Edge swipe from left to open sidebar
+  React.useEffect(() => {
+    const onTouchStart = (e: TouchEvent) => {
+      touchStartX.current = e.touches[0].clientX;
+      touchStartY.current = e.touches[0].clientY;
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+      const deltaY = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
+      if (touchStartX.current < 30 && deltaX > 60 && deltaY < 80) {
+        setOpen(true);
+      }
+    };
+    document.addEventListener("touchstart", onTouchStart, { passive: true });
+    document.addEventListener("touchend", onTouchEnd, { passive: true });
+    return () => {
+      document.removeEventListener("touchstart", onTouchStart);
+      document.removeEventListener("touchend", onTouchEnd);
+    };
+  }, []);
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
