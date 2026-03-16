@@ -45,13 +45,15 @@ function LoginContent() {
     if (isMobile()) {
       // Mobile: Direct Google OAuth (2-hop, no Supabase in redirect chain)
       const callbackUrl = `${window.location.origin}/auth/callback`;
+      const stateValue = `google_direct_${crypto.randomUUID()}`;
+      sessionStorage.setItem('oauth_state', stateValue);
       const params = new URLSearchParams({
         client_id: GOOGLE_CLIENT_ID,
         redirect_uri: callbackUrl,
         response_type: 'code',
         scope: 'openid email profile',
         prompt: 'select_account',
-        state: 'google_direct',
+        state: stateValue,
       });
       window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
     } else {

@@ -83,7 +83,8 @@ export async function GET(request: NextRequest) {
       .from(expenses)
       .leftJoin(users, eq(expenses.submittedById, users.id))
       .where(whereClause)
-      .orderBy(desc(expenses.createdAt));
+      .orderBy(desc(expenses.createdAt))
+      .limit(10000);
 
     // Transform to CSV-friendly rows
     const csvData = rows.map((row) => ({

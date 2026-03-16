@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, errorResponse, handleError } from "@/lib/api-utils";
 import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { users, expenses, notifications, attachments } from "@/lib/db/schema";
+import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 
 // Zod schema for admin user update
@@ -65,6 +65,83 @@ export async function PATCH(request: NextRequest) {
     }
 
     await db.update(users).set(updateData).where(eq(users.id, userId));
+
+    return NextResponse.json({ data: { success: true } });
+  } catch (err) {
+    return handleError(err);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// DELETE /api/admin/users -- delete a user and all related data
+// Body: { userId: string }
+// ---------------------------------------------------------------------------
+
+const deleteUserSchema = z.object({
+  userId: z.string().uuid("올바른 사용자 ID를 입력해주세요"),
+});
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const admin = await requireAdmin();
+
+    const body = await request.json();
+    const parsed = deleteUserSchema.safeParse(body);
+    if (!parsed.success) {
+      return errorResponse(
+        "VALIDATION_ERROR",
+        parsed.error.issues.map((i) => i.message).join(", "),
+      );
+    }
+
+    const { userId } = parsed.data;
+
+    if (userId === admin.id) {
+      return errorResponse("FORBIDDEN", "자신의 계정은 삭제할 수 없습니다.");
+    }
+
+    // Check user exists
+    const [existingUser] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, userId));
+
+    if (!existingUser) {
+      return errorResponse("NOT_FOUND", "사용자를 찾을 수 없습니다.");
+    }
+
+    // Delete user and all related data in a transaction
+    await db.transaction(async (tx) => {
+      // Get user's expense IDs for notification cleanup
+      const userExpenses = await tx
+        .select({ id: expenses.id })
+        .from(expenses)
+        .where(eq(expenses.submittedById, userId));
+
+      const expenseIds = userExpenses.map((e) => e.id);
+
+      // Delete notifications for the user (as recipient)
+      await tx.delete(notifications).where(eq(notifications.recipientId, userId));
+
+      // Delete notifications related to user's expenses
+      if (expenseIds.length > 0) {
+        await tx
+          .delete(notifications)
+          .where(inArray(notifications.relatedExpenseId, expenseIds));
+      }
+
+      // Nullify approvedById on expenses approved by this user
+      await tx
+        .update(expenses)
+        .set({ approvedById: null })
+        .where(eq(expenses.approvedById, userId));
+
+      // Delete expenses (attachments cascade automatically)
+      await tx.delete(expenses).where(eq(expenses.submittedById, userId));
+
+      // Delete user
+      await tx.delete(users).where(eq(users.id, userId));
+    });
 
     return NextResponse.json({ data: { success: true } });
   } catch (err) {
