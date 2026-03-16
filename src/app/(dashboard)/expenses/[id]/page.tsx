@@ -145,19 +145,14 @@ async function getExpenseDetail(id: string) {
     redirect("/login");
   }
 
-  const { data: userProfile } = await supabase
-    .from("users")
-    .select("role")
-    .eq("id", authUser.id)
-    .single();
+  // Fetch user role and expense in parallel
+  const [profileResult, expenseResult] = await Promise.all([
+    supabase.from("users").select("role").eq("id", authUser.id).single(),
+    supabase.from("expenses").select("*").eq("id", id).single(),
+  ]);
 
-  const userRole = (userProfile?.role as "MEMBER" | "ADMIN") ?? "MEMBER";
-
-  const { data: expense, error } = await supabase
-    .from("expenses")
-    .select("*")
-    .eq("id", id)
-    .single();
+  const userRole = (profileResult.data?.role as "MEMBER" | "ADMIN") ?? "MEMBER";
+  const { data: expense, error } = expenseResult;
 
   if (error || !expense) {
     console.error("Expense fetch error:", error?.message, "id:", id);
