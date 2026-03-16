@@ -67,69 +67,65 @@ async function getDashboardData() {
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
   const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
 
-  // 1. Total approved amount this month
-  let totalApprovedQuery = supabase
+  // Build all queries (will execute in parallel)
+  const approvedAmountQ = supabase
     .from("expenses")
     .select("amount")
     .eq("status", "APPROVED")
+    .eq("submitted_by_id", authUser.id)
     .gte("created_at", startOfMonth)
     .lte("created_at", endOfMonth);
 
-  totalApprovedQuery = totalApprovedQuery.eq("submitted_by_id", authUser.id);
+  const submittedCountQ = supabase
+    .from("expenses")
+    .select("id", { count: "exact", head: true })
+    .eq("submitted_by_id", authUser.id)
+    .gte("created_at", startOfMonth)
+    .lte("created_at", endOfMonth);
 
-  const { data: approvedExpenses } = await totalApprovedQuery;
+  // ADMIN sees team-wide pending; MEMBER sees own
+  let pendingCountQ = supabase
+    .from("expenses")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "SUBMITTED");
+  if (userRole === "MEMBER") {
+    pendingCountQ = pendingCountQ.eq("submitted_by_id", authUser.id);
+  }
+
+  const approvedCountQ = supabase
+    .from("expenses")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "APPROVED")
+    .eq("submitted_by_id", authUser.id)
+    .gte("created_at", startOfMonth)
+    .lte("created_at", endOfMonth);
+
+  const recentQ = supabase
+    .from("expenses")
+    .select("id, title, amount, status, type, created_at, is_urgent")
+    .eq("submitted_by_id", authUser.id)
+    .order("created_at", { ascending: false })
+    .limit(5);
+
+  // Execute all 5 queries in parallel
+  const [
+    { data: approvedExpenses },
+    { count: submittedCount },
+    { count: pendingCount },
+    { count: approvedCount },
+    { data: recentExpenses },
+  ] = await Promise.all([
+    approvedAmountQ,
+    submittedCountQ,
+    pendingCountQ,
+    approvedCountQ,
+    recentQ,
+  ]);
+
   const totalApproved = (approvedExpenses ?? []).reduce(
     (sum, e) => sum + (e.amount ?? 0),
     0
   );
-
-  // 2. Submitted count this month
-  let submittedQuery = supabase
-    .from("expenses")
-    .select("id", { count: "exact", head: true })
-    .gte("created_at", startOfMonth)
-    .lte("created_at", endOfMonth);
-
-  submittedQuery = submittedQuery.eq("submitted_by_id", authUser.id);
-
-  const { count: submittedCount } = await submittedQuery;
-
-  // 3. Pending count
-  // For ADMIN, show team-wide pending count (links to /admin/pending which shows all)
-  // For MEMBER, show own pending count
-  let pendingQuery = supabase
-    .from("expenses")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "SUBMITTED");
-
-  if (userRole === "MEMBER") {
-    pendingQuery = pendingQuery.eq("submitted_by_id", authUser.id);
-  }
-
-  const { count: pendingCount } = await pendingQuery;
-
-  // 4. Approved count this month
-  let approvedCountQuery = supabase
-    .from("expenses")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "APPROVED")
-    .gte("created_at", startOfMonth)
-    .lte("created_at", endOfMonth);
-
-  approvedCountQuery = approvedCountQuery.eq("submitted_by_id", authUser.id);
-
-  const { count: approvedCount } = await approvedCountQuery;
-
-  // 5. Recent 5 expenses
-  let recentQuery = supabase
-    .from("expenses")
-    .select("id, title, amount, status, type, created_at")
-    .order("created_at", { ascending: false })
-    .limit(5);
-
-  recentQuery = recentQuery.eq("submitted_by_id", authUser.id);
-
-  const { data: recentExpenses } = await recentQuery;
 
   return {
     totalApproved,

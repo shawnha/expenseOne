@@ -134,24 +134,31 @@ export const expenses = pgTable(
 /**
  * attachments -- 첨부파일 테이블
  */
-export const attachments = pgTable("attachments", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  expenseId: uuid("expense_id")
-    .notNull()
-    .references(() => expenses.id, { onDelete: "cascade" }),
-  documentType: varchar("document_type", { length: 100 }).notNull(),
-  fileName: varchar("file_name", { length: 255 }).notNull(),
-  fileKey: varchar("file_key", { length: 500 }).notNull(),
-  fileUrl: text("file_url").notNull(),
-  fileSize: integer("file_size").notNull(),
-  mimeType: varchar("mime_type", { length: 100 }).notNull(),
-  uploadedById: uuid("uploaded_by_id")
-    .notNull()
-    .references(() => users.id),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const attachments = pgTable(
+  "attachments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    expenseId: uuid("expense_id")
+      .notNull()
+      .references(() => expenses.id, { onDelete: "cascade" }),
+    documentType: varchar("document_type", { length: 100 }).notNull(),
+    fileName: varchar("file_name", { length: 255 }).notNull(),
+    fileKey: varchar("file_key", { length: 500 }).notNull(),
+    fileUrl: text("file_url").notNull(),
+    fileSize: integer("file_size").notNull(),
+    mimeType: varchar("mime_type", { length: 100 }).notNull(),
+    uploadedById: uuid("uploaded_by_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("idx_attachments_expense_id").on(table.expenseId),
+    index("idx_attachments_uploaded_by").on(table.uploadedById),
+  ],
+);
 
 /**
  * notifications -- 알림 테이블
