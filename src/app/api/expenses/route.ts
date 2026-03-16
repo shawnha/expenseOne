@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, errorResponse, handleError, validateOrigin } from "@/lib/api-utils";
+import { requireAuth, errorResponse, handleError, validateOrigin, jsonWithCache } from "@/lib/api-utils";
 import {
   createExpenseSchema,
   expenseQuerySchema,
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     const ownOnly = parsed.data.ownOnly === "false" && user.role === "ADMIN" ? false : true;
     const result = await getExpenses(parsed.data, user.id, user.role, ownOnly);
 
-    return NextResponse.json(result);
+    return jsonWithCache(result, 0, 30);
   } catch (err) {
     return handleError(err);
   }

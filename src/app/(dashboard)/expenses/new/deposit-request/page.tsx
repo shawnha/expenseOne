@@ -311,21 +311,21 @@ export default function DepositRequestPage() {
       const expenseId = result.data?.id;
 
       if (expenseId) {
-        for (const fileItem of files) {
-          const formData = new FormData();
-          formData.append("file", fileItem.file);
-          formData.append("expenseId", expenseId);
-          formData.append("documentType", fileItem.documentType || "OTHER");
-
-          const uploadRes = await fetch("/api/attachments/upload", {
-            method: "POST",
-            body: formData,
-          });
-
-          if (!uploadRes.ok) {
-            toast.error(`파일 "${fileItem.file.name}" 업로드에 실패했습니다.`);
+        const uploadResults = await Promise.allSettled(
+          files.map((fileItem) => {
+            const formData = new FormData();
+            formData.append("file", fileItem.file);
+            formData.append("expenseId", expenseId);
+            formData.append("documentType", fileItem.documentType || "OTHER");
+            return fetch("/api/attachments/upload", { method: "POST", body: formData })
+              .then((res) => { if (!res.ok) throw new Error(fileItem.file.name); return res; });
+          })
+        );
+        uploadResults.forEach((r) => {
+          if (r.status === "rejected") {
+            toast.error(`파일 "${r.reason?.message}" 업로드에 실패했습니다.`);
           }
-        }
+        });
       }
 
       // Save to recent accounts

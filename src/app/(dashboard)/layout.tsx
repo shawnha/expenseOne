@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { getAuthUser, getCachedClient } from "@/lib/supabase/cached";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
-import { PageTransition } from "@/components/layout/page-transition";
 import { LoginSplash } from "@/components/layout/login-splash";
 import { PullToRefresh } from "@/components/layout/pull-to-refresh";
 import { Toaster } from "@/components/ui/sonner";
@@ -36,7 +35,7 @@ export default async function DashboardLayout({
           <div className="flex flex-1 flex-col overflow-hidden">
             <Header user={mockUser} unreadCount={3} />
             <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-              <PageTransition>{children}</PageTransition>
+              {children}
             </main>
           </div>
         </div>

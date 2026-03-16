@@ -40,6 +40,17 @@ export function handleError(err: unknown) {
 }
 
 // ---------------------------------------------------------------------------
+// Cache headers for GET responses
+// ---------------------------------------------------------------------------
+export function jsonWithCache(data: unknown, maxAge = 0, staleWhileRevalidate = 30) {
+  return NextResponse.json(data, {
+    headers: {
+      "Cache-Control": `private, max-age=${maxAge}, stale-while-revalidate=${staleWhileRevalidate}`,
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
 // CSRF: validate origin for mutation requests
 // ---------------------------------------------------------------------------
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

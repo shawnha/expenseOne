@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, handleError } from "@/lib/api-utils";
+import { requireAuth, handleError, jsonWithCache } from "@/lib/api-utils";
 import { getNotifications } from "@/services/notification.service";
 
 // ---------------------------------------------------------------------------
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 
     const result = await getNotifications(user.id, page, Math.min(limit, 100));
 
-    return NextResponse.json(result);
+    return jsonWithCache(result, 0, 10);
   } catch (err) {
     return handleError(err);
   }

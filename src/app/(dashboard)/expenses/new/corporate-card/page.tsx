@@ -165,19 +165,17 @@ export default function CorporateCardPage() {
       const result = await response.json();
       const expenseId = result.data?.id;
 
-      // Upload attachments if any
+      // Upload attachments in parallel
       if (files.length > 0 && expenseId) {
-        for (const fileItem of files) {
-          const formData = new FormData();
-          formData.append("file", fileItem.file);
-          formData.append("expenseId", expenseId);
-          formData.append("documentType", fileItem.documentType || "OTHER");
-
-          await fetch("/api/attachments/upload", {
-            method: "POST",
-            body: formData,
-          });
-        }
+        await Promise.all(
+          files.map((fileItem) => {
+            const formData = new FormData();
+            formData.append("file", fileItem.file);
+            formData.append("expenseId", expenseId);
+            formData.append("documentType", fileItem.documentType || "OTHER");
+            return fetch("/api/attachments/upload", { method: "POST", body: formData });
+          })
+        );
       }
 
       setShowSuccess(true);

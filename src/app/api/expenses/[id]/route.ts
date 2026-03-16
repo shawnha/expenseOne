@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, errorResponse, handleError, validateOrigin, validateUUID } from "@/lib/api-utils";
+import { requireAuth, errorResponse, handleError, validateOrigin, validateUUID, jsonWithCache } from "@/lib/api-utils";
 import { updateExpenseSchema } from "@/lib/validations/expense";
 import {
   getExpenseById,
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     const expense = await getExpenseById(id, user.id, user.role);
 
-    return NextResponse.json({ data: expense });
+    return jsonWithCache({ data: expense }, 0, 30);
   } catch (err) {
     return handleError(err);
   }
