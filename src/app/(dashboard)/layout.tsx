@@ -34,7 +34,7 @@ export default async function DashboardLayout({
           <Sidebar user={mockUser} />
           <div className="flex flex-1 flex-col overflow-hidden">
             <Header user={mockUser} unreadCount={3} />
-            <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+            <main className="flex-1 overflow-y-auto overscroll-y-none p-4 lg:p-6">
               {children}
             </main>
           </div>
@@ -121,7 +121,7 @@ export default async function DashboardLayout({
         <div className="flex flex-1 flex-col overflow-hidden">
           <Header user={user} unreadCount={unreadCount ?? 0} />
 
-          <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+          <main className="flex-1 overflow-y-auto overscroll-y-none p-4 lg:p-6">
             {children}
           </main>
         </div>
