@@ -6,7 +6,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { createClient } from '@/lib/supabase/client';
 
-const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
+const GOOGLE_CLIENT_ID = (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '').trim();
 
 const ERROR_MESSAGES: Record<string, string> = {
   domain: '허용되지 않은 이메일 도메인입니다. 회사 이메일로 로그인해 주세요.',
