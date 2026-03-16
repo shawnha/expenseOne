@@ -21,3 +21,36 @@ export const getAuthUser = cache(async () => {
 export const getCachedClient = cache(async () => {
   return createClient();
 });
+
+/**
+ * Cached current user with DB profile (role, name, email).
+ * Replaces getCurrentUser() from api-utils for server components.
+ */
+export const getCachedCurrentUser = cache(async () => {
+  const { db } = await import("@/lib/db");
+  const { users } = await import("@/lib/db/schema");
+  const { eq } = await import("drizzle-orm");
+
+  const authUser = await getAuthUser();
+  if (!authUser) return null;
+
+  const [dbUser] = await db
+    .select({
+      id: users.id,
+      email: users.email,
+      name: users.name,
+      role: users.role,
+      isActive: users.isActive,
+    })
+    .from(users)
+    .where(eq(users.id, authUser.id));
+
+  if (!dbUser || !dbUser.isActive) return null;
+
+  return {
+    id: dbUser.id,
+    email: dbUser.email,
+    name: dbUser.name,
+    role: dbUser.role as "MEMBER" | "ADMIN",
+  };
+});

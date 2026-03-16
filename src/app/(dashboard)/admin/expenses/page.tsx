@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { ExpenseFilters } from "@/components/expenses/expense-filters";
 import { ExpenseTable } from "@/components/expenses/expense-table";
 import { Pagination } from "@/components/expenses/pagination";
-import { getCurrentUser } from "@/lib/api-utils";
+import { getCachedCurrentUser } from "@/lib/supabase/cached";
 import { getExpenses } from "@/services/expense.service";
 
 interface AdminExpensesPageProps {
@@ -13,7 +13,7 @@ interface AdminExpensesPageProps {
 const PAGE_SIZE = 20;
 
 async function getAdminExpensesData(searchParams: Record<string, string | string[] | undefined>) {
-  const user = await getCurrentUser();
+  const user = await getCachedCurrentUser();
   if (!user) {
     redirect("/login");
   }

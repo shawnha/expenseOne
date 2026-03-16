@@ -6,7 +6,7 @@ import { ExpenseFilters } from "@/components/expenses/expense-filters";
 import { ExpenseTable } from "@/components/expenses/expense-table";
 import { Pagination } from "@/components/expenses/pagination";
 import { Plus } from "lucide-react";
-import { getCurrentUser } from "@/lib/api-utils";
+import { getCachedCurrentUser } from "@/lib/supabase/cached";
 import { getExpenses } from "@/services/expense.service";
 
 interface ExpensesPageProps {
@@ -16,7 +16,7 @@ interface ExpensesPageProps {
 const PAGE_SIZE = 20;
 
 async function getExpensesData(searchParams: Record<string, string | string[] | undefined>) {
-  const user = await getCurrentUser();
+  const user = await getCachedCurrentUser();
   if (!user) {
     redirect("/login");
   }

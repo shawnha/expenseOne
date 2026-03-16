@@ -1,4 +1,4 @@
-import { getAuthUser, getCachedClient } from "@/lib/supabase/cached";
+import { getAuthUser, getCachedClient, getCachedCurrentUser } from "@/lib/supabase/cached";
 import { cn } from "@/lib/utils";
 import { formatAmount } from "@/lib/validations/expense-form";
 import {
@@ -53,14 +53,9 @@ async function getDashboardData() {
     };
   }
 
-  // Get user role
-  const { data: userProfile } = await supabase
-    .from("users")
-    .select("role")
-    .eq("id", authUser.id)
-    .single();
-
-  const userRole = (userProfile?.role as "MEMBER" | "ADMIN") ?? "MEMBER";
+  // Get user role from cached profile (avoids duplicate DB query)
+  const cachedUser = await getCachedCurrentUser();
+  const userRole = cachedUser?.role ?? "MEMBER";
 
   // This month range
   const now = new Date();
