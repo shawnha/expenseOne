@@ -73,15 +73,14 @@ export function PullToRefresh() {
       if (pullDistanceRef.current >= THRESHOLD) {
         isRefreshingRef.current = true;
         setIsRefreshing(true);
-        pullDistanceRef.current = THRESHOLD * 0.6;
-        setPullDistance(THRESHOLD * 0.6);
+        // Reset pull distance immediately — spinner stays via isRefreshing state
+        pullDistanceRef.current = 0;
+        setPullDistance(0);
         router.refresh();
         setTimeout(() => {
           isRefreshingRef.current = false;
           setIsRefreshing(false);
-          pullDistanceRef.current = 0;
-          setPullDistance(0);
-        }, 1000);
+        }, 1200);
       } else {
         pullDistanceRef.current = 0;
         setPullDistance(0);
@@ -99,17 +98,17 @@ export function PullToRefresh() {
     };
   }, [router, getScrollableParent]);
 
-  const progress = Math.min(pullDistance / THRESHOLD, 1);
+  const progress = isRefreshing ? 1 : Math.min(pullDistance / THRESHOLD, 1);
   const isActive = pullDistance > 0 || isRefreshing;
 
   if (!isActive) return null;
 
   return (
     <div
-      className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center pointer-events-none"
+      className="fixed left-0 right-0 z-50 flex items-center justify-center pointer-events-none"
       style={{
-        height: pullDistance,
-        transition: pullingRef.current ? "none" : "height 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+        top: isRefreshing ? 16 : Math.max(pullDistance - 40, 0),
+        transition: pullingRef.current ? "none" : "top 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
       }}
     >
       <div
