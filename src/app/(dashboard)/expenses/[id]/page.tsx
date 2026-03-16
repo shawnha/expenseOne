@@ -4,7 +4,7 @@ import {
   ArrowLeft,
   Download,
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthUser, getCachedClient } from "@/lib/supabase/cached";
 import { cn } from "@/lib/utils";
 import {
   formatAmount,
@@ -138,8 +138,8 @@ async function getExpenseDetail(id: string) {
     };
   }
 
-  const supabase = await createClient();
-  const { data: { user: authUser } } = await supabase.auth.getUser();
+  const supabase = await getCachedClient();
+  const authUser = await getAuthUser();
 
   if (!authUser) {
     redirect("/login");
@@ -290,7 +290,7 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
           {canEdit && (
             <Link
               href={`/expenses/${id}/edit`}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl glass text-sm font-medium text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.05)] transition-colors apple-press"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full glass text-sm font-medium text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.05)] transition-colors apple-press"
             >
               수정
             </Link>

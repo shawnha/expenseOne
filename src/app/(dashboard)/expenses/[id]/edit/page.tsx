@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthUser, getCachedClient } from "@/lib/supabase/cached";
 import type {
   ExpenseType,
   ExpenseStatus,
@@ -47,10 +47,8 @@ async function getExpenseForEdit(id: string): Promise<{
   expense: ExpenseEditData;
   attachments: ExistingAttachment[];
 } | null> {
-  const supabase = await createClient();
-  const {
-    data: { user: authUser },
-  } = await supabase.auth.getUser();
+  const supabase = await getCachedClient();
+  const authUser = await getAuthUser();
 
   if (!authUser) {
     redirect("/login");

@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { getAuthUser, getCachedClient } from "@/lib/supabase/cached";
 import { cn } from "@/lib/utils";
 import { formatAmount } from "@/lib/validations/expense-form";
 import {
@@ -39,8 +39,8 @@ async function getDashboardData() {
     };
   }
 
-  const supabase = await createClient();
-  const { data: { user: authUser } } = await supabase.auth.getUser();
+  const supabase = await getCachedClient();
+  const authUser = await getAuthUser();
 
   if (!authUser) {
     return {

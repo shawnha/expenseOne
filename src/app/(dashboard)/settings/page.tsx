@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthUser, getCachedClient } from "@/lib/supabase/cached";
 import type { User as UserType } from "@/types";
 
 export default async function SettingsPage() {
@@ -23,10 +23,8 @@ export default async function SettingsPage() {
     );
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user: authUser },
-  } = await supabase.auth.getUser();
+  const supabase = await getCachedClient();
+  const authUser = await getAuthUser();
 
   if (!authUser) redirect("/login");
 
@@ -91,7 +89,7 @@ function SettingsContent({
           <div>
             <p className="text-base font-semibold text-[var(--apple-label)]">{user.name}</p>
             <span className={user.role === "ADMIN" ? "glass-badge glass-badge-blue animate-spring-pop" : "glass-badge glass-badge-gray animate-spring-pop"}>
-              {user.role === "ADMIN" ? "관리자" : "멤버"}
+              {user.role === "ADMIN" ? "관리자" : "크루"}
             </span>
           </div>
         </div>

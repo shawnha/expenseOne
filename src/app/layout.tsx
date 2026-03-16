@@ -5,7 +5,8 @@ import "./globals.css";
 const inter = Inter({
   variable: "--font-sans",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["400", "600"],
+  display: "swap",
 });
 
 const geistMono = Geist_Mono({
@@ -24,6 +25,14 @@ export const metadata: Metadata = {
   title: "ExpenseOne",
   description: "팀 비용을 효율적으로 관리하세요",
   manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-16.png", sizes: "16x16", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

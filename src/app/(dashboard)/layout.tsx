@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthUser, getCachedClient } from "@/lib/supabase/cached";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { PageTransition } from "@/components/layout/page-transition";
@@ -46,16 +46,14 @@ export default async function DashboardLayout({
 
   let supabase;
   try {
-    supabase = await createClient();
+    supabase = await getCachedClient();
   } catch (e) {
     console.error("Failed to create Supabase client:", e);
     redirect("/login");
   }
 
-  // Get authenticated user
-  const {
-    data: { user: authUser },
-  } = await supabase.auth.getUser();
+  // Get authenticated user (cached — shared with child pages)
+  const authUser = await getAuthUser();
 
   if (!authUser) {
     redirect("/login");

@@ -13,7 +13,7 @@ export function PlugSplash({ mode, onComplete }: PlugSplashProps) {
 
   useEffect(() => {
     const t1 = setTimeout(() => setPhase("active"), 100);
-    const duration = mode === "connecting" ? 500 : 400;
+    const duration = mode === "connecting" ? 1000 : 800;
     const t2 = setTimeout(() => setPhase("exit"), duration);
     const t3 = setTimeout(() => onComplete?.(), duration + 400);
     return () => {
