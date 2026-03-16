@@ -59,7 +59,7 @@ export default function RootLayout({
           <div className="app-splash-logo">
             <svg viewBox="0 0 32 32" fill="none" width="48" height="48">
               <rect className="app-splash-line1" x="8" y="10" width="16" height="2.5" rx="1.25" fill="white" />
-              <rect className="app-splash-line2" x="8" y="14.75" width="12" height="2.5" rx="1.25" fill="white" />
+              <rect className="app-splash-line2" x="8" y="14.75" width="12" height="2.5" rx="1.25" fill="white" opacity="0.3" />
               <rect className="app-splash-line3" x="8" y="19.5" width="16" height="2.5" rx="1.25" fill="white" />
             </svg>
           </div>
@@ -76,7 +76,7 @@ export default function RootLayout({
           .app-splash-line1{opacity:0;animation:splash-line .3s ease .5s forwards}
           .app-splash-line2{opacity:0;animation:splash-line .3s ease .65s forwards}
           .app-splash-line3{opacity:0;animation:splash-line .3s ease .8s forwards}
-          .app-splash-name{margin-top:16px;font-size:22px;font-weight:700;letter-spacing:-.02em;color:var(--apple-label,#000);opacity:0;overflow:hidden;white-space:nowrap;border-right:2px solid var(--apple-label,#000);width:0;animation:splash-typing 0.6s steps(10) 1s forwards,splash-blink .6s step-end 1s 3}
+          .app-splash-name{margin-top:16px;font-size:22px;font-weight:700;letter-spacing:-.02em;color:var(--apple-label,#000);opacity:0;animation:splash-fade .5s ease 1s forwards}
           .app-splash-status{position:absolute;bottom:max(60px,env(safe-area-inset-bottom,20px));display:flex;flex-direction:column;align-items:center;gap:8px;opacity:0;animation:splash-fade .3s ease 2.5s forwards}
           .app-splash-status span{font-size:13px;color:var(--apple-secondary-label,#8e8e93)}
           .app-splash-bar{width:160px;height:3px;border-radius:2px;background:rgba(0,122,255,.15);overflow:hidden}

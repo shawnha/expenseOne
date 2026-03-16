@@ -182,6 +182,32 @@ export function Sidebar({ user }: SidebarProps) {
 
 export function MobileSidebar({ user }: SidebarProps) {
   const [open, setOpen] = useState(false);
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+
+  // Edge swipe gesture to open sidebar
+  const handleTouchStart = useCallback((e: TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  }, []);
+
+  const handleTouchEnd = useCallback((e: TouchEvent) => {
+    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+    const deltaY = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
+    // Swipe right from left edge (within 30px), horizontal movement > 60px, not vertical scroll
+    if (touchStartX.current < 30 && deltaX > 60 && deltaY < 80) {
+      setOpen(true);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    document.addEventListener("touchstart", handleTouchStart, { passive: true });
+    document.addEventListener("touchend", handleTouchEnd, { passive: true });
+    return () => {
+      document.removeEventListener("touchstart", handleTouchStart);
+      document.removeEventListener("touchend", handleTouchEnd);
+    };
+  }, [handleTouchStart, handleTouchEnd]);
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>

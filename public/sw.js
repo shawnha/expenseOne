@@ -1,5 +1,5 @@
-// ExpenseOne Service Worker v2 — StaleWhileRevalidate for HTML
-const CACHE_NAME = "expenseone-v2";
+// ExpenseOne Service Worker v3 — StaleWhileRevalidate for HTML
+const CACHE_NAME = "expenseone-v3";
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
