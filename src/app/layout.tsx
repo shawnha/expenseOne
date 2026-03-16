@@ -54,7 +54,7 @@ css.textContent='#app-splash{position:fixed;inset:0;z-index:99999;display:flex;f
 document.head.appendChild(css);
 var d=document.createElement('div');d.id='app-splash';
 d.innerHTML='<div class="app-splash-logo"><svg viewBox="0 0 32 32" fill="none" width="48" height="48"><rect class="app-splash-line1" x="8" y="10" width="16" height="2.5" rx="1.25" fill="white"/><rect class="app-splash-line2" x="8" y="14.75" width="12" height="2.5" rx="1.25" fill="white" opacity="0.3"/><rect class="app-splash-line3" x="8" y="19.5" width="16" height="2.5" rx="1.25" fill="white"/></svg></div><div class="app-splash-name">ExpenseOne</div><div class="app-splash-status"><div class="app-splash-bar"><div class="app-splash-bar-fill"></div></div><span>정보를 가져오고 있습니다</span></div>';
-document.body.appendChild(d);
+(document.body||document.documentElement).appendChild(d);
 window.__splashStart=Date.now();
 window.__splashMinMs=2000;
 window.__splashDismiss=function(){var s=document.getElementById('app-splash');if(!s)return;var elapsed=Date.now()-window.__splashStart;var wait=Math.max(0,window.__splashMinMs-elapsed);setTimeout(function(){s.classList.add('hide');setTimeout(function(){if(s.parentNode)s.parentNode.removeChild(s)},400)},wait)};
