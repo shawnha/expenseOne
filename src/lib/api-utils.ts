@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
@@ -37,6 +37,33 @@ export function handleError(err: unknown) {
   }
   console.error("Unhandled error:", err);
   return errorResponse("INTERNAL_ERROR", "서버 내부 오류가 발생했습니다.");
+}
+
+// ---------------------------------------------------------------------------
+// CSRF: validate origin for mutation requests
+// ---------------------------------------------------------------------------
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function validateUUID(id: string): string {
+  if (!UUID_REGEX.test(id)) {
+    throw new AppError("VALIDATION_ERROR", "잘못된 ID 형식입니다.");
+  }
+  return id;
+}
+
+export function validateOrigin(request: NextRequest): NextResponse | null {
+  const origin = request.headers.get("origin");
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (origin && appUrl) {
+    const allowedOrigin = new URL(appUrl).origin;
+    if (origin !== allowedOrigin) {
+      return NextResponse.json(
+        { error: { code: "FORBIDDEN", message: "잘못된 요청 출처입니다." } },
+        { status: 403 },
+      );
+    }
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------

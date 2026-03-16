@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin, errorResponse, handleError } from "@/lib/api-utils";
+import { requireAdmin, errorResponse, handleError, validateOrigin } from "@/lib/api-utils";
 import { db } from "@/lib/db";
 import { users, expenses, notifications, attachments } from "@/lib/db/schema";
 import { eq, inArray } from "drizzle-orm";
@@ -23,6 +23,9 @@ const updateUserSchema = z.object({
 
 export async function PATCH(request: NextRequest) {
   try {
+    const csrfError = validateOrigin(request);
+    if (csrfError) return csrfError;
+
     const admin = await requireAdmin();
 
     const body = await request.json();
@@ -83,6 +86,9 @@ const deleteUserSchema = z.object({
 
 export async function DELETE(request: NextRequest) {
   try {
+    const csrfError = validateOrigin(request);
+    if (csrfError) return csrfError;
+
     const admin = await requireAdmin();
 
     const body = await request.json();

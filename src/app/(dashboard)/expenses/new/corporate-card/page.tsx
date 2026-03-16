@@ -17,7 +17,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 import { FileUpload } from "@/components/forms/file-upload";
-import { SubmitSuccessDialog } from "@/components/forms/submit-success-dialog";
+import dynamic from "next/dynamic";
+const SubmitSuccessDialog = dynamic(() => import("@/components/forms/submit-success-dialog").then(m => m.SubmitSuccessDialog), { ssr: false });
 import {
   corporateCardFormSchema,
   type CorporateCardFormData,
@@ -150,7 +151,7 @@ export default function CorporateCardPage() {
           category: data.category,
           merchantName: data.merchantName || undefined,
           transactionDate: formatDateISO(new Date()),
-          isUrgent: data.isUrgent ?? false,
+          isUrgent: false,
         }),
       });
 
@@ -204,7 +205,7 @@ export default function CorporateCardPage() {
       <div className="flex items-center gap-3">
         <Link
           href="/expenses/new"
-          className="flex items-center justify-center size-11 rounded-lg glass-subtle text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)] transition-colors"
+          className="flex items-center justify-center size-11 rounded-full glass-subtle text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)] transition-colors"
         >
           <ArrowLeft className="size-4" />
         </Link>
@@ -333,20 +334,6 @@ export default function CorporateCardPage() {
               )}
             </div>
 
-            {/* 긴급 체크박스 */}
-            <div>
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  {...register("isUrgent")}
-                  className="size-4 rounded border-[rgba(0,0,0,0.15)] text-[#FF3B30] focus:ring-[#FF3B30] cursor-pointer"
-                />
-                <span className="text-[13px] font-medium text-[#FF3B30]">
-                  긴급
-                </span>
-              </label>
-            </div>
-
             {/* 카테고리 — 버튼 토글 + 직접 입력 */}
             <div className="space-y-1.5">
               <Label>
@@ -367,7 +354,7 @@ export default function CorporateCardPage() {
                             setShowCustomCategory(false);
                           }}
                           className={cn(
-                            "px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors border",
+                            "px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors border",
                             field.value === opt.value && !showCustomCategory
                               ? "bg-[#007AFF] text-white border-[#007AFF]"
                               : "glass-subtle border-[var(--apple-separator)] text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)]"
@@ -383,7 +370,7 @@ export default function CorporateCardPage() {
                           field.onChange("");
                         }}
                         className={cn(
-                          "px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors border",
+                          "px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors border",
                           showCustomCategory
                             ? "bg-[#007AFF] text-white border-[#007AFF]"
                             : "glass-subtle border-[var(--apple-separator)] text-[var(--apple-secondary-label)] hover:bg-[rgba(0,0,0,0.03)]"
@@ -462,7 +449,7 @@ export default function CorporateCardPage() {
             <Button
               type="button"
               variant="outline"
-              className="w-full rounded-lg h-11 glass border-[var(--apple-separator)]"
+              className="w-full rounded-full h-11 glass border-[var(--apple-separator)]"
             >
               취소
             </Button>
@@ -471,7 +458,7 @@ export default function CorporateCardPage() {
             type="button"
             disabled={isSubmitting}
             onClick={() => handleSubmit(onSubmit, onValidationError)()}
-            className="w-full sm:w-auto rounded-lg h-11 bg-[#007AFF] hover:bg-[#0066d6]"
+            className="w-full sm:w-auto rounded-full h-11 bg-[#007AFF] hover:bg-[#0066d6]"
           >
             {isSubmitting ? (
               <>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, errorResponse, handleError } from "@/lib/api-utils";
+import { requireAuth, errorResponse, handleError, validateOrigin } from "@/lib/api-utils";
 import {
   createExpenseSchema,
   expenseQuerySchema,
@@ -46,6 +46,8 @@ export async function GET(request: NextRequest) {
 // ---------------------------------------------------------------------------
 export async function POST(request: NextRequest) {
   try {
+    const csrfError = validateOrigin(request);
+    if (csrfError) return csrfError;
     const user = await requireAuth();
     const body = await request.json();
 

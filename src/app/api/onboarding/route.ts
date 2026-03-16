@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { validateOrigin } from "@/lib/api-utils";
 import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
@@ -17,6 +18,9 @@ const onboardingSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const csrfError = validateOrigin(request);
+    if (csrfError) return csrfError;
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 

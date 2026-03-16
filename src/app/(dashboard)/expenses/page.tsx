@@ -55,6 +55,7 @@ async function getExpensesData(searchParams: Record<string, string | string[] | 
     category: item.category,
     createdAt: item.createdAt?.toISOString() ?? "",
     submitter: item.submitter ?? null,
+    isUrgent: item.isUrgent ?? false,
   }));
 
   return {
@@ -81,7 +82,7 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
         </div>
         <Link
           href="/expenses/new"
-          className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#007AFF] text-white text-sm font-medium rounded-lg hover:bg-[#0066d6] transition-colors shadow-sm apple-press"
+          className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#007AFF] text-white text-sm font-medium rounded-full hover:bg-[#0066d6] transition-colors shadow-sm apple-press"
         >
           <Plus className="size-4" />
           새 비용

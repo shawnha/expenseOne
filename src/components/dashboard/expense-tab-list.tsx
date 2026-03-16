@@ -26,6 +26,7 @@ interface Expense {
   status: string;
   type: string;
   created_at: string;
+  is_urgent?: boolean;
 }
 
 type TabType = "CORPORATE_CARD" | "DEPOSIT_REQUEST";
@@ -43,7 +44,7 @@ export function ExpenseTabList({ expenses }: { expenses: Expense[] }) {
           type="button"
           onClick={() => setActiveTab("CORPORATE_CARD")}
           className={cn(
-            "inline-flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 text-[13px] sm:text-sm font-medium rounded-xl sm:rounded-2xl apple-press transition-all duration-200",
+            "inline-flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 text-[13px] sm:text-sm font-medium rounded-full sm:rounded-full apple-press transition-all duration-200",
             activeTab === "CORPORATE_CARD"
               ? "bg-[#007AFF] text-white shadow-[0_2px_8px_rgba(0,122,255,0.25)]"
               : "glass-button text-[var(--apple-label)]"
@@ -56,7 +57,7 @@ export function ExpenseTabList({ expenses }: { expenses: Expense[] }) {
           type="button"
           onClick={() => setActiveTab("DEPOSIT_REQUEST")}
           className={cn(
-            "inline-flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 text-[13px] sm:text-sm font-medium rounded-xl sm:rounded-2xl apple-press transition-all duration-200",
+            "inline-flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 text-[13px] sm:text-sm font-medium rounded-full sm:rounded-full apple-press transition-all duration-200",
             activeTab === "DEPOSIT_REQUEST"
               ? "bg-[#007AFF] text-white shadow-[0_2px_8px_rgba(0,122,255,0.25)]"
               : "glass-button text-[var(--apple-label)]"
@@ -102,8 +103,9 @@ export function ExpenseTabList({ expenses }: { expenses: Expense[] }) {
                   )}
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="text-[13px] sm:text-[15px] font-medium text-[var(--apple-label)] truncate">
-                      {expense.title}
+                    <p className="text-[13px] sm:text-[15px] font-medium text-[var(--apple-label)] truncate flex items-center gap-1.5">
+                      <span className="truncate">{expense.title}</span>
+                      {expense.is_urgent && <span className="glass-badge glass-badge-red shrink-0">긴급</span>}
                     </p>
                     <p className="text-[11px] sm:text-xs text-[var(--apple-secondary-label)] mt-0.5">
                       {formatDateKR(expense.created_at)}

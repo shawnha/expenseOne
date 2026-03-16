@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, errorResponse, handleError } from "@/lib/api-utils";
+import { requireAuth, errorResponse, handleError, validateOrigin } from "@/lib/api-utils";
 import { attachmentUploadSchema } from "@/lib/validations/expense";
 import { uploadAttachment } from "@/services/attachment.service";
 
@@ -8,6 +8,9 @@ import { uploadAttachment } from "@/services/attachment.service";
 // ---------------------------------------------------------------------------
 export async function POST(request: NextRequest) {
   try {
+    const csrfError = validateOrigin(request);
+    if (csrfError) return csrfError;
+
     const user = await requireAuth();
 
     const formData = await request.formData();

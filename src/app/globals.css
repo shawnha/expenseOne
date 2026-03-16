@@ -240,6 +240,8 @@
 /* Apple Liquid Glass — Core Utility Classes                           */
 /* ------------------------------------------------------------------ */
 
+@layer base {
+
 .glass {
   position: relative;
   background: var(--glass-bg);
@@ -568,6 +570,8 @@
     var(--glass-shadow-inner);
 }
 
+} /* end @layer base */
+
 /* ------------------------------------------------------------------ */
 /* Apple-Style Layered Shadows                                         */
 /* ------------------------------------------------------------------ */
@@ -735,8 +739,8 @@
 }
 
 .glass-badge-green {
-  background: rgba(52, 199, 89, 0.35);
-  color: #14662a;
+  background: rgba(52, 199, 89, 0.12);
+  color: #1a7a34;
 }
 
 .glass-badge-red {
@@ -760,7 +764,7 @@
 }
 
 .dark .glass-badge-green {
-  background: rgba(48, 209, 88, 0.38);
+  background: rgba(48, 209, 88, 0.18);
   color: #32D74B;
 }
 

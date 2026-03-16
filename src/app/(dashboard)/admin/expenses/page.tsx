@@ -57,6 +57,7 @@ async function getAdminExpensesData(searchParams: Record<string, string | string
     category: item.category,
     createdAt: item.createdAt?.toISOString() ?? "",
     submitter: item.submitter ?? null,
+    isUrgent: item.isUrgent ?? false,
   }));
 
   return {

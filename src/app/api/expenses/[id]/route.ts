@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, errorResponse, handleError } from "@/lib/api-utils";
+import { requireAuth, errorResponse, handleError, validateOrigin, validateUUID } from "@/lib/api-utils";
 import { updateExpenseSchema } from "@/lib/validations/expense";
 import {
   getExpenseById,
@@ -15,7 +15,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
     const user = await requireAuth();
-    const { id } = await context.params;
+    const id = validateUUID((await context.params).id);
 
     const expense = await getExpenseById(id, user.id, user.role);
 
@@ -30,8 +30,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
 // ---------------------------------------------------------------------------
 export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
+    const csrfError = validateOrigin(request);
+    if (csrfError) return csrfError;
     const user = await requireAuth();
-    const { id } = await context.params;
+    const id = validateUUID((await context.params).id);
     const body = await request.json();
 
     const parsed = updateExpenseSchema.safeParse(body);
@@ -55,8 +57,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 // ---------------------------------------------------------------------------
 export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
+    const csrfError = validateOrigin(request);
+    if (csrfError) return csrfError;
     const user = await requireAuth();
-    const { id } = await context.params;
+    const id = validateUUID((await context.params).id);
 
     await deleteExpense(id, user.id, user.role);
 

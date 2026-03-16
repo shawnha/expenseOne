@@ -41,7 +41,7 @@ export function SubmitSuccessDialog({
             onClick={() => {
               window.location.href = newSubmitPath;
             }}
-            className="w-full rounded-xl h-11 bg-[#007AFF] hover:bg-[#0066d6]"
+            className="w-full rounded-full h-11 bg-[#007AFF] hover:bg-[#0066d6]"
           >
             추가 제출
           </Button>
@@ -50,7 +50,7 @@ export function SubmitSuccessDialog({
             onClick={() => {
               window.location.href = "/expenses";
             }}
-            className="w-full rounded-xl h-11 glass border-[rgba(255,255,255,0.3)]"
+            className="w-full rounded-full h-11 glass border-[rgba(255,255,255,0.3)]"
           >
             비용관리로 이동
           </Button>

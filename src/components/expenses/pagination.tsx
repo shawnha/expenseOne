@@ -48,7 +48,7 @@ export function Pagination({ page, totalPages, total }: PaginationProps) {
           onClick={() => goToPage(page - 1)}
           disabled={page <= 1}
           aria-label="이전 페이지"
-          className="rounded-xl glass border-[var(--apple-separator)]"
+          className="rounded-full glass border-[var(--apple-separator)]"
         >
           <ChevronLeft className="size-4" />
         </Button>
@@ -58,7 +58,7 @@ export function Pagination({ page, totalPages, total }: PaginationProps) {
               variant={page === 1 ? "default" : "outline"}
               size="sm"
               onClick={() => goToPage(1)}
-              className={page === 1 ? "rounded-xl bg-[#007AFF] hover:bg-[#0066d6]" : "rounded-xl glass border-[var(--apple-separator)]"}
+              className={page === 1 ? "rounded-full bg-[#007AFF] hover:bg-[#0066d6]" : "rounded-full glass border-[var(--apple-separator)]"}
             >
               1
             </Button>
@@ -74,7 +74,7 @@ export function Pagination({ page, totalPages, total }: PaginationProps) {
             size="sm"
             onClick={() => goToPage(p)}
             aria-current={p === page ? "page" : undefined}
-            className={p === page ? "rounded-xl bg-[#007AFF] hover:bg-[#0066d6]" : "rounded-xl glass border-[var(--apple-separator)]"}
+            className={p === page ? "rounded-full bg-[#007AFF] hover:bg-[#0066d6]" : "rounded-full glass border-[var(--apple-separator)]"}
           >
             {p}
           </Button>
@@ -88,7 +88,7 @@ export function Pagination({ page, totalPages, total }: PaginationProps) {
               variant={page === totalPages ? "default" : "outline"}
               size="sm"
               onClick={() => goToPage(totalPages)}
-              className={page === totalPages ? "rounded-xl bg-[#007AFF] hover:bg-[#0066d6]" : "rounded-xl glass border-[var(--apple-separator)]"}
+              className={page === totalPages ? "rounded-full bg-[#007AFF] hover:bg-[#0066d6]" : "rounded-full glass border-[var(--apple-separator)]"}
             >
               {totalPages}
             </Button>
@@ -100,7 +100,7 @@ export function Pagination({ page, totalPages, total }: PaginationProps) {
           onClick={() => goToPage(page + 1)}
           disabled={page >= totalPages}
           aria-label="다음 페이지"
-          className="rounded-xl glass border-[var(--apple-separator)]"
+          className="rounded-full glass border-[var(--apple-separator)]"
         >
           <ChevronRight className="size-4" />
         </Button>

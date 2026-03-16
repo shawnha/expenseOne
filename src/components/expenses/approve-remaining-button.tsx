@@ -43,7 +43,7 @@ export function ApproveRemainingButton({ expenseId }: ApproveRemainingButtonProp
     <Button
       onClick={handleClick}
       disabled={isLoading}
-      className="rounded-xl bg-[#34C759] hover:bg-[#2db84e] text-white text-sm font-medium"
+      className="rounded-full bg-[#34AE54] hover:bg-[#2D9A49] text-white text-sm font-medium"
     >
       {isLoading ? (
         <>

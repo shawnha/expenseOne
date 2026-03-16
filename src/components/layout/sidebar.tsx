@@ -123,15 +123,7 @@ function SidebarContent({
     <div className="flex h-full flex-col">
       {/* Logo */}
       <div className="flex h-14 items-center gap-2.5 px-4 relative z-[2]">
-        <div className="flex items-center justify-center size-7 rounded-full shadow-sm"
-          style={{ background: "linear-gradient(145deg, #0A84FF 0%, #007AFF 50%, #0063CC 100%)" }}
-        >
-          <svg viewBox="0 0 32 32" className="size-4" fill="none">
-            <rect x="6" y="9" width="20" height="3" rx="1.5" fill="white" />
-            <rect x="6" y="14.5" width="15" height="3" rx="1.5" fill="rgba(255,255,255,0.7)" />
-            <rect x="6" y="20" width="20" height="3" rx="1.5" fill="white" />
-          </svg>
-        </div>
+        <img src="/logo.svg" alt="ExpenseOne" className="size-7" />
         <span className="text-base font-bold tracking-[-0.02em] text-[#000000] dark:text-white">ExpenseOne</span>
       </div>
 

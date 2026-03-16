@@ -29,6 +29,7 @@ interface ExpenseRow {
     name: string;
     email: string;
   } | null;
+  isUrgent?: boolean;
 }
 
 interface ExpenseTableProps {
@@ -115,13 +116,13 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>제목</TableHead>
-              <TableHead>유형</TableHead>
-              <TableHead className="text-right">금액</TableHead>
-              <TableHead>카테고리</TableHead>
-              <TableHead>상태</TableHead>
-              <TableHead>제출일</TableHead>
-              {showSubmitter && <TableHead>제출자</TableHead>}
+              <TableHead className="min-w-[140px]">제목</TableHead>
+              <TableHead className="w-[80px]">유형</TableHead>
+              <TableHead className="w-[120px] text-right pr-6">금액</TableHead>
+              <TableHead className="w-[100px]">카테고리</TableHead>
+              <TableHead className="w-[72px]">상태</TableHead>
+              <TableHead className="w-[100px]">제출일</TableHead>
+              {showSubmitter && <TableHead className="w-[80px]">제출자</TableHead>}
               {isAdmin && <TableHead className="text-center w-[72px]">작업</TableHead>}
             </TableRow>
           </TableHeader>
@@ -145,16 +146,21 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
                     }
                   }}
                 >
-                  <TableCell className="font-medium max-w-[200px] truncate text-[var(--apple-label)]">
-                    {expense.title}
+                  <TableCell className="font-medium max-w-[200px] text-[var(--apple-label)]">
+                    <span className="flex items-center gap-1.5">
+                      <span className="truncate">{expense.title}</span>
+                      {expense.isUrgent && <span className="glass-badge glass-badge-red shrink-0">긴급</span>}
+                    </span>
                   </TableCell>
                   <TableCell>
                     <span className={typeInfo.className}>{typeInfo.label}</span>
                   </TableCell>
-                  <TableCell className="text-right tabular-nums font-medium text-[var(--apple-label)]">
+                  <TableCell className="text-right tabular-nums font-medium text-[var(--apple-label)] pr-6">
                     {formatAmount(expense.amount)}원
                   </TableCell>
-                  <TableCell className="text-[var(--apple-secondary-label)]">{getCategoryLabel(expense.category)}</TableCell>
+                  <TableCell className="text-[var(--apple-secondary-label)]">
+                    {getCategoryLabel(expense.category)}
+                  </TableCell>
                   <TableCell>
                     <span className={statusInfo.className}>{statusInfo.label}</span>
                   </TableCell>
@@ -171,7 +177,7 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
                           onClick={(e) => handleAdminDelete(expense.id, e)}
                           disabled={deletingId === expense.id}
                           className={cn(
-                            "px-2.5 py-1 text-xs font-medium rounded-lg transition-colors apple-press",
+                            "px-2.5 py-1 text-xs font-medium rounded-full transition-colors apple-press",
                             confirmId === expense.id
                               ? "bg-[#FF3B30] text-white hover:bg-[#d32f2f]"
                               : "text-[#FF3B30] hover:bg-[rgba(255,59,48,0.1)]"
@@ -459,8 +465,11 @@ function SwipeableExpenseCard({
         aria-label={`${expense.title} 상세 보기`}
       >
         <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-medium text-[var(--apple-label)] truncate">{expense.title}</span>
-          <span className={statusInfo.className}>{statusInfo.label}</span>
+          <span className="flex items-center gap-1.5 min-w-0">
+            <span className="text-sm font-medium text-[var(--apple-label)] truncate">{expense.title}</span>
+            {expense.isUrgent && <span className="glass-badge glass-badge-red shrink-0">긴급</span>}
+          </span>
+          <span className={cn(statusInfo.className, "shrink-0")}>{statusInfo.label}</span>
         </div>
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">

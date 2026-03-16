@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Trash2, ChevronDown, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -12,12 +12,22 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import type { UserRole } from "@/types";
 
@@ -26,7 +36,6 @@ interface UserRow {
   name: string;
   email: string;
   role: string;
-  department: string | null;
   isActive: boolean;
   createdAt: string;
   cardLastFour: string | null;
@@ -37,6 +46,18 @@ interface UsersTableProps {
   currentUserId: string;
 }
 
+/* ------------------------------------------------------------------ */
+/* Apple HIG typography tokens (used across all cells)                */
+/*   - cell text: 13px / leading-normal                               */
+/*   - primary: --apple-label                                         */
+/*   - secondary: --apple-secondary-label                             */
+/*   - badge: glass-badge (11px pill)                                 */
+/* ------------------------------------------------------------------ */
+
+const CELL = "text-[13px] leading-normal";
+const PRIMARY = `${CELL} font-medium text-[var(--apple-label)]`;
+const SECONDARY = `${CELL} text-[var(--apple-secondary-label)]`;
+
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr);
   const y = d.getFullYear();
@@ -45,9 +66,60 @@ function formatDate(dateStr: string): string {
   return `${y}.${m}.${day}`;
 }
 
+const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
+  { value: "ADMIN", label: "관리자" },
+  { value: "MEMBER", label: "크루" },
+];
+
+function RoleLabel({
+  role,
+  interactive,
+  disabled,
+  onChange,
+}: {
+  role: string;
+  interactive: boolean;
+  disabled?: boolean;
+  onChange?: (newRole: UserRole) => void;
+}) {
+  const current = ROLE_OPTIONS.find((o) => o.value === role) ?? ROLE_OPTIONS[1];
+  const badgeClass = role === "ADMIN" ? "glass-badge glass-badge-blue" : "glass-badge glass-badge-gray";
+
+  if (!interactive) {
+    return <span className={badgeClass}>{current.label}</span>;
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        disabled={disabled}
+        className={`${badgeClass} inline-flex items-center gap-0.5 cursor-pointer hover:opacity-70 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed outline-none`}
+      >
+        {current.label}
+        <ChevronDown className="size-3 opacity-60" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" sideOffset={4}>
+        {ROLE_OPTIONS.map((opt) => (
+          <DropdownMenuItem
+            key={opt.value}
+            onClick={() => {
+              if (opt.value !== role) onChange?.(opt.value);
+            }}
+            className="flex items-center justify-between gap-4"
+          >
+            {opt.label}
+            {opt.value === role && <Check className="size-3.5 text-[#007AFF]" />}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function UsersTable({ users: initialUsers, currentUserId }: UsersTableProps) {
   const [userList, setUserList] = useState(initialUsers);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const handleRoleChange = async (userId: string, newRole: UserRole) => {
     setUpdatingId(userId);
@@ -97,6 +169,28 @@ export function UsersTable({ users: initialUsers, currentUserId }: UsersTablePro
     }
   };
 
+  const handleDelete = async (userId: string) => {
+    setDeletingId(userId);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+      if (res.ok) {
+        setUserList((prev) => prev.filter((u) => u.id !== userId));
+        toast.success("사용자가 삭제되었습니다.");
+      } else {
+        const json = await res.json().catch(() => null);
+        toast.error(json?.error?.message ?? "사용자 삭제에 실패했습니다.");
+      }
+    } catch {
+      toast.error("요청 중 오류가 발생했습니다.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="glass p-3 sm:p-4 lg:p-5">
       <div className="flex items-center gap-2 mb-4">
@@ -109,50 +203,36 @@ export function UsersTable({ users: initialUsers, currentUserId }: UsersTablePro
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>이름</TableHead>
-              <TableHead>이메일</TableHead>
-              <TableHead>역할</TableHead>
-              <TableHead>부서</TableHead>
-              <TableHead>카드번호</TableHead>
-              <TableHead>상태</TableHead>
-              <TableHead>가입일</TableHead>
-              <TableHead className="text-right">활성/비활성</TableHead>
+              <TableHead className={SECONDARY}>이름</TableHead>
+              <TableHead className={SECONDARY}>이메일</TableHead>
+              <TableHead className={SECONDARY}>역할</TableHead>
+              <TableHead className={SECONDARY}>카드번호</TableHead>
+              <TableHead className={SECONDARY}>상태</TableHead>
+              <TableHead className={SECONDARY}>가입일</TableHead>
+              <TableHead className={`${SECONDARY} text-right`}>관리</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {userList.map((user) => {
               const isSelf = user.id === currentUserId;
               const isUpdating = updatingId === user.id;
+              const isDeleting = deletingId === user.id;
               return (
                 <TableRow
                   key={user.id}
                   className={`hover:bg-[rgba(0,0,0,0.03)] ${!user.isActive ? "opacity-50" : ""}`}
                 >
-                  <TableCell className="text-sm font-medium text-[var(--apple-label)]">{user.name}</TableCell>
-                  <TableCell className="text-xs text-[var(--apple-secondary-label)]">{user.email}</TableCell>
+                  <TableCell className={PRIMARY}>{user.name}</TableCell>
+                  <TableCell className={SECONDARY}>{user.email}</TableCell>
                   <TableCell>
-                    {isSelf ? (
-                      <span className="text-xs font-medium text-[var(--apple-label)]">
-                        {user.role === "ADMIN" ? "관리자" : "멤버"}
-                      </span>
-                    ) : (
-                      <Select
-                        value={user.role}
-                        onValueChange={(v) => handleRoleChange(user.id, v as UserRole)}
-                        disabled={isUpdating}
-                      >
-                        <SelectTrigger className="w-24" aria-label="역할 변경">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="MEMBER">멤버</SelectItem>
-                          <SelectItem value="ADMIN">관리자</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
+                    <RoleLabel
+                      role={user.role}
+                      interactive={!isSelf}
+                      disabled={isUpdating}
+                      onChange={(newRole) => handleRoleChange(user.id, newRole)}
+                    />
                   </TableCell>
-                  <TableCell className="text-xs text-[var(--apple-secondary-label)]">{user.department ?? "-"}</TableCell>
-                  <TableCell className="text-xs text-[var(--apple-secondary-label)]">
+                  <TableCell className={SECONDARY}>
                     {user.cardLastFour ? `****-${user.cardLastFour}` : "-"}
                   </TableCell>
                   <TableCell>
@@ -160,21 +240,56 @@ export function UsersTable({ users: initialUsers, currentUserId }: UsersTablePro
                       {user.isActive ? "활성" : "비활성"}
                     </span>
                   </TableCell>
-                  <TableCell className="text-xs text-[var(--apple-secondary-label)]">{formatDate(user.createdAt)}</TableCell>
+                  <TableCell className={SECONDARY}>{formatDate(user.createdAt)}</TableCell>
                   <TableCell className="text-right">
                     {isSelf ? (
-                      <span className="text-xs text-[var(--apple-secondary-label)]">-</span>
+                      <span className={SECONDARY}>-</span>
                     ) : (
-                      <Button
-                        size="sm"
-                        variant={user.isActive ? "destructive" : "default"}
-                        disabled={isUpdating}
-                        onClick={() => handleToggleActive(user.id, !user.isActive)}
-                        className="rounded-xl"
-                      >
-                        {isUpdating && <Loader2 className="size-3 animate-spin" />}
-                        {user.isActive ? "비활성화" : "활성화"}
-                      </Button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button
+                          size="sm"
+                          variant={user.isActive ? "destructive" : "default"}
+                          disabled={isUpdating || isDeleting}
+                          onClick={() => handleToggleActive(user.id, !user.isActive)}
+                          className="rounded-xl text-[12px] h-7"
+                        >
+                          {isUpdating && <Loader2 className="size-3 animate-spin" />}
+                          {user.isActive ? "비활성화" : "활성화"}
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger
+                            render={
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                disabled={isDeleting}
+                                className="rounded-xl text-red-500 hover:text-red-600 hover:bg-red-50 h-7 w-7 p-0"
+                              />
+                            }
+                          >
+                            {isDeleting ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>사용자 삭제</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                <strong>{user.name}</strong> ({user.email}) 사용자를 삭제하시겠습니까?
+                                <br />
+                                해당 사용자의 모든 경비 내역과 알림이 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>취소</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDelete(user.id)}
+                                className="bg-red-500 hover:bg-red-600"
+                              >
+                                삭제
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
                     )}
                   </TableCell>
                 </TableRow>
@@ -189,6 +304,7 @@ export function UsersTable({ users: initialUsers, currentUserId }: UsersTablePro
         {userList.map((user) => {
           const isSelf = user.id === currentUserId;
           const isUpdating = updatingId === user.id;
+          const isDeleting = deletingId === user.id;
           return (
             <div
               key={user.id}
@@ -196,52 +312,72 @@ export function UsersTable({ users: initialUsers, currentUserId }: UsersTablePro
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-[var(--apple-label)]">{user.name}</p>
-                  <p className="truncate text-xs text-[var(--apple-secondary-label)]">{user.email}</p>
+                  <p className={PRIMARY}>{user.name}</p>
+                  <p className={`${SECONDARY} truncate`}>{user.email}</p>
                 </div>
                 <span className={user.isActive ? "glass-badge glass-badge-green" : "glass-badge glass-badge-red"}>
                   {user.isActive ? "활성" : "비활성"}
                 </span>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="glass-badge glass-badge-blue">
-                  {user.role === "ADMIN" ? "관리자" : "멤버"}
-                </span>
-                {user.department && (
-                  <span className="text-[var(--apple-secondary-label)]">{user.department}</span>
-                )}
+              <div className="flex flex-wrap items-center gap-2">
+                <RoleLabel
+                  role={user.role}
+                  interactive={!isSelf}
+                  disabled={isUpdating}
+                  onChange={(newRole) => handleRoleChange(user.id, newRole)}
+                />
                 {user.cardLastFour && (
-                  <span className="text-[var(--apple-secondary-label)]">카드 ****-{user.cardLastFour}</span>
+                  <span className={SECONDARY}>카드 ****-{user.cardLastFour}</span>
                 )}
-                <span className="text-[var(--apple-secondary-label)]">{formatDate(user.createdAt)}</span>
+                <span className={SECONDARY}>{formatDate(user.createdAt)}</span>
               </div>
 
               {!isSelf && (
                 <div className="flex gap-2">
-                  <Select
-                    value={user.role}
-                    onValueChange={(v) => handleRoleChange(user.id, v as UserRole)}
-                    disabled={isUpdating}
-                  >
-                    <SelectTrigger className="flex-1" aria-label="역할 변경">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="MEMBER">멤버</SelectItem>
-                      <SelectItem value="ADMIN">관리자</SelectItem>
-                    </SelectContent>
-                  </Select>
                   <Button
                     size="sm"
                     variant={user.isActive ? "destructive" : "default"}
-                    disabled={isUpdating}
+                    disabled={isUpdating || isDeleting}
                     onClick={() => handleToggleActive(user.id, !user.isActive)}
-                    className="rounded-xl"
+                    className="flex-1 rounded-xl text-[12px] h-7"
                   >
                     {isUpdating && <Loader2 className="size-3 animate-spin" />}
                     {user.isActive ? "비활성화" : "활성화"}
                   </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger
+                      render={
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={isDeleting}
+                          className="rounded-xl text-red-500 hover:text-red-600 hover:bg-red-50 h-7 w-7 p-0"
+                        />
+                      }
+                    >
+                      {isDeleting ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>사용자 삭제</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          <strong>{user.name}</strong> ({user.email}) 사용자를 삭제하시겠습니까?
+                          <br />
+                          해당 사용자의 모든 경비 내역과 알림이 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>취소</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => handleDelete(user.id)}
+                          className="bg-red-500 hover:bg-red-600"
+                        >
+                          삭제
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               )}
             </div>

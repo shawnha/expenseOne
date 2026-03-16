@@ -132,7 +132,7 @@ export function ExpenseFilters() {
         <button
           type="button"
           onClick={() => setMobileFiltersOpen((prev) => !prev)}
-          className={`sm:hidden flex items-center justify-center size-11 rounded-xl border border-input transition-colors ${
+          className={`sm:hidden flex items-center justify-center size-11 rounded-full border border-input transition-colors ${
             mobileFiltersOpen || hasActiveFilters
               ? "bg-[#007AFF] text-white border-[#007AFF]"
               : "bg-transparent text-[var(--apple-secondary-label)]"

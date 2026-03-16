@@ -285,7 +285,7 @@ function CorporateCardEditForm({
     <div className="mx-auto max-w-2xl space-y-5">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Link href={`/expenses/${expense.id}`} className="flex items-center justify-center size-8 rounded-lg glass-subtle text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)] transition-colors">
+        <Link href={`/expenses/${expense.id}`} className="flex items-center justify-center size-8 rounded-full glass-subtle text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)] transition-colors">
           <ArrowLeft className="size-4" />
         </Link>
         <div>
@@ -374,9 +374,9 @@ function CorporateCardEditForm({
 
         <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <Link href={`/expenses/${expense.id}`} className="w-full sm:w-auto">
-            <Button type="button" variant="outline" className="w-full rounded-lg h-11 glass border-[var(--apple-separator)]">취소</Button>
+            <Button type="button" variant="outline" className="w-full rounded-full h-11 glass border-[var(--apple-separator)]">취소</Button>
           </Link>
-          <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto rounded-lg h-11 bg-[#007AFF] hover:bg-[#0066d6]">
+          <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto rounded-full h-11 bg-[#007AFF] hover:bg-[#0066d6]">
             {isSubmitting ? (<><Loader2 className="size-4 animate-spin" />수정 중...</>) : "수정하기"}
           </Button>
         </div>
@@ -530,7 +530,7 @@ function DepositRequestEditForm({
   return (
     <div className="mx-auto max-w-2xl space-y-5">
       <div className="flex items-center gap-3">
-        <Link href={`/expenses/${expense.id}`} className="flex items-center justify-center size-8 rounded-lg glass-subtle text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)] transition-colors">
+        <Link href={`/expenses/${expense.id}`} className="flex items-center justify-center size-8 rounded-full glass-subtle text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)] transition-colors">
           <ArrowLeft className="size-4" />
         </Link>
         <div>
@@ -633,9 +633,9 @@ function DepositRequestEditForm({
 
         <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <Link href={`/expenses/${expense.id}`} className="w-full sm:w-auto">
-            <Button type="button" variant="outline" className="w-full rounded-lg h-11 glass border-[var(--apple-separator)]">취소</Button>
+            <Button type="button" variant="outline" className="w-full rounded-full h-11 glass border-[var(--apple-separator)]">취소</Button>
           </Link>
-          <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto rounded-lg h-11 bg-[#007AFF] hover:bg-[#0066d6]">
+          <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto rounded-full h-11 bg-[#007AFF] hover:bg-[#0066d6]">
             {isSubmitting ? (<><Loader2 className="size-4 animate-spin" />수정 중...</>) : "수정하기"}
           </Button>
         </div>

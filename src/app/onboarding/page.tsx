@@ -186,7 +186,7 @@ export default function OnboardingPage() {
           <Button
             type="submit"
             disabled={isSubmitting || !name.trim()}
-            className="w-full rounded-lg h-11 bg-[#007AFF] hover:bg-[#0066d6]"
+            className="w-full rounded-full h-11 bg-[#007AFF] hover:bg-[#0066d6]"
           >
             {isSubmitting ? (
               <>

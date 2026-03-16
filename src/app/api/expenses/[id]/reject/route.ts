@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin, errorResponse, handleError } from "@/lib/api-utils";
+import { requireAdmin, errorResponse, handleError, validateOrigin, validateUUID } from "@/lib/api-utils";
 import { rejectExpenseSchema } from "@/lib/validations/expense";
 import { rejectExpense } from "@/services/expense.service";
 
@@ -10,8 +10,11 @@ type RouteContext = { params: Promise<{ id: string }> };
 // ---------------------------------------------------------------------------
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
+    const csrfError = validateOrigin(request);
+    if (csrfError) return csrfError;
+
     const admin = await requireAdmin();
-    const { id } = await context.params;
+    const id = validateUUID((await context.params).id);
     const body = await request.json();
 
     const parsed = rejectExpenseSchema.safeParse(body);

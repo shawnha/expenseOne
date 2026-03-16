@@ -81,7 +81,7 @@ export function AdminApproveReject({ expenseId, expenseTitle, expenseAmount }: A
     <>
       <Button
         onClick={() => setApproveOpen(true)}
-        className="rounded-xl bg-[#34C759] hover:bg-[#2DB14F] text-white apple-press"
+        className="rounded-full bg-[#34AE54] hover:bg-[#2D9A49] text-white apple-press"
       >
         <Check className="size-3.5" />
         승인
@@ -89,7 +89,7 @@ export function AdminApproveReject({ expenseId, expenseTitle, expenseAmount }: A
       <Button
         variant="destructive"
         onClick={() => setRejectOpen(true)}
-        className="rounded-xl apple-press"
+        className="rounded-full apple-press"
       >
         <X className="size-3.5" />
         반려
@@ -106,10 +106,10 @@ export function AdminApproveReject({ expenseId, expenseTitle, expenseAmount }: A
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setApproveOpen(false)} disabled={approving} className="rounded-xl">
+            <Button variant="outline" onClick={() => setApproveOpen(false)} disabled={approving} className="rounded-full">
               취소
             </Button>
-            <Button onClick={handleApprove} disabled={approving} className="rounded-xl bg-[#34C759] hover:bg-[#2DB14F]">
+            <Button onClick={handleApprove} disabled={approving} className="rounded-full bg-[#34AE54] hover:bg-[#2D9A49]">
               {approving && <Loader2 className="size-4 animate-spin" />}
               승인
             </Button>
@@ -132,10 +132,10 @@ export function AdminApproveReject({ expenseId, expenseTitle, expenseAmount }: A
             rows={3}
           />
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setRejectOpen(false); setRejectionReason(""); }} disabled={rejecting} className="rounded-xl">
+            <Button variant="outline" onClick={() => { setRejectOpen(false); setRejectionReason(""); }} disabled={rejecting} className="rounded-full">
               취소
             </Button>
-            <Button variant="destructive" onClick={handleReject} disabled={rejecting || !rejectionReason.trim()} className="rounded-xl">
+            <Button variant="destructive" onClick={handleReject} disabled={rejecting || !rejectionReason.trim()} className="rounded-full">
               {rejecting && <Loader2 className="size-4 animate-spin" />}
               반려
             </Button>

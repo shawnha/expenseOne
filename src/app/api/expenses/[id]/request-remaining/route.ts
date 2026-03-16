@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, errorResponse, handleError } from "@/lib/api-utils";
+import { requireAuth, errorResponse, handleError, validateOrigin, validateUUID } from "@/lib/api-utils";
 import { db } from "@/lib/db";
 import { expenses, users } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -12,8 +12,11 @@ type RouteContext = { params: Promise<{ id: string }> };
 // ---------------------------------------------------------------------------
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
+    const csrfError = validateOrigin(request);
+    if (csrfError) return csrfError;
+
     const user = await requireAuth();
-    const { id } = await context.params;
+    const id = validateUUID((await context.params).id);
 
     // Fetch the expense
     const [expense] = await db

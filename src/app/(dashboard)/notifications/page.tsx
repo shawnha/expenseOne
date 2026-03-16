@@ -144,7 +144,7 @@ export default function NotificationsPage() {
             size="sm"
             onClick={handleMarkAllRead}
             disabled={markingAll}
-            className="rounded-xl glass border-[var(--apple-separator)] gap-1.5 apple-press"
+            className="rounded-full glass border-[var(--apple-separator)] gap-1.5 apple-press"
           >
             {markingAll ? (
               <Loader2 className="size-3.5 animate-spin" />

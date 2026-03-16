@@ -160,7 +160,9 @@ export default function AdminDashboardPage() {
         </div>
         <Select value={period} onValueChange={(v) => setPeriod(v as PeriodFilter)}>
           <SelectTrigger className="w-32" aria-label="기간 필터">
-            <SelectValue placeholder="기간 선택" />
+            <SelectValue placeholder="기간 선택">
+              {PERIOD_OPTIONS.find((o) => o.value === period)?.label}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {PERIOD_OPTIONS.map((opt) => (

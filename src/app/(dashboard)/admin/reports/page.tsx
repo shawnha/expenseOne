@@ -165,7 +165,9 @@ export default function AdminReportsPage() {
             <Label className="text-[13px]">비용 유형</Label>
             <Select value={type} onValueChange={(v) => setType(v as ExpenseType | "ALL")}>
               <SelectTrigger className="w-full" aria-label="비용 유형">
-                <SelectValue />
+                <SelectValue>
+                  {TYPE_OPTIONS.find((o) => o.value === type)?.label}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {TYPE_OPTIONS.map((opt) => (
@@ -178,7 +180,9 @@ export default function AdminReportsPage() {
             <Label className="text-[13px]">상태</Label>
             <Select value={status} onValueChange={(v) => setStatus(v as ExpenseStatus | "ALL")}>
               <SelectTrigger className="w-full" aria-label="상태">
-                <SelectValue />
+                <SelectValue>
+                  {STATUS_OPTIONS.find((o) => o.value === status)?.label}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {STATUS_OPTIONS.map((opt) => (
@@ -191,7 +195,9 @@ export default function AdminReportsPage() {
             <Label className="text-[13px]">카테고리</Label>
             <Select value={category} onValueChange={(v) => setCategory(v ?? "ALL")}>
               <SelectTrigger className="w-full" aria-label="카테고리">
-                <SelectValue />
+                <SelectValue>
+                  {CATEGORY_ALL_OPTIONS.find((o) => o.value === category)?.label}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {CATEGORY_ALL_OPTIONS.map((opt) => (
@@ -221,7 +227,7 @@ export default function AdminReportsPage() {
           <Button
             onClick={handleDownload}
             disabled={downloading || summary.count === 0}
-            className="w-full rounded-lg h-11 bg-[#007AFF] hover:bg-[#0066d6] apple-press"
+            className="w-full rounded-full h-11 bg-[#007AFF] hover:bg-[#0066d6] apple-press"
           >
             {downloading ? (
               <Loader2 className="size-4 animate-spin" />

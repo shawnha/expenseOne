@@ -29,7 +29,8 @@ import {
 } from "@/components/ui/command";
 
 import { FileUploadWithDocType } from "@/components/forms/file-upload";
-import { SubmitSuccessDialog } from "@/components/forms/submit-success-dialog";
+import dynamic from "next/dynamic";
+const SubmitSuccessDialog = dynamic(() => import("@/components/forms/submit-success-dialog").then(m => m.SubmitSuccessDialog), { ssr: false });
 import {
   depositRequestFormSchema,
   type DepositRequestFormData,
@@ -350,7 +351,7 @@ export default function DepositRequestPage() {
     <div className="mx-auto max-w-2xl space-y-5">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Link href="/expenses/new" className="flex items-center justify-center size-11 rounded-lg glass-subtle text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)] transition-colors">
+        <Link href="/expenses/new" className="flex items-center justify-center size-11 rounded-full glass-subtle text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)] transition-colors">
           <ArrowLeft className="size-4" />
         </Link>
         <div>
@@ -516,7 +517,7 @@ export default function DepositRequestPage() {
                               setValue("prePaidPercentage", 100);
                             }}
                             className={cn(
-                              "px-4 py-2 rounded-xl text-sm font-medium transition-all",
+                              "px-4 py-2 rounded-full text-sm font-medium transition-all",
                               prePaidMode === "full"
                                 ? "bg-[#007AFF] text-white shadow-sm"
                                 : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)]"
@@ -531,7 +532,7 @@ export default function DepositRequestPage() {
                               setValue("prePaidPercentage", 50);
                             }}
                             className={cn(
-                              "px-4 py-2 rounded-xl text-sm font-medium transition-all",
+                              "px-4 py-2 rounded-full text-sm font-medium transition-all",
                               prePaidMode === "partial"
                                 ? "bg-[#007AFF] text-white shadow-sm"
                                 : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)]"
@@ -619,7 +620,7 @@ export default function DepositRequestPage() {
                             setShowCustomCategory(false);
                           }}
                           className={cn(
-                            "px-4 py-2 rounded-xl text-sm font-medium transition-all",
+                            "px-4 py-2 rounded-full text-sm font-medium transition-all",
                             field.value === option.value && !showCustomCategory
                               ? "bg-[#007AFF] text-white shadow-sm"
                               : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)]"
@@ -635,7 +636,7 @@ export default function DepositRequestPage() {
                           field.onChange("");
                         }}
                         className={cn(
-                          "px-4 py-2 rounded-xl text-sm font-medium transition-all",
+                          "px-4 py-2 rounded-full text-sm font-medium transition-all",
                           showCustomCategory
                             ? "bg-[#007AFF] text-white shadow-sm"
                             : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)]"
@@ -837,14 +838,14 @@ export default function DepositRequestPage() {
         {/* 버튼 */}
         <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <Link href="/expenses" className="w-full sm:w-auto">
-            <Button type="button" variant="outline" className="w-full rounded-lg h-11 glass border-[var(--apple-separator)]">
+            <Button type="button" variant="outline" className="w-full rounded-full h-11 glass border-[var(--apple-separator)]">
               취소
             </Button>
           </Link>
           <Button
             type="submit"
             disabled={isSubmitting}
-            className="w-full sm:w-auto rounded-lg h-11 bg-[#007AFF] hover:bg-[#0066d6]"
+            className="w-full sm:w-auto rounded-full h-11 bg-[#007AFF] hover:bg-[#0066d6]"
           >
             {isSubmitting ? (
               <>

@@ -37,7 +37,7 @@ export function CancelExpenseButton({ expenseId }: CancelExpenseButtonProps) {
     <button
       onClick={handleCancel}
       disabled={isPending}
-      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium text-[#FF3B30] border border-[#FF3B30]/30 hover:bg-[#FF3B30]/10 transition-colors apple-press disabled:opacity-50"
+      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium text-[#FF3B30] border border-[#FF3B30]/30 hover:bg-[#FF3B30]/10 transition-colors apple-press disabled:opacity-50"
     >
       {isPending ? "취소 중..." : "취소"}
     </button>
