@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 const THRESHOLD = 80;
 const MAX_PULL = 120;
+const HEADER_HEIGHT = 56; // h-14
 
 export function PullToRefresh() {
   const router = useRouter();
@@ -15,7 +16,7 @@ export function PullToRefresh() {
   const pullingRef = useRef(false);
   const pullDistanceRef = useRef(0);
   const isRefreshingRef = useRef(false);
-  const lockedRef = useRef(false); // true = vertical pull locked in, false/"horizontal" = cancelled
+  const lockedRef = useRef(false);
 
   const getScrollableParent = useCallback((): Element | null => {
     return document.querySelector("main.overflow-y-auto") ?? document.querySelector("main");
@@ -41,7 +42,6 @@ export function PullToRefresh() {
       const deltaY = currentY - startYRef.current;
       const deltaX = Math.abs(currentX - startXRef.current);
 
-      // If horizontal movement exceeds vertical, this is a swipe — cancel pull
       if (!lockedRef.current && (deltaX > 10 || deltaY > 10)) {
         if (deltaX > deltaY) {
           pullingRef.current = false;
@@ -56,9 +56,7 @@ export function PullToRefresh() {
         const resistance = Math.min(deltaY * 0.5, MAX_PULL);
         pullDistanceRef.current = resistance;
         setPullDistance(resistance);
-        if (resistance > 10) {
-          e.preventDefault();
-        }
+        if (resistance > 10) e.preventDefault();
       } else {
         pullingRef.current = false;
         pullDistanceRef.current = 0;
@@ -73,7 +71,6 @@ export function PullToRefresh() {
       if (pullDistanceRef.current >= THRESHOLD) {
         isRefreshingRef.current = true;
         setIsRefreshing(true);
-        // Reset pull distance immediately — spinner stays via isRefreshing state
         pullDistanceRef.current = 0;
         setPullDistance(0);
         router.refresh();
@@ -98,64 +95,49 @@ export function PullToRefresh() {
     };
   }, [router, getScrollableParent]);
 
-  const progress = isRefreshing ? 1 : Math.min(pullDistance / THRESHOLD, 1);
-  const isActive = pullDistance > 0 || isRefreshing;
+  const isPulling = pullDistance > 0 && !isRefreshing;
+  const progress = isPulling ? Math.min(pullDistance / THRESHOLD, 1) : 1;
 
-  if (!isActive) return null;
+  if (!isPulling && !isRefreshing) return null;
 
   return (
-    <div
-      className="fixed left-0 right-0 z-50 flex items-center justify-center pointer-events-none"
-      style={{
-        top: isRefreshing ? 16 : Math.max(pullDistance - 40, 0),
-        transition: pullingRef.current ? "none" : "top 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
-      }}
-    >
-      <div
-        className="flex items-center justify-center"
-        style={{
-          opacity: progress,
-          transform: `scale(${0.5 + progress * 0.5})`,
-          transition: pullingRef.current ? "none" : "all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
-        }}
-      >
-        <svg
-          width="28"
-          height="28"
-          viewBox="0 0 28 28"
-          fill="none"
-          className={isRefreshing ? "animate-spin" : ""}
-          style={
-            !isRefreshing
-              ? { transform: `rotate(${progress * 270}deg)`, transition: pullingRef.current ? "none" : "transform 0.3s ease" }
-              : undefined
-          }
+    <>
+      {/* During active pull — follows finger below header */}
+      {isPulling && (
+        <div
+          className="fixed left-0 right-0 z-[45] flex justify-center pointer-events-none"
+          style={{
+            top: HEADER_HEIGHT + Math.min(pullDistance, THRESHOLD) - 36,
+          }}
         >
-          <circle
-            cx="14"
-            cy="14"
-            r="11"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            fill="none"
-            className="text-[var(--apple-secondary-label)]"
-            strokeDasharray={`${progress * 55} 69`}
-          />
-          {isRefreshing && (
-            <circle
-              cx="14"
-              cy="14"
-              r="11"
-              stroke="#007AFF"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              fill="none"
-              strokeDasharray="17 52"
-            />
-          )}
-        </svg>
-      </div>
-    </div>
+          <div style={{ opacity: progress, transform: `scale(${0.5 + progress * 0.5})` }}>
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none"
+              style={{ transform: `rotate(${progress * 270}deg)` }}>
+              <circle cx="14" cy="14" r="11" stroke="currentColor" strokeWidth="2.5"
+                strokeLinecap="round" fill="none" className="text-[var(--apple-secondary-label)]"
+                strokeDasharray={`${progress * 55} 69`} />
+            </svg>
+          </div>
+        </div>
+      )}
+
+      {/* During refresh — fixed bar below header */}
+      {isRefreshing && (
+        <div
+          className="fixed left-0 right-0 z-[45] flex justify-center pointer-events-none"
+          style={{ top: HEADER_HEIGHT }}
+        >
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--apple-system-background)] shadow-sm border border-[var(--apple-separator)]"
+            style={{ animation: "ptr-slide-in 0.25s ease-out" }}>
+            <svg width="18" height="18" viewBox="0 0 28 28" fill="none" className="animate-spin">
+              <circle cx="14" cy="14" r="11" stroke="#007AFF" strokeWidth="2.5"
+                strokeLinecap="round" fill="none" strokeDasharray="17 52" />
+            </svg>
+            <span className="text-xs text-[var(--apple-secondary-label)]">업데이트 중</span>
+          </div>
+          <style dangerouslySetInnerHTML={{ __html: `@keyframes ptr-slide-in{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}` }} />
+        </div>
+      )}
+    </>
   );
 }
