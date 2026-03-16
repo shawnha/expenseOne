@@ -1,5 +1,5 @@
-// ExpenseOne Service Worker v3 — StaleWhileRevalidate for HTML
-const CACHE_NAME = "expenseone-v3";
+// ExpenseOne Service Worker v4 — NetworkFirst for HTML, CacheFirst for static assets
+const CACHE_NAME = "expenseone-v4";
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
@@ -49,7 +49,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   // CacheFirst for other static files (images, fonts, icons)
-  if (url.pathname.match(/\.(js|css|woff2?|png|jpg|jpeg|svg|ico|webp)$/)) {
+  if (url.pathname.match(/\.(woff2?|png|jpg|jpeg|svg|ico|webp)$/)) {
     event.respondWith(
       caches.match(request).then(
         (cached) =>
@@ -66,23 +66,39 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // StaleWhileRevalidate for HTML pages
-  // Serve cached version instantly, then update cache in background
+  // NetworkFirst for HTML pages — always try the network first to avoid
+  // serving stale HTML that references old JS chunks after a new deployment.
+  // Only fall back to cache when the network is truly unavailable (offline).
   if (request.headers.get("accept")?.includes("text/html")) {
     event.respondWith(
-      caches.open(CACHE_NAME).then((cache) =>
-        cache.match(request).then((cached) => {
-          const fetchPromise = fetch(request).then((response) => {
-            if (response.ok) {
-              cache.put(request, response.clone());
-            }
-            return response;
-          }).catch(() => cached);
-
-          // Return cached immediately if available, otherwise wait for network
-          return cached || fetchPromise;
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return response;
         })
-      )
+        .catch(() =>
+          caches.match(request).then((cached) => cached || caches.match("/"))
+        )
+    );
+    return;
+  }
+
+  // NetworkFirst for JS/CSS files not under _next/static (e.g. _next/data)
+  // These can change between deployments and must not serve stale versions
+  if (url.pathname.match(/\.(js|css)$/) || url.pathname.startsWith("/_next/")) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request))
     );
     return;
   }

@@ -17,6 +17,13 @@ function CallbackContent() {
   };
 
   useEffect(() => {
+    // Dismiss the PWA brand splash (root layout inline HTML)
+    if (typeof window !== "undefined" && (window as unknown as Record<string, () => void>).__splashDismiss) {
+      (window as unknown as Record<string, () => void>).__splashDismiss();
+    }
+  }, []);
+
+  useEffect(() => {
     if (handled.current) return;
     handled.current = true;
 

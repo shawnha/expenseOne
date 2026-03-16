@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2, Camera, User } from "lucide-react";
@@ -10,6 +10,14 @@ import { Label } from "@/components/ui/label";
 
 export default function OnboardingPage() {
   const router = useRouter();
+
+  useEffect(() => {
+    // Dismiss the PWA brand splash (root layout inline HTML)
+    if (typeof window !== "undefined" && (window as unknown as Record<string, () => void>).__splashDismiss) {
+      (window as unknown as Record<string, () => void>).__splashDismiss();
+    }
+  }, []);
+
   const [name, setName] = useState("");
   const [cardLastFour, setCardLastFour] = useState("");
   const [profileImage, setProfileImage] = useState<string | null>(null);

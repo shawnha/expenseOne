@@ -98,6 +98,7 @@ export default function RootLayout({
             var wait=Math.max(0,window.__splashMinMs-elapsed);
             setTimeout(function(){s.classList.add('hide');setTimeout(function(){s.remove()},400)},wait);
           };
+          setTimeout(function(){window.__splashDismiss&&window.__splashDismiss()},8000);
         ` }} />
         {children}
       </body>

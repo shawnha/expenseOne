@@ -5,7 +5,7 @@ import { updateSession } from '@/lib/supabase/middleware';
 const PUBLIC_ROUTES = ['/login', '/auth'];
 
 // Route prefixes that should be completely skipped by middleware
-const SKIP_PREFIXES = ['/_next', '/api/auth', '/favicon.ico'];
+const SKIP_PREFIXES = ['/_next', '/api/auth', '/favicon.ico', '/sw.js', '/manifest.json'];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -67,6 +67,6 @@ export const config = {
      * - favicon.ico (favicon file)
      * - public files (images, etc.)
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|sw\\.js|manifest\\.json|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
   ],
 };
