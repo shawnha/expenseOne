@@ -9,6 +9,11 @@ export function LoginSplash() {
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
+    // Dismiss the PWA brand splash (root layout inline HTML)
+    if (typeof window !== "undefined" && (window as unknown as Record<string, unknown>).__splashDismiss) {
+      (window as unknown as Record<string, () => void>).__splashDismiss();
+    }
+
     const key = "expense-one-splash-shown";
     if (sessionStorage.getItem(key)) {
       // Already shown this session — hide immediately
