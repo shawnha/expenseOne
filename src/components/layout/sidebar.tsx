@@ -81,6 +81,7 @@ function NavLink({
   return (
     <Link
       href={item.href}
+      prefetch={true}
       onClick={handleClick}
       className={cn(
         "flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl apple-press",
@@ -180,12 +181,17 @@ export function Sidebar({ user }: SidebarProps) {
   );
 }
 
+const MAIN_PAGES = ['/', '/expenses', '/admin', '/admin/expenses', '/admin/pending', '/admin/reports', '/admin/users', '/notifications', '/settings'];
+
 export function MobileSidebar({ user }: SidebarProps) {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
 
-  // Edge swipe gesture to open sidebar
+  // Only enable edge swipe on main pages (not detail/sub pages where back gesture is needed)
+  const isMainPage = MAIN_PAGES.includes(pathname);
+
   const handleTouchStart = useCallback((e: TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
@@ -194,20 +200,20 @@ export function MobileSidebar({ user }: SidebarProps) {
   const handleTouchEnd = useCallback((e: TouchEvent) => {
     const deltaX = e.changedTouches[0].clientX - touchStartX.current;
     const deltaY = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
-    // Swipe right from left edge (within 30px), horizontal movement > 60px, not vertical scroll
     if (touchStartX.current < 30 && deltaX > 60 && deltaY < 80) {
       setOpen(true);
     }
   }, []);
 
   React.useEffect(() => {
+    if (!isMainPage) return;
     document.addEventListener("touchstart", handleTouchStart, { passive: true });
     document.addEventListener("touchend", handleTouchEnd, { passive: true });
     return () => {
       document.removeEventListener("touchstart", handleTouchStart);
       document.removeEventListener("touchend", handleTouchEnd);
     };
-  }, [handleTouchStart, handleTouchEnd]);
+  }, [handleTouchStart, handleTouchEnd, isMainPage]);
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
