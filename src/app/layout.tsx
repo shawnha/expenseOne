@@ -46,7 +46,20 @@ export default function RootLayout({
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark')document.documentElement.classList.add('dark')}catch(e){}})();if('serviceWorker'in navigator){navigator.serviceWorker.register('/sw.js').catch(function(){})}`,
+            __html: `(function(){
+try{var t=localStorage.getItem('theme');if(t==='dark')document.documentElement.classList.add('dark')}catch(e){}
+if('serviceWorker'in navigator){navigator.serviceWorker.register('/sw.js').catch(function(){})}
+var css=document.createElement('style');
+css.textContent='#app-splash{position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--apple-bg,#f2f2f7);transition:opacity .4s ease}#app-splash.hide{opacity:0;pointer-events:none}.app-splash-logo{width:80px;height:80px;border-radius:20px;background:#007AFF;display:flex;align-items:center;justify-content:center;opacity:0;transform:scale(.6);animation:splash-pop .5s cubic-bezier(.34,1.56,.64,1) .1s forwards}.app-splash-line1{opacity:0;animation:splash-line .3s ease .5s forwards}.app-splash-line2{opacity:0;animation:splash-line .3s ease .65s forwards}.app-splash-line3{opacity:0;animation:splash-line .3s ease .8s forwards}.app-splash-name{margin-top:16px;font-size:22px;font-weight:700;letter-spacing:-.02em;color:var(--apple-label,#000);opacity:0;animation:splash-fade .5s ease 1s forwards}.app-splash-status{position:absolute;bottom:max(60px,env(safe-area-inset-bottom,20px));display:flex;flex-direction:column;align-items:center;gap:8px;opacity:0;animation:splash-fade .3s ease 2.5s forwards}.app-splash-status span{font-size:13px;color:var(--apple-secondary-label,#8e8e93)}.app-splash-bar{width:160px;height:3px;border-radius:2px;background:rgba(0,122,255,.15);overflow:hidden}.app-splash-bar-fill{width:30%;height:100%;border-radius:2px;background:#007AFF;animation:splash-progress 2s ease-in-out 2.5s infinite}@keyframes splash-pop{to{opacity:1;transform:scale(1)}}@keyframes splash-line{to{opacity:1}}@keyframes splash-fade{to{opacity:1}}@keyframes splash-progress{0%{width:30%;margin-left:0}50%{width:60%;margin-left:20%}100%{width:30%;margin-left:70%}}.dark #app-splash{background:#1c1c1e}';
+document.head.appendChild(css);
+var d=document.createElement('div');d.id='app-splash';
+d.innerHTML='<div class="app-splash-logo"><svg viewBox="0 0 32 32" fill="none" width="48" height="48"><rect class="app-splash-line1" x="8" y="10" width="16" height="2.5" rx="1.25" fill="white"/><rect class="app-splash-line2" x="8" y="14.75" width="12" height="2.5" rx="1.25" fill="white" opacity="0.3"/><rect class="app-splash-line3" x="8" y="19.5" width="16" height="2.5" rx="1.25" fill="white"/></svg></div><div class="app-splash-name">ExpenseOne</div><div class="app-splash-status"><div class="app-splash-bar"><div class="app-splash-bar-fill"></div></div><span>정보를 가져오고 있습니다</span></div>';
+document.body.appendChild(d);
+window.__splashStart=Date.now();
+window.__splashMinMs=2000;
+window.__splashDismiss=function(){var s=document.getElementById('app-splash');if(!s)return;var elapsed=Date.now()-window.__splashStart;var wait=Math.max(0,window.__splashMinMs-elapsed);setTimeout(function(){s.classList.add('hide');setTimeout(function(){if(s.parentNode)s.parentNode.removeChild(s)},400)},wait)};
+setTimeout(function(){window.__splashDismiss&&window.__splashDismiss()},8000);
+})();`,
           }}
         />
       </head>
@@ -54,52 +67,6 @@ export default function RootLayout({
         className={`${inter.variable} antialiased`}
         style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', 'Inter', system-ui, sans-serif" }}
       >
-        {/* Native-style brand splash — visible before React hydrates */}
-        <div id="app-splash">
-          <div className="app-splash-logo">
-            <svg viewBox="0 0 32 32" fill="none" width="48" height="48">
-              <rect className="app-splash-line1" x="8" y="10" width="16" height="2.5" rx="1.25" fill="white" />
-              <rect className="app-splash-line2" x="8" y="14.75" width="12" height="2.5" rx="1.25" fill="white" opacity="0.3" />
-              <rect className="app-splash-line3" x="8" y="19.5" width="16" height="2.5" rx="1.25" fill="white" />
-            </svg>
-          </div>
-          <div className="app-splash-name">ExpenseOne</div>
-          <div className="app-splash-status" id="splash-status">
-            <div className="app-splash-bar"><div className="app-splash-bar-fill" /></div>
-            <span>정보를 가져오고 있습니다</span>
-          </div>
-        </div>
-        <style dangerouslySetInnerHTML={{ __html: `
-          #app-splash{position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--apple-bg,#f2f2f7);transition:opacity .4s ease}
-          #app-splash.hide{opacity:0;pointer-events:none}
-          .app-splash-logo{width:80px;height:80px;border-radius:20px;background:#007AFF;display:flex;align-items:center;justify-content:center;opacity:0;transform:scale(.6);animation:splash-pop .5s cubic-bezier(.34,1.56,.64,1) .1s forwards}
-          .app-splash-line1{opacity:0;animation:splash-line .3s ease .5s forwards}
-          .app-splash-line2{opacity:0;animation:splash-line .3s ease .65s forwards}
-          .app-splash-line3{opacity:0;animation:splash-line .3s ease .8s forwards}
-          .app-splash-name{margin-top:16px;font-size:22px;font-weight:700;letter-spacing:-.02em;color:var(--apple-label,#000);opacity:0;animation:splash-fade .5s ease 1s forwards}
-          .app-splash-status{position:absolute;bottom:max(60px,env(safe-area-inset-bottom,20px));display:flex;flex-direction:column;align-items:center;gap:8px;opacity:0;animation:splash-fade .3s ease 2.5s forwards}
-          .app-splash-status span{font-size:13px;color:var(--apple-secondary-label,#8e8e93)}
-          .app-splash-bar{width:160px;height:3px;border-radius:2px;background:rgba(0,122,255,.15);overflow:hidden}
-          .app-splash-bar-fill{width:30%;height:100%;border-radius:2px;background:#007AFF;animation:splash-progress 2s ease-in-out 2.5s infinite}
-          @keyframes splash-pop{to{opacity:1;transform:scale(1)}}
-          @keyframes splash-line{to{opacity:1}}
-          @keyframes splash-typing{to{width:10ch;opacity:1}}
-          @keyframes splash-blink{50%{border-color:transparent}}
-          @keyframes splash-fade{to{opacity:1}}
-          @keyframes splash-progress{0%{width:30%;margin-left:0}50%{width:60%;margin-left:20%}100%{width:30%;margin-left:70%}}
-          .dark #app-splash{background:#1c1c1e}
-        ` }} />
-        <script dangerouslySetInnerHTML={{ __html: `
-          window.__splashStart=Date.now();
-          window.__splashMinMs=2000;
-          window.__splashDismiss=function(){
-            var s=document.getElementById('app-splash');if(!s)return;
-            var elapsed=Date.now()-window.__splashStart;
-            var wait=Math.max(0,window.__splashMinMs-elapsed);
-            setTimeout(function(){s.classList.add('hide');setTimeout(function(){s.remove()},400)},wait);
-          };
-          setTimeout(function(){window.__splashDismiss&&window.__splashDismiss()},8000);
-        ` }} />
         {children}
       </body>
     </html>
