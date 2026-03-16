@@ -31,7 +31,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const result = await getExpenses(parsed.data, user.id, user.role);
+    // Admin can request all expenses with ownOnly=false
+    const ownOnly = parsed.data.ownOnly === "false" && user.role === "ADMIN" ? false : true;
+    const result = await getExpenses(parsed.data, user.id, user.role, ownOnly);
 
     return NextResponse.json(result);
   } catch (err) {

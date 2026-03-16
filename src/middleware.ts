@@ -15,8 +15,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // ⚠️ DEV ONLY: Bypass auth for frontend preview
-  if (process.env.BYPASS_AUTH === 'true') {
+  // ⚠️ DEV ONLY: Bypass auth for frontend preview (never in production)
+  if (process.env.BYPASS_AUTH === 'true' && process.env.NODE_ENV === 'development') {
     return NextResponse.next();
   }
 
@@ -47,7 +47,10 @@ export async function middleware(request: NextRequest) {
     // API routes get a pass so they can return proper error responses
     console.error('Middleware error:', e);
     if (pathname.startsWith('/api/')) {
-      return NextResponse.next();
+      return NextResponse.json(
+        { error: { code: 'UNAUTHORIZED', message: 'Session error' } },
+        { status: 401 },
+      );
     }
     const url = request.nextUrl.clone();
     url.pathname = '/login';

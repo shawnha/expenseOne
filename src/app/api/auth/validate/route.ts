@@ -60,8 +60,9 @@ export async function POST(request: NextRequest) {
     user.user_metadata?.picture ||
     null;
 
-  // shawn@hanah1.com is the initial admin
-  const role = email === 'shawn@hanah1.com' ? 'ADMIN' : 'MEMBER';
+  // Initial admin is configured via environment variable
+  const initialAdminEmail = process.env.INITIAL_ADMIN_EMAIL || 'shawn@hanah1.com';
+  const role = email === initialAdminEmail ? 'ADMIN' : 'MEMBER';
 
   const { error: insertError } = await supabase.from('users').insert({
     id: user.id,
@@ -74,6 +75,7 @@ export async function POST(request: NextRequest) {
 
   if (insertError) {
     console.error('User registration error:', insertError.message);
+    return NextResponse.json({ error: { code: 'registration_failed', message: 'Failed to create user account' } }, { status: 500 });
   }
 
   return NextResponse.json({ redirect: '/onboarding' });

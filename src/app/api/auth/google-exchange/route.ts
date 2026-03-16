@@ -23,8 +23,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: { message: 'Server config error' } }, { status: 500 });
   }
 
+  // Validate redirect_uri against allowlist
+  const allowedRedirectUris = appUrl
+    ? [`${appUrl}/auth/callback`, `${appUrl}/auth/google-callback`]
+    : [];
+  if (redirect_uri && allowedRedirectUris.length > 0 && !allowedRedirectUris.includes(redirect_uri)) {
+    return NextResponse.json({ error: { message: 'Invalid redirect_uri' } }, { status: 400 });
+  }
+
   // Exchange authorization code for tokens
-  // redirect_uri must match what was used in the authorization request
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

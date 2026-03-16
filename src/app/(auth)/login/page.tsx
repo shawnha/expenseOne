@@ -6,7 +6,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { createClient } from '@/lib/supabase/client';
 
-const GOOGLE_CLIENT_ID = '175310795095-j89iooq6jb6pvgs8u43nl43iv6ksl1gu.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
 
 const ERROR_MESSAGES: Record<string, string> = {
   domain: '허용되지 않은 이메일 도메인입니다. 회사 이메일로 로그인해 주세요.',
@@ -118,7 +118,7 @@ function LoginContent() {
             <button
               onClick={handleLogin}
               disabled={loading}
-              className="inline-flex w-full items-center justify-center gap-2.5 h-[52px] rounded-[10px] text-[15px] font-medium bg-[rgba(255,255,255,0.7)] backdrop-blur-xl border border-[rgba(0,0,0,0.06)] hover:bg-[rgba(255,255,255,0.85)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.08)] hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 text-[var(--apple-label)] disabled:opacity-50"
+              className="inline-flex w-full items-center justify-center gap-2.5 h-[52px] rounded-full text-[15px] font-medium bg-[rgba(255,255,255,0.7)] backdrop-blur-xl border border-[rgba(0,0,0,0.06)] hover:bg-[rgba(255,255,255,0.85)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.08)] hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 text-[var(--apple-label)] disabled:opacity-50"
             >
               {loading ? (
                 <div className="size-5 border-2 border-[#007AFF] border-t-transparent rounded-full animate-spin" />

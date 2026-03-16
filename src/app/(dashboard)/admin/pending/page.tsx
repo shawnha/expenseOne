@@ -47,13 +47,14 @@ interface PendingExpense {
     email: string;
   };
   attachmentCount: number;
+  isUrgent: boolean;
 }
 
 // Mock data
 const MOCK_PENDING: PendingExpense[] = [
-  { id: "m1", title: "외주 디자인 비용", amount: 800000, category: "SOFTWARE", createdAt: "2026-03-12T10:00:00Z", submitter: { name: "김철수", email: "kim@company.com" }, attachmentCount: 2 },
-  { id: "m2", title: "서버 인프라 비용", amount: 350000, category: "EQUIPMENT", createdAt: "2026-03-11T14:00:00Z", submitter: { name: "이영희", email: "lee@company.com" }, attachmentCount: 1 },
-  { id: "m3", title: "출장 교통비", amount: 120000, category: "TRAVEL", createdAt: "2026-03-10T09:00:00Z", submitter: { name: "박지민", email: "park@company.com" }, attachmentCount: 3 },
+  { id: "m1", title: "외주 디자인 비용", amount: 800000, category: "SOFTWARE", createdAt: "2026-03-12T10:00:00Z", submitter: { name: "김철수", email: "kim@company.com" }, attachmentCount: 2, isUrgent: true },
+  { id: "m2", title: "서버 인프라 비용", amount: 350000, category: "EQUIPMENT", createdAt: "2026-03-11T14:00:00Z", submitter: { name: "이영희", email: "lee@company.com" }, attachmentCount: 1, isUrgent: false },
+  { id: "m3", title: "출장 교통비", amount: 120000, category: "TRAVEL", createdAt: "2026-03-10T09:00:00Z", submitter: { name: "박지민", email: "park@company.com" }, attachmentCount: 3, isUrgent: false },
 ];
 
 function getCategoryLabel(category: string): string {
@@ -88,7 +89,7 @@ export default function AdminPendingPage() {
     setLoading(true);
     try {
       const res = await fetch(
-        "/api/expenses?type=DEPOSIT_REQUEST&status=SUBMITTED&limit=100",
+        "/api/expenses?type=DEPOSIT_REQUEST&status=SUBMITTED&limit=100&ownOnly=false",
       );
       if (res.ok) {
         const json = await res.json();
@@ -103,13 +104,14 @@ export default function AdminPendingPage() {
             (e.attachmentCount as number) ??
             ((e.attachments as unknown[]) ?? []).length ??
             0,
+          isUrgent: (e.isUrgent as boolean) ?? false,
         }));
         setExpenses(items);
       } else {
-        setExpenses(MOCK_PENDING);
+        setExpenses([]);
       }
     } catch {
-      setExpenses(MOCK_PENDING);
+      setExpenses([]);
     } finally {
       setLoading(false);
     }
@@ -228,8 +230,11 @@ export default function AdminPendingPage() {
                         }
                       }}
                     >
-                      <TableCell className="max-w-[200px] truncate text-sm font-medium text-[var(--apple-label)]">
-                        {expense.title}
+                      <TableCell className="max-w-[200px] text-sm font-medium text-[var(--apple-label)]">
+                        <span className="flex items-center gap-1.5">
+                          <span className="truncate">{expense.title}</span>
+                          {expense.isUrgent && <span className="glass-badge glass-badge-red shrink-0">긴급</span>}
+                        </span>
                       </TableCell>
                       <TableCell className="text-sm text-[var(--apple-label)]">{expense.submitter.name}</TableCell>
                       <TableCell className="text-right text-sm tabular-nums font-medium text-[var(--apple-label)]">
@@ -254,7 +259,7 @@ export default function AdminPendingPage() {
                           <Button
                             size="sm"
                             onClick={(e) => { e.stopPropagation(); setApproveTarget(expense); }}
-                            className="rounded-xl bg-[#34C759] hover:bg-[#2DB14F] text-white apple-press"
+                            className="rounded-full bg-[#34AE54] hover:bg-[#2D9A49] text-white apple-press"
                           >
                             <Check className="size-3.5" />
                             승인
@@ -263,7 +268,7 @@ export default function AdminPendingPage() {
                             size="sm"
                             variant="destructive"
                             onClick={(e) => { e.stopPropagation(); setRejectTarget(expense); }}
-                            className="rounded-xl apple-press"
+                            className="rounded-full apple-press"
                           >
                             <X className="size-3.5" />
                             반려
@@ -288,7 +293,10 @@ export default function AdminPendingPage() {
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-[var(--apple-label)] truncate">{expense.title}</p>
+                        <p className="text-sm font-medium text-[var(--apple-label)] truncate flex items-center gap-1.5">
+                          <span className="truncate">{expense.title}</span>
+                          {expense.isUrgent && <span className="glass-badge glass-badge-red shrink-0">긴급</span>}
+                        </p>
                         <p className="text-xs text-[var(--apple-secondary-label)]">{expense.submitter.name}</p>
                       </div>
                       <span className="text-xs text-[var(--apple-secondary-label)]">
@@ -311,11 +319,11 @@ export default function AdminPendingPage() {
                     </div>
                   </button>
                   <div className="flex gap-2 px-4 pb-4 pt-2">
-                    <Button size="sm" className="flex-1 rounded-xl bg-[#34C759] hover:bg-[#2DB14F] text-white apple-press" onClick={() => setApproveTarget(expense)}>
+                    <Button size="sm" className="flex-1 rounded-full bg-[#34AE54] hover:bg-[#2D9A49] text-white apple-press" onClick={() => setApproveTarget(expense)}>
                       <Check className="size-3.5" />
                       승인
                     </Button>
-                    <Button size="sm" variant="destructive" className="flex-1 rounded-xl apple-press" onClick={() => setRejectTarget(expense)}>
+                    <Button size="sm" variant="destructive" className="flex-1 rounded-full apple-press" onClick={() => setRejectTarget(expense)}>
                       <X className="size-3.5" />
                       반려
                     </Button>
@@ -342,10 +350,10 @@ export default function AdminPendingPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setApproveTarget(null)} disabled={approving} className="rounded-xl">
+            <Button variant="outline" onClick={() => setApproveTarget(null)} disabled={approving} className="rounded-full">
               취소
             </Button>
-            <Button onClick={handleApprove} disabled={approving} className="rounded-xl bg-[#34C759] hover:bg-[#2DB14F]">
+            <Button onClick={handleApprove} disabled={approving} className="rounded-full bg-[#34AE54] hover:bg-[#2D9A49]">
               {approving && <Loader2 className="size-4 animate-spin" />}
               승인
             </Button>
@@ -378,7 +386,7 @@ export default function AdminPendingPage() {
               variant="outline"
               onClick={() => { setRejectTarget(null); setRejectionReason(""); }}
               disabled={rejecting}
-              className="rounded-xl"
+              className="rounded-full"
             >
               취소
             </Button>
@@ -386,7 +394,7 @@ export default function AdminPendingPage() {
               variant="destructive"
               onClick={handleReject}
               disabled={rejecting || !rejectionReason.trim()}
-              className="rounded-xl"
+              className="rounded-full"
             >
               {rejecting && <Loader2 className="size-4 animate-spin" />}
               반려

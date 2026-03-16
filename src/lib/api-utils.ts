@@ -51,8 +51,8 @@ export interface AuthUser {
 }
 
 export async function getCurrentUser(): Promise<AuthUser | null> {
-  // DEV ONLY: bypass auth for API routes
-  if (process.env.BYPASS_AUTH === "true") {
+  // DEV ONLY: bypass auth for API routes (never in production)
+  if (process.env.BYPASS_AUTH === "true" && process.env.NODE_ENV === "development") {
     const devId = "00000000-0000-0000-0000-000000000001";
     const devEmail = "dev@company.com";
     const devName = "개발자";

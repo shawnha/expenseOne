@@ -413,6 +413,10 @@ export async function cancelExpense(expenseId: string, userId: string) {
       and(
         eq(expenses.id, expenseId),
         eq(expenses.submittedById, userId),
+        or(
+          eq(expenses.status, "SUBMITTED"),
+          eq(expenses.status, "APPROVED"),
+        ),
       ),
     )
     .returning();
