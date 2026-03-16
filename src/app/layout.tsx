@@ -54,6 +54,22 @@ export default function RootLayout({
         className={`${inter.variable} antialiased`}
         style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', 'Inter', system-ui, sans-serif" }}
       >
+        {/* Instant loading indicator — shown until React hydrates and replaces it */}
+        <div id="pwa-splash" style={{
+          position: "fixed", inset: 0, zIndex: 99999,
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          backgroundColor: "var(--apple-bg, #f2f2f7)",
+          transition: "opacity 0.3s",
+        }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: "50%",
+            border: "3px solid rgba(0,122,255,0.2)",
+            borderTopColor: "#007AFF",
+            animation: "pwa-spin 0.8s linear infinite",
+          }} />
+          <style dangerouslySetInnerHTML={{ __html: `@keyframes pwa-spin{to{transform:rotate(360deg)}}` }} />
+        </div>
+        <script dangerouslySetInnerHTML={{ __html: `setTimeout(function(){var s=document.getElementById('pwa-splash');if(s)s.style.opacity='0';setTimeout(function(){if(s)s.remove()},300)},300)` }} />
         {children}
       </body>
     </html>
