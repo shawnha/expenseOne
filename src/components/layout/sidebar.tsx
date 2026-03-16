@@ -181,39 +181,8 @@ export function Sidebar({ user }: SidebarProps) {
   );
 }
 
-const MAIN_PAGES = ['/', '/expenses', '/admin', '/admin/expenses', '/admin/pending', '/admin/reports', '/admin/users', '/notifications', '/settings'];
-
 export function MobileSidebar({ user }: SidebarProps) {
   const [open, setOpen] = useState(false);
-  const pathname = usePathname();
-  const touchStartX = useRef(0);
-  const touchStartY = useRef(0);
-  const isMainPageRef = useRef(false);
-
-  // Track main page status via ref so touch handlers always have current value
-  isMainPageRef.current = MAIN_PAGES.includes(pathname);
-
-  React.useEffect(() => {
-    const onTouchStart = (e: TouchEvent) => {
-      touchStartX.current = e.touches[0].clientX;
-      touchStartY.current = e.touches[0].clientY;
-    };
-    const onTouchEnd = (e: TouchEvent) => {
-      // Only open sidebar on main pages — sub-pages use native back gesture
-      if (!isMainPageRef.current) return;
-      const deltaX = e.changedTouches[0].clientX - touchStartX.current;
-      const deltaY = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
-      if (touchStartX.current < 30 && deltaX > 60 && deltaY < 80) {
-        setOpen(true);
-      }
-    };
-    document.addEventListener("touchstart", onTouchStart, { passive: true });
-    document.addEventListener("touchend", onTouchEnd, { passive: true });
-    return () => {
-      document.removeEventListener("touchstart", onTouchStart);
-      document.removeEventListener("touchend", onTouchEnd);
-    };
-  }, []);
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>

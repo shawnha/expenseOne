@@ -58,7 +58,7 @@ d.innerHTML='<div class="app-splash-logo"><svg viewBox="0 0 32 32" fill="none" w
 window.__splashStart=Date.now();
 window.__splashMinMs=800;
 window.__splashDismiss=function(){var s=document.getElementById('app-splash');if(!s)return;var elapsed=Date.now()-window.__splashStart;var wait=Math.max(0,window.__splashMinMs-elapsed);setTimeout(function(){s.classList.add('hide');setTimeout(function(){if(s.parentNode)s.parentNode.removeChild(s)},400)},wait)};
-setTimeout(function(){window.__splashDismiss&&window.__splashDismiss()},8000);
+setTimeout(function(){window.__splashDismiss&&window.__splashDismiss()},3000);
 })();`,
           }}
         />
