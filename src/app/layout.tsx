@@ -90,9 +90,14 @@ export default function RootLayout({
           .dark #app-splash{background:#1c1c1e}
         ` }} />
         <script dangerouslySetInnerHTML={{ __html: `
-          window.__splashDismiss=function(){var s=document.getElementById('app-splash');if(s){s.classList.add('hide');setTimeout(function(){s.remove()},400)}};
-          window.__splashReady=false;
-          window.addEventListener('load',function(){window.__splashReady=true});
+          window.__splashStart=Date.now();
+          window.__splashMinMs=2000;
+          window.__splashDismiss=function(){
+            var s=document.getElementById('app-splash');if(!s)return;
+            var elapsed=Date.now()-window.__splashStart;
+            var wait=Math.max(0,window.__splashMinMs-elapsed);
+            setTimeout(function(){s.classList.add('hide');setTimeout(function(){s.remove()},400)},wait);
+          };
         ` }} />
         {children}
       </body>
