@@ -83,7 +83,7 @@ d.innerHTML=[
 '<rect class="sp-l3" x="8" y="19.5" width="16" height="2.5" rx="1.25" fill="white"/>',
 '</svg></div>',
 '<div class="sp-name">ExpenseOne</div>',
-'<div class="sp-plug"><svg width="60" height="28" viewBox="0 0 24 12" fill="none">',
+'<div class="sp-plug"><svg width="56" height="18" viewBox="-1 -1 20 14" fill="none">',
 '<rect x="0" y="2" width="10" height="8" rx="1.5" stroke="currentColor" stroke-width="1.2" fill="none"/>',
 '<rect x="3" y="4" width="1.5" height="4" rx=".5" fill="currentColor" opacity=".3"/>',
 '<rect x="6" y="4" width="1.5" height="4" rx=".5" fill="currentColor" opacity=".3"/>',
@@ -93,7 +93,7 @@ d.innerHTML=[
 '<rect x="10.5" y="3" width="4" height="6" rx="1" stroke="currentColor" stroke-width="1.2" fill="none"/>',
 '<line x1="14.5" y1="6" x2="18" y2="6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>',
 '</g>',
-'<circle class="sp-spark" cx="5" cy="1" r="1.2" fill="currentColor"/>',
+'<circle class="sp-spark" cx="5" cy="0" r="1.2" fill="currentColor"/>',
 '</svg></div>',
 '<div class="sp-status"><div class="sp-bar"><div class="sp-bar-fill"></div></div><span>정보를 가져오고 있습니다</span></div>'
 ].join('');
