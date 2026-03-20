@@ -124,7 +124,13 @@ function SidebarContent({
     <div className="flex h-full flex-col">
       {/* Logo */}
       <div className="flex h-14 items-center gap-2.5 px-4 relative z-[2]">
-        <img src="/logo.svg" alt="ExpenseOne" className="size-7" />
+        <div className="flex items-center justify-center size-8 rounded-xl bg-gradient-to-br from-[#007AFF] to-[#5856D6] shadow-[0_2px_8px_rgba(0,122,255,0.3)]">
+          <svg viewBox="0 0 32 32" className="size-5" fill="none">
+            <rect x="8" y="10" width="16" height="2.5" rx="1.25" fill="white" />
+            <rect x="8" y="14.75" width="12" height="2.5" rx="1.25" fill="white" />
+            <rect x="8" y="19.5" width="16" height="2.5" rx="1.25" fill="white" />
+          </svg>
+        </div>
         <span className="text-base font-bold tracking-[-0.02em] text-[#000000] dark:text-white">ExpenseOne</span>
       </div>
 
@@ -141,7 +147,7 @@ function SidebarContent({
 
         {isAdmin && (
           <div className="mt-5 flex flex-col gap-1">
-            <span className="mb-1 px-3 text-[11px] uppercase tracking-[0.06em] font-semibold text-[var(--apple-secondary-label)]">
+            <span className="section-label mb-1 px-3">
               관리자
             </span>
             {adminNavItems.map((item) => (

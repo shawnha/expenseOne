@@ -1,13 +1,11 @@
 import { type NextRequest, NextResponse } from 'next/server';
+import { updateSession } from '@/lib/supabase/middleware';
 
 // Routes that do not require authentication
 const PUBLIC_ROUTES = ['/login', '/auth'];
 
 // Route prefixes that should be completely skipped by middleware
 const SKIP_PREFIXES = ['/_next', '/api/auth', '/favicon.ico', '/sw.js', '/manifest.json'];
-
-// Supabase auth cookie name pattern
-const AUTH_COOKIE_PATTERN = /^sb-.*-auth-token/;
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -22,28 +20,24 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Allow public routes
+  // Allow public routes — still run updateSession to handle PKCE cookie forwarding
   if (PUBLIC_ROUTES.some((route) => pathname.startsWith(route))) {
-    return NextResponse.next();
+    const { supabaseResponse } = await updateSession(request);
+    return supabaseResponse;
   }
 
-  // Lightweight auth check: verify Supabase auth cookie exists
-  // Actual token validation happens in layout via getAuthUser()
-  const hasAuthCookie = request.cookies.getAll().some(
-    (cookie) => AUTH_COOKIE_PATTERN.test(cookie.name) && cookie.value.length > 0
-  );
+  // Run updateSession to refresh auth tokens and forward cookies (including PKCE verifier)
+  const { user, supabaseResponse } = await updateSession(request);
 
-  if (!hasAuthCookie) {
-    // No auth cookie — redirect to login
+  if (!user) {
+    // No valid session — redirect to login
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     url.searchParams.set('redirectTo', pathname);
     return NextResponse.redirect(url);
   }
 
-  // API routes: pass through (API handlers do their own auth via requireAuth())
-  // Page routes: pass through (layout does getAuthUser() for real validation)
-  return NextResponse.next();
+  return supabaseResponse;
 }
 
 export const config = {
