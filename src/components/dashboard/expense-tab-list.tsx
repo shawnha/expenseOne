@@ -46,7 +46,7 @@ export function ExpenseTabList({ expenses }: { expenses: Expense[] }) {
           className={cn(
             "inline-flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 text-[13px] sm:text-sm font-medium rounded-full sm:rounded-full apple-press transition-all duration-200",
             activeTab === "CORPORATE_CARD"
-              ? "bg-[#007AFF] text-white shadow-[0_2px_8px_rgba(0,122,255,0.25)]"
+              ? "bg-[var(--apple-blue)] text-white shadow-[0_2px_8px_rgba(0,122,255,0.25)]"
               : "glass-button text-[var(--apple-label)]"
           )}
         >
@@ -59,7 +59,7 @@ export function ExpenseTabList({ expenses }: { expenses: Expense[] }) {
           className={cn(
             "inline-flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 text-[13px] sm:text-sm font-medium rounded-full sm:rounded-full apple-press transition-all duration-200",
             activeTab === "DEPOSIT_REQUEST"
-              ? "bg-[#007AFF] text-white shadow-[0_2px_8px_rgba(0,122,255,0.25)]"
+              ? "bg-[var(--apple-blue)] text-white shadow-[0_2px_8px_rgba(0,122,255,0.25)]"
               : "glass-button text-[var(--apple-label)]"
           )}
         >
@@ -74,7 +74,7 @@ export function ExpenseTabList({ expenses }: { expenses: Expense[] }) {
           <h2 className="text-[15px] sm:text-base font-semibold text-[var(--apple-label)]">최근 제출</h2>
           <Link
             href={`/expenses?type=${activeTab}`}
-            className="inline-flex items-center gap-1 text-[13px] sm:text-sm text-[#007AFF] hover:text-[#0066d6] hover:underline underline-offset-2 font-medium transition-all duration-200"
+            className="inline-flex items-center gap-1 text-[13px] sm:text-sm text-[var(--apple-blue)] hover:text-[color-mix(in_srgb,var(--apple-blue)_85%,black)] hover:underline underline-offset-2 font-medium transition-all duration-200"
           >
             전체 보기
             <ArrowRight className="size-3 sm:size-3.5" />

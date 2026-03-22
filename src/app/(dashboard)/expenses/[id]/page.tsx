@@ -4,7 +4,8 @@ import {
   ArrowLeft,
   Download,
 } from "lucide-react";
-import { getAuthUser, getCachedClient } from "@/lib/supabase/cached";
+import { getCachedCurrentUser } from "@/lib/supabase/cached";
+import { getExpenseById } from "@/services/expense.service";
 import { cn } from "@/lib/utils";
 import {
   formatAmount,
@@ -88,137 +89,61 @@ function formatDateTimeKR(dateStr: string | null): string {
 }
 
 // ---------------------------------------------------------------------------
-// Data fetching
+// Data fetching — uses Drizzle-based service layer (getExpenseById)
 // ---------------------------------------------------------------------------
 
-interface AttachmentRow {
-  id: string;
-  document_type: DocumentType;
-  file_name: string;
-  file_key: string;
-  file_url: string;
-  file_size: number;
-  mime_type: string;
-}
-
 async function getExpenseDetail(id: string) {
-  // DEV ONLY: mock data
-  if (process.env.BYPASS_AUTH === 'true') {
-    return {
-      expense: {
-        id,
-        type: "CORPORATE_CARD" as ExpenseType,
-        status: "APPROVED" as ExpenseStatus,
-        title: "3월 사무용품 구매",
-        description: "A4용지, 프린터 토너 등 사무용품 구매",
-        amount: 45000,
-        category: "ODD",
-        merchantName: "교보문고",
-        transactionDate: "2026-03-10",
-        cardLastFour: "1234",
-        bankName: null,
-        accountHolder: null,
-        accountNumber: null,
-        isUrgent: false,
-        isPrePaid: false,
-        prePaidPercentage: null,
-        remainingPaymentRequested: false,
-        remainingPaymentApproved: false,
-        rejectionReason: null,
-        submittedById: "dev-user-id",
-        approvedById: null,
-        approvedAt: "2026-03-10T09:00:00Z",
-        createdAt: "2026-03-10T09:00:00Z",
-        updatedAt: "2026-03-10T09:00:00Z",
-        submitter: { id: "dev-user-id", name: "개발자", email: "dev@company.com" },
-      },
-      attachments: [],
-      currentUserId: "dev-user-id",
-      userRole: "ADMIN" as const,
-    };
-  }
-
-  const supabase = await getCachedClient();
-  const authUser = await getAuthUser();
-
-  if (!authUser) {
+  const user = await getCachedCurrentUser();
+  if (!user) {
     redirect("/login");
   }
 
-  // Fetch user role and expense in parallel
-  const [profileResult, expenseResult] = await Promise.all([
-    supabase.from("users").select("role").eq("id", authUser.id).single(),
-    supabase.from("expenses").select("*").eq("id", id).single(),
-  ]);
+  try {
+    const result = await getExpenseById(id, user.id, user.role);
 
-  const userRole = (profileResult.data?.role as "MEMBER" | "ADMIN") ?? "MEMBER";
-  const { data: expense, error } = expenseResult;
-
-  if (error || !expense) {
-    console.error("Expense fetch error:", error?.message, "id:", id);
+    return {
+      expense: {
+        id: result.id,
+        type: result.type as ExpenseType,
+        status: result.status as ExpenseStatus,
+        title: result.title,
+        description: result.description,
+        amount: result.amount,
+        category: result.category,
+        merchantName: result.merchantName,
+        transactionDate: result.transactionDate,
+        cardLastFour: result.cardLastFour,
+        bankName: result.bankName,
+        accountHolder: result.accountHolder,
+        accountNumber: result.accountNumber,
+        isUrgent: result.isUrgent ?? false,
+        isPrePaid: result.isPrePaid ?? false,
+        prePaidPercentage: result.prePaidPercentage ?? null,
+        remainingPaymentRequested: result.remainingPaymentRequested ?? false,
+        remainingPaymentApproved: result.remainingPaymentApproved ?? false,
+        rejectionReason: result.rejectionReason,
+        submittedById: result.submittedById,
+        approvedById: result.approvedById,
+        approvedAt: result.approvedAt?.toISOString() ?? null,
+        createdAt: result.createdAt?.toISOString() ?? null,
+        updatedAt: result.updatedAt?.toISOString() ?? null,
+        submitter: result.submitter,
+      },
+      attachments: (result.attachments ?? []).map((a) => ({
+        id: a.id,
+        documentType: a.documentType as DocumentType,
+        fileName: a.fileName,
+        fileKey: a.fileKey,
+        fileUrl: a.fileUrl,
+        fileSize: a.fileSize,
+        mimeType: a.mimeType,
+      })),
+      currentUserId: user.id,
+      userRole: user.role,
+    };
+  } catch {
     return null;
   }
-
-  if (userRole === "MEMBER" && expense.submitted_by_id !== authUser.id) {
-    return null;
-  }
-
-  // Fetch submitter and attachments in parallel
-  const [submitterResult, attachmentResult] = await Promise.all([
-    supabase
-      .from("users")
-      .select("id, name, email")
-      .eq("id", expense.submitted_by_id)
-      .single(),
-    supabase
-      .from("attachments")
-      .select("id, document_type, file_name, file_key, file_url, file_size, mime_type")
-      .eq("expense_id", id),
-  ]);
-
-  const submitter = submitterResult.data as { id: string; name: string; email: string } | null;
-  const attachmentRows = attachmentResult.data;
-
-  return {
-    expense: {
-      id: expense.id,
-      type: expense.type as ExpenseType,
-      status: expense.status as ExpenseStatus,
-      title: expense.title,
-      description: expense.description,
-      amount: expense.amount,
-      category: expense.category,
-      merchantName: expense.merchant_name,
-      transactionDate: expense.transaction_date,
-      cardLastFour: expense.card_last_four,
-      bankName: expense.bank_name,
-      accountHolder: expense.account_holder,
-      accountNumber: expense.account_number,
-      isUrgent: expense.is_urgent ?? false,
-      isPrePaid: expense.is_pre_paid ?? false,
-      prePaidPercentage: expense.pre_paid_percentage ?? null,
-      remainingPaymentRequested: expense.remaining_payment_requested ?? false,
-      remainingPaymentApproved: expense.remaining_payment_approved ?? false,
-      rejectionReason: expense.rejection_reason,
-      submittedById: expense.submitted_by_id,
-      approvedById: expense.approved_by_id,
-      approvedAt: expense.approved_at,
-      createdAt: expense.created_at,
-      updatedAt: expense.updated_at,
-      submitter,
-    },
-    attachments: (attachmentRows ?? []).map((a: AttachmentRow) => ({
-      id: a.id,
-      documentType: a.document_type as DocumentType,
-      fileName: a.file_name,
-      fileKey: a.file_key,
-      fileUrl: a.file_url,
-      fileSize: a.file_size,
-      mimeType: a.mime_type,
-    })),
-    currentUserId: authUser.id,
-    userRole,
-  };
 }
 
 // ---------------------------------------------------------------------------

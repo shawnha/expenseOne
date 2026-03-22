@@ -376,7 +376,7 @@ export default function DepositRequestPage() {
             {/* 제목 */}
             <div className="space-y-1.5">
               <Label htmlFor="title">
-                제목 <span className="text-[#FF3B30]">*</span>
+                제목 <span className="text-[var(--apple-red)]">*</span>
               </Label>
               <Input
                 id="title"
@@ -385,7 +385,7 @@ export default function DepositRequestPage() {
                 {...register("title")}
               />
               {errors.title && (
-                <p className="text-xs text-[#FF3B30]">
+                <p className="text-xs text-[var(--apple-red)]">
                   {errors.title.message}
                 </p>
               )}
@@ -394,7 +394,7 @@ export default function DepositRequestPage() {
             {/* 금액 */}
             <div className="space-y-1.5">
               <Label htmlFor="amount">
-                금액 <span className="text-[#FF3B30]">*</span>
+                금액 <span className="text-[var(--apple-red)]">*</span>
               </Label>
               <div className="relative">
                 <Input
@@ -414,7 +414,7 @@ export default function DepositRequestPage() {
                     type="checkbox"
                     checked={vatIncluded}
                     onChange={(e) => handleVatToggle(e.target.checked)}
-                    className="size-4 rounded border-[rgba(0,0,0,0.15)] text-[#007AFF] focus:ring-[#007AFF] cursor-pointer"
+                    className="size-4 rounded border-[rgba(0,0,0,0.15)] text-[var(--apple-blue)] focus:ring-[var(--apple-blue)] cursor-pointer"
                   />
                   <span className="text-[13px] text-[var(--apple-secondary-label)]">VAT 포함 (+10%)</span>
                 </label>
@@ -423,7 +423,7 @@ export default function DepositRequestPage() {
                     type="checkbox"
                     checked={freelancerDeduction}
                     onChange={(e) => handleFreelancerToggle(e.target.checked)}
-                    className="size-4 rounded border-[rgba(0,0,0,0.15)] text-[#007AFF] focus:ring-[#007AFF] cursor-pointer"
+                    className="size-4 rounded border-[rgba(0,0,0,0.15)] text-[var(--apple-blue)] focus:ring-[var(--apple-blue)] cursor-pointer"
                   />
                   <span className="text-[13px] text-[var(--apple-secondary-label)]">프리랜서 원천징수 (-3.3%)</span>
                 </label>
@@ -461,7 +461,7 @@ export default function DepositRequestPage() {
                 );
               })()}
               {errors.amount && (
-                <p className="text-xs text-[#FF3B30]">
+                <p className="text-xs text-[var(--apple-red)]">
                   {errors.amount.message}
                 </p>
               )}
@@ -473,7 +473,7 @@ export default function DepositRequestPage() {
                 <input
                   type="checkbox"
                   {...register("isUrgent")}
-                  className="size-4 rounded border-[rgba(0,0,0,0.15)] text-[#FF3B30] focus:ring-[#FF3B30] cursor-pointer"
+                  className="size-4 rounded border-[rgba(0,0,0,0.15)] text-[var(--apple-red)] focus:ring-[var(--apple-red)] cursor-pointer"
                 />
                 <div>
                   <span className="text-sm font-medium text-[var(--apple-label)]">긴급</span>
@@ -499,7 +499,7 @@ export default function DepositRequestPage() {
                             setPrePaidMode("full");
                           }
                         }}
-                        className="size-4 rounded border-[rgba(0,0,0,0.15)] text-[#007AFF] focus:ring-[#007AFF] cursor-pointer"
+                        className="size-4 rounded border-[rgba(0,0,0,0.15)] text-[var(--apple-blue)] focus:ring-[var(--apple-blue)] cursor-pointer"
                       />
                       <div>
                         <span className="text-sm font-medium text-[var(--apple-label)]">선지급</span>
@@ -519,7 +519,7 @@ export default function DepositRequestPage() {
                             className={cn(
                               "px-4 py-2 rounded-full text-sm font-medium transition-all",
                               prePaidMode === "full"
-                                ? "bg-[#007AFF] text-white shadow-sm"
+                                ? "bg-[var(--apple-blue)] text-white shadow-sm"
                                 : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)]"
                             )}
                           >
@@ -534,7 +534,7 @@ export default function DepositRequestPage() {
                             className={cn(
                               "px-4 py-2 rounded-full text-sm font-medium transition-all",
                               prePaidMode === "partial"
-                                ? "bg-[#007AFF] text-white shadow-sm"
+                                ? "bg-[var(--apple-blue)] text-white shadow-sm"
                                 : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)]"
                             )}
                           >
@@ -576,12 +576,12 @@ export default function DepositRequestPage() {
                                 <span>총 금액</span>
                                 <span>{formatAmount(totalBeforeWithholding)}원</span>
                               </div>
-                              <div className="flex justify-between text-[#007AFF]">
+                              <div className="flex justify-between text-[var(--apple-blue)]">
                                 <span>선지급금 ({watchedPrePaidPercentage}%)</span>
                                 <span>{formatAmount(prePaidAmount)}원</span>
                               </div>
                               {freelancerDeduction && (
-                                <div className="flex justify-between text-[#FF3B30]">
+                                <div className="flex justify-between text-[var(--apple-red)]">
                                   <span>원천징수 (3.3%)</span>
                                   <span>-{formatAmount(withholdingAmount)}원</span>
                                 </div>
@@ -603,7 +603,7 @@ export default function DepositRequestPage() {
             {/* 카테고리 */}
             <div className="space-y-1.5">
               <Label>
-                카테고리 <span className="text-[#FF3B30]">*</span>
+                카테고리 <span className="text-[var(--apple-red)]">*</span>
               </Label>
               <Controller
                 name="category"
@@ -622,7 +622,7 @@ export default function DepositRequestPage() {
                           className={cn(
                             "px-4 py-2 rounded-full text-sm font-medium transition-all",
                             field.value === option.value && !showCustomCategory
-                              ? "bg-[#007AFF] text-white shadow-sm"
+                              ? "bg-[var(--apple-blue)] text-white shadow-sm"
                               : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)]"
                           )}
                         >
@@ -638,7 +638,7 @@ export default function DepositRequestPage() {
                         className={cn(
                           "px-4 py-2 rounded-full text-sm font-medium transition-all",
                           showCustomCategory
-                            ? "bg-[#007AFF] text-white shadow-sm"
+                            ? "bg-[var(--apple-blue)] text-white shadow-sm"
                             : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)]"
                         )}
                       >
@@ -657,7 +657,7 @@ export default function DepositRequestPage() {
                 )}
               />
               {errors.category && (
-                <p className="text-xs text-[#FF3B30]">
+                <p className="text-xs text-[var(--apple-red)]">
                   {errors.category.message}
                 </p>
               )}
@@ -673,7 +673,7 @@ export default function DepositRequestPage() {
                 {...register("description")}
               />
               {errors.description && (
-                <p className="text-xs text-[#FF3B30]">
+                <p className="text-xs text-[var(--apple-red)]">
                   {errors.description.message}
                 </p>
               )}
@@ -702,11 +702,11 @@ export default function DepositRequestPage() {
                       className="flex items-center justify-between px-3 py-2.5 rounded-xl glass-subtle text-left hover:bg-[rgba(0,0,0,0.03)] transition-colors group"
                     >
                       <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-[13px] font-medium text-[#007AFF] shrink-0">{account.bankName}</span>
+                        <span className="text-[13px] font-medium text-[var(--apple-blue)] shrink-0">{account.bankName}</span>
                         <span className="text-[13px] text-[var(--apple-label)] truncate">{account.accountHolder}</span>
                         <span className="text-[13px] text-[var(--apple-secondary-label)] truncate">{account.accountNumber}</span>
                       </div>
-                      <span className="text-[11px] text-[var(--apple-secondary-label)] group-hover:text-[#007AFF] shrink-0 ml-2">선택</span>
+                      <span className="text-[11px] text-[var(--apple-secondary-label)] group-hover:text-[var(--apple-blue)] shrink-0 ml-2">선택</span>
                     </button>
                   ))}
                 </div>
@@ -716,7 +716,7 @@ export default function DepositRequestPage() {
             {/* 은행명 */}
             <div className="space-y-1.5">
               <Label>
-                은행명 <span className="text-[#FF3B30]">*</span>
+                은행명 <span className="text-[var(--apple-red)]">*</span>
               </Label>
               <Controller
                 name="bankName"
@@ -751,7 +751,7 @@ export default function DepositRequestPage() {
                               >
                                 {bank}
                                 {field.value === bank && (
-                                  <Check className="ml-auto size-4 text-[#007AFF]" />
+                                  <Check className="ml-auto size-4 text-[var(--apple-blue)]" />
                                 )}
                               </CommandItem>
                             ))}
@@ -763,7 +763,7 @@ export default function DepositRequestPage() {
                 )}
               />
               {errors.bankName && (
-                <p className="text-xs text-[#FF3B30]">
+                <p className="text-xs text-[var(--apple-red)]">
                   {errors.bankName.message}
                 </p>
               )}
@@ -772,7 +772,7 @@ export default function DepositRequestPage() {
             {/* 예금주 */}
             <div className="space-y-1.5">
               <Label htmlFor="accountHolder">
-                예금주 <span className="text-[#FF3B30]">*</span>
+                예금주 <span className="text-[var(--apple-red)]">*</span>
               </Label>
               <Input
                 id="accountHolder"
@@ -781,7 +781,7 @@ export default function DepositRequestPage() {
                 {...register("accountHolder")}
               />
               {errors.accountHolder && (
-                <p className="text-xs text-[#FF3B30]">
+                <p className="text-xs text-[var(--apple-red)]">
                   {errors.accountHolder.message}
                 </p>
               )}
@@ -790,7 +790,7 @@ export default function DepositRequestPage() {
             {/* 계좌번호 */}
             <div className="space-y-1.5">
               <Label htmlFor="accountNumber">
-                계좌번호 <span className="text-[#FF3B30]">*</span>
+                계좌번호 <span className="text-[var(--apple-red)]">*</span>
               </Label>
               <Input
                 id="accountNumber"
@@ -804,7 +804,7 @@ export default function DepositRequestPage() {
                 })}
               />
               {errors.accountNumber && (
-                <p className="text-xs text-[#FF3B30]">
+                <p className="text-xs text-[var(--apple-red)]">
                   {errors.accountNumber.message}
                 </p>
               )}
@@ -816,7 +816,7 @@ export default function DepositRequestPage() {
         {/* 파일 첨부 (필수) */}
         <div className="glass p-6 mt-4">
           <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-1">
-            파일 첨부 <span className="text-[#FF3B30]">*</span>
+            파일 첨부 <span className="text-[var(--apple-red)]">*</span>
           </h2>
           <p className="text-[13px] text-[var(--apple-secondary-label)] mb-4">
             증빙서류를 첨부해주세요. 최소 1개의 파일과 문서 유형 선택이 필요합니다.
@@ -845,7 +845,7 @@ export default function DepositRequestPage() {
           <Button
             type="submit"
             disabled={isSubmitting}
-            className="w-full sm:w-auto rounded-full h-11 bg-[#007AFF] hover:bg-[#0066d6]"
+            className="w-full sm:w-auto rounded-full h-11 bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)]"
           >
             {isSubmitting ? (
               <>

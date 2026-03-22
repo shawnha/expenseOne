@@ -134,7 +134,7 @@ export function ExpenseFilters() {
           onClick={() => setMobileFiltersOpen((prev) => !prev)}
           className={`sm:hidden flex items-center justify-center size-11 rounded-full border border-input transition-colors ${
             mobileFiltersOpen || hasActiveFilters
-              ? "bg-[#007AFF] text-white border-[#007AFF]"
+              ? "bg-[var(--apple-blue)] text-white border-[var(--apple-blue)]"
               : "bg-transparent text-[var(--apple-secondary-label)]"
           }`}
           aria-label="필터 열기/닫기"
@@ -205,7 +205,7 @@ export function ExpenseFilters() {
       </div>
 
       {isPending && (
-        <div className="text-xs text-[#007AFF] animate-pulse font-medium">
+        <div className="text-xs text-[var(--apple-blue)] animate-pulse font-medium">
           검색 중...
         </div>
       )}

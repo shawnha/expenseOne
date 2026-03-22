@@ -179,8 +179,8 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
                           className={cn(
                             "px-2.5 py-1 text-xs font-medium rounded-full transition-colors apple-press",
                             confirmId === expense.id
-                              ? "bg-[#FF3B30] text-white hover:bg-[#d32f2f]"
-                              : "text-[#FF3B30] hover:bg-[rgba(255,59,48,0.1)]"
+                              ? "bg-[var(--apple-red)] text-white hover:bg-[color-mix(in_srgb,var(--apple-red)_85%,black)]"
+                              : "text-[var(--apple-red)] hover:bg-[rgba(255,59,48,0.1)]"
                           )}
                           onBlur={() => setConfirmId(null)}
                         >
@@ -425,8 +425,8 @@ function SwipeableExpenseCard({
             className={cn(
               "flex flex-1 items-center justify-center text-white text-xs font-semibold transition-colors",
               confirmingDelete
-                ? "bg-[#c0291f] active:bg-[#a01e16]"
-                : "bg-[#FF3B30] active:bg-[#d32f2f]"
+                ? "bg-[color-mix(in_srgb,var(--apple-red)_80%,black)] active:bg-[color-mix(in_srgb,var(--apple-red)_70%,black)]"
+                : "bg-[var(--apple-red)] active:bg-[color-mix(in_srgb,var(--apple-red)_85%,black)]"
             )}
             aria-label={confirmingDelete ? "삭제 확인" : "삭제"}
           >
@@ -440,7 +440,7 @@ function SwipeableExpenseCard({
         <div className="absolute inset-y-0 left-0 flex items-stretch" style={{ width: ACTION_WIDTH }}>
           <button
             onClick={handleEdit}
-            className="flex flex-1 items-center justify-center bg-[#007AFF] text-white text-xs font-semibold active:bg-[#005ec4] transition-colors"
+            className="flex flex-1 items-center justify-center bg-[var(--apple-blue)] text-white text-xs font-semibold active:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] transition-colors"
             aria-label="수정"
           >
             수정
@@ -459,7 +459,7 @@ function SwipeableExpenseCard({
           }
         }}
         tabIndex={0}
-        className="relative flex flex-col gap-2 p-4 text-left rounded-xl bg-white dark:bg-[#1C1C1E] border border-[var(--glass-border)] shadow-sm cursor-pointer select-none focus-visible:ring-2 focus-visible:ring-[#007AFF] focus-visible:ring-offset-1 outline-none"
+        className="relative flex flex-col gap-2 p-4 text-left rounded-xl bg-white dark:bg-[#1C1C1E] border border-[var(--glass-border)] shadow-sm cursor-pointer select-none focus-visible:ring-2 focus-visible:ring-[var(--apple-blue)] focus-visible:ring-offset-1 outline-none"
         style={{ willChange: "transform" }}
         role="button"
         aria-label={`${expense.title} 상세 보기`}
