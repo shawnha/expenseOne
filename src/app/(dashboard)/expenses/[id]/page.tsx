@@ -190,7 +190,7 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
       <div className="animate-fade-up">
         <Link
           href="/expenses"
-          className="inline-flex items-center gap-1.5 text-sm text-[#007AFF] hover:text-[#0066d6] transition-colors font-medium apple-press"
+          className="inline-flex items-center gap-1.5 text-sm text-[var(--apple-blue)] hover:text-[color-mix(in_srgb,var(--apple-blue)_85%,black)] transition-colors font-medium apple-press"
         >
           <ArrowLeft className="size-3.5" />
           목록으로
@@ -229,7 +229,7 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
       {/* Rejection reason */}
       {expense.status === "REJECTED" && expense.rejectionReason && (
         <div className="glass p-4 border-l-4 border-l-[#FF3B30] animate-fade-up-2">
-          <p className="text-[13px] font-semibold text-[#FF3B30] mb-1">반려 사유</p>
+          <p className="text-[13px] font-semibold text-[var(--apple-red)] mb-1">반려 사유</p>
           <p className="text-sm text-[var(--apple-label)]">{expense.rejectionReason}</p>
         </div>
       )}
@@ -297,7 +297,7 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
                   <span>총 금액</span>
                   <span className="font-medium text-[var(--apple-label)]">{formatAmount(expense.amount)}원</span>
                 </div>
-                <div className="flex justify-between text-[#007AFF]">
+                <div className="flex justify-between text-[var(--apple-blue)]">
                   <span>선지급금 ({expense.prePaidPercentage}%)</span>
                   <span className="font-medium">{formatAmount(prePaidAmount)}원</span>
                 </div>
@@ -411,7 +411,7 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
                   href={`/api/attachments/${attachment.id}/download`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-sm text-[#007AFF] hover:text-[#0066d6] transition-colors font-medium apple-press"
+                  className="flex items-center gap-1 text-sm text-[var(--apple-blue)] hover:text-[color-mix(in_srgb,var(--apple-blue)_85%,black)] transition-colors font-medium apple-press"
                   aria-label={`${attachment.fileName} 다운로드`}
                 >
                   <Download className="size-3.5" />
@@ -461,9 +461,9 @@ function TimelineItem({
   isLast?: boolean;
 }) {
   const dotColors = {
-    default: "bg-[#007AFF]",
-    success: "bg-[#34C759]",
-    destructive: "bg-[#FF3B30]",
+    default: "bg-[var(--apple-blue)]",
+    success: "bg-[var(--apple-green)]",
+    destructive: "bg-[var(--apple-red)]",
     muted: "bg-[#8e8e93]",
   };
 

@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -26,6 +27,8 @@ export function SubmitSuccessDialog({
   title = "제출 완료",
   description = "정상적으로 제출되었습니다.",
 }: SubmitSuccessDialogProps) {
+  const router = useRouter();
+
   return (
     <Dialog open={open} onOpenChange={() => {}} modal>
       <DialogContent showCloseButton={false} className="sm:max-w-[380px]">
@@ -39,7 +42,7 @@ export function SubmitSuccessDialog({
         <DialogFooter className="flex flex-col gap-2 sm:flex-col">
           <Button
             onClick={() => {
-              window.location.href = newSubmitPath;
+              router.push(newSubmitPath);
             }}
             className="w-full rounded-full h-11 bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)]"
           >
@@ -48,7 +51,7 @@ export function SubmitSuccessDialog({
           <Button
             variant="outline"
             onClick={() => {
-              window.location.href = "/expenses";
+              router.push("/expenses");
             }}
             className="w-full rounded-full h-11 glass border-[rgba(255,255,255,0.3)]"
           >

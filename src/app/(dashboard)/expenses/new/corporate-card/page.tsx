@@ -355,7 +355,7 @@ export default function CorporateCardPage() {
                           className={cn(
                             "px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors border",
                             field.value === opt.value && !showCustomCategory
-                              ? "bg-[#007AFF] text-white border-[#007AFF]"
+                              ? "bg-[var(--apple-blue)] text-white border-[var(--apple-blue)]"
                               : "glass-subtle border-[var(--apple-separator)] text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)]"
                           )}
                         >
@@ -371,7 +371,7 @@ export default function CorporateCardPage() {
                         className={cn(
                           "px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors border",
                           showCustomCategory
-                            ? "bg-[#007AFF] text-white border-[#007AFF]"
+                            ? "bg-[var(--apple-blue)] text-white border-[var(--apple-blue)]"
                             : "glass-subtle border-[var(--apple-separator)] text-[var(--apple-secondary-label)] hover:bg-[rgba(0,0,0,0.03)]"
                         )}
                       >
@@ -456,7 +456,7 @@ export default function CorporateCardPage() {
           <Button
             type="submit"
             disabled={isSubmitting}
-            className="w-full sm:w-auto rounded-full h-11 bg-[#007AFF] hover:bg-[#0066d6]"
+            className="w-full sm:w-auto rounded-full h-11 bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)]"
           >
             {isSubmitting ? (
               <>

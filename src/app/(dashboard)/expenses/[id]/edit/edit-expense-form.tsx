@@ -117,7 +117,7 @@ function ExistingAttachmentItem({
         {isImage ? (
           <ImageIcon className="size-6 text-[var(--apple-secondary-label)]" />
         ) : (
-          <FileText className="size-6 text-[#FF3B30]" />
+          <FileText className="size-6 text-[var(--apple-red)]" />
         )}
       </div>
 
@@ -144,7 +144,7 @@ function ExistingAttachmentItem({
             type="button"
             variant="ghost"
             size="icon-xs"
-            className="shrink-0 text-[#007AFF] hover:text-[#0066d6]"
+            className="shrink-0 text-[var(--apple-blue)] hover:text-[color-mix(in_srgb,var(--apple-blue)_85%,black)]"
           >
             <Download className="size-4" />
           </Button>
@@ -155,7 +155,7 @@ function ExistingAttachmentItem({
           size="icon-xs"
           onClick={onRemove}
           aria-label={`${attachment.fileName} 삭제`}
-          className="shrink-0 text-[var(--apple-secondary-label)] hover:text-[#FF3B30]"
+          className="shrink-0 text-[var(--apple-secondary-label)] hover:text-[var(--apple-red)]"
         >
           <X className="size-4" />
         </Button>
@@ -303,42 +303,42 @@ function CorporateCardEditForm({
         <div className="glass p-6">
           <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-1">기본 정보</h2>
           <p className="text-[13px] text-[var(--apple-secondary-label)] mb-5">
-            <span className="text-[#FF3B30]">*</span> 필수 항목
+            <span className="text-[var(--apple-red)]">*</span> 필수 항목
           </p>
           <div className="space-y-5">
             <div className="space-y-1.5">
-              <Label htmlFor="title">제목 <span className="text-[#FF3B30]">*</span></Label>
+              <Label htmlFor="title">제목 <span className="text-[var(--apple-red)]">*</span></Label>
               <Input id="title" placeholder="예: 3월 사무용품 구매" aria-invalid={!!errors.title} {...register("title")} />
-              {errors.title && <p className="text-xs text-[#FF3B30]">{errors.title.message}</p>}
+              {errors.title && <p className="text-xs text-[var(--apple-red)]">{errors.title.message}</p>}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="amount">금액 <span className="text-[#FF3B30]">*</span></Label>
+              <Label htmlFor="amount">금액 <span className="text-[var(--apple-red)]">*</span></Label>
               <InputGroup>
                 <InputGroupInput id="amount" placeholder="0" inputMode="numeric" value={amountDisplay} onChange={handleAmountChange} aria-invalid={!!errors.amount} />
                 <InputGroupAddon align="inline-end"><InputGroupText>원</InputGroupText></InputGroupAddon>
               </InputGroup>
-              {errors.amount && <p className="text-xs text-[#FF3B30]">{errors.amount.message}</p>}
+              {errors.amount && <p className="text-xs text-[var(--apple-red)]">{errors.amount.message}</p>}
             </div>
             <div className="space-y-1.5">
-              <Label>카테고리 <span className="text-[#FF3B30]">*</span></Label>
+              <Label>카테고리 <span className="text-[var(--apple-red)]">*</span></Label>
               <Controller name="category" control={control} render={({ field }) => (
                 <Select value={field.value ?? ""} onValueChange={field.onChange}>
                   <SelectTrigger className="w-full" aria-invalid={!!errors.category}><SelectValue placeholder="카테고리 선택" /></SelectTrigger>
                   <SelectContent>{CATEGORY_OPTIONS.map((option) => (<SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>))}</SelectContent>
                 </Select>
               )} />
-              {errors.category && <p className="text-xs text-[#FF3B30]">{errors.category.message}</p>}
+              {errors.category && <p className="text-xs text-[var(--apple-red)]">{errors.category.message}</p>}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="merchantName">가맹점명</Label>
               <Input id="merchantName" placeholder="예: 교보문고" {...register("merchantName")} />
-              {errors.merchantName && <p className="text-xs text-[#FF3B30]">{errors.merchantName.message}</p>}
+              {errors.merchantName && <p className="text-xs text-[var(--apple-red)]">{errors.merchantName.message}</p>}
             </div>
             <div className="space-y-1.5">
-              <Label>거래일 <span className="text-[#FF3B30]">*</span></Label>
+              <Label>거래일 <span className="text-[var(--apple-red)]">*</span></Label>
               <Controller name="transactionDate" control={control} render={({ field }) => (
                 <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-                  <PopoverTrigger className={cn("flex h-10 w-full items-center justify-start gap-2 rounded-xl border border-[var(--apple-separator)] bg-[var(--apple-secondary-system-background)] px-3 text-sm transition-colors hover:bg-[rgba(0,0,0,0.03)]", !field.value && "text-[var(--apple-secondary-label)]", errors.transactionDate && "border-[#FF3B30] ring-2 ring-[rgba(255,59,48,0.2)]")} aria-invalid={!!errors.transactionDate}>
+                  <PopoverTrigger className={cn("flex h-10 w-full items-center justify-start gap-2 rounded-xl border border-[var(--apple-separator)] bg-[var(--apple-secondary-system-background)] px-3 text-sm transition-colors hover:bg-[rgba(0,0,0,0.03)]", !field.value && "text-[var(--apple-secondary-label)]", errors.transactionDate && "border-[var(--apple-red)] ring-2 ring-[rgba(255,59,48,0.2)]")} aria-invalid={!!errors.transactionDate}>
                     <CalendarIcon className="size-4 text-[var(--apple-secondary-label)]" />
                     {field.value ? format(field.value, "yyyy.MM.dd", { locale: ko }) : "날짜 선택"}
                   </PopoverTrigger>
@@ -347,12 +347,12 @@ function CorporateCardEditForm({
                   </PopoverContent>
                 </Popover>
               )} />
-              {errors.transactionDate && <p className="text-xs text-[#FF3B30]">{errors.transactionDate.message}</p>}
+              {errors.transactionDate && <p className="text-xs text-[var(--apple-red)]">{errors.transactionDate.message}</p>}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="description">설명</Label>
               <Textarea id="description" placeholder="추가 설명을 입력해주세요 (선택사항)" rows={3} {...register("description")} />
-              {errors.description && <p className="text-xs text-[#FF3B30]">{errors.description.message}</p>}
+              {errors.description && <p className="text-xs text-[var(--apple-red)]">{errors.description.message}</p>}
             </div>
           </div>
         </div>
@@ -379,7 +379,7 @@ function CorporateCardEditForm({
           <Link href={`/expenses/${expense.id}`} className="w-full sm:w-auto">
             <Button type="button" variant="outline" className="w-full rounded-full h-11 glass border-[var(--apple-separator)]">취소</Button>
           </Link>
-          <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto rounded-full h-11 bg-[#007AFF] hover:bg-[#0066d6]">
+          <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto rounded-full h-11 bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)]">
             {isSubmitting ? (<><Loader2 className="size-4 animate-spin" />수정 중...</>) : "수정하기"}
           </Button>
         </div>
@@ -558,32 +558,32 @@ function DepositRequestEditForm({
       <form onSubmit={handleSubmit(onSubmit)} noValidate>
         <div className="glass p-6">
           <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-1">기본 정보</h2>
-          <p className="text-[13px] text-[var(--apple-secondary-label)] mb-5"><span className="text-[#FF3B30]">*</span> 필수 항목</p>
+          <p className="text-[13px] text-[var(--apple-secondary-label)] mb-5"><span className="text-[var(--apple-red)]">*</span> 필수 항목</p>
           <div className="space-y-5">
             <div className="space-y-1.5">
-              <Label htmlFor="title">제목 <span className="text-[#FF3B30]">*</span></Label>
+              <Label htmlFor="title">제목 <span className="text-[var(--apple-red)]">*</span></Label>
               <Input id="title" placeholder="예: 외주 개발비 지급 요청" aria-invalid={!!errors.title} {...register("title")} />
-              {errors.title && <p className="text-xs text-[#FF3B30]">{errors.title.message}</p>}
+              {errors.title && <p className="text-xs text-[var(--apple-red)]">{errors.title.message}</p>}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="amount">금액 <span className="text-[#FF3B30]">*</span></Label>
+              <Label htmlFor="amount">금액 <span className="text-[var(--apple-red)]">*</span></Label>
               <InputGroup>
                 <InputGroupInput id="amount" placeholder="0" inputMode="numeric" value={amountDisplay} onChange={handleAmountChange} aria-invalid={!!errors.amount} />
                 <InputGroupAddon align="inline-end"><InputGroupText>원</InputGroupText></InputGroupAddon>
               </InputGroup>
-              {errors.amount && <p className="text-xs text-[#FF3B30]">{errors.amount.message}</p>}
+              {errors.amount && <p className="text-xs text-[var(--apple-red)]">{errors.amount.message}</p>}
             </div>
             {/* 긴급 / 선지급 */}
             <div className="flex flex-col gap-3">
               <label className="flex items-center gap-3 cursor-pointer select-none px-3 py-2.5 rounded-xl glass-subtle hover:bg-[rgba(0,0,0,0.03)] transition-colors">
-                <input type="checkbox" {...register("isUrgent")} className="size-4 rounded border-[rgba(0,0,0,0.15)] text-[#FF3B30] focus:ring-[#FF3B30] cursor-pointer" />
+                <input type="checkbox" {...register("isUrgent")} className="size-4 rounded border-[rgba(0,0,0,0.15)] text-[var(--apple-red)] focus:ring-[var(--apple-red)] cursor-pointer" />
                 <div>
                   <span className="text-sm font-medium text-[var(--apple-label)]">긴급</span>
                   <p className="text-[12px] text-[var(--apple-secondary-label)]">빠른 처리가 필요한 경우 체크해주세요</p>
                 </div>
               </label>
               <label className="flex items-center gap-3 cursor-pointer select-none px-3 py-2.5 rounded-xl glass-subtle hover:bg-[rgba(0,0,0,0.03)] transition-colors">
-                <input type="checkbox" {...register("isPrePaid")} className="size-4 rounded border-[rgba(0,0,0,0.15)] text-[#007AFF] focus:ring-[#007AFF] cursor-pointer" />
+                <input type="checkbox" {...register("isPrePaid")} className="size-4 rounded border-[rgba(0,0,0,0.15)] text-[var(--apple-blue)] focus:ring-[var(--apple-blue)] cursor-pointer" />
                 <div>
                   <span className="text-sm font-medium text-[var(--apple-label)]">선지급</span>
                   <p className="text-[12px] text-[var(--apple-secondary-label)]">사전에 지급이 필요한 경우 체크해주세요</p>
@@ -591,19 +591,19 @@ function DepositRequestEditForm({
               </label>
             </div>
             <div className="space-y-1.5">
-              <Label>카테고리 <span className="text-[#FF3B30]">*</span></Label>
+              <Label>카테고리 <span className="text-[var(--apple-red)]">*</span></Label>
               <Controller name="category" control={control} render={({ field }) => (
                 <Select value={field.value ?? ""} onValueChange={field.onChange}>
                   <SelectTrigger className="w-full" aria-invalid={!!errors.category}><SelectValue placeholder="카테고리 선택" /></SelectTrigger>
                   <SelectContent>{CATEGORY_OPTIONS.map((opt) => (<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))}</SelectContent>
                 </Select>
               )} />
-              {errors.category && <p className="text-xs text-[#FF3B30]">{errors.category.message}</p>}
+              {errors.category && <p className="text-xs text-[var(--apple-red)]">{errors.category.message}</p>}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="description">설명</Label>
               <Textarea id="description" placeholder="추가 설명을 입력해주세요 (선택사항)" rows={3} {...register("description")} />
-              {errors.description && <p className="text-xs text-[#FF3B30]">{errors.description.message}</p>}
+              {errors.description && <p className="text-xs text-[var(--apple-red)]">{errors.description.message}</p>}
             </div>
           </div>
         </div>
@@ -612,19 +612,19 @@ function DepositRequestEditForm({
           <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-5">입금 정보</h2>
           <div className="space-y-5">
             <div className="space-y-1.5">
-              <Label htmlFor="bankName">은행명 <span className="text-[#FF3B30]">*</span></Label>
+              <Label htmlFor="bankName">은행명 <span className="text-[var(--apple-red)]">*</span></Label>
               <Input id="bankName" placeholder="예: 국민은행" aria-invalid={!!errors.bankName} {...register("bankName")} />
-              {errors.bankName && <p className="text-xs text-[#FF3B30]">{errors.bankName.message}</p>}
+              {errors.bankName && <p className="text-xs text-[var(--apple-red)]">{errors.bankName.message}</p>}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="accountHolder">예금주 <span className="text-[#FF3B30]">*</span></Label>
+              <Label htmlFor="accountHolder">예금주 <span className="text-[var(--apple-red)]">*</span></Label>
               <Input id="accountHolder" placeholder="예: 홍길동" aria-invalid={!!errors.accountHolder} {...register("accountHolder")} />
-              {errors.accountHolder && <p className="text-xs text-[#FF3B30]">{errors.accountHolder.message}</p>}
+              {errors.accountHolder && <p className="text-xs text-[var(--apple-red)]">{errors.accountHolder.message}</p>}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="accountNumber">계좌번호 <span className="text-[#FF3B30]">*</span></Label>
+              <Label htmlFor="accountNumber">계좌번호 <span className="text-[var(--apple-red)]">*</span></Label>
               <Input id="accountNumber" placeholder="예: 123-456-789012" aria-invalid={!!errors.accountNumber} {...register("accountNumber")} />
-              {errors.accountNumber && <p className="text-xs text-[#FF3B30]">{errors.accountNumber.message}</p>}
+              {errors.accountNumber && <p className="text-xs text-[var(--apple-red)]">{errors.accountNumber.message}</p>}
             </div>
           </div>
         </div>
@@ -651,7 +651,7 @@ function DepositRequestEditForm({
           <Link href={`/expenses/${expense.id}`} className="w-full sm:w-auto">
             <Button type="button" variant="outline" className="w-full rounded-full h-11 glass border-[var(--apple-separator)]">취소</Button>
           </Link>
-          <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto rounded-full h-11 bg-[#007AFF] hover:bg-[#0066d6]">
+          <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto rounded-full h-11 bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)]">
             {isSubmitting ? (<><Loader2 className="size-4 animate-spin" />수정 중...</>) : "수정하기"}
           </Button>
         </div>
