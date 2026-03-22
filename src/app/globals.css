@@ -224,7 +224,7 @@
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
     min-height: 100vh;
-    background-color: #F2F2F7;
+    background-color: var(--background);
     transition: background-color 0.3s ease, color 0.3s ease;
   }
   html {
