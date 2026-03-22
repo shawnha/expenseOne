@@ -195,6 +195,7 @@ function CorporateCardEditForm({
     formState: { errors },
   } = useForm<CorporateCardFormData>({
     resolver: zodResolver(corporateCardFormSchema),
+    shouldFocusError: true,
     defaultValues: {
       title: expense.title,
       amount: expense.amount,
@@ -415,6 +416,7 @@ function DepositRequestEditForm({
     formState: { errors },
   } = useForm<DepositRequestFormData>({
     resolver: zodResolver(depositRequestFormSchema),
+    shouldFocusError: true,
     defaultValues: {
       title: expense.title,
       amount: expense.amount,

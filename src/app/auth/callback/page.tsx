@@ -135,7 +135,7 @@ function CallbackContent() {
   return (
     <div className="flex min-h-dvh items-center justify-center px-4">
       <div className="text-center w-full max-w-md">
-        <div className="size-6 border-2 border-[#007AFF] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+        <div className="size-6 border-2 border-[var(--apple-blue)] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
         <p className="text-[var(--apple-secondary-label)] mb-4">{status}</p>
         {logs.length > 0 && (
           <div className="text-left bg-black/5 rounded-lg p-3 text-[11px] text-[#8e8e93] space-y-1 max-h-[300px] overflow-y-auto">
@@ -154,7 +154,7 @@ export default function AuthCallbackPage() {
     <Suspense
       fallback={
         <div className="flex min-h-dvh items-center justify-center">
-          <div className="size-6 border-2 border-[#007AFF] border-t-transparent rounded-full animate-spin" />
+          <div className="size-6 border-2 border-[var(--apple-blue)] border-t-transparent rounded-full animate-spin" />
         </div>
       }
     >

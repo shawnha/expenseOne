@@ -50,6 +50,7 @@ export default function CorporateCardPage() {
     formState: { errors },
   } = useForm<CorporateCardFormData>({
     resolver: zodResolver(corporateCardFormSchema),
+    shouldFocusError: true,
     defaultValues: {
       title: "",
       merchantName: "",

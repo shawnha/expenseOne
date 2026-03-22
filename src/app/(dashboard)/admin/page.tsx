@@ -85,10 +85,10 @@ function getCategoryLabel(category: string): string {
 }
 
 const STAT_CONFIGS = [
-  { icon: <DollarSign key="d" className="size-5 text-[#007AFF]" />, accent: "glass-card-accent glass-card-accent-blue", iconBg: "icon-container icon-container-blue" },
-  { icon: <Clock key="c" className="size-5 text-[#FF9500]" />, accent: "glass-card-accent glass-card-accent-orange", iconBg: "icon-container icon-container-orange" },
-  { icon: <CheckCircle2 key="ch" className="size-5 text-[#34C759]" />, accent: "glass-card-accent glass-card-accent-green", iconBg: "icon-container icon-container-green" },
-  { icon: <XCircle key="x" className="size-5 text-[#FF3B30]" />, accent: "glass-card-accent glass-card-accent-red", iconBg: "icon-container icon-container-red" },
+  { icon: <DollarSign key="d" className="size-5 text-[var(--apple-blue)]" />, accent: "glass-card-accent glass-card-accent-blue", iconBg: "icon-container icon-container-blue" },
+  { icon: <Clock key="c" className="size-5 text-[var(--apple-orange)]" />, accent: "glass-card-accent glass-card-accent-orange", iconBg: "icon-container icon-container-orange" },
+  { icon: <CheckCircle2 key="ch" className="size-5 text-[var(--apple-green)]" />, accent: "glass-card-accent glass-card-accent-green", iconBg: "icon-container icon-container-green" },
+  { icon: <XCircle key="x" className="size-5 text-[var(--apple-red)]" />, accent: "glass-card-accent glass-card-accent-red", iconBg: "icon-container icon-container-red" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -248,7 +248,7 @@ function BarSection({
               <div key={item.label} className="space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="flex items-center justify-center size-6 rounded-full bg-[rgba(0,122,255,0.08)] text-[11px] font-bold text-[#007AFF] tabular-nums">
+                    <span className="flex items-center justify-center size-6 rounded-full bg-[rgba(0,122,255,0.08)] text-[11px] font-bold text-[var(--apple-blue)] tabular-nums">
                       {idx + 1}
                     </span>
                     <span className="text-[13px] font-medium text-[var(--apple-label)]">{item.label}</span>
@@ -581,7 +581,7 @@ function LineChartSection({
               key={p.label}
               className={`text-[12px] tabular-nums ${
                 i === points.length - 1
-                  ? "font-semibold text-[#007AFF]"
+                  ? "font-semibold text-[var(--apple-blue)]"
                   : "font-medium text-[var(--apple-secondary-label)]"
               }`}
             >

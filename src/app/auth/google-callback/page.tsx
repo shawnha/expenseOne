@@ -80,7 +80,7 @@ function GoogleCallbackContent() {
   return (
     <div className="flex min-h-dvh items-center justify-center px-4">
       <div className="text-center">
-        <div className="size-6 border-2 border-[#007AFF] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+        <div className="size-6 border-2 border-[var(--apple-blue)] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
         <p className="text-[var(--apple-secondary-label)]">{status}</p>
       </div>
     </div>
@@ -92,7 +92,7 @@ export default function GoogleCallbackPage() {
     <Suspense
       fallback={
         <div className="flex min-h-dvh items-center justify-center">
-          <div className="size-6 border-2 border-[#007AFF] border-t-transparent rounded-full animate-spin" />
+          <div className="size-6 border-2 border-[var(--apple-blue)] border-t-transparent rounded-full animate-spin" />
         </div>
       }
     >

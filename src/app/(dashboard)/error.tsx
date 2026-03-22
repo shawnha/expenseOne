@@ -32,8 +32,8 @@ export default function DashboardError({
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-      <div className="flex items-center justify-center size-16 rounded-2xl bg-[#FF3B30]/10 mb-4">
-        <AlertCircle className="size-8 text-[#FF3B30]" />
+      <div className="flex items-center justify-center size-16 rounded-2xl bg-[var(--apple-red)]/10 mb-4">
+        <AlertCircle className="size-8 text-[var(--apple-red)]" />
       </div>
       <h2 className="text-lg font-semibold text-[var(--apple-label)] mb-2">
         오류가 발생했습니다
@@ -44,7 +44,7 @@ export default function DashboardError({
       <div className="flex gap-3">
         <Button
           onClick={() => reset()}
-          className="rounded-full h-11 bg-[#007AFF] hover:bg-[#0066d6]"
+          className="rounded-full h-11 bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)]"
         >
           <RotateCcw className="size-4 mr-1.5" />
           다시 시도

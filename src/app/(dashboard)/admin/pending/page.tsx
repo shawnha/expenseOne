@@ -192,7 +192,7 @@ export default function AdminPendingPage() {
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="size-5 animate-spin text-[#007AFF]" />
+            <Loader2 className="size-5 animate-spin text-[var(--apple-blue)]" />
           </div>
         ) : expenses.length === 0 ? (
           <div className="py-12 text-center">

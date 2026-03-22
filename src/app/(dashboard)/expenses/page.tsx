@@ -82,7 +82,7 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
         </div>
         <Link
           href="/expenses/new"
-          className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#007AFF] text-white text-sm font-medium rounded-full hover:bg-[#0066d6] transition-colors shadow-sm apple-press"
+          className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[var(--apple-blue)] text-white text-sm font-medium rounded-full hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] transition-colors shadow-sm apple-press"
         >
           <Plus className="size-4" />
           새 비용
@@ -102,7 +102,7 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
           <p className="text-sm text-[var(--apple-secondary-label)]">비용이 없습니다</p>
           <Link
             href="/expenses/new"
-            className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 glass text-sm font-medium text-[#007AFF] hover:bg-[rgba(0,0,0,0.05)] transition-colors apple-press"
+            className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 glass text-sm font-medium text-[var(--apple-blue)] hover:bg-[rgba(0,0,0,0.05)] transition-colors apple-press"
           >
             <Plus className="size-4" />
             첫 비용 제출하기

@@ -142,6 +142,7 @@ export default function DepositRequestPage() {
     formState: { errors },
   } = useForm<DepositRequestFormData>({
     resolver: zodResolver(depositRequestFormSchema),
+    shouldFocusError: true,
     defaultValues: {
       title: "",
       bankName: "",
