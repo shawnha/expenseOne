@@ -11,7 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatAmount } from "@/lib/validations/expense-form";
-import { CATEGORY_OPTIONS } from "@/lib/validations/expense-form";
+import { getCategoryLabel } from "@/lib/utils/expense-utils";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { ExpenseType, ExpenseStatus } from "@/types";
@@ -68,9 +68,7 @@ const STATUS_LABELS: Record<ExpenseStatus, { label: string; className: string }>
   },
 };
 
-function getCategoryLabel(category: string): string {
-  return CATEGORY_OPTIONS.find((c) => c.value === category)?.label ?? category;
-}
+
 
 function formatDateKR(dateStr: string): string {
   const d = new Date(dateStr);
@@ -112,7 +110,7 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
   return (
     <>
       {/* Desktop table */}
-      <div className="hidden md:block glass p-4 overflow-hidden">
+      <div className="hidden lg:block glass p-4 overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
@@ -137,7 +135,6 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
                   className="cursor-pointer hover:bg-[rgba(0,0,0,0.03)] transition-colors"
                   onClick={() => router.push(`/expenses/${expense.id}`)}
                   tabIndex={0}
-                  role="link"
                   aria-label={`${expense.title} 상세 보기`}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
@@ -197,7 +194,7 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
       </div>
 
       {/* Mobile cards */}
-      <div className="flex flex-col gap-3 md:hidden">
+      <div className="flex flex-col gap-3 lg:hidden">
         {expenses.map((expense) => (
           <SwipeableExpenseCard
             key={expense.id}
@@ -459,7 +456,7 @@ function SwipeableExpenseCard({
           }
         }}
         tabIndex={0}
-        className="relative flex flex-col gap-2 p-4 text-left rounded-xl bg-white dark:bg-[#1C1C1E] border border-[var(--glass-border)] shadow-sm cursor-pointer select-none focus-visible:ring-2 focus-visible:ring-[var(--apple-blue)] focus-visible:ring-offset-1 outline-none"
+        className="relative flex flex-col gap-2 p-4 text-left rounded-xl bg-[var(--card)] border border-[var(--glass-border)] shadow-sm cursor-pointer select-none focus-visible:ring-2 focus-visible:ring-[var(--apple-blue)] focus-visible:ring-offset-1 outline-none"
         style={{ willChange: "transform" }}
         role="button"
         aria-label={`${expense.title} 상세 보기`}

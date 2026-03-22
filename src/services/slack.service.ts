@@ -2,19 +2,7 @@
 // Slack Bot API Service — #99-expenses 채널 멘션 알림
 // ---------------------------------------------------------------------------
 
-const CATEGORY_LABELS: Record<string, string> = {
-  ODD: "ODD",
-  MART_PHARMACY: "마트/약국",
-  OTHER: "기타",
-};
-
-export function formatKRW(amount: number): string {
-  return `${amount.toLocaleString("ko-KR")}원`;
-}
-
-export function getCategoryLabel(category: string): string {
-  return CATEGORY_LABELS[category] ?? category;
-}
+import { formatKRW, getCategoryLabel } from "@/lib/utils/expense-utils";
 
 // ---------------------------------------------------------------------------
 // Slack user lookup cache (email → Slack user ID) with 1-hour TTL

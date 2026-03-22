@@ -149,7 +149,7 @@ export function FileUpload({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         className={cn(
-          "relative flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-6 transition-colors",
+          "relative flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-[var(--glass-border)] p-6 transition-colors",
           isDragOver
             ? "border-primary bg-primary/5"
             : displayError
@@ -434,7 +434,7 @@ export function FileUploadWithDocType({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         className={cn(
-          "relative flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-6 transition-colors",
+          "relative flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-[var(--glass-border)] p-6 transition-colors",
           isDragOver
             ? "border-primary bg-primary/5"
             : displayError

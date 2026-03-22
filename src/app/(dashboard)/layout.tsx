@@ -29,7 +29,7 @@ export default async function DashboardLayout({
       <>
         <PullToRefresh />
         <Toaster position="top-center" richColors />
-        <div className="flex h-screen overflow-hidden">
+        <div className="flex h-dvh overflow-hidden">
           <Sidebar user={mockUser} />
           <div className="flex flex-1 flex-col overflow-hidden">
             <Header user={mockUser} unreadCount={3} />
@@ -117,7 +117,7 @@ export default async function DashboardLayout({
     <>
       <PullToRefresh />
       <Toaster position="top-center" richColors />
-      <div className="flex h-screen overflow-hidden">
+      <div className="flex h-dvh overflow-hidden">
         {/* Desktop Sidebar */}
         <Sidebar user={user} />
 

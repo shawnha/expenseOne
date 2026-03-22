@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { expenses, users } from "@/lib/db/schema";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
 import Papa from "papaparse";
+import { getCategoryLabel } from "@/lib/utils/expense-utils";
 
 // ---------------------------------------------------------------------------
 // Category / Status / Type labels for CSV
@@ -19,12 +20,6 @@ const STATUS_LABELS: Record<string, string> = {
   APPROVED: "승인됨",
   REJECTED: "반려됨",
   CANCELLED: "취소됨",
-};
-
-const CATEGORY_LABELS: Record<string, string> = {
-  ODD: "ODD",
-  MART_PHARMACY: "마트/약국",
-  OTHER: "기타",
 };
 
 // ---------------------------------------------------------------------------
@@ -94,7 +89,7 @@ export async function GET(request: NextRequest) {
       "비용유형": TYPE_LABELS[row.expense.type] ?? row.expense.type,
       "상태": STATUS_LABELS[row.expense.status] ?? row.expense.status,
       "금액(원)": row.expense.amount,
-      "카테고리": CATEGORY_LABELS[row.expense.category] ?? row.expense.category,
+      "카테고리": getCategoryLabel(row.expense.category),
       "거래일": row.expense.transactionDate,
       "가맹점명": row.expense.merchantName ?? "",
       "카드끝4자리": row.expense.cardLastFour ?? "",

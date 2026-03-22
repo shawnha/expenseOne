@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatAmount } from "@/lib/validations/expense-form";
-import { CATEGORY_OPTIONS } from "@/lib/validations/expense-form";
+import { getCategoryLabel } from "@/lib/utils/expense-utils";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -78,11 +78,6 @@ const MOCK_DATA: DashboardData = {
     { name: "최수연", amount: 150000 },
   ],
 };
-
-function getCategoryLabel(category: string): string {
-  const found = CATEGORY_OPTIONS.find((c) => c.value === category);
-  return found?.label ?? category;
-}
 
 const STAT_CONFIGS = [
   { icon: <DollarSign key="d" className="size-5 text-[var(--apple-blue)]" />, accent: "glass-card-accent glass-card-accent-blue", iconBg: "icon-container icon-container-blue" },

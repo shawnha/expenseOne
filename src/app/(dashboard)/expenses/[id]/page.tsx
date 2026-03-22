@@ -10,9 +10,9 @@ import { cn } from "@/lib/utils";
 import {
   formatAmount,
   formatFileSize,
-  CATEGORY_OPTIONS,
   DOCUMENT_TYPE_OPTIONS,
 } from "@/lib/validations/expense-form";
+import { getCategoryLabel } from "@/lib/utils/expense-utils";
 
 import { CancelExpenseButton } from "@/components/expenses/cancel-expense-button";
 import { RequestRemainingButton } from "@/components/expenses/request-remaining-button";
@@ -57,10 +57,6 @@ const STATUS_LABELS: Record<ExpenseStatus, { label: string; className: string }>
     className: "glass-badge glass-badge-gray",
   },
 };
-
-function getCategoryLabel(category: string): string {
-  return CATEGORY_OPTIONS.find((c) => c.value === category)?.label ?? category;
-}
 
 function getDocTypeLabel(docType: DocumentType): string {
   return DOCUMENT_TYPE_OPTIONS.find((d) => d.value === docType)?.label ?? docType;

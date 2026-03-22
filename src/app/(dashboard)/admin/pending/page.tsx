@@ -27,10 +27,8 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import {
-  formatAmount,
-  CATEGORY_OPTIONS,
-} from "@/lib/validations/expense-form";
+import { formatAmount } from "@/lib/validations/expense-form";
+import { getCategoryLabel } from "@/lib/utils/expense-utils";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -56,10 +54,6 @@ const MOCK_PENDING: PendingExpense[] = [
   { id: "m2", title: "서버 인프라 비용", amount: 350000, category: "EQUIPMENT", createdAt: "2026-03-11T14:00:00Z", submitter: { name: "이영희", email: "lee@company.com" }, attachmentCount: 1, isUrgent: false },
   { id: "m3", title: "출장 교통비", amount: 120000, category: "TRAVEL", createdAt: "2026-03-10T09:00:00Z", submitter: { name: "박지민", email: "park@company.com" }, attachmentCount: 3, isUrgent: false },
 ];
-
-function getCategoryLabel(category: string): string {
-  return CATEGORY_OPTIONS.find((c) => c.value === category)?.label ?? category;
-}
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr);
