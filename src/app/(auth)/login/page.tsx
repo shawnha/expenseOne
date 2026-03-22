@@ -4,7 +4,6 @@ import { useSearchParams } from 'next/navigation';
 import { useRouter } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
-import { createClient } from '@/lib/supabase/client';
 
 const GOOGLE_CLIENT_ID = (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '').trim();
 
@@ -17,12 +16,6 @@ const ERROR_MESSAGES: Record<string, string> = {
   forbidden: '접근 권한이 없습니다.',
   exchange_failed: 'Google 인증에 실패했습니다. 다시 시도해 주세요.',
 };
-
-function isMobile(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  const ua = navigator.userAgent;
-  return /Android|iPhone|iPad|iPod|Mobile|webOS|BlackBerry|Opera Mini|IEMobile/i.test(ua);
-}
 
 function LoginContent() {
   const searchParams = useSearchParams();
@@ -46,35 +39,19 @@ function LoginContent() {
     if (loading) return;
     setLoading(true);
 
-    if (isMobile()) {
-      // Mobile: Direct Google OAuth (2-hop, no Supabase in redirect chain)
-      const callbackUrl = `${window.location.origin}/auth/callback`;
-      const stateValue = `google_direct_${crypto.randomUUID()}`;
-      sessionStorage.setItem('oauth_state', stateValue);
-      const params = new URLSearchParams({
-        client_id: GOOGLE_CLIENT_ID,
-        redirect_uri: callbackUrl,
-        response_type: 'code',
-        scope: 'openid email profile',
-        prompt: 'select_account',
-        state: stateValue,
-      });
-      window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-    } else {
-      // Desktop: Standard Supabase OAuth (PKCE works fine on desktop browsers)
-      const supabase = createClient();
-      const callbackUrl = `${window.location.origin}/auth/callback`;
-      supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: callbackUrl,
-        },
-      }).then(({ error }) => {
-        if (error) {
-          setLoading(false);
-        }
-      });
-    }
+    // Direct Google OAuth for all devices (avoids PKCE cookie issues with SSR)
+    const callbackUrl = `${window.location.origin}/auth/callback`;
+    const stateValue = `google_direct_${crypto.randomUUID()}`;
+    sessionStorage.setItem('oauth_state', stateValue);
+    const params = new URLSearchParams({
+      client_id: GOOGLE_CLIENT_ID,
+      redirect_uri: callbackUrl,
+      response_type: 'code',
+      scope: 'openid email profile',
+      prompt: 'select_account',
+      state: stateValue,
+    });
+    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
   };
 
   return (

@@ -84,11 +84,11 @@ function getCategoryLabel(category: string): string {
   return found?.label ?? category;
 }
 
-const STAT_ICONS = [
-  <DollarSign key="d" className="size-5 text-[#007AFF]" />,
-  <Clock key="c" className="size-5 text-[#FF9500]" />,
-  <CheckCircle2 key="ch" className="size-5 text-[#34C759]" />,
-  <XCircle key="x" className="size-5 text-[#FF3B30]" />,
+const STAT_CONFIGS = [
+  { icon: <DollarSign key="d" className="size-5 text-[#007AFF]" />, accent: "glass-card-accent glass-card-accent-blue", iconBg: "icon-container icon-container-blue" },
+  { icon: <Clock key="c" className="size-5 text-[#FF9500]" />, accent: "glass-card-accent glass-card-accent-orange", iconBg: "icon-container icon-container-orange" },
+  { icon: <CheckCircle2 key="ch" className="size-5 text-[#34C759]" />, accent: "glass-card-accent glass-card-accent-green", iconBg: "icon-container icon-container-green" },
+  { icon: <XCircle key="x" className="size-5 text-[#FF3B30]" />, accent: "glass-card-accent glass-card-accent-red", iconBg: "icon-container icon-container-red" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -175,24 +175,26 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Stat Cards */}
-      <div className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-4 ${loading ? "animate-pulse" : ""}`}>
+      <div className={`grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4 ${loading ? "opacity-60" : ""}`}>
         {statCards.map((card, i) => (
-          <Link key={card.title} href={card.href} className={`block glass p-3 sm:p-4 lg:p-5 animate-card-enter stagger-${i + 1}`}>
-            <div className="flex items-center gap-3 mb-3">
-              <div className="flex items-center justify-center size-9 rounded-xl bg-[var(--apple-secondary-system-background)]">
-                {STAT_ICONS[i]}
+          <Link key={card.title} href={card.href} className={`block glass-card apple-press p-3 sm:p-4 lg:p-5 ${STAT_CONFIGS[i].accent} animate-card-enter stagger-${i + 1}`}>
+            <div className="flex items-center gap-3 mb-3 sm:mb-4">
+              <div className={`size-8 sm:size-9 lg:size-10 ${STAT_CONFIGS[i].iconBg}`}>
+                {STAT_CONFIGS[i].icon}
               </div>
-              <p className="text-[13px] font-medium text-[var(--apple-secondary-label)]">{card.title}</p>
             </div>
-            <p className="text-xl sm:text-2xl font-semibold tabular-nums text-[var(--apple-label)]">{card.value}</p>
+            <p className="text-xl sm:text-2xl lg:text-[28px] font-bold tabular-nums tracking-[-0.02em] text-[var(--apple-label)] leading-tight">{card.value}</p>
+            <p className="text-[11px] sm:text-xs lg:text-[13px] font-medium text-[var(--apple-secondary-label)] mt-1">{card.title}</p>
           </Link>
         ))}
       </div>
 
-      {/* Charts */}
-      <div className="grid gap-4 lg:grid-cols-2 animate-fade-up-2">
+      {/* Charts — Bento Grid */}
+      <div className="bento-grid animate-fade-up-2">
+        <div className="bento-span-2">
+          <LineChartSection title="월별 추이" data={monthlyData} />
+        </div>
         <CategoryPieSection title="카테고리별 비용" data={categoryData} />
-        <LineChartSection title="월별 추이" data={monthlyData} />
       </div>
 
       <div className="animate-fade-up-3">
@@ -216,28 +218,36 @@ function BarSection({
   const maxValue = Math.max(...data.map((d) => d.value), 1);
 
   return (
-    <div className="glass p-3 sm:p-4 lg:p-5">
-      <h3 className="text-[15px] font-semibold text-[var(--apple-label)] mb-4">{title}</h3>
+    <div className="glass-card p-4 sm:p-5 lg:p-6">
+      <h3 className="text-[15px] font-semibold text-[var(--apple-label)] mb-5">{title}</h3>
       {data.length === 0 ? (
         <p className="py-6 text-center text-sm text-[var(--apple-secondary-label)]">데이터가 없습니다</p>
       ) : (
-        <div className="space-y-3">
-          {data.map((item) => (
-            <div key={item.label} className="space-y-1.5">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-[13px] font-medium text-[var(--apple-label)]">{item.label}</span>
-                <span className="shrink-0 text-[13px] tabular-nums text-[var(--apple-secondary-label)]">
-                  {formatAmount(item.value)}원
-                </span>
+        <div className="space-y-4">
+          {data.map((item, idx) => {
+            const pct = (item.value / maxValue) * 100;
+            return (
+              <div key={item.label} className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center justify-center size-6 rounded-full bg-[rgba(0,122,255,0.08)] text-[11px] font-bold text-[#007AFF] tabular-nums">
+                      {idx + 1}
+                    </span>
+                    <span className="text-[13px] font-medium text-[var(--apple-label)]">{item.label}</span>
+                  </div>
+                  <span className="shrink-0 text-[13px] font-semibold tabular-nums text-[var(--apple-label)]">
+                    {formatAmount(item.value)}원
+                  </span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-[rgba(0,0,0,0.04)] dark:bg-[rgba(255,255,255,0.06)]">
+                  <div
+                    className="h-full rounded-full progress-bar-gradient-blue transition-all duration-700 ease-out"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
               </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-[rgba(0,0,0,0.04)]">
-                <div
-                  className="h-full rounded-full bg-[#007AFF] transition-all duration-500"
-                  style={{ width: `${(item.value / maxValue) * 100}%` }}
-                />
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -271,18 +281,18 @@ function CategoryPieSection({
   const sorted = [...segments].sort((a, b) => b.value - a.value);
 
   return (
-    <div className="glass p-4 sm:p-5 lg:p-6">
+    <div className="glass-card p-4 sm:p-5 lg:p-6">
       <h3 className="text-[15px] font-semibold text-[var(--apple-label)] mb-5">{title}</h3>
       {data.length === 0 ? (
         <p className="py-8 text-center text-sm text-[var(--apple-secondary-label)]">데이터가 없습니다</p>
       ) : (
-        <div className="flex items-center gap-6">
+        <div className="flex flex-col items-center gap-5">
           {/* Donut chart */}
           <div className="relative shrink-0">
             <svg width="180" height="180" viewBox="0 0 180 180">
               <circle
                 cx="90" cy="90" r={radius}
-                fill="none" stroke="var(--apple-separator)" strokeWidth={strokeW} opacity="0.2"
+                fill="none" stroke="var(--apple-separator)" strokeWidth={strokeW} opacity="0.1"
               />
               {segments.map((seg) => (
                 <circle
@@ -293,33 +303,34 @@ function CategoryPieSection({
                   strokeDasharray={`${seg.dashLength} ${circumference - seg.dashLength}`}
                   strokeDashoffset={seg.offset}
                   className="transition-all duration-700 ease-out"
+                  style={{ filter: `drop-shadow(0 0 6px ${seg.color}33)` }}
                 />
               ))}
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <span className="text-[10px] font-medium tracking-wider uppercase text-[var(--apple-secondary-label)]">합계</span>
-              <span className="text-[17px] font-bold text-[var(--apple-label)] tabular-nums tracking-tight leading-tight">
+              <span className="text-[20px] font-bold text-[var(--apple-label)] tabular-nums tracking-tight leading-tight">
                 {formatAmount(total)}
               </span>
-              <span className="text-[10px] text-[var(--apple-secondary-label)]">원</span>
+              <span className="text-[11px] text-[var(--apple-secondary-label)]">원</span>
             </div>
           </div>
 
-          {/* Legend — beside the chart */}
-          <div className="flex-1 min-w-0 space-y-3">
+          {/* Legend — below the chart */}
+          <div className="w-full space-y-3">
             {sorted.map((item) => {
               const pctValue = total > 0 ? Math.round(item.pct * 100) : 0;
               return (
                 <div key={item.label} className="flex items-center gap-2.5">
-                  <span className="size-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-                  <span className="text-[13px] text-[var(--apple-secondary-label)] shrink-0">{item.label}</span>
-                  <div className="flex-1 h-1.5 overflow-hidden rounded-full bg-[rgba(0,0,0,0.04)]">
+                  <span className="size-3 rounded-md shrink-0" style={{ backgroundColor: item.color, boxShadow: `0 0 8px ${item.color}40` }} />
+                  <span className="text-[13px] font-medium text-[var(--apple-label)] shrink-0 min-w-[48px]">{item.label}</span>
+                  <div className="flex-1 h-1.5 overflow-hidden rounded-full bg-[rgba(0,0,0,0.04)] dark:bg-[rgba(255,255,255,0.06)]">
                     <div
-                      className="h-full rounded-full transition-all duration-500"
+                      className="h-full rounded-full transition-all duration-700 ease-out"
                       style={{ width: `${pctValue}%`, backgroundColor: item.color }}
                     />
                   </div>
-                  <span className="text-[13px] font-semibold tabular-nums text-[var(--apple-label)] shrink-0 min-w-[36px] text-right">
+                  <span className="text-[13px] font-bold tabular-nums text-[var(--apple-label)] shrink-0 min-w-[36px] text-right">
                     {pctValue}%
                   </span>
                 </div>
@@ -341,7 +352,7 @@ function LineChartSection({
 }) {
   if (data.length === 0) {
     return (
-      <div className="glass p-4 sm:p-5 lg:p-6">
+      <div className="glass-card p-4 sm:p-5 lg:p-6">
         <h3 className="text-[15px] font-semibold text-[var(--apple-label)] mb-5">{title}</h3>
         <p className="py-8 text-center text-sm text-[var(--apple-secondary-label)]">데이터가 없습니다</p>
       </div>
@@ -403,7 +414,7 @@ function LineChartSection({
   const gridSteps = [0.25, 0.5, 0.75];
 
   return (
-    <div className="glass p-4 sm:p-5 lg:p-6">
+    <div className="glass-card p-4 sm:p-5 lg:p-6">
       {/* Header with title, latest value, and change indicator */}
       <div className="flex items-start justify-between mb-5">
         <div>
@@ -439,11 +450,22 @@ function LineChartSection({
         >
           <defs>
             <linearGradient id="trendAreaGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#007AFF" stopOpacity="0.16" />
-              <stop offset="70%" stopColor="#007AFF" stopOpacity="0.04" />
+              <stop offset="0%" stopColor="#007AFF" stopOpacity="0.2" />
+              <stop offset="40%" stopColor="#5AC8FA" stopOpacity="0.1" />
               <stop offset="100%" stopColor="#007AFF" stopOpacity="0" />
             </linearGradient>
+            <linearGradient id="lineGradient" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#007AFF" />
+              <stop offset="100%" stopColor="#5AC8FA" />
+            </linearGradient>
             <filter id="dotGlow">
+              <feGaussianBlur stdDeviation="3" result="glow" />
+              <feMerge>
+                <feMergeNode in="glow" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <filter id="lineGlow">
               <feGaussianBlur stdDeviation="2" result="glow" />
               <feMerge>
                 <feMergeNode in="glow" />
@@ -482,14 +504,15 @@ function LineChartSection({
           {/* Area fill */}
           <path d={areaPath} fill="url(#trendAreaGradient)" />
 
-          {/* Smooth curve */}
+          {/* Smooth curve with gradient */}
           <path
             d={curvePath}
             fill="none"
-            stroke="#007AFF"
+            stroke="url(#lineGradient)"
             strokeWidth="2.5"
             strokeLinecap="round"
             strokeLinejoin="round"
+            filter="url(#lineGlow)"
           />
 
           {/* Data points */}

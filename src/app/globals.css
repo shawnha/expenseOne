@@ -1029,6 +1029,338 @@
   animation: plug-out 0.6s cubic-bezier(0.55, 0, 1, 0.45) both;
 }
 
+/* ------------------------------------------------------------------ */
+/* Ambient Gradient Orbs — Depth for Glass Panels                      */
+/* ------------------------------------------------------------------ */
+
+.ambient-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  will-change: transform;
+  z-index: 0;
+}
+
+.ambient-orb-blue {
+  background: radial-gradient(circle, rgba(0, 122, 255, 0.12) 0%, transparent 70%);
+  width: 500px;
+  height: 500px;
+  top: -100px;
+  right: -100px;
+  animation: orb-drift-1 20s ease-in-out infinite;
+}
+
+.ambient-orb-purple {
+  background: radial-gradient(circle, rgba(88, 86, 214, 0.1) 0%, transparent 70%);
+  width: 400px;
+  height: 400px;
+  bottom: 10%;
+  left: -80px;
+  animation: orb-drift-2 25s ease-in-out infinite;
+}
+
+.ambient-orb-teal {
+  background: radial-gradient(circle, rgba(90, 200, 250, 0.08) 0%, transparent 70%);
+  width: 350px;
+  height: 350px;
+  top: 40%;
+  right: 15%;
+  animation: orb-drift-3 22s ease-in-out infinite;
+}
+
+.dark .ambient-orb-blue {
+  background: radial-gradient(circle, rgba(10, 132, 255, 0.15) 0%, transparent 70%);
+}
+
+.dark .ambient-orb-purple {
+  background: radial-gradient(circle, rgba(94, 92, 230, 0.12) 0%, transparent 70%);
+}
+
+.dark .ambient-orb-teal {
+  background: radial-gradient(circle, rgba(100, 210, 255, 0.08) 0%, transparent 70%);
+}
+
+@keyframes orb-drift-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(-30px, 20px) scale(1.05); }
+  66% { transform: translate(20px, -15px) scale(0.95); }
+}
+
+@keyframes orb-drift-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(25px, -20px) scale(1.08); }
+  66% { transform: translate(-15px, 25px) scale(0.96); }
+}
+
+@keyframes orb-drift-3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-20px, 15px) scale(1.04); }
+}
+
+/* ------------------------------------------------------------------ */
+/* Glass Card Accent Borders (Gradient Top Border)                     */
+/* ------------------------------------------------------------------ */
+
+.glass-card-accent {
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-card-accent::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 12px;
+  right: 12px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  z-index: 2;
+}
+
+.glass-card-accent-blue::after {
+  background: linear-gradient(90deg, #007AFF, #5AC8FA);
+}
+
+.glass-card-accent-indigo::after {
+  background: linear-gradient(90deg, #5856D6, #AF52DE);
+}
+
+.glass-card-accent-orange::after {
+  background: linear-gradient(90deg, #FF9500, #FFCC00);
+}
+
+.glass-card-accent-green::after {
+  background: linear-gradient(90deg, #34C759, #30D158);
+}
+
+.glass-card-accent-red::after {
+  background: linear-gradient(90deg, #FF3B30, #FF2D55);
+}
+
+.dark .glass-card-accent-blue::after {
+  background: linear-gradient(90deg, #0A84FF, #64D2FF);
+}
+
+.dark .glass-card-accent-indigo::after {
+  background: linear-gradient(90deg, #5E5CE6, #BF5AF2);
+}
+
+.dark .glass-card-accent-orange::after {
+  background: linear-gradient(90deg, #FF9F0A, #FFD60A);
+}
+
+.dark .glass-card-accent-green::after {
+  background: linear-gradient(90deg, #30D158, #32D74B);
+}
+
+.dark .glass-card-accent-red::after {
+  background: linear-gradient(90deg, #FF453A, #FF375F);
+}
+
+/* ------------------------------------------------------------------ */
+/* Icon Container with Gradient Background                             */
+/* ------------------------------------------------------------------ */
+
+.icon-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.icon-container-blue {
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.12) 0%, rgba(90, 200, 250, 0.08) 100%);
+}
+
+.icon-container-indigo {
+  background: linear-gradient(135deg, rgba(88, 86, 214, 0.12) 0%, rgba(175, 82, 222, 0.08) 100%);
+}
+
+.icon-container-orange {
+  background: linear-gradient(135deg, rgba(255, 149, 0, 0.12) 0%, rgba(255, 204, 0, 0.08) 100%);
+}
+
+.icon-container-green {
+  background: linear-gradient(135deg, rgba(52, 199, 89, 0.12) 0%, rgba(48, 209, 88, 0.08) 100%);
+}
+
+.icon-container-red {
+  background: linear-gradient(135deg, rgba(255, 59, 48, 0.12) 0%, rgba(255, 45, 85, 0.08) 100%);
+}
+
+.dark .icon-container-blue {
+  background: linear-gradient(135deg, rgba(10, 132, 255, 0.18) 0%, rgba(100, 210, 255, 0.1) 100%);
+}
+
+.dark .icon-container-indigo {
+  background: linear-gradient(135deg, rgba(94, 92, 230, 0.18) 0%, rgba(191, 90, 242, 0.1) 100%);
+}
+
+.dark .icon-container-orange {
+  background: linear-gradient(135deg, rgba(255, 159, 10, 0.18) 0%, rgba(255, 214, 10, 0.1) 100%);
+}
+
+.dark .icon-container-green {
+  background: linear-gradient(135deg, rgba(48, 209, 88, 0.18) 0%, rgba(50, 215, 75, 0.1) 100%);
+}
+
+.dark .icon-container-red {
+  background: linear-gradient(135deg, rgba(255, 69, 58, 0.18) 0%, rgba(255, 55, 95, 0.1) 100%);
+}
+
+/* ------------------------------------------------------------------ */
+/* KPI Value Pulse (Realtime update indicator)                         */
+/* ------------------------------------------------------------------ */
+
+@keyframes kpi-pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.6; }
+  100% { opacity: 1; }
+}
+
+.kpi-updating {
+  animation: kpi-pulse 0.6s ease-in-out;
+}
+
+/* ------------------------------------------------------------------ */
+/* Shimmer Loading Skeleton                                            */
+/* ------------------------------------------------------------------ */
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.04) 25%,
+    rgba(0, 0, 0, 0.08) 50%,
+    rgba(0, 0, 0, 0.04) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+.dark .skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 25%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.04) 75%
+  );
+  background-size: 200% 100%;
+}
+
+/* ------------------------------------------------------------------ */
+/* Bento Grid Layout                                                   */
+/* ------------------------------------------------------------------ */
+
+.bento-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 768px) {
+  .bento-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .bento-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+}
+
+.bento-span-2 {
+  grid-column: span 1;
+}
+
+@media (min-width: 1024px) {
+  .bento-span-2 {
+    grid-column: span 2;
+  }
+}
+
+.bento-span-full {
+  grid-column: 1 / -1;
+}
+
+/* ------------------------------------------------------------------ */
+/* Enhanced Progress Bars with Gradient                                */
+/* ------------------------------------------------------------------ */
+
+.progress-bar-gradient-blue {
+  background: linear-gradient(90deg, #007AFF, #5AC8FA);
+}
+
+.progress-bar-gradient-green {
+  background: linear-gradient(90deg, #34C759, #30D158);
+}
+
+.progress-bar-gradient-orange {
+  background: linear-gradient(90deg, #FF9500, #FFCC00);
+}
+
+.dark .progress-bar-gradient-blue {
+  background: linear-gradient(90deg, #0A84FF, #64D2FF);
+}
+
+.dark .progress-bar-gradient-green {
+  background: linear-gradient(90deg, #30D158, #32D74B);
+}
+
+.dark .progress-bar-gradient-orange {
+  background: linear-gradient(90deg, #FF9F0A, #FFD60A);
+}
+
+/* ------------------------------------------------------------------ */
+/* Prefers Reduced Motion                                              */
+/* ------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .ambient-orb {
+    animation: none !important;
+  }
+  .glass-card:hover {
+    transform: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Section Divider with Label                                          */
+/* ------------------------------------------------------------------ */
+
+.section-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--apple-secondary-label);
+}
+
+.section-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--apple-separator);
+  opacity: 0.5;
+}
+
 /* ── Splash plug animations (full-screen center) ── */
 /* Only the plug part (prongs+body+cord) moves; socket stays fixed */
 

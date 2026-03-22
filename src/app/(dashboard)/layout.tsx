@@ -33,8 +33,14 @@ export default async function DashboardLayout({
           <Sidebar user={mockUser} />
           <div className="flex flex-1 flex-col overflow-hidden">
             <Header user={mockUser} unreadCount={3} />
-            <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-              {children}
+            <main className="relative flex-1 overflow-y-auto p-4 lg:p-6">
+              {/* Ambient gradient orbs for glass depth */}
+              <div className="ambient-orb ambient-orb-blue" aria-hidden="true" />
+              <div className="ambient-orb ambient-orb-purple" aria-hidden="true" />
+              <div className="ambient-orb ambient-orb-teal" aria-hidden="true" />
+              <div className="relative z-[1]">
+                {children}
+              </div>
             </main>
           </div>
         </div>
@@ -119,8 +125,14 @@ export default async function DashboardLayout({
         <div className="flex flex-1 flex-col overflow-hidden">
           <Header user={user} unreadCount={unreadCount ?? 0} />
 
-          <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-            {children}
+          <main className="relative flex-1 overflow-y-auto p-4 lg:p-6">
+            {/* Ambient gradient orbs for glass depth */}
+            <div className="ambient-orb ambient-orb-blue" aria-hidden="true" />
+            <div className="ambient-orb ambient-orb-purple" aria-hidden="true" />
+            <div className="ambient-orb ambient-orb-teal" aria-hidden="true" />
+            <div className="relative z-[1]">
+              {children}
+            </div>
           </main>
         </div>
       </div>

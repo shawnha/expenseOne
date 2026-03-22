@@ -69,7 +69,7 @@ export function ExpenseTabList({ expenses }: { expenses: Expense[] }) {
       </div>
 
       {/* Filtered list */}
-      <div className="glass p-3 sm:p-4 lg:p-5 animate-fade-up-3">
+      <div className="glass-card p-3 sm:p-4 lg:p-5 animate-fade-up-3">
         <div className="flex items-center justify-between mb-3 sm:mb-4">
           <h2 className="text-[15px] sm:text-base font-semibold text-[var(--apple-label)]">최근 제출</h2>
           <Link

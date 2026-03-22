@@ -136,11 +136,11 @@ async function getDashboardData() {
 // Page component
 // ---------------------------------------------------------------------------
 
-const STAT_ICONS = [
-  <DollarSign key="dollar" className="size-5 text-[#007AFF]" />,
-  <FileText key="file" className="size-5 text-[#5856D6]" />,
-  <Clock key="clock" className="size-5 text-[#FF9500]" />,
-  <CheckCircle2 key="check" className="size-5 text-[#34C759]" />,
+const STAT_CONFIGS = [
+  { icon: <DollarSign key="dollar" className="size-5 text-[#007AFF]" />, accent: "glass-card-accent glass-card-accent-blue", iconBg: "icon-container icon-container-blue" },
+  { icon: <FileText key="file" className="size-5 text-[#5856D6]" />, accent: "glass-card-accent glass-card-accent-indigo", iconBg: "icon-container icon-container-indigo" },
+  { icon: <Clock key="clock" className="size-5 text-[#FF9500]" />, accent: "glass-card-accent glass-card-accent-orange", iconBg: "icon-container icon-container-orange" },
+  { icon: <CheckCircle2 key="check" className="size-5 text-[#34C759]" />, accent: "glass-card-accent glass-card-accent-green", iconBg: "icon-container icon-container-green" },
 ];
 
 export default async function DashboardHomePage() {
@@ -179,17 +179,18 @@ export default async function DashboardHomePage() {
             href={card.href}
             className={cn(
               "glass-card p-3 sm:p-4 lg:p-5 group apple-press block",
+              STAT_CONFIGS[i].accent,
               "animate-card-enter",
               `stagger-${i + 1}`
             )}
           >
-            <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
-              <div className="flex items-center justify-center size-7 sm:size-8 lg:size-9 rounded-lg sm:rounded-xl bg-[var(--apple-secondary-system-background)]">
-                {STAT_ICONS[i]}
+            <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+              <div className={cn("size-8 sm:size-9 lg:size-10", STAT_CONFIGS[i].iconBg)}>
+                {STAT_CONFIGS[i].icon}
               </div>
-              <p className="text-[11px] sm:text-xs lg:text-[13px] font-medium text-[var(--apple-secondary-label)]">{card.title}</p>
             </div>
-            <p className="text-lg sm:text-xl lg:text-2xl font-bold tracking-[-0.02em] tabular-nums text-[var(--apple-label)]">{card.value}</p>
+            <p className="text-xl sm:text-2xl lg:text-[28px] font-bold tracking-[-0.02em] tabular-nums text-[var(--apple-label)] leading-tight">{card.value}</p>
+            <p className="text-[11px] sm:text-xs lg:text-[13px] font-medium text-[var(--apple-secondary-label)] mt-1">{card.title}</p>
           </Link>
         ))}
       </div>
