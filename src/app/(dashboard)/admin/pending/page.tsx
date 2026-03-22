@@ -246,7 +246,7 @@ export default function AdminPendingPage() {
                           <Button
                             size="sm"
                             onClick={(e) => { e.stopPropagation(); setApproveTarget(expense); }}
-                            className="rounded-full bg-[#34AE54] hover:bg-[#2D9A49] text-white apple-press"
+                            className="rounded-full bg-[var(--apple-green)] hover:bg-[color-mix(in_srgb,var(--apple-green)_85%,black)] text-white apple-press"
                           >
                             <Check className="size-3.5" />
                             승인
@@ -306,7 +306,7 @@ export default function AdminPendingPage() {
                     </div>
                   </button>
                   <div className="flex gap-2 px-4 pb-4 pt-2">
-                    <Button size="sm" className="flex-1 rounded-full bg-[#34AE54] hover:bg-[#2D9A49] text-white apple-press" onClick={() => setApproveTarget(expense)}>
+                    <Button size="sm" className="flex-1 rounded-full bg-[var(--apple-green)] hover:bg-[color-mix(in_srgb,var(--apple-green)_85%,black)] text-white apple-press" onClick={() => setApproveTarget(expense)}>
                       <Check className="size-3.5" />
                       승인
                     </Button>
@@ -340,7 +340,7 @@ export default function AdminPendingPage() {
             <Button variant="outline" onClick={() => setApproveTarget(null)} disabled={approving} className="rounded-full">
               취소
             </Button>
-            <Button onClick={handleApprove} disabled={approving} className="rounded-full bg-[#34AE54] hover:bg-[#2D9A49]">
+            <Button onClick={handleApprove} disabled={approving} className="rounded-full bg-[var(--apple-green)] hover:bg-[color-mix(in_srgb,var(--apple-green)_85%,black)]">
               {approving && <Loader2 className="size-4 animate-spin" />}
               승인
             </Button>

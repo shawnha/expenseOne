@@ -81,7 +81,7 @@ export function AdminApproveReject({ expenseId, expenseTitle, expenseAmount }: A
     <>
       <Button
         onClick={() => setApproveOpen(true)}
-        className="rounded-full bg-[#34AE54] hover:bg-[#2D9A49] text-white apple-press"
+        className="rounded-full bg-[var(--apple-green)] hover:bg-[color-mix(in_srgb,var(--apple-green)_85%,black)] text-white apple-press"
       >
         <Check className="size-3.5" />
         승인
@@ -109,7 +109,7 @@ export function AdminApproveReject({ expenseId, expenseTitle, expenseAmount }: A
             <Button variant="outline" onClick={() => setApproveOpen(false)} disabled={approving} className="rounded-full">
               취소
             </Button>
-            <Button onClick={handleApprove} disabled={approving} className="rounded-full bg-[#34AE54] hover:bg-[#2D9A49]">
+            <Button onClick={handleApprove} disabled={approving} className="rounded-full bg-[var(--apple-green)] hover:bg-[color-mix(in_srgb,var(--apple-green)_85%,black)]">
               {approving && <Loader2 className="size-4 animate-spin" />}
               승인
             </Button>
