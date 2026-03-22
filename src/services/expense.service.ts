@@ -146,7 +146,8 @@ export async function getExpenses(
     conditions.push(lte(expenses.transactionDate, query.endDate));
   }
   if (query.search) {
-    const searchTerm = `%${query.search}%`;
+    const escaped = query.search.replace(/[%_\\]/g, "\\$&");
+    const searchTerm = `%${escaped}%`;
     conditions.push(
       or(
         ilike(expenses.title, searchTerm),
