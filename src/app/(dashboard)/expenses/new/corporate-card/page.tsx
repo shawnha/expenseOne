@@ -132,12 +132,10 @@ export default function CorporateCardPage() {
         return `${label}: ${msg}`;
       });
     const errorMsg = messages[0] || "입력값을 확인해주세요.";
-    console.error("[법카폼 검증실패]", JSON.stringify(fieldErrors));
     toast.error(errorMsg);
   };
 
   const onSubmit = async (data: CorporateCardFormData) => {
-    console.log("[법카폼] onSubmit 호출됨", JSON.stringify(data));
     setIsSubmitting(true);
 
     try {

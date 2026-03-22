@@ -4,6 +4,13 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Search, SlidersHorizontal } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { CATEGORY_OPTIONS } from "@/lib/validations/expense-form";
 
 function getDefaultDateRange() {
@@ -18,13 +25,13 @@ function getDefaultDateRange() {
 }
 
 const TYPE_OPTIONS = [
-  { value: "", label: "전체 유형" },
+  { value: "__all__", label: "전체 유형" },
   { value: "CORPORATE_CARD", label: "법카사용" },
   { value: "DEPOSIT_REQUEST", label: "입금요청" },
 ];
 
 const STATUS_OPTIONS = [
-  { value: "", label: "전체 상태" },
+  { value: "__all__", label: "전체 상태" },
   { value: "SUBMITTED", label: "제출" },
   { value: "APPROVED", label: "승인" },
   { value: "REJECTED", label: "반려" },
@@ -32,7 +39,7 @@ const STATUS_OPTIONS = [
 ];
 
 const ALL_CATEGORY_OPTIONS = [
-  { value: "", label: "전체 카테고리" },
+  { value: "__all__", label: "전체 카테고리" },
   ...CATEGORY_OPTIONS,
 ];
 
@@ -70,8 +77,9 @@ export function ExpenseFilters() {
 
   const handleFilterChange = useCallback(
     (key: string, value: string) => {
+      const actual = value === "__all__" ? "" : value;
       startTransition(() => {
-        const qs = createQueryString({ [key]: value || null });
+        const qs = createQueryString({ [key]: actual || null });
         router.push(`${pathname}${qs ? `?${qs}` : ""}`);
       });
     },
@@ -101,9 +109,6 @@ export function ExpenseFilters() {
     },
     [createQueryString, pathname, router]
   );
-
-  const selectClassName =
-    "h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus:border-ring focus:ring-3 focus:ring-ring/50 w-full sm:w-auto";
 
   const hasActiveFilters = !!(
     searchParams.get("type") ||
@@ -146,44 +151,59 @@ export function ExpenseFilters() {
 
       {/* Filter dropdowns - always visible on sm+, toggleable on mobile */}
       <div className={`${mobileFiltersOpen ? "flex" : "hidden"} sm:flex flex-col sm:flex-row gap-3 sm:items-center sm:flex-wrap w-full sm:w-auto`}>
-        <select
-          aria-label="비용 유형 필터"
-          className={selectClassName}
-          value={searchParams.get("type") ?? ""}
-          onChange={(e) => handleFilterChange("type", e.target.value)}
+        <Select
+          value={searchParams.get("type") || "__all__"}
+          onValueChange={(v) => handleFilterChange("type", v)}
         >
-          {TYPE_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger className="h-11 sm:h-8 w-full sm:w-auto rounded-xl glass-input" aria-label="비용 유형 필터">
+            <SelectValue>
+              {TYPE_OPTIONS.find((o) => o.value === (searchParams.get("type") || "__all__"))?.label}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {TYPE_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-        <select
-          aria-label="상태 필터"
-          className={selectClassName}
-          value={searchParams.get("status") ?? ""}
-          onChange={(e) => handleFilterChange("status", e.target.value)}
+        <Select
+          value={searchParams.get("status") || "__all__"}
+          onValueChange={(v) => handleFilterChange("status", v)}
         >
-          {STATUS_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger className="h-11 sm:h-8 w-full sm:w-auto rounded-xl glass-input" aria-label="상태 필터">
+            <SelectValue>
+              {STATUS_OPTIONS.find((o) => o.value === (searchParams.get("status") || "__all__"))?.label}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {STATUS_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-        <select
-          aria-label="카테고리 필터"
-          className={selectClassName}
-          value={searchParams.get("category") ?? ""}
-          onChange={(e) => handleFilterChange("category", e.target.value)}
+        <Select
+          value={searchParams.get("category") || "__all__"}
+          onValueChange={(v) => handleFilterChange("category", v)}
         >
-          {ALL_CATEGORY_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger className="h-11 sm:h-8 w-full sm:w-auto rounded-xl glass-input" aria-label="카테고리 필터">
+            <SelectValue>
+              {ALL_CATEGORY_OPTIONS.find((o) => o.value === (searchParams.get("category") || "__all__"))?.label}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {ALL_CATEGORY_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
         <div className="flex items-center gap-2">
           <Input
