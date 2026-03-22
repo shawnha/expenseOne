@@ -62,7 +62,7 @@ export function LogoutPlug({ connected, className }: LogoutPlugProps) {
         viewBox="0 0 24 24"
         fill="none"
         className={cn(
-          "relative text-[#34C759] transition-all duration-300",
+          "relative text-[var(--apple-green)] transition-all duration-300",
           animating && "drop-shadow-[0_0_6px_rgba(52,199,89,0.5)]"
         )}
       >

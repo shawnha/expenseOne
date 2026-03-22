@@ -43,7 +43,7 @@ export function RequestRemainingButton({ expenseId }: RequestRemainingButtonProp
     <Button
       onClick={handleClick}
       disabled={isLoading}
-      className="rounded-full bg-[#007AFF] hover:bg-[#0066d6] text-white text-sm font-medium"
+      className="rounded-full bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] text-white text-sm font-medium"
     >
       {isLoading ? (
         <>

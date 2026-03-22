@@ -165,7 +165,7 @@ export default function NotificationsPage() {
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="size-5 animate-spin text-[#007AFF]" />
+            <Loader2 className="size-5 animate-spin text-[var(--apple-blue)]" />
           </div>
         ) : notifications.length === 0 ? (
           <div className="py-12 text-center">
@@ -189,7 +189,7 @@ export default function NotificationsPage() {
                       {notification.title}
                     </p>
                     {!notification.isRead && (
-                      <span className="size-2 shrink-0 rounded-full bg-[#007AFF]" />
+                      <span className="size-2 shrink-0 rounded-full bg-[var(--apple-blue)]" />
                     )}
                   </div>
                   <p className="mt-0.5 text-[13px] text-[var(--apple-secondary-label)] line-clamp-2">

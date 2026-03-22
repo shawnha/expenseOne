@@ -169,6 +169,16 @@ export async function getExpenses(
   const orderColumn = orderByMap[sortColumn] ?? expenses.createdAt;
   const orderFn = sortDir === "asc" ? asc : desc;
 
+  // Subquery for attachment count per expense
+  const attachmentCountSq = db
+    .select({
+      expenseId: attachments.expenseId,
+      attachmentCount: count().as("attachment_count"),
+    })
+    .from(attachments)
+    .groupBy(attachments.expenseId)
+    .as("att_count");
+
   // Execute queries in parallel
   const [items, totalResult, amountResult] = await Promise.all([
     db
@@ -179,9 +189,11 @@ export async function getExpenses(
           name: users.name,
           email: users.email,
         },
+        attachmentCount: attachmentCountSq.attachmentCount,
       })
       .from(expenses)
       .leftJoin(users, eq(expenses.submittedById, users.id))
+      .leftJoin(attachmentCountSq, eq(expenses.id, attachmentCountSq.expenseId))
       .where(whereClause)
       .orderBy(orderFn(orderColumn))
       .limit(limit)
@@ -197,6 +209,7 @@ export async function getExpenses(
     data: items.map((row) => ({
       ...row.expense,
       submitter: row.submitter,
+      attachmentCount: Number(row.attachmentCount ?? 0),
     })),
     meta: {
       page,

@@ -41,7 +41,7 @@ export function PlugSplash({ mode, onComplete }: PlugSplashProps) {
           className={cn(
             "transition-colors duration-700",
             isConnecting
-              ? "text-[#34C759] drop-shadow-[0_0_30px_rgba(52,199,89,0.4)]"
+              ? "text-[var(--apple-green)] drop-shadow-[0_0_30px_rgba(52,199,89,0.4)]"
               : "text-[var(--apple-secondary-label)]"
           )}
         >
@@ -83,7 +83,7 @@ export function PlugSplash({ mode, onComplete }: PlugSplashProps) {
       <p className={cn(
         "mt-6 text-sm font-medium tracking-wide transition-opacity duration-500",
         phase === "active" ? "opacity-100" : "opacity-0",
-        isConnecting ? "text-[#34C759]" : "text-[var(--apple-secondary-label)]"
+        isConnecting ? "text-[var(--apple-green)]" : "text-[var(--apple-secondary-label)]"
       )}>
         {isConnecting ? "연결 중..." : "연결 해제 중..."}
       </p>
