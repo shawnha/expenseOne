@@ -52,12 +52,22 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return errorResponse("VALIDATION_ERROR", "이미 후지급 요청이 되었습니다.");
     }
 
-    // Update the expense
+    // Update the expense with state conditions in WHERE to prevent TOCTOU race
     const [updated] = await db
       .update(expenses)
       .set({ remainingPaymentRequested: true })
-      .where(eq(expenses.id, id))
+      .where(
+        and(
+          eq(expenses.id, id),
+          eq(expenses.status, "APPROVED"),
+          eq(expenses.remainingPaymentRequested, false),
+        ),
+      )
       .returning();
+
+    if (!updated) {
+      return errorResponse("VALIDATION_ERROR", "비용 상태가 변경되었습니다. 페이지를 새로고침해주세요.");
+    }
 
     // Notify all ADMINs
     const admins = await db
