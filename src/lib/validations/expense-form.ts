@@ -53,7 +53,7 @@ export const corporateCardFormSchema = z.object({
     .max(200, "제목은 200자 이내로 입력해주세요"),
   amount: z
     .number({ message: "금액을 입력해주세요" })
-    .int("금액은 정수로 입력해주세요")
+    .int("금액은 원 단위로 입력해주세요")
     .positive("금액은 0보다 커야 합니다"),
   category: categoryField,
   merchantName: z
@@ -74,7 +74,7 @@ export const depositRequestFormSchema = z.object({
     .max(200, "제목은 200자 이내로 입력해주세요"),
   amount: z
     .number({ message: "금액을 입력해주세요" })
-    .int("금액은 정수로 입력해주세요")
+    .int("금액은 원 단위로 입력해주세요")
     .positive("금액은 0보다 커야 합니다"),
   category: categoryField,
   bankName: z

@@ -108,7 +108,7 @@ function RoleLabel({
             className="flex items-center justify-between gap-4"
           >
             {opt.label}
-            {opt.value === role && <Check className="size-3.5 text-[#007AFF]" />}
+            {opt.value === role && <Check className="size-3.5 text-[var(--apple-blue)]" />}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

@@ -83,7 +83,7 @@ function SettingsContent({
 
         {/* Avatar */}
         <div className="flex items-center gap-4 mb-6">
-          <div className="flex size-16 items-center justify-center rounded-2xl bg-[rgba(0,122,255,0.12)] text-[#007AFF] text-xl sm:text-2xl font-semibold">
+          <div className="flex size-16 items-center justify-center rounded-2xl bg-[rgba(0,122,255,0.12)] text-[var(--apple-blue)] text-xl sm:text-2xl font-semibold">
             {initial}
           </div>
           <div>

@@ -214,20 +214,20 @@ export default function AdminReportsPage() {
         <div className="glass p-3 sm:p-4 lg:p-5 animate-card-enter stagger-1">
           <p className="text-[13px] font-medium text-[var(--apple-secondary-label)]">조회 건수</p>
           <p className="mt-2 text-xl sm:text-2xl font-semibold tabular-nums text-[var(--apple-label)]">
-            {loading ? <Loader2 className="size-5 animate-spin text-[#007AFF]" /> : <>{summary.count}건</>}
+            {loading ? <Loader2 className="size-5 animate-spin text-[var(--apple-blue)]" /> : <>{summary.count}건</>}
           </p>
         </div>
         <div className="glass p-3 sm:p-4 lg:p-5 animate-card-enter stagger-2">
           <p className="text-[13px] font-medium text-[var(--apple-secondary-label)]">총 금액</p>
           <p className="mt-2 text-xl sm:text-2xl font-semibold tabular-nums text-[var(--apple-label)]">
-            {loading ? <Loader2 className="size-5 animate-spin text-[#007AFF]" /> : <>{formatAmount(summary.totalAmount)}원</>}
+            {loading ? <Loader2 className="size-5 animate-spin text-[var(--apple-blue)]" /> : <>{formatAmount(summary.totalAmount)}원</>}
           </p>
         </div>
         <div className="flex items-end glass p-3 sm:p-4 lg:p-5 animate-card-enter stagger-3">
           <Button
             onClick={handleDownload}
             disabled={downloading || summary.count === 0}
-            className="w-full rounded-full h-11 bg-[#007AFF] hover:bg-[#0066d6] apple-press"
+            className="w-full rounded-full h-11 bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] apple-press"
           >
             {downloading ? (
               <Loader2 className="size-4 animate-spin" />
