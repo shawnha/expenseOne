@@ -57,28 +57,6 @@ const PERIOD_OPTIONS: { value: PeriodFilter; label: string }[] = [
   { value: "this_year", label: "올해" },
 ];
 
-// Mock data for BYPASS_AUTH
-const MOCK_DATA: DashboardData = {
-  stats: { totalAmount: 2750000, pendingCount: 3, approvedCount: 15, rejectedCount: 2 },
-  categoryBreakdown: [
-    { category: "ODD", label: "ODD", amount: 1200000 },
-    { category: "MART_PHARMACY", label: "마트/약국", amount: 450000 },
-    { category: "OTHER", label: "기타", amount: 380000 },
-  ],
-  monthlyTrend: [
-    { month: "2026-01", label: "1월", amount: 1800000 },
-    { month: "2026-02", label: "2월", amount: 2100000 },
-    { month: "2026-03", label: "3월", amount: 2750000 },
-  ],
-  topSubmitters: [
-    { name: "김철수", amount: 980000 },
-    { name: "이영희", amount: 750000 },
-    { name: "박지민", amount: 520000 },
-    { name: "개발자", amount: 350000 },
-    { name: "최수연", amount: 150000 },
-  ],
-};
-
 const STAT_CONFIGS = [
   { icon: <DollarSign key="d" className="size-5 text-[var(--apple-blue)]" />, accent: "glass-card-accent glass-card-accent-blue", iconBg: "icon-container icon-container-blue" },
   { icon: <Clock key="c" className="size-5 text-[var(--apple-orange)]" />, accent: "glass-card-accent glass-card-accent-orange", iconBg: "icon-container icon-container-orange" },

@@ -43,6 +43,8 @@ export function ThemeToggle() {
     <button
       type="button"
       onClick={toggle}
+      role="switch"
+      aria-checked={dark}
       aria-label={dark ? "라이트 모드로 전환" : "다크 모드로 전환"}
       className={cn(
         "relative flex items-center w-[52px] h-[28px] rounded-full p-[2px] transition-colors duration-300",

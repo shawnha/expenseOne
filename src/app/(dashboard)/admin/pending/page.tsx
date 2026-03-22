@@ -48,13 +48,6 @@ interface PendingExpense {
   isUrgent: boolean;
 }
 
-// Mock data
-const MOCK_PENDING: PendingExpense[] = [
-  { id: "m1", title: "외주 디자인 비용", amount: 800000, category: "SOFTWARE", createdAt: "2026-03-12T10:00:00Z", submitter: { name: "김철수", email: "kim@company.com" }, attachmentCount: 2, isUrgent: true },
-  { id: "m2", title: "서버 인프라 비용", amount: 350000, category: "EQUIPMENT", createdAt: "2026-03-11T14:00:00Z", submitter: { name: "이영희", email: "lee@company.com" }, attachmentCount: 1, isUrgent: false },
-  { id: "m3", title: "출장 교통비", amount: 120000, category: "TRAVEL", createdAt: "2026-03-10T09:00:00Z", submitter: { name: "박지민", email: "park@company.com" }, attachmentCount: 3, isUrgent: false },
-];
-
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr);
   const y = d.getFullYear();

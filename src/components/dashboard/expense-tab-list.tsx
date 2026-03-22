@@ -39,9 +39,11 @@ export function ExpenseTabList({ expenses }: { expenses: Expense[] }) {
   return (
     <>
       {/* Tab buttons */}
-      <div className="flex items-center gap-2 sm:gap-3 animate-fade-up-2">
+      <div className="flex items-center gap-2 sm:gap-3 animate-fade-up-2" role="tablist" aria-label="비용 유형">
         <button
           type="button"
+          role="tab"
+          aria-selected={activeTab === "CORPORATE_CARD"}
           onClick={() => setActiveTab("CORPORATE_CARD")}
           className={cn(
             "inline-flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 text-[13px] sm:text-sm font-medium rounded-full sm:rounded-full apple-press transition-all duration-200",
@@ -55,6 +57,8 @@ export function ExpenseTabList({ expenses }: { expenses: Expense[] }) {
         </button>
         <button
           type="button"
+          role="tab"
+          aria-selected={activeTab === "DEPOSIT_REQUEST"}
           onClick={() => setActiveTab("DEPOSIT_REQUEST")}
           className={cn(
             "inline-flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 text-[13px] sm:text-sm font-medium rounded-full sm:rounded-full apple-press transition-all duration-200",
