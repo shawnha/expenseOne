@@ -84,6 +84,8 @@ export async function GET(request: NextRequest) {
       .leftJoin(users, eq(expenses.submittedById, users.id))
       .where(whereClause)
       .orderBy(desc(expenses.createdAt))
+      // TODO: 데이터가 10,000건 이상으로 증가할 경우 스트리밍 응답(ReadableStream)으로
+      // 전환하여 메모리 사용량을 줄여야 함. 현재는 상한 10,000건으로 충분.
       .limit(10000);
 
     // Transform to CSV-friendly rows
