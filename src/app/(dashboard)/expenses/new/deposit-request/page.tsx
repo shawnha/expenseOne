@@ -742,7 +742,7 @@ export default function DepositRequestPage() {
                       className={cn(
                         "flex h-10 w-full items-center justify-between rounded-xl border border-[var(--apple-separator)] bg-[var(--apple-secondary-system-background)] px-3 text-sm transition-colors hover:bg-[rgba(0,0,0,0.03)]",
                         !field.value && "text-[var(--apple-secondary-label)]",
-                        errors.bankName && "border-[#FF3B30] ring-2 ring-[rgba(255,59,48,0.2)]"
+                        errors.bankName && "border-[var(--apple-red)] ring-2 ring-[rgba(255,59,48,0.2)]"
                       )}
                     >
                       {field.value || "은행 선택"}

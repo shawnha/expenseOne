@@ -185,7 +185,7 @@ export default function AdminDashboardPage() {
           <button
             type="button"
             onClick={fetchDashboard}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#007AFF] text-white text-sm font-medium hover:bg-[#0066d6] transition-colors"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[var(--apple-blue)] text-white text-sm font-medium hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] transition-colors"
           >
             다시 시도
           </button>

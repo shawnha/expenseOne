@@ -42,7 +42,9 @@ export async function createExpense(
 ) {
   const isCorporateCard = input.type === "CORPORATE_CARD";
 
-  const insertData: Record<string, unknown> = {
+  type NewExpense = typeof expenses.$inferInsert;
+
+  const baseData: Partial<NewExpense> = {
     type: input.type,
     status: isCorporateCard ? "APPROVED" : "SUBMITTED",
     title: input.title,
@@ -54,30 +56,30 @@ export async function createExpense(
   };
 
   if (isCorporateCard) {
-    insertData.merchantName = input.merchantName || null;
-    insertData.isUrgent = input.isUrgent ?? false;
+    baseData.merchantName = input.merchantName || null;
+    baseData.isUrgent = input.isUrgent ?? false;
     // Auto-approve corporate card
-    insertData.approvedAt = new Date();
+    baseData.approvedAt = new Date();
     // Get card last four from user profile
     const [userProfile] = await db
       .select({ cardLastFour: users.cardLastFour })
       .from(users)
       .where(eq(users.id, userId));
     if (userProfile?.cardLastFour) {
-      insertData.cardLastFour = userProfile.cardLastFour;
+      baseData.cardLastFour = userProfile.cardLastFour;
     }
   } else {
-    insertData.bankName = input.bankName;
-    insertData.accountHolder = input.accountHolder;
-    insertData.accountNumber = input.accountNumber;
-    insertData.isUrgent = input.isUrgent ?? false;
-    insertData.isPrePaid = input.isPrePaid ?? false;
-    insertData.prePaidPercentage = input.prePaidPercentage ?? null;
+    baseData.bankName = input.bankName;
+    baseData.accountHolder = input.accountHolder;
+    baseData.accountNumber = input.accountNumber;
+    baseData.isUrgent = input.isUrgent ?? false;
+    baseData.isPrePaid = input.isPrePaid ?? false;
+    baseData.prePaidPercentage = input.prePaidPercentage ?? null;
   }
 
   const [expense] = await db
     .insert(expenses)
-    .values(insertData as typeof expenses.$inferInsert)
+    .values(baseData as NewExpense)
     .returning();
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
