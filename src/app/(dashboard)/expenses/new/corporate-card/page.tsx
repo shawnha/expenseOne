@@ -224,14 +224,14 @@ export default function CorporateCardPage() {
             기본 정보
           </h2>
           <p className="text-[13px] text-[var(--apple-secondary-label)] mb-5">
-            <span className="text-[#FF3B30]">*</span> 필수 항목
+            <span className="text-[var(--apple-red)]">*</span> 필수 항목
           </p>
 
           <div className="space-y-5">
             {/* 제목 */}
             <div className="space-y-1.5">
               <Label htmlFor="title">
-                제목 <span className="text-[#FF3B30]">*</span>
+                제목 <span className="text-[var(--apple-red)]">*</span>
               </Label>
               <Input
                 id="title"
@@ -240,7 +240,7 @@ export default function CorporateCardPage() {
                 {...register("title")}
               />
               {errors.title && (
-                <p className="text-xs text-[#FF3B30]">
+                <p className="text-xs text-[var(--apple-red)]">
                   {errors.title.message}
                 </p>
               )}
@@ -249,7 +249,7 @@ export default function CorporateCardPage() {
             {/* 금액 */}
             <div className="space-y-1.5">
               <Label htmlFor="amount">
-                금액 <span className="text-[#FF3B30]">*</span>
+                금액 <span className="text-[var(--apple-red)]">*</span>
               </Label>
               <div className="relative">
                 <Input
@@ -273,7 +273,7 @@ export default function CorporateCardPage() {
                     type="checkbox"
                     checked={vatIncluded}
                     onChange={(e) => handleVatToggle(e.target.checked)}
-                    className="size-4 rounded border-[rgba(0,0,0,0.15)] text-[#007AFF] focus:ring-[#007AFF] cursor-pointer"
+                    className="size-4 rounded border-[rgba(0,0,0,0.15)] text-[var(--apple-blue)] focus:ring-[var(--apple-blue)] cursor-pointer"
                   />
                   <span className="text-[13px] text-[var(--apple-secondary-label)]">
                     VAT 포함 (+10%)
@@ -284,7 +284,7 @@ export default function CorporateCardPage() {
                     type="checkbox"
                     checked={freelancerDeduction}
                     onChange={(e) => handleFreelancerToggle(e.target.checked)}
-                    className="size-4 rounded border-[rgba(0,0,0,0.15)] text-[#007AFF] focus:ring-[#007AFF] cursor-pointer"
+                    className="size-4 rounded border-[rgba(0,0,0,0.15)] text-[var(--apple-blue)] focus:ring-[var(--apple-blue)] cursor-pointer"
                   />
                   <span className="text-[13px] text-[var(--apple-secondary-label)]">
                     프리랜서 원천징수 (-3.3%)
@@ -312,14 +312,14 @@ export default function CorporateCardPage() {
                       <span className="text-[var(--apple-secondary-label)]">
                         원천징수 (-3.3%)
                       </span>
-                      <span className="text-[#FF3B30]">
+                      <span className="text-[var(--apple-red)]">
                         -{formatAmount(freelancerAmount)}원
                       </span>
                     </div>
                   )}
                   <div className="flex justify-between font-semibold border-t border-[rgba(0,0,0,0.08)] pt-1 mt-1">
                     <span>실지급액</span>
-                    <span className="text-[#007AFF]">
+                    <span className="text-[var(--apple-blue)]">
                       {formatAmount(finalAmount)}원
                     </span>
                   </div>
@@ -327,7 +327,7 @@ export default function CorporateCardPage() {
               )}
 
               {errors.amount && (
-                <p className="text-xs text-[#FF3B30]">
+                <p className="text-xs text-[var(--apple-red)]">
                   {errors.amount.message}
                 </p>
               )}
@@ -336,7 +336,7 @@ export default function CorporateCardPage() {
             {/* 카테고리 — 버튼 토글 + 직접 입력 */}
             <div className="space-y-1.5">
               <Label>
-                카테고리 <span className="text-[#FF3B30]">*</span>
+                카테고리 <span className="text-[var(--apple-red)]">*</span>
               </Label>
               <Controller
                 name="category"
@@ -390,7 +390,7 @@ export default function CorporateCardPage() {
                 )}
               />
               {errors.category && (
-                <p className="text-xs text-[#FF3B30]">
+                <p className="text-xs text-[var(--apple-red)]">
                   {errors.category.message}
                 </p>
               )}
@@ -405,7 +405,7 @@ export default function CorporateCardPage() {
                 {...register("merchantName")}
               />
               {errors.merchantName && (
-                <p className="text-xs text-[#FF3B30]">
+                <p className="text-xs text-[var(--apple-red)]">
                   {errors.merchantName.message}
                 </p>
               )}
@@ -423,7 +423,7 @@ export default function CorporateCardPage() {
                 {...register("description")}
               />
               {errors.description && (
-                <p className="text-xs text-[#FF3B30]">
+                <p className="text-xs text-[var(--apple-red)]">
                   {errors.description.message}
                 </p>
               )}

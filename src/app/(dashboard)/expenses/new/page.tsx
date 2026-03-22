@@ -8,13 +8,13 @@ const expenseTypes = [
     title: "법카사용 내역",
     description: "법인카드 사용내역을 제출합니다. 자동 승인됩니다.",
     href: "/expenses/new/corporate-card",
-    icon: <CreditCard className="size-6 text-[#007AFF]" />,
+    icon: <CreditCard className="size-6 text-[var(--apple-blue)]" />,
   },
   {
     title: "입금요청",
     description: "입금을 요청합니다. 증빙서류 첨부 필수, 관리자 승인 후 처리됩니다.",
     href: "/expenses/new/deposit-request",
-    icon: <Banknote className="size-6 text-[#34C759]" />,
+    icon: <Banknote className="size-6 text-[var(--apple-green)]" />,
   },
 ] as const;
 
@@ -41,7 +41,7 @@ export default function NewExpensePage() {
             <div>
               <span className="text-[15px] font-semibold text-[var(--apple-label)] flex items-center gap-1">
                 {type.title}
-                <ArrowRight className="size-3.5 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 text-[#007AFF]" />
+                <ArrowRight className="size-3.5 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 text-[var(--apple-blue)]" />
               </span>
               <p className="text-[13px] text-[var(--apple-secondary-label)] leading-relaxed mt-1">
                 {type.description}

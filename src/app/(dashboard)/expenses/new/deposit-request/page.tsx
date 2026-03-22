@@ -266,12 +266,26 @@ export default function DepositRequestPage() {
   }, [files]);
 
   const onValidationError = (fieldErrors: Record<string, unknown>) => {
-    const messages = Object.values(fieldErrors)
-      .map((err) => (err as { message?: string })?.message)
-      .filter(Boolean);
-    if (messages.length > 0) {
-      toast.error(messages[0] as string);
-    }
+    const fieldNames: Record<string, string> = {
+      title: "제목",
+      amount: "금액",
+      category: "카테고리",
+      bankName: "은행명",
+      accountHolder: "예금주",
+      accountNumber: "계좌번호",
+      description: "설명",
+      isUrgent: "긴급",
+      isPrePaid: "선지급",
+      prePaidPercentage: "선지급 비율",
+    };
+    const messages = Object.entries(fieldErrors)
+      .map(([key, err]) => {
+        const label = fieldNames[key] || key;
+        const msg = (err as { message?: string })?.message || "입력 오류";
+        return `${label}: ${msg}`;
+      });
+    const errorMsg = messages[0] || "입력값을 확인해주세요.";
+    toast.error(errorMsg);
   };
 
   const onSubmit = async (data: DepositRequestFormData) => {
