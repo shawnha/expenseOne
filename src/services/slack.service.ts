@@ -17,14 +17,23 @@ export function getCategoryLabel(category: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Slack user lookup cache (email → Slack user ID)
+// Slack user lookup cache (email → Slack user ID) with 1-hour TTL
 // ---------------------------------------------------------------------------
-const slackUserCache = new Map<string, string | null>();
+interface CacheEntry {
+  value: string | null;
+  expiresAt: number;
+}
+
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+const slackUserCache = new Map<string, CacheEntry>();
 
 async function lookupSlackUserByEmail(email: string): Promise<string | null> {
-  if (slackUserCache.has(email)) {
-    return slackUserCache.get(email) ?? null;
+  const cached = slackUserCache.get(email);
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.value;
   }
+  // Remove expired entry
+  if (cached) slackUserCache.delete(email);
 
   const token = process.env.SLACK_BOT_TOKEN;
   if (!token) return null;
@@ -37,15 +46,15 @@ async function lookupSlackUserByEmail(email: string): Promise<string | null> {
     const data = await res.json();
 
     if (data.ok && data.user?.id) {
-      slackUserCache.set(email, data.user.id);
+      slackUserCache.set(email, { value: data.user.id, expiresAt: Date.now() + CACHE_TTL_MS });
       return data.user.id;
     }
 
-    slackUserCache.set(email, null);
+    slackUserCache.set(email, { value: null, expiresAt: Date.now() + CACHE_TTL_MS });
     return null;
   } catch (err) {
     console.error(`[Slack] users.lookupByEmail 실패 (${email}):`, err);
-    slackUserCache.set(email, null);
+    slackUserCache.set(email, { value: null, expiresAt: Date.now() + CACHE_TTL_MS });
     return null;
   }
 }
