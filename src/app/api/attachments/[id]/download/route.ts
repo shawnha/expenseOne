@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, errorResponse, handleError } from "@/lib/api-utils";
+import { requireAuth, errorResponse, handleError, validateUUID } from "@/lib/api-utils";
 import { db } from "@/lib/db";
 import { attachments, expenses } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -15,7 +15,7 @@ const STORAGE_BUCKET = "attachments";
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
     const user = await requireAuth();
-    const { id } = await context.params;
+    const id = validateUUID((await context.params).id);
 
     // 1. Find the attachment
     const [attachment] = await db
