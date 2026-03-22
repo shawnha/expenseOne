@@ -369,7 +369,7 @@ export default function DepositRequestPage() {
             기본 정보
           </h2>
           <p className="text-[13px] text-[var(--apple-secondary-label)] mb-5">
-            <span className="text-[#FF3B30]">*</span> 필수 항목
+            <span className="text-[var(--apple-red)]">*</span> 필수 항목
           </p>
 
           <div className="space-y-5">

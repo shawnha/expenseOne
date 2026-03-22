@@ -217,7 +217,7 @@ export default function CorporateCardPage() {
         </div>
       </div>
 
-      <form onSubmit={(e) => e.preventDefault()} noValidate>
+      <form onSubmit={handleSubmit(onSubmit, onValidationError)} noValidate>
         <div className="glass p-6">
           <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-1">
             기본 정보
@@ -453,9 +453,8 @@ export default function CorporateCardPage() {
             </Button>
           </Link>
           <Button
-            type="button"
+            type="submit"
             disabled={isSubmitting}
-            onClick={() => handleSubmit(onSubmit, onValidationError)()}
             className="w-full sm:w-auto rounded-full h-11 bg-[#007AFF] hover:bg-[#0066d6]"
           >
             {isSubmitting ? (
