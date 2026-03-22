@@ -52,7 +52,7 @@ export function Header({ user, title, unreadCount = 0 }: HeaderProps) {
     {isLoggingOut && (
       <PlugSplash mode="disconnecting" onComplete={completeSignOut} />
     )}
-    <header className="sticky top-0 z-40 relative flex h-14 items-center gap-4 glass-header px-4 lg:px-6">
+    <header className="sticky top-0 z-40 flex h-14 items-center gap-4 glass-header px-4 lg:px-6">
       {/* Mobile menu button */}
       <MobileSidebar user={user} />
 
