@@ -99,9 +99,11 @@ export default function AdminDashboardPage() {
   const [period, setPeriod] = useState<PeriodFilter>("this_month");
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchDashboard = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch(`/api/admin/dashboard?period=${period}`);
       if (res.ok) {
@@ -109,9 +111,11 @@ export default function AdminDashboardPage() {
         setData(json.data);
       } else {
         setData(null);
+        setError("대시보드 데이터를 불러오지 못했습니다.");
       }
     } catch {
       setData(null);
+      setError("네트워크 오류가 발생했습니다. 인터넷 연결을 확인해주세요.");
     } finally {
       setLoading(false);
     }
@@ -173,6 +177,20 @@ export default function AdminDashboardPage() {
           </SelectContent>
         </Select>
       </div>
+
+      {/* Error state */}
+      {error && !loading && (
+        <div className="glass p-6 text-center animate-fade-up-1">
+          <p className="text-sm text-[var(--apple-secondary-label)] mb-3">{error}</p>
+          <button
+            type="button"
+            onClick={fetchDashboard}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#007AFF] text-white text-sm font-medium hover:bg-[#0066d6] transition-colors"
+          >
+            다시 시도
+          </button>
+        </div>
+      )}
 
       {/* Stat Cards */}
       <div className={`grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4 ${loading ? "opacity-60" : ""}`}>

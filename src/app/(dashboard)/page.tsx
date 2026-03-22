@@ -138,9 +138,9 @@ async function getDashboardData() {
 
 const STAT_CONFIGS = [
   { icon: <DollarSign key="dollar" className="size-5 text-[var(--apple-blue)]" />, accent: "glass-card-accent glass-card-accent-blue", iconBg: "icon-container icon-container-blue" },
-  { icon: <FileText key="file" className="size-5 text-[#5856D6]" />, accent: "glass-card-accent glass-card-accent-indigo", iconBg: "icon-container icon-container-indigo" },
-  { icon: <Clock key="clock" className="size-5 text-[#FF9500]" />, accent: "glass-card-accent glass-card-accent-orange", iconBg: "icon-container icon-container-orange" },
-  { icon: <CheckCircle2 key="check" className="size-5 text-[#34C759]" />, accent: "glass-card-accent glass-card-accent-green", iconBg: "icon-container icon-container-green" },
+  { icon: <FileText key="file" className="size-5 text-[var(--apple-indigo)]" />, accent: "glass-card-accent glass-card-accent-indigo", iconBg: "icon-container icon-container-indigo" },
+  { icon: <Clock key="clock" className="size-5 text-[var(--apple-orange)]" />, accent: "glass-card-accent glass-card-accent-orange", iconBg: "icon-container icon-container-orange" },
+  { icon: <CheckCircle2 key="check" className="size-5 text-[var(--apple-green)]" />, accent: "glass-card-accent glass-card-accent-green", iconBg: "icon-container icon-container-green" },
 ];
 
 export default async function DashboardHomePage() {
@@ -201,7 +201,7 @@ export default async function DashboardHomePage() {
       {/* Floating action button */}
       <Link
         href="/expenses/new"
-        className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-6 z-50 flex items-center justify-center size-14 rounded-full bg-[#007AFF] text-white shadow-[0_4px_16px_rgba(0,122,255,0.4)] hover:bg-[#0066d6] hover:shadow-[0_6px_20px_rgba(0,122,255,0.5)] hover:scale-105 active:scale-95 transition-all duration-200"
+        className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-6 z-50 flex items-center justify-center size-14 rounded-full bg-[var(--apple-blue)] text-white shadow-[0_4px_16px_rgba(0,122,255,0.4)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] hover:shadow-[0_6px_20px_rgba(0,122,255,0.5)] hover:scale-105 active:scale-95 transition-all duration-200"
       >
         <Plus className="size-6" />
       </Link>

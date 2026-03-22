@@ -128,7 +128,7 @@ export default function OnboardingPage() {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="relative size-24 rounded-full overflow-hidden bg-[#007AFF]/10 flex items-center justify-center hover:bg-[#007AFF]/20 transition-colors group"
+              className="relative size-24 rounded-full overflow-hidden bg-[var(--apple-blue)]/10 flex items-center justify-center hover:bg-[var(--apple-blue)]/20 transition-colors group"
             >
               {profileImage ? (
                 <img
@@ -137,7 +137,7 @@ export default function OnboardingPage() {
                   className="size-full object-cover"
                 />
               ) : (
-                <span className="text-3xl font-bold text-[#007AFF]">
+                <span className="text-3xl font-bold text-[var(--apple-blue)]">
                   {initials}
                 </span>
               )}
@@ -160,7 +160,7 @@ export default function OnboardingPage() {
           {/* 이름 */}
           <div className="space-y-1.5">
             <Label htmlFor="name">
-              이름 <span className="text-[#FF3B30]">*</span>
+              이름 <span className="text-[var(--apple-red)]">*</span>
             </Label>
             <Input
               id="name"
@@ -194,7 +194,7 @@ export default function OnboardingPage() {
           <Button
             type="submit"
             disabled={isSubmitting || !name.trim()}
-            className="w-full rounded-full h-11 bg-[#007AFF] hover:bg-[#0066d6]"
+            className="w-full rounded-full h-11 bg-[var(--apple-blue)] hover:bg-[#0066d6]"
           >
             {isSubmitting ? (
               <>
