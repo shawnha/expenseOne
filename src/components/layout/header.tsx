@@ -76,7 +76,7 @@ export function Header({ user, title, unreadCount = 0 }: HeaderProps) {
         >
           <Bell className="size-[18px] text-[var(--apple-secondary-label)]" />
           {totalUnread > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-[#FF3B30] text-white text-[10px] font-semibold px-1 shadow-[0_2px_6px_rgba(255,59,48,0.3)] animate-[scale-in_0.3s_cubic-bezier(0.34,1.56,0.64,1)]">
+            <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-[var(--apple-red)] text-white text-[10px] font-semibold px-1 shadow-[0_2px_6px_rgba(255,59,48,0.3)] animate-[scale-in_0.3s_cubic-bezier(0.34,1.56,0.64,1)]">
               {totalUnread > 99 ? "99+" : totalUnread}
             </span>
           )}
@@ -97,7 +97,7 @@ export function Header({ user, title, unreadCount = 0 }: HeaderProps) {
                 className="flex items-center gap-2 rounded-xl px-2 py-1.5 transition-all duration-200 hover:bg-[rgba(0,0,0,0.04)] active:scale-[0.98] focus-visible:outline-none"
                 aria-label="사용자 메뉴"
               >
-                <div className="flex size-7 items-center justify-center rounded-full bg-[rgba(0,122,255,0.1)] text-[#007AFF] text-xs font-semibold">
+                <div className="flex size-7 items-center justify-center rounded-full bg-[rgba(0,122,255,0.1)] text-[var(--apple-blue)] text-xs font-semibold">
                   {initial}
                 </div>
                 <span className="hidden sm:inline text-sm font-medium text-[var(--apple-label)]">

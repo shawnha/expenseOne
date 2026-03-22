@@ -137,7 +137,7 @@ async function getDashboardData() {
 // ---------------------------------------------------------------------------
 
 const STAT_CONFIGS = [
-  { icon: <DollarSign key="dollar" className="size-5 text-[#007AFF]" />, accent: "glass-card-accent glass-card-accent-blue", iconBg: "icon-container icon-container-blue" },
+  { icon: <DollarSign key="dollar" className="size-5 text-[var(--apple-blue)]" />, accent: "glass-card-accent glass-card-accent-blue", iconBg: "icon-container icon-container-blue" },
   { icon: <FileText key="file" className="size-5 text-[#5856D6]" />, accent: "glass-card-accent glass-card-accent-indigo", iconBg: "icon-container icon-container-indigo" },
   { icon: <Clock key="clock" className="size-5 text-[#FF9500]" />, accent: "glass-card-accent glass-card-accent-orange", iconBg: "icon-container icon-container-orange" },
   { icon: <CheckCircle2 key="check" className="size-5 text-[#34C759]" />, accent: "glass-card-accent glass-card-accent-green", iconBg: "icon-container icon-container-green" },

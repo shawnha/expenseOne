@@ -75,7 +75,7 @@ function LoginContent() {
       <div className="w-full max-w-sm animate-in fade-in slide-in-from-bottom-4 duration-700">
         <div className="glass-strong p-6 sm:p-8 lg:p-10 text-center rounded-2xl">
           <div className="mb-8">
-            <div className="inline-flex items-center justify-center size-16 sm:size-20 rounded-full bg-[#007AFF] mb-4 sm:mb-5">
+            <div className="inline-flex items-center justify-center size-16 sm:size-20 rounded-full bg-[var(--apple-blue)] mb-4 sm:mb-5">
               <svg viewBox="0 0 32 32" className="size-8 sm:size-10" fill="none">
                 <rect x="8" y="10" width="16" height="2.5" rx="1.25" fill="white" />
                 <rect x="8" y="14.75" width="12" height="2.5" rx="1.25" fill="white" />
@@ -90,7 +90,7 @@ function LoginContent() {
 
           <div className="space-y-4">
             {errorMessage && (
-              <div className="px-4 py-3 text-sm text-[#FF3B30] rounded-2xl bg-[rgba(255,59,48,0.08)] backdrop-blur-sm border border-[rgba(255,59,48,0.12)]">
+              <div className="px-4 py-3 text-sm text-[var(--apple-red)] rounded-2xl bg-[rgba(255,59,48,0.08)] backdrop-blur-sm border border-[rgba(255,59,48,0.12)]">
                 {errorMessage}
                 {debugMsg && (
                   <p className="mt-1 text-xs text-[#8e8e93] break-all">{debugMsg}</p>
@@ -104,7 +104,7 @@ function LoginContent() {
               className="inline-flex w-full items-center justify-center gap-2.5 h-[52px] rounded-full text-[15px] font-medium bg-[rgba(255,255,255,0.7)] backdrop-blur-xl border border-[rgba(0,0,0,0.06)] hover:bg-[rgba(255,255,255,0.85)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.08)] hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 text-[var(--apple-label)] disabled:opacity-50"
             >
               {loading ? (
-                <div className="size-5 border-2 border-[#007AFF] border-t-transparent rounded-full animate-spin" />
+                <div className="size-5 border-2 border-[var(--apple-blue)] border-t-transparent rounded-full animate-spin" />
               ) : (
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-5 w-5">
                   <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />

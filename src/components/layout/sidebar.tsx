@@ -87,7 +87,7 @@ function NavLink({
         "flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl apple-press",
         "transition-all duration-200",
         isActive
-          ? "nav-link-active text-[#007AFF] font-medium"
+          ? "nav-link-active text-[var(--apple-blue)] font-medium"
           : "text-[var(--apple-secondary-label)] hover:bg-[rgba(0,0,0,0.04)] hover:text-[var(--apple-label)]"
       )}
     >
@@ -95,7 +95,7 @@ function NavLink({
         ref={iconRef}
         className={cn(
           "transition-colors duration-200",
-          isActive ? "text-[#007AFF]" : "text-[var(--apple-secondary-label)]"
+          isActive ? "text-[var(--apple-blue)]" : "text-[var(--apple-secondary-label)]"
         )}
       >
         {item.icon}

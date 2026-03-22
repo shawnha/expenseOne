@@ -30,8 +30,8 @@ export function SubmitSuccessDialog({
     <Dialog open={open} onOpenChange={() => {}} modal>
       <DialogContent showCloseButton={false} className="sm:max-w-[380px]">
         <DialogHeader className="items-center text-center">
-          <div className="flex items-center justify-center size-14 rounded-full bg-[#34C759]/10 mb-2">
-            <CircleCheck className="size-7 text-[#34C759]" />
+          <div className="flex items-center justify-center size-14 rounded-full bg-[var(--apple-green)]/10 mb-2">
+            <CircleCheck className="size-7 text-[var(--apple-green)]" />
           </div>
           <DialogTitle className="text-lg">{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
@@ -41,7 +41,7 @@ export function SubmitSuccessDialog({
             onClick={() => {
               window.location.href = newSubmitPath;
             }}
-            className="w-full rounded-full h-11 bg-[#007AFF] hover:bg-[#0066d6]"
+            className="w-full rounded-full h-11 bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)]"
           >
             추가 제출
           </Button>

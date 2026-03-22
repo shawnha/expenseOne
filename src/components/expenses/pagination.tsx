@@ -58,7 +58,7 @@ export function Pagination({ page, totalPages, total }: PaginationProps) {
               variant={page === 1 ? "default" : "outline"}
               size="sm"
               onClick={() => goToPage(1)}
-              className={page === 1 ? "rounded-full bg-[#007AFF] hover:bg-[#0066d6]" : "rounded-full glass border-[var(--apple-separator)]"}
+              className={page === 1 ? "rounded-full bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)]" : "rounded-full glass border-[var(--apple-separator)]"}
             >
               1
             </Button>
@@ -74,7 +74,7 @@ export function Pagination({ page, totalPages, total }: PaginationProps) {
             size="sm"
             onClick={() => goToPage(p)}
             aria-current={p === page ? "page" : undefined}
-            className={p === page ? "rounded-full bg-[#007AFF] hover:bg-[#0066d6]" : "rounded-full glass border-[var(--apple-separator)]"}
+            className={p === page ? "rounded-full bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)]" : "rounded-full glass border-[var(--apple-separator)]"}
           >
             {p}
           </Button>
@@ -88,7 +88,7 @@ export function Pagination({ page, totalPages, total }: PaginationProps) {
               variant={page === totalPages ? "default" : "outline"}
               size="sm"
               onClick={() => goToPage(totalPages)}
-              className={page === totalPages ? "rounded-full bg-[#007AFF] hover:bg-[#0066d6]" : "rounded-full glass border-[var(--apple-separator)]"}
+              className={page === totalPages ? "rounded-full bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)]" : "rounded-full glass border-[var(--apple-separator)]"}
             >
               {totalPages}
             </Button>

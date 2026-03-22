@@ -249,24 +249,26 @@ function CorporateCardEditForm({
         );
       }
 
-      for (const attachmentId of removedAttachmentIds) {
-        await fetch(`/api/attachments/${attachmentId}`, {
-          method: "DELETE",
-        });
+      // Delete removed attachments in parallel
+      if (removedAttachmentIds.length > 0) {
+        await Promise.allSettled(
+          removedAttachmentIds.map((attachmentId) =>
+            fetch(`/api/attachments/${attachmentId}`, { method: "DELETE" }),
+          ),
+        );
       }
 
+      // Upload new attachments in parallel
       if (newFiles.length > 0) {
-        for (const fileItem of newFiles) {
-          const formData = new FormData();
-          formData.append("file", fileItem.file);
-          formData.append("expenseId", expense.id);
-          formData.append("documentType", fileItem.documentType || "OTHER");
-
-          await fetch("/api/attachments/upload", {
-            method: "POST",
-            body: formData,
-          });
-        }
+        await Promise.allSettled(
+          newFiles.map((fileItem) => {
+            const formData = new FormData();
+            formData.append("file", fileItem.file);
+            formData.append("expenseId", expense.id);
+            formData.append("documentType", fileItem.documentType || "OTHER");
+            return fetch("/api/attachments/upload", { method: "POST", body: formData });
+          }),
+        );
       }
 
       toast.success("비용이 수정되었습니다.");
@@ -504,18 +506,30 @@ function DepositRequestEditForm({
         const errorData = await response.json().catch(() => null);
         throw new Error(errorData?.error?.message || "비용 수정에 실패했습니다.");
       }
-      for (const attachmentId of removedAttachmentIds) {
-        await fetch(`/api/attachments/${attachmentId}`, { method: "DELETE" });
+      // Delete removed attachments in parallel
+      if (removedAttachmentIds.length > 0) {
+        await Promise.allSettled(
+          removedAttachmentIds.map((attachmentId) =>
+            fetch(`/api/attachments/${attachmentId}`, { method: "DELETE" }),
+          ),
+        );
       }
+      // Upload new attachments in parallel
       if (newFiles.length > 0) {
-        for (const fileItem of newFiles) {
-          const formData = new FormData();
-          formData.append("file", fileItem.file);
-          formData.append("expenseId", expense.id);
-          formData.append("documentType", fileItem.documentType || "OTHER");
-          const uploadRes = await fetch("/api/attachments/upload", { method: "POST", body: formData });
-          if (!uploadRes.ok) toast.error(`파일 "${fileItem.file.name}" 업로드에 실패했습니다.`);
-        }
+        const uploadResults = await Promise.allSettled(
+          newFiles.map((fileItem) => {
+            const formData = new FormData();
+            formData.append("file", fileItem.file);
+            formData.append("expenseId", expense.id);
+            formData.append("documentType", fileItem.documentType || "OTHER");
+            return fetch("/api/attachments/upload", { method: "POST", body: formData });
+          }),
+        );
+        uploadResults.forEach((result, idx) => {
+          if (result.status === "rejected" || (result.status === "fulfilled" && !result.value.ok)) {
+            toast.error(`파일 "${newFiles[idx].file.name}" 업로드에 실패했습니다.`);
+          }
+        });
       }
       toast.success("입금요청이 수정되었습니다.");
       router.push(`/expenses/${expense.id}`);
