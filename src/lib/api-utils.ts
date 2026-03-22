@@ -63,9 +63,22 @@ export function validateUUID(id: string): string {
 }
 
 export function validateOrigin(request: NextRequest): NextResponse | null {
+  // Safe methods (GET, HEAD, OPTIONS) do not require origin validation
+  const safeMethod = ["GET", "HEAD", "OPTIONS"].includes(request.method);
+  if (safeMethod) return null;
+
   const origin = request.headers.get("origin");
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-  if (origin && appUrl) {
+
+  // Block mutation requests that lack an origin header
+  if (!origin) {
+    return NextResponse.json(
+      { error: { code: "FORBIDDEN", message: "Origin 헤더가 누락되었습니다." } },
+      { status: 403 },
+    );
+  }
+
+  if (appUrl) {
     const allowedOrigin = new URL(appUrl).origin;
     if (origin !== allowedOrigin) {
       return NextResponse.json(
@@ -74,6 +87,7 @@ export function validateOrigin(request: NextRequest): NextResponse | null {
       );
     }
   }
+
   return null;
 }
 
