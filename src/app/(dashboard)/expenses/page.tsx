@@ -8,6 +8,7 @@ import { Pagination } from "@/components/expenses/pagination";
 import { Plus } from "lucide-react";
 import { getCachedCurrentUser } from "@/lib/supabase/cached";
 import { getExpenses } from "@/services/expense.service";
+import type { ExpenseType, ExpenseStatus } from "@/types";
 
 interface ExpensesPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -48,8 +49,8 @@ async function getExpensesData(searchParams: Record<string, string | string[] | 
 
   const expenses = result.data.map((item) => ({
     id: item.id,
-    type: item.type,
-    status: item.status,
+    type: item.type as ExpenseType,
+    status: item.status as ExpenseStatus,
     title: item.title,
     amount: item.amount,
     category: item.category,
@@ -111,7 +112,7 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
       ) : (
         <>
           <div className="animate-fade-up-2">
-            <ExpenseTable expenses={expenses as never[]} showSubmitter={false} />
+            <ExpenseTable expenses={expenses} showSubmitter={false} />
           </div>
           <Pagination
             page={meta.page}
