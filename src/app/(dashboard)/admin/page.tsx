@@ -280,7 +280,7 @@ function CategoryPieSection({
         <div className="flex flex-col items-center gap-5">
           {/* Donut chart */}
           <div className="relative shrink-0">
-            <svg width="180" height="180" viewBox="0 0 180 180">
+            <svg width="180" height="180" viewBox="0 0 180 180" role="img" aria-label="카테고리별 비용 비율 도넛 차트">
               <circle
                 cx="90" cy="90" r={radius}
                 fill="none" stroke="var(--apple-separator)" strokeWidth={strokeW} opacity="0.1"
@@ -438,6 +438,8 @@ function LineChartSection({
           className="w-full"
           style={{ height: "180px" }}
           preserveAspectRatio="xMidYMid meet"
+          role="img"
+          aria-label="월별 비용 추이 라인 차트"
         >
           <defs>
             <linearGradient id="trendAreaGradient" x1="0" y1="0" x2="0" y2="1">

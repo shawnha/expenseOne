@@ -265,7 +265,7 @@ function FilePreviewItem({
   const isPdf = fileItem.file.type === "application/pdf";
 
   return (
-    <div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-2">
+    <div className="flex items-center gap-3 rounded-xl border bg-muted/30 p-2">
       {/* Thumbnail */}
       <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background">
         {isImage && fileItem.preview ? (
@@ -563,7 +563,7 @@ function FilePreviewWithDocType({
   return (
     <div
       className={cn(
-        "flex flex-col gap-2 rounded-lg border p-2 sm:flex-row sm:items-center sm:gap-3",
+        "flex flex-col gap-2 rounded-xl border p-2 sm:flex-row sm:items-center sm:gap-3",
         hasError ? "border-destructive" : "bg-muted/30"
       )}
     >

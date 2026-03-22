@@ -182,6 +182,9 @@ function CorporateCardEditForm({
     formatAmount(expense.amount)
   );
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [showCustomCategory, setShowCustomCategory] = useState(
+    !CATEGORY_OPTIONS.some((opt) => opt.value === expense.category)
+  );
 
   const transactionDate = expense.transactionDate
     ? new Date(expense.transactionDate + "T00:00:00")
@@ -322,10 +325,40 @@ function CorporateCardEditForm({
             <div className="space-y-1.5">
               <Label>카테고리 <span className="text-[var(--apple-red)]">*</span></Label>
               <Controller name="category" control={control} render={({ field }) => (
-                <Select value={field.value ?? ""} onValueChange={field.onChange}>
-                  <SelectTrigger className="w-full" aria-invalid={!!errors.category}><SelectValue placeholder="카테고리 선택" /></SelectTrigger>
-                  <SelectContent>{CATEGORY_OPTIONS.map((option) => (<SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>))}</SelectContent>
-                </Select>
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    {CATEGORY_OPTIONS.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => { field.onChange(option.value); setShowCustomCategory(false); }}
+                        className={cn(
+                          "px-4 py-2 rounded-full text-sm font-medium transition-all",
+                          field.value === option.value && !showCustomCategory
+                            ? "bg-[var(--apple-blue)] text-white shadow-sm"
+                            : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)]"
+                        )}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => { setShowCustomCategory(true); field.onChange(""); }}
+                      className={cn(
+                        "px-4 py-2 rounded-full text-sm font-medium transition-all",
+                        showCustomCategory
+                          ? "bg-[var(--apple-blue)] text-white shadow-sm"
+                          : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)]"
+                      )}
+                    >
+                      + 직접 입력
+                    </button>
+                  </div>
+                  {showCustomCategory && (
+                    <Input placeholder="카테고리를 직접 입력하세요" value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value)} aria-invalid={!!errors.category} />
+                  )}
+                </div>
               )} />
               {errors.category && <p className="text-xs text-[var(--apple-red)]">{errors.category.message}</p>}
             </div>
@@ -407,6 +440,9 @@ function DepositRequestEditForm({
   );
   const [fileError, setFileError] = useState<string | null>(null);
   const [docTypeErrors, setDocTypeErrors] = useState<Record<string, boolean>>({});
+  const [showCustomCategory, setShowCustomCategory] = useState(
+    !CATEGORY_OPTIONS.some((opt) => opt.value === expense.category)
+  );
 
   const {
     register,
@@ -593,10 +629,40 @@ function DepositRequestEditForm({
             <div className="space-y-1.5">
               <Label>카테고리 <span className="text-[var(--apple-red)]">*</span></Label>
               <Controller name="category" control={control} render={({ field }) => (
-                <Select value={field.value ?? ""} onValueChange={field.onChange}>
-                  <SelectTrigger className="w-full" aria-invalid={!!errors.category}><SelectValue placeholder="카테고리 선택" /></SelectTrigger>
-                  <SelectContent>{CATEGORY_OPTIONS.map((opt) => (<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))}</SelectContent>
-                </Select>
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    {CATEGORY_OPTIONS.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => { field.onChange(option.value); setShowCustomCategory(false); }}
+                        className={cn(
+                          "px-4 py-2 rounded-full text-sm font-medium transition-all",
+                          field.value === option.value && !showCustomCategory
+                            ? "bg-[var(--apple-blue)] text-white shadow-sm"
+                            : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)]"
+                        )}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => { setShowCustomCategory(true); field.onChange(""); }}
+                      className={cn(
+                        "px-4 py-2 rounded-full text-sm font-medium transition-all",
+                        showCustomCategory
+                          ? "bg-[var(--apple-blue)] text-white shadow-sm"
+                          : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)]"
+                      )}
+                    >
+                      + 직접 입력
+                    </button>
+                  </div>
+                  {showCustomCategory && (
+                    <Input placeholder="카테고리를 직접 입력하세요" value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value)} aria-invalid={!!errors.category} />
+                  )}
+                </div>
               )} />
               {errors.category && <p className="text-xs text-[var(--apple-red)]">{errors.category.message}</p>}
             </div>

@@ -41,7 +41,7 @@ export function Pagination({ page, totalPages, total }: PaginationProps) {
       <p className="text-sm text-[var(--apple-secondary-label)] font-medium">
         총 {total}건
       </p>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 [&_button]:size-8 [&_button]:sm:size-auto">
         <Button
           variant="outline"
           size="icon-sm"

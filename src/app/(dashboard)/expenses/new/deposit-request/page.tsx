@@ -429,7 +429,7 @@ export default function DepositRequestPage() {
                     type="checkbox"
                     checked={vatIncluded}
                     onChange={(e) => handleVatToggle(e.target.checked)}
-                    className="size-4 rounded border-[rgba(0,0,0,0.15)] text-[var(--apple-blue)] focus:ring-[var(--apple-blue)] cursor-pointer"
+                    className="size-5 rounded-md border-2 border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] accent-[var(--apple-blue)] cursor-pointer transition-colors"
                   />
                   <span className="text-[13px] text-[var(--apple-secondary-label)]">VAT 포함 (+10%)</span>
                 </label>
@@ -438,7 +438,7 @@ export default function DepositRequestPage() {
                     type="checkbox"
                     checked={freelancerDeduction}
                     onChange={(e) => handleFreelancerToggle(e.target.checked)}
-                    className="size-4 rounded border-[rgba(0,0,0,0.15)] text-[var(--apple-blue)] focus:ring-[var(--apple-blue)] cursor-pointer"
+                    className="size-5 rounded-md border-2 border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] accent-[var(--apple-blue)] cursor-pointer transition-colors"
                   />
                   <span className="text-[13px] text-[var(--apple-secondary-label)]">프리랜서 원천징수 (-3.3%)</span>
                 </label>
@@ -488,11 +488,12 @@ export default function DepositRequestPage() {
                 <input
                   type="checkbox"
                   {...register("isUrgent")}
-                  className="size-4 rounded border-[rgba(0,0,0,0.15)] text-[var(--apple-red)] focus:ring-[var(--apple-red)] cursor-pointer"
+                  className="size-5 rounded-md border-2 border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] accent-[var(--apple-red)] cursor-pointer transition-colors checked:border-[var(--apple-red)]"
+                  aria-describedby="urgent-desc"
                 />
                 <div>
                   <span className="text-sm font-medium text-[var(--apple-label)]">긴급</span>
-                  <p className="text-[12px] text-[var(--apple-secondary-label)]">빠른 처리가 필요한 경우 체크해주세요</p>
+                  <p id="urgent-desc" className="text-[12px] text-[var(--apple-secondary-label)]">빠른 처리가 필요한 경우 체크해주세요</p>
                 </div>
               </label>
               <Controller
@@ -514,11 +515,12 @@ export default function DepositRequestPage() {
                             setPrePaidMode("full");
                           }
                         }}
-                        className="size-4 rounded border-[rgba(0,0,0,0.15)] text-[var(--apple-blue)] focus:ring-[var(--apple-blue)] cursor-pointer"
+                        className="size-5 rounded-md border-2 border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] accent-[var(--apple-blue)] cursor-pointer transition-colors checked:border-[var(--apple-blue)]"
+                        aria-describedby="prepaid-desc"
                       />
                       <div>
                         <span className="text-sm font-medium text-[var(--apple-label)]">선지급</span>
-                        <p className="text-[12px] text-[var(--apple-secondary-label)]">사전에 지급이 필요한 경우 체크해주세요</p>
+                        <p id="prepaid-desc" className="text-[12px] text-[var(--apple-secondary-label)]">사전에 지급이 필요한 경우 체크해주세요</p>
                       </div>
                     </label>
 
@@ -851,7 +853,7 @@ export default function DepositRequestPage() {
         </div>
 
         {/* 버튼 */}
-        <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+        <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end sticky bottom-4 sm:static z-10 bg-[var(--background)]/80 backdrop-blur-md sm:bg-transparent sm:backdrop-blur-none p-3 -mx-3 sm:mx-0 sm:p-0 rounded-2xl sm:rounded-none">
           <Link href="/expenses" className="w-full sm:w-auto">
             <Button type="button" variant="outline" className="w-full rounded-full h-11 glass border-[var(--apple-separator)]">
               취소
