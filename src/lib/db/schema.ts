@@ -169,7 +169,7 @@ export const notifications = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     recipientId: uuid("recipient_id")
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: "cascade" }),
     type: notificationTypeEnum("type").notNull(),
     title: varchar("title", { length: 200 }).notNull(),
     message: text("message").notNull(),

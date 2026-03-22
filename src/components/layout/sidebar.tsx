@@ -207,7 +207,7 @@ export function MobileSidebar({ user }: SidebarProps) {
     const onTouchEnd = (e: TouchEvent) => {
       const deltaX = e.changedTouches[0].clientX - touchStartX.current;
       const deltaY = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
-      if (touchStartX.current < 30 && deltaX > 60 && deltaY < 80) {
+      if (touchStartX.current < 20 && deltaX > 60 && deltaY < 80) {
         setOpen(true);
       }
     };
