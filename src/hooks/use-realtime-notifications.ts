@@ -27,6 +27,8 @@ export function useRealtimeNotifications(
 ) {
   const [realtimeUnreadDelta, setRealtimeUnreadDelta] = useState(0);
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const onNewNotificationRef = useRef(onNewNotification);
+  onNewNotificationRef.current = onNewNotification;
 
   const resetDelta = useCallback(() => {
     setRealtimeUnreadDelta(0);
@@ -58,8 +60,8 @@ export function useRealtimeNotifications(
             description: notification.message,
           });
 
-          // Call the optional callback
-          onNewNotification?.();
+          // Call the optional callback (via ref to avoid resubscription)
+          onNewNotificationRef.current?.();
         }
       )
       .subscribe();
@@ -70,7 +72,7 @@ export function useRealtimeNotifications(
       supabase.removeChannel(channel);
       channelRef.current = null;
     };
-  }, [userId, onNewNotification]);
+  }, [userId]);
 
   return { realtimeUnreadDelta, resetDelta };
 }

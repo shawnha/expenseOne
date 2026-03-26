@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { requireAdmin, errorResponse, handleError, validateOrigin } from "@/lib/api-utils";
 import { db } from "@/lib/db";
 import { users, expenses, notifications, attachments } from "@/lib/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
+import { createClient } from "@/lib/supabase/server";
 
 // Zod schema for admin user update
 const updateUserSchema = z.object({
@@ -44,8 +46,8 @@ export async function PATCH(request: NextRequest) {
       return errorResponse("FORBIDDEN", "자신의 계정은 변경할 수 없습니다.");
     }
 
-    // Build update object
-    const updateData: Record<string, unknown> = {
+    // Build update object with type safety
+    const updateData: Partial<typeof users.$inferInsert> = {
       updatedAt: new Date(),
     };
 
@@ -116,16 +118,25 @@ export async function DELETE(request: NextRequest) {
       return errorResponse("NOT_FOUND", "사용자를 찾을 수 없습니다.");
     }
 
+    // Collect storage file keys before deleting DB records
+    const userExpenses = await db
+      .select({ id: expenses.id })
+      .from(expenses)
+      .where(eq(expenses.submittedById, userId));
+
+    const expenseIds = userExpenses.map((e) => e.id);
+
+    let fileKeys: string[] = [];
+    if (expenseIds.length > 0) {
+      const userAttachments = await db
+        .select({ fileKey: attachments.fileKey })
+        .from(attachments)
+        .where(inArray(attachments.expenseId, expenseIds));
+      fileKeys = userAttachments.map((a) => a.fileKey);
+    }
+
     // Delete user and all related data in a transaction
     await db.transaction(async (tx) => {
-      // Get user's expense IDs for notification cleanup
-      const userExpenses = await tx
-        .select({ id: expenses.id })
-        .from(expenses)
-        .where(eq(expenses.submittedById, userId));
-
-      const expenseIds = userExpenses.map((e) => e.id);
-
       // Delete notifications for the user (as recipient)
       await tx.delete(notifications).where(eq(notifications.recipientId, userId));
 
@@ -148,6 +159,25 @@ export async function DELETE(request: NextRequest) {
       // Delete user
       await tx.delete(users).where(eq(users.id, userId));
     });
+
+    // Clean up storage files (non-blocking)
+    if (fileKeys.length > 0) {
+      const supabase = await createClient();
+      await supabase.storage.from("attachments").remove(fileKeys).catch((err: any) => {
+        console.error("Failed to clean up storage files:", err);
+      });
+    }
+
+    // Delete from Supabase Auth
+    try {
+      const adminClient = createServiceClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      );
+      await adminClient.auth.admin.deleteUser(userId);
+    } catch (authErr: any) {
+      console.error("Failed to delete user from Supabase Auth:", authErr.message);
+    }
 
     return NextResponse.json({ data: { success: true } });
   } catch (err) {

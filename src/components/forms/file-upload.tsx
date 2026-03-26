@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Upload,
   X,
@@ -44,6 +44,15 @@ export function FileUpload({
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const currentTotalSize = files.reduce((sum, f) => sum + f.file.size, 0);
+
+  // Revoke object URLs on unmount to prevent memory leaks
+  const filesRef = useRef(files);
+  filesRef.current = files;
+  useEffect(() => {
+    return () => {
+      filesRef.current.forEach((f) => { if (f.preview) URL.revokeObjectURL(f.preview); });
+    };
+  }, []);
 
   const validateFile = useCallback(
     (file: File): string | null => {
@@ -329,6 +338,15 @@ export function FileUploadWithDocType({
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const currentTotalSize = files.reduce((sum, f) => sum + f.file.size, 0);
+
+  // Revoke object URLs on unmount to prevent memory leaks
+  const filesRef2 = useRef(files);
+  filesRef2.current = files;
+  useEffect(() => {
+    return () => {
+      filesRef2.current.forEach((f) => { if (f.preview) URL.revokeObjectURL(f.preview); });
+    };
+  }, []);
 
   const validateFile = useCallback(
     (file: File): string | null => {

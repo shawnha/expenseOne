@@ -55,7 +55,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     // Update the expense with state conditions in WHERE to prevent TOCTOU race
     const [updated] = await db
       .update(expenses)
-      .set({ remainingPaymentRequested: true })
+      .set({ remainingPaymentRequested: true, updatedAt: new Date() })
       .where(
         and(
           eq(expenses.id, id),
@@ -77,15 +77,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const remainingAmount = expense.amount - Math.round(expense.amount * expense.prePaidPercentage / 100);
 
-    for (const admin of admins) {
-      await createNotification({
+    await Promise.all(admins.map((admin) =>
+      createNotification({
         recipientId: admin.id,
         type: "REMAINING_PAYMENT_REQUEST",
         title: "후지급 요청이 등록되었습니다",
         message: `${user.name}님이 "${expense.title}" 건의 후지급(${remainingAmount.toLocaleString()}원)을 요청했습니다.`,
         relatedExpenseId: expense.id,
-      });
-    }
+      })
+    ));
 
     return NextResponse.json({ data: updated });
   } catch (err) {

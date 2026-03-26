@@ -14,14 +14,14 @@ export async function POST(request: NextRequest) {
 
   const { code, redirect_uri } = await request.json();
   if (!code) {
-    return NextResponse.json({ error: { message: 'No code provided' } }, { status: 400 });
+    return NextResponse.json({ error: { code: 'missing_code', message: 'No code provided' } }, { status: 400 });
   }
 
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    return NextResponse.json({ error: { message: 'Server config error' } }, { status: 500 });
+    return NextResponse.json({ error: { code: 'config', message: 'Server config error' } }, { status: 500 });
   }
 
   // Validate redirect_uri against allowlist
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     ? [`${appUrl}/auth/callback`, `${appUrl}/auth/google-callback`]
     : [];
   if (redirect_uri && allowedRedirectUris.length > 0 && !allowedRedirectUris.includes(redirect_uri)) {
-    return NextResponse.json({ error: { message: 'Invalid redirect_uri' } }, { status: 400 });
+    return NextResponse.json({ error: { code: 'invalid_redirect', message: 'Invalid redirect_uri' } }, { status: 400 });
   }
 
   // Exchange authorization code for tokens
@@ -49,7 +49,24 @@ export async function POST(request: NextRequest) {
 
   if (!tokenRes.ok || !tokenData.id_token) {
     return NextResponse.json(
-      { error: { message: tokenData.error_description || 'Token exchange failed' } },
+      { error: { code: 'token_exchange_failed', message: tokenData.error_description || 'Token exchange failed' } },
+      { status: 400 }
+    );
+  }
+
+  // Verify id_token audience matches our client ID
+  try {
+    const [, payloadB64] = tokenData.id_token.split('.');
+    const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString());
+    if (payload.aud !== clientId) {
+      return NextResponse.json(
+        { error: { code: 'token_audience_mismatch', message: 'Token audience mismatch' } },
+        { status: 400 }
+      );
+    }
+  } catch {
+    return NextResponse.json(
+      { error: { code: 'token_decode_failed', message: 'Failed to decode id_token' } },
       { status: 400 }
     );
   }

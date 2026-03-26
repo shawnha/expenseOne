@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { users } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 
 export async function POST(request: NextRequest) {
   // CSRF protection: reject requests without valid origin
@@ -16,7 +19,7 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user || !user.email) {
-    return NextResponse.json({ error: { code: 'no_email' } }, { status: 401 });
+    return NextResponse.json({ error: { code: 'no_email', message: '이메일 정보를 찾을 수 없습니다.' } }, { status: 401 });
   }
 
   const email = user.email;
@@ -25,26 +28,25 @@ export async function POST(request: NextRequest) {
   const allowedDomain = process.env.ALLOWED_EMAIL_DOMAIN;
   if (!allowedDomain) {
     console.error('ALLOWED_EMAIL_DOMAIN environment variable is not set.');
-    return NextResponse.json({ error: { code: 'config' } }, { status: 500 });
+    return NextResponse.json({ error: { code: 'config', message: '서버 설정 오류입니다.' } }, { status: 500 });
   }
 
   const emailDomain = email.split('@')[1];
   if (emailDomain !== allowedDomain) {
-    return NextResponse.json({ error: { code: 'domain' } }, { status: 403 });
+    return NextResponse.json({ error: { code: 'domain', message: '허용되지 않은 이메일 도메인입니다.' } }, { status: 403 });
   }
 
-  // Check if user exists
-  const { data: existingUser } = await supabase
-    .from('users')
-    .select('id, is_active, onboarding_completed')
-    .eq('id', user.id)
-    .single();
+  // Check if user exists (using Drizzle for direct DB access, bypassing RLS)
+  const [existingUser] = await db
+    .select({ id: users.id, isActive: users.isActive, onboardingCompleted: users.onboardingCompleted })
+    .from(users)
+    .where(eq(users.id, user.id));
 
   if (existingUser) {
-    if (!existingUser.is_active) {
-      return NextResponse.json({ error: { code: 'inactive' } }, { status: 403 });
+    if (!existingUser.isActive) {
+      return NextResponse.json({ error: { code: 'inactive', message: '비활성화된 계정입니다.' } }, { status: 403 });
     }
-    if (!existingUser.onboarding_completed) {
+    if (!existingUser.onboardingCompleted) {
       return NextResponse.json({ redirect: '/onboarding' });
     }
     return NextResponse.json({ ok: true });
@@ -65,18 +67,18 @@ export async function POST(request: NextRequest) {
   const initialAdminEmail = process.env.INITIAL_ADMIN_EMAIL;
   const role = (initialAdminEmail && email === initialAdminEmail) ? 'ADMIN' : 'MEMBER';
 
-  const { error: insertError } = await supabase.from('users').insert({
-    id: user.id,
-    email,
-    name,
-    role,
-    profile_image_url: profileImageUrl,
-    is_active: true,
-  });
-
-  if (insertError) {
+  try {
+    await db.insert(users).values({
+      id: user.id,
+      email,
+      name,
+      role,
+      profileImageUrl,
+      isActive: true,
+    });
+  } catch (insertError: any) {
     console.error('User registration error:', insertError.message);
-    return NextResponse.json({ error: { code: 'registration_failed', message: 'Failed to create user account' } }, { status: 500 });
+    return NextResponse.json({ error: { code: 'registration_failed', message: '계정 생성에 실패했습니다.' } }, { status: 500 });
   }
 
   return NextResponse.json({ redirect: '/onboarding' });

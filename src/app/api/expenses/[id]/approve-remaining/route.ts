@@ -56,7 +56,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     // Update the expense with state conditions in WHERE to prevent TOCTOU race
     const [updated] = await db
       .update(expenses)
-      .set({ remainingPaymentApproved: true })
+      .set({ remainingPaymentApproved: true, updatedAt: new Date() })
       .where(
         and(
           eq(expenses.id, id),

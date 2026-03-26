@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, handleError } from "@/lib/api-utils";
 import { db } from "@/lib/db";
 import { expenses, users } from "@/lib/db/schema";
-import { eq, and, gte, lte, sql, count, sum } from "drizzle-orm";
+import { eq, and, gte, lte, sql, sum } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
 // GET /api/admin/dashboard?period=this_month|3_months|6_months|this_year
@@ -42,36 +42,21 @@ export async function GET(request: NextRequest) {
     const startStr = start.toISOString();
     const endStr = end.toISOString();
 
-    // 1. Stats: total amount, pending, approved, rejected
+    // 1. Stats: total amount, pending, approved, rejected (single query)
     const dateFilter = and(
       gte(expenses.createdAt, new Date(startStr)),
       lte(expenses.createdAt, new Date(endStr)),
     );
 
-    // Run stat queries in parallel to reduce latency
-    const [
-      [totalResult],
-      [pendingResult],
-      [approvedResult],
-      [rejectedResult],
-    ] = await Promise.all([
-      db
-        .select({ total: sum(expenses.amount) })
-        .from(expenses)
-        .where(dateFilter),
-      db
-        .select({ cnt: count() })
-        .from(expenses)
-        .where(and(dateFilter, eq(expenses.status, "SUBMITTED"))),
-      db
-        .select({ cnt: count() })
-        .from(expenses)
-        .where(and(dateFilter, eq(expenses.status, "APPROVED"))),
-      db
-        .select({ cnt: count() })
-        .from(expenses)
-        .where(and(dateFilter, eq(expenses.status, "REJECTED"))),
-    ]);
+    const [statsResult] = await db
+      .select({
+        totalAmount: sum(expenses.amount),
+        pendingCount: sql<number>`count(*) filter (where ${expenses.status} = 'SUBMITTED')`,
+        approvedCount: sql<number>`count(*) filter (where ${expenses.status} = 'APPROVED')`,
+        rejectedCount: sql<number>`count(*) filter (where ${expenses.status} = 'REJECTED')`,
+      })
+      .from(expenses)
+      .where(dateFilter);
 
     // 2. Category breakdown
     const categoryBreakdown = await db
@@ -114,7 +99,7 @@ export async function GET(request: NextRequest) {
       .from(expenses)
       .innerJoin(users, eq(expenses.submittedById, users.id))
       .where(dateFilter)
-      .groupBy(users.name)
+      .groupBy(users.id, users.name)
       .orderBy(sql`${sum(expenses.amount)} desc`)
       .limit(5);
 
@@ -131,10 +116,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       data: {
         stats: {
-          totalAmount: Number(totalResult?.total ?? 0),
-          pendingCount: pendingResult?.cnt ?? 0,
-          approvedCount: approvedResult?.cnt ?? 0,
-          rejectedCount: rejectedResult?.cnt ?? 0,
+          totalAmount: Number(statsResult?.totalAmount ?? 0),
+          pendingCount: Number(statsResult?.pendingCount ?? 0),
+          approvedCount: Number(statsResult?.approvedCount ?? 0),
+          rejectedCount: Number(statsResult?.rejectedCount ?? 0),
         },
         categoryBreakdown: categoryBreakdown.map((c) => ({
           category: c.category,

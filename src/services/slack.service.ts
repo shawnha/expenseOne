@@ -60,7 +60,7 @@ async function sendSlackMessage(text: string): Promise<void> {
   const channel = process.env.SLACK_CHANNEL_ID;
 
   if (!token || !channel) {
-    console.log("[Slack] SLACK_BOT_TOKEN 또는 SLACK_CHANNEL_ID가 설정되지 않았습니다.");
+    console.warn("[Slack] SLACK_BOT_TOKEN 또는 SLACK_CHANNEL_ID가 설정되지 않았습니다.");
     return;
   }
 
