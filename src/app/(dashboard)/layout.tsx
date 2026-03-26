@@ -3,6 +3,7 @@ import { getAuthUser, getCachedClient } from "@/lib/supabase/cached";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { PullToRefresh } from "@/components/layout/pull-to-refresh";
+import { SplashDismiss } from "@/components/layout/splash-dismiss";
 import { Toaster } from "@/components/ui/sonner";
 import type { User } from "@/types";
 
@@ -27,6 +28,7 @@ export default async function DashboardLayout({
 
     return (
       <>
+        <SplashDismiss />
         <PullToRefresh />
         <Toaster position="top-center" richColors />
         <div className="flex h-dvh overflow-hidden">
