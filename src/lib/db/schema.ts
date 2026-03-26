@@ -19,7 +19,7 @@ import { sql } from "drizzle-orm";
 // Schema
 // ---------------------------------------------------------------------------
 
-export const expenseSchema = pgSchema("expense");
+export const expenseSchema = pgSchema("expenseone");
 
 // ---------------------------------------------------------------------------
 // Enums
