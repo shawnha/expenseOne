@@ -223,17 +223,20 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    min-height: 100vh;
-    max-width: 100vw;
-    overflow-x: hidden;
-    overscroll-behavior-x: none;
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
     background-color: var(--background);
     transition: background-color 0.3s ease, color 0.3s ease;
   }
   html {
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', 'Arial', sans-serif;
-    overflow-x: hidden;
-    overscroll-behavior-x: none;
+    overflow: hidden;
+    overscroll-behavior: none;
+    position: fixed;
+    width: 100%;
+    height: 100%;
   }
   html.dark body {
     background-color: #000000;
