@@ -152,8 +152,8 @@ export function ExpenseFilters() {
       {/* Filter dropdowns - always visible on sm+, toggleable on mobile */}
       <div className={`${mobileFiltersOpen ? "flex" : "hidden"} sm:flex flex-col sm:flex-row gap-3 sm:items-center sm:flex-wrap w-full sm:w-auto`}>
         <Select
-          value={searchParams.get("type") || "__all__"}
-          onValueChange={(v) => handleFilterChange("type", v)}
+          value={searchParams.get("type") ?? "__all__"}
+          onValueChange={(v) => v && handleFilterChange("type", v)}
         >
           <SelectTrigger className="h-11 sm:h-8 w-full sm:w-auto rounded-xl glass-input" aria-label="비용 유형 필터">
             <SelectValue>
@@ -170,8 +170,8 @@ export function ExpenseFilters() {
         </Select>
 
         <Select
-          value={searchParams.get("status") || "__all__"}
-          onValueChange={(v) => handleFilterChange("status", v)}
+          value={searchParams.get("status") ?? "__all__"}
+          onValueChange={(v) => v && handleFilterChange("status", v)}
         >
           <SelectTrigger className="h-11 sm:h-8 w-full sm:w-auto rounded-xl glass-input" aria-label="상태 필터">
             <SelectValue>
@@ -188,8 +188,8 @@ export function ExpenseFilters() {
         </Select>
 
         <Select
-          value={searchParams.get("category") || "__all__"}
-          onValueChange={(v) => handleFilterChange("category", v)}
+          value={searchParams.get("category") ?? "__all__"}
+          onValueChange={(v) => v && handleFilterChange("category", v)}
         >
           <SelectTrigger className="h-11 sm:h-8 w-full sm:w-auto rounded-xl glass-input" aria-label="카테고리 필터">
             <SelectValue>
