@@ -52,7 +52,7 @@ export function Header({ user, title, unreadCount = 0 }: HeaderProps) {
     {isLoggingOut && (
       <PlugSplash mode="disconnecting" onComplete={completeSignOut} />
     )}
-    <header className="sticky top-0 z-40 flex h-14 items-center gap-4 glass-header px-4 lg:px-6">
+    <header className="sticky top-0 z-40 flex h-14 items-center gap-2 sm:gap-4 glass-header px-3 sm:px-4 lg:px-6 overflow-hidden max-w-full">
       {/* Mobile menu button */}
       <MobileSidebar user={user} />
 
@@ -62,12 +62,12 @@ export function Header({ user, title, unreadCount = 0 }: HeaderProps) {
       )}
 
       {/* Right section */}
-      <div className="ml-auto flex items-center gap-3">
+      <div className="ml-auto flex items-center gap-1.5 sm:gap-3">
         {/* Notifications */}
         <Link
           href="/notifications"
           className={cn(
-            "relative flex items-center justify-center size-11 rounded-xl",
+            "relative flex items-center justify-center size-9 sm:size-11 rounded-xl",
             "transition-all duration-300 [transition-timing-function:cubic-bezier(0.25,0.1,0.25,1)]",
             "hover:bg-[rgba(0,0,0,0.04)]",
             "active:scale-95"
@@ -85,8 +85,10 @@ export function Header({ user, title, unreadCount = 0 }: HeaderProps) {
         {/* Theme toggle */}
         <ThemeToggle />
 
-        {/* Login status indicator */}
-        <LogoutPlug connected={!isLoggingOut} />
+        {/* Login status indicator — hidden on mobile to save space */}
+        <div className="hidden sm:block">
+          <LogoutPlug connected={!isLoggingOut} />
+        </div>
 
         {/* Profile dropdown */}
         <DropdownMenu>
