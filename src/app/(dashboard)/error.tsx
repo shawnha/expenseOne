@@ -41,6 +41,10 @@ export default function DashboardError({
       <p className="text-sm text-[var(--apple-secondary-label)] mb-6 max-w-sm">
         페이지를 불러오는 중 문제가 발생했습니다. 다시 시도해주세요.
       </p>
+      {process.env.NODE_ENV !== 'production' && (
+        <p className="text-xs text-[var(--apple-red)] mb-4 max-w-sm break-all">{error.message}</p>
+      )}
+      <p className="text-[10px] text-[var(--apple-tertiary-label)] mb-4 max-w-sm break-all opacity-50">{error.digest || error.message}</p>
       <div className="flex gap-3">
         <Button
           onClick={() => reset()}
