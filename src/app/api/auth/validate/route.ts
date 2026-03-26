@@ -2,14 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
-  // CSRF protection: reject cross-origin requests
+  // CSRF protection: reject requests without valid origin
   const origin = request.headers.get('origin');
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-  if (origin && appUrl) {
-    const allowedOrigin = new URL(appUrl).origin;
-    if (origin !== allowedOrigin) {
-      return NextResponse.json({ error: { code: 'forbidden' } }, { status: 403 });
-    }
+  if (!origin || !appUrl) {
+    return NextResponse.json({ error: { code: 'forbidden', message: 'Missing origin' } }, { status: 403 });
+  }
+  const allowedOrigin = new URL(appUrl).origin;
+  if (origin !== allowedOrigin) {
+    return NextResponse.json({ error: { code: 'forbidden', message: 'Invalid origin' } }, { status: 403 });
   }
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -60,9 +61,9 @@ export async function POST(request: NextRequest) {
     user.user_metadata?.picture ||
     null;
 
-  // Initial admin is configured via environment variable
-  const initialAdminEmail = process.env.INITIAL_ADMIN_EMAIL || 'shawn@hanah1.com';
-  const role = email === initialAdminEmail ? 'ADMIN' : 'MEMBER';
+  // Initial admin is configured via environment variable (no hardcoded fallback)
+  const initialAdminEmail = process.env.INITIAL_ADMIN_EMAIL;
+  const role = (initialAdminEmail && email === initialAdminEmail) ? 'ADMIN' : 'MEMBER';
 
   const { error: insertError } = await supabase.from('users').insert({
     id: user.id,

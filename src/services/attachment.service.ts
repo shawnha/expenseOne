@@ -95,7 +95,7 @@ export async function uploadAttachment(params: {
 
   // 4. Verify expense exists AND the uploader owns the expense
   const [expense] = await db
-    .select({ id: expenses.id, submittedById: expenses.submittedById })
+    .select({ id: expenses.id, submittedById: expenses.submittedById, status: expenses.status })
     .from(expenses)
     .where(eq(expenses.id, expenseId));
 
@@ -105,6 +105,11 @@ export async function uploadAttachment(params: {
 
   if (expense.submittedById !== uploadedById) {
     throw new AppError("FORBIDDEN", "본인이 제출한 비용에만 파일을 첨부할 수 있습니다.");
+  }
+
+  // Block uploads to finalized expenses
+  if (expense.status === "APPROVED" || expense.status === "REJECTED" || expense.status === "CANCELLED") {
+    throw new AppError("FORBIDDEN", "완료된 비용에는 파일을 첨부할 수 없습니다.");
   }
 
   // 5. Upload to Supabase Storage
@@ -171,6 +176,16 @@ export async function deleteAttachment(
   // 2. Check ownership
   if (attachment.uploadedById !== userId) {
     throw new AppError("FORBIDDEN", "본인이 업로드한 파일만 삭제할 수 있습니다.");
+  }
+
+  // 2.5. Block deletion from finalized expenses (audit trail protection)
+  const [expense] = await db
+    .select({ status: expenses.status })
+    .from(expenses)
+    .where(eq(expenses.id, attachment.expenseId));
+
+  if (expense && (expense.status === "APPROVED" || expense.status === "REJECTED")) {
+    throw new AppError("FORBIDDEN", "승인/반려된 비용의 첨부파일은 삭제할 수 없습니다.");
   }
 
   // 3. Delete from Supabase Storage

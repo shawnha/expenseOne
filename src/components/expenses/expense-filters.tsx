@@ -205,7 +205,7 @@ export function ExpenseFilters() {
           </SelectContent>
         </Select>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           <Input
             type="date"
             defaultValue={searchParams.get("startDate") ?? defaults.startDate}
@@ -213,7 +213,7 @@ export function ExpenseFilters() {
             className="w-full sm:w-auto"
             aria-label="시작일"
           />
-          <span className="text-[var(--apple-secondary-label)] text-sm">~</span>
+          <span className="hidden sm:inline text-[var(--apple-secondary-label)] text-sm">~</span>
           <Input
             type="date"
             defaultValue={searchParams.get("endDate") ?? defaults.endDate}

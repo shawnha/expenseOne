@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
-  // CSRF protection
+  // CSRF protection: reject requests without valid origin
   const origin = request.headers.get('origin');
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-  if (origin && appUrl) {
-    const allowedOrigin = new URL(appUrl).origin;
-    if (origin !== allowedOrigin) {
-      return NextResponse.json({ error: { code: 'forbidden' } }, { status: 403 });
-    }
+  if (!origin || !appUrl) {
+    return NextResponse.json({ error: { code: 'forbidden', message: 'Missing origin' } }, { status: 403 });
+  }
+  const allowedOrigin = new URL(appUrl).origin;
+  if (origin !== allowedOrigin) {
+    return NextResponse.json({ error: { code: 'forbidden', message: 'Invalid origin' } }, { status: 403 });
   }
 
   const { code, redirect_uri } = await request.json();

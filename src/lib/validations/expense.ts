@@ -99,7 +99,6 @@ export const updateExpenseSchema = z.object({
   isUrgent: z.boolean().optional(),
   isPrePaid: z.boolean().optional(),
   prePaidPercentage: z.number().int().min(1).max(100).optional().nullable(),
-  remainingPaymentRequested: z.boolean().optional(),
 });
 
 export type UpdateExpenseInput = z.infer<typeof updateExpenseSchema>;

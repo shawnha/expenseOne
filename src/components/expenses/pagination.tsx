@@ -52,48 +52,55 @@ export function Pagination({ page, totalPages, total }: PaginationProps) {
         >
           <ChevronLeft className="size-4" />
         </Button>
-        {pages[0] > 1 && (
-          <>
+        {/* Mobile: show "page / total" only */}
+        <span className="sm:hidden text-sm font-medium text-[var(--apple-label)] px-2 tabular-nums">
+          {page} / {totalPages}
+        </span>
+        {/* Desktop: show page number buttons */}
+        <div className="hidden sm:flex items-center gap-1">
+          {pages[0] > 1 && (
+            <>
+              <Button
+                variant={page === 1 ? "default" : "outline"}
+                size="sm"
+                onClick={() => goToPage(1)}
+                className={page === 1 ? "rounded-full bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)]" : "rounded-full glass border-[var(--apple-separator)]"}
+              >
+                1
+              </Button>
+              {pages[0] > 2 && (
+                <span className="px-1 text-[var(--apple-secondary-label)]">...</span>
+              )}
+            </>
+          )}
+          {pages.map((p) => (
             <Button
-              variant={page === 1 ? "default" : "outline"}
+              key={p}
+              variant={p === page ? "default" : "outline"}
               size="sm"
-              onClick={() => goToPage(1)}
-              className={page === 1 ? "rounded-full bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)]" : "rounded-full glass border-[var(--apple-separator)]"}
+              onClick={() => goToPage(p)}
+              aria-current={p === page ? "page" : undefined}
+              className={p === page ? "rounded-full bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)]" : "rounded-full glass border-[var(--apple-separator)]"}
             >
-              1
+              {p}
             </Button>
-            {pages[0] > 2 && (
-              <span className="px-1 text-[var(--apple-secondary-label)]">...</span>
-            )}
-          </>
-        )}
-        {pages.map((p) => (
-          <Button
-            key={p}
-            variant={p === page ? "default" : "outline"}
-            size="sm"
-            onClick={() => goToPage(p)}
-            aria-current={p === page ? "page" : undefined}
-            className={p === page ? "rounded-full bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)]" : "rounded-full glass border-[var(--apple-separator)]"}
-          >
-            {p}
-          </Button>
-        ))}
-        {pages[pages.length - 1] < totalPages && (
-          <>
-            {pages[pages.length - 1] < totalPages - 1 && (
-              <span className="px-1 text-[var(--apple-secondary-label)]">...</span>
-            )}
-            <Button
-              variant={page === totalPages ? "default" : "outline"}
-              size="sm"
-              onClick={() => goToPage(totalPages)}
-              className={page === totalPages ? "rounded-full bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)]" : "rounded-full glass border-[var(--apple-separator)]"}
-            >
-              {totalPages}
-            </Button>
-          </>
-        )}
+          ))}
+          {pages[pages.length - 1] < totalPages && (
+            <>
+              {pages[pages.length - 1] < totalPages - 1 && (
+                <span className="px-1 text-[var(--apple-secondary-label)]">...</span>
+              )}
+              <Button
+                variant={page === totalPages ? "default" : "outline"}
+                size="sm"
+                onClick={() => goToPage(totalPages)}
+                className={page === totalPages ? "rounded-full bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)]" : "rounded-full glass border-[var(--apple-separator)]"}
+              >
+                {totalPages}
+              </Button>
+            </>
+          )}
+        </div>
         <Button
           variant="outline"
           size="icon-sm"

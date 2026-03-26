@@ -188,7 +188,7 @@ export default function AdminPendingPage() {
         ) : (
           <>
             {/* Desktop table */}
-            <div className="hidden md:block">
+            <div className="hidden lg:block">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -269,7 +269,7 @@ export default function AdminPendingPage() {
             </div>
 
             {/* Mobile cards */}
-            <div className="space-y-3 md:hidden">
+            <div className="space-y-3 lg:hidden">
               {expenses.map((expense, index) => (
                 <div key={expense.id} className={`rounded-xl bg-[rgba(0,0,0,0.03)] overflow-hidden animate-card-enter stagger-${Math.min(index + 1, 8)}`}>
                   <button

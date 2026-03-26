@@ -12,7 +12,7 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   // DEV ONLY: Bypass auth for frontend preview
-  if (process.env.BYPASS_AUTH === 'true') {
+  if (process.env.BYPASS_AUTH === 'true' && process.env.NODE_ENV === 'development') {
     const mockUser: User = {
       id: "dev-user-id",
       email: "dev@company.com",
@@ -33,7 +33,7 @@ export default async function DashboardLayout({
           <Sidebar user={mockUser} />
           <div className="flex flex-1 flex-col overflow-hidden">
             <Header user={mockUser} unreadCount={3} />
-            <main className="relative flex-1 overflow-y-auto p-4 lg:p-6">
+            <main className="relative flex-1 overflow-y-auto overflow-x-hidden p-4 lg:p-6">
               {/* Ambient gradient orbs for glass depth */}
               <div className="ambient-orb ambient-orb-blue" aria-hidden="true" />
               <div className="ambient-orb ambient-orb-purple" aria-hidden="true" />
@@ -125,7 +125,7 @@ export default async function DashboardLayout({
         <div className="flex flex-1 flex-col overflow-hidden">
           <Header user={user} unreadCount={unreadCount ?? 0} />
 
-          <main className="relative flex-1 overflow-y-auto p-4 lg:p-6">
+          <main className="relative flex-1 overflow-y-auto overflow-x-hidden p-4 lg:p-6">
             {/* Ambient gradient orbs for glass depth */}
             <div className="ambient-orb ambient-orb-blue" aria-hidden="true" />
             <div className="ambient-orb ambient-orb-purple" aria-hidden="true" />

@@ -300,7 +300,7 @@ function CategoryPieSection({
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <span className="text-[10px] font-medium tracking-wider uppercase text-[var(--apple-secondary-label)]">합계</span>
-              <span className="text-[20px] font-bold text-[var(--apple-label)] tabular-nums tracking-tight leading-tight">
+              <span className="text-[14px] sm:text-[20px] font-bold text-[var(--apple-label)] tabular-nums tracking-tight leading-tight max-w-[100px] truncate">
                 {formatAmount(total)}
               </span>
               <span className="text-[11px] text-[var(--apple-secondary-label)]">원</span>

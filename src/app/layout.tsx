@@ -107,7 +107,7 @@ setTimeout(function(){window.__splashDismiss&&window.__splashDismiss()},6000);
         />
       </head>
       <body
-        className={`${inter.variable} antialiased`}
+        className={`${inter.variable} antialiased overflow-x-hidden`}
         style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', 'Inter', system-ui, sans-serif" }}
       >
         {children}
