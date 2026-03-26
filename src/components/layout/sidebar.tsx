@@ -199,7 +199,6 @@ export function MobileSidebar({ user }: SidebarProps) {
   }, [pathname]);
 
   // Edge swipe from left to open sidebar
-  // Wider zone (40px) to avoid conflict with iOS back gesture (which uses ~10px edge)
   React.useEffect(() => {
     const onTouchStart = (e: TouchEvent) => {
       touchStartX.current = e.touches[0].clientX;
@@ -208,8 +207,8 @@ export function MobileSidebar({ user }: SidebarProps) {
     const onTouchEnd = (e: TouchEvent) => {
       const deltaX = e.changedTouches[0].clientX - touchStartX.current;
       const deltaY = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
-      // Start within 40px of left edge, swipe right >50px, mostly horizontal
-      if (touchStartX.current > 10 && touchStartX.current < 40 && deltaX > 50 && deltaY < 80) {
+      // Start within 30px of left edge, swipe right >50px, mostly horizontal
+      if (touchStartX.current < 30 && deltaX > 50 && deltaY < 80) {
         setOpen(true);
       }
     };

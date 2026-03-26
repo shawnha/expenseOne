@@ -33,6 +33,15 @@ function LoginContent() {
     if (typeof window !== "undefined" && (window as unknown as Record<string, unknown>).__splashDismiss) {
       (window as unknown as Record<string, () => void>).__splashDismiss();
     }
+    // If already authenticated, redirect to home (prevents back-button to login)
+    if (!errorCode) {
+      import('@/lib/supabase/client').then(({ createClient }) => {
+        const supabase = createClient();
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (session) router.replace('/');
+        });
+      });
+    }
   }, []);
 
   const handleLogin = () => {
