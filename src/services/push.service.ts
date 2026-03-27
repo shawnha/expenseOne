@@ -31,7 +31,15 @@ export async function sendPushToUser(
 
     if (subs.length === 0) return;
 
-    const payload = JSON.stringify({ title, body, url: url || "/" });
+    // Convert absolute URL to relative path for SW navigation
+    let pushUrl = url || "/";
+    try {
+      const parsed = new URL(pushUrl);
+      pushUrl = parsed.pathname + parsed.search;
+    } catch {
+      // Already relative
+    }
+    const payload = JSON.stringify({ title, body, url: pushUrl });
 
     await Promise.allSettled(
       subs.map(async (sub) => {

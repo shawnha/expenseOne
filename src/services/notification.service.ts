@@ -125,7 +125,8 @@ export async function markAllAsRead(userId: string) {
 // Helper: build expense URL
 // ---------------------------------------------------------------------------
 function expenseUrl(expenseId: string): string {
-  return `/expenses/${expenseId}`;
+  const base = process.env.NEXT_PUBLIC_APP_URL || "https://expenseone.vercel.app";
+  return `${base}/expenses/${expenseId}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -150,25 +151,32 @@ export async function notifyExpenseApproved(
     relatedExpenseId: expenseId,
   });
 
-  // Fire-and-forget Slack notification with mention
+  // Await Slack + Push to prevent Vercel serverless from killing them
+  const sideEffects: Promise<void>[] = [];
+
   if (extra) {
-    notifySlackApproved({
-      submitterEmail: extra.submitterEmail,
-      submitterName: extra.submitterName,
-      approverName: extra.approverName,
-      title: expenseTitle,
-      amount: extra.amount,
-      expenseUrl: expenseUrl(expenseId),
-    }).catch((err) => console.error("[Slack] 승인 알림 실패:", err));
+    sideEffects.push(
+      notifySlackApproved({
+        submitterEmail: extra.submitterEmail,
+        submitterName: extra.submitterName,
+        approverName: extra.approverName,
+        title: expenseTitle,
+        amount: extra.amount,
+        expenseUrl: expenseUrl(expenseId),
+      }).catch((err) => console.error("[Slack] 승인 알림 실패:", err)),
+    );
   }
 
-  // Fire-and-forget Web Push notification
-  sendPushToUser(
-    submitterId,
-    "입금요청 승인",
-    `"${expenseTitle}" 입금요청이 승인되었습니다.`,
-    expenseUrl(expenseId),
-  ).catch((err) => console.error("[Push] 승인 알림 실패:", err));
+  sideEffects.push(
+    sendPushToUser(
+      submitterId,
+      "입금요청 승인",
+      `"${expenseTitle}" 입금요청이 승인되었습니다.`,
+      expenseUrl(expenseId),
+    ).catch((err) => console.error("[Push] 승인 알림 실패:", err)),
+  );
+
+  await Promise.allSettled(sideEffects);
 
   return notification;
 }
@@ -196,8 +204,8 @@ export async function notifyExpenseRejected(
     relatedExpenseId: expenseId,
   });
 
-  // Fire-and-forget Web Push notification
-  sendPushToUser(
+  // Await Push to prevent Vercel serverless from killing it
+  await sendPushToUser(
     submitterId,
     "입금요청 반려",
     `"${expenseTitle}" 입금요청이 반려되었습니다.`,
@@ -241,11 +249,11 @@ export async function notifyNewDepositRequest(
     .values(notificationValues)
     .returning();
 
-  // Fire-and-forget Web Push to all admins
+  // Await Push to prevent Vercel serverless from killing it
   const pushAmount = extra?.amount
     ? `${extra.amount.toLocaleString()}원`
     : "";
-  sendPushToAdmins(
+  await sendPushToAdmins(
     "새 입금요청",
     `${submitterName} - "${expenseTitle}" ${pushAmount}`,
     expenseUrl(expenseId),
