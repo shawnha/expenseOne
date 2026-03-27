@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState, useCallback, useEffect } from "react";
+import { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import {
   Table,
   TableBody,
@@ -10,10 +10,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { SwipeableGroup, SwipeableRow, type SwipeAction } from "@/components/ui/swipeable-row";
 import { formatAmount } from "@/lib/validations/expense-form";
 import { getCategoryLabel } from "@/lib/utils/expense-utils";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 import type { ExpenseType, ExpenseStatus } from "@/types";
 
 interface ExpenseRow {
@@ -194,35 +196,31 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
       </div>
 
       {/* Mobile cards */}
-      <div className="flex flex-col gap-3 lg:hidden">
-        {expenses.map((expense) => (
-          <SwipeableExpenseCard
-            key={expense.id}
-            expense={expense}
-            showSubmitter={showSubmitter}
-            onNavigate={() => router.push(`/expenses/${expense.id}`)}
-            onActionComplete={() => router.refresh()}
-          />
-        ))}
-      </div>
+      <SwipeableGroup>
+        <div className="flex flex-col gap-3 lg:hidden">
+          {expenses.map((expense) => (
+            <MobileExpenseCard
+              key={expense.id}
+              expense={expense}
+              showSubmitter={showSubmitter}
+            />
+          ))}
+        </div>
+      </SwipeableGroup>
     </>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Swipeable Mobile Card
+// Mobile Card using SwipeableRow
 // ---------------------------------------------------------------------------
 
-function SwipeableExpenseCard({
+function MobileExpenseCard({
   expense,
   showSubmitter,
-  onNavigate,
-  onActionComplete,
 }: {
   expense: ExpenseRow;
   showSubmitter: boolean;
-  onNavigate: () => void;
-  onActionComplete: () => void;
 }) {
   const router = useRouter();
   const typeInfo = TYPE_LABELS[expense.type];
@@ -230,235 +228,69 @@ function SwipeableExpenseCard({
 
   const canDelete = ["SUBMITTED", "CANCELLED", "APPROVED"].includes(expense.status);
   const canEdit = ["SUBMITTED", "APPROVED"].includes(expense.status);
-  const swipeable = canDelete || canEdit;
 
-  const cardRef = useRef<HTMLDivElement>(null);
-  const startXRef = useRef(0);
-  const startYRef = useRef(0);
-  const currentXRef = useRef(0);
-  const swipingRef = useRef(false);
-  // Gesture lock: null = undecided, "horizontal" = swipe locked, "vertical" = scroll locked
-  const gestureLockRef = useRef<"horizontal" | "vertical" | null>(null);
-  const [openDirection, setOpenDirection] = useState<"left" | "right" | null>(null);
-  const [isActioning, setIsActioning] = useState(false);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const actions: SwipeAction[] = useMemo(() => {
+    const result: SwipeAction[] = [];
 
-  const ACTION_WIDTH = 80;
-  const LOCK_THRESHOLD = 12; // px to decide direction
-  const SPRING_TRANSITION = "transform 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.02)";
-  const EASE_TRANSITION = "transform 0.25s cubic-bezier(0.25, 0.1, 0.25, 1)";
+    result.push({
+      key: "view",
+      icon: <Eye className="size-4" />,
+      label: "보기",
+      color: "var(--apple-blue)",
+      activeColor: "color-mix(in srgb, var(--apple-blue) 85%, black)",
+      onAction: () => router.push(`/expenses/${expense.id}`),
+    });
 
-  const applyTransform = useCallback((x: number, transition?: string) => {
-    if (!cardRef.current) return;
-    cardRef.current.style.transform = `translateX(${x}px)`;
-    cardRef.current.style.transition = transition ?? "none";
-  }, []);
-
-  // Store latest values in refs so touch handlers always see current state
-  const openDirectionRef = useRef(openDirection);
-  openDirectionRef.current = openDirection;
-  const canDeleteRef = useRef(canDelete);
-  canDeleteRef.current = canDelete;
-  const canEditRef = useRef(canEdit);
-  canEditRef.current = canEdit;
-  const swipeableRef = useRef(swipeable);
-  swipeableRef.current = swipeable;
-
-  // Use ref-based touch event listeners with { passive: false } so preventDefault works
-  useEffect(() => {
-    const card = cardRef.current;
-    if (!card) return;
-
-    const onTouchStart = (e: TouchEvent) => {
-      if (!swipeableRef.current) return;
-      startXRef.current = e.touches[0].clientX;
-      startYRef.current = e.touches[0].clientY;
-      currentXRef.current = openDirectionRef.current === "left" ? -ACTION_WIDTH : openDirectionRef.current === "right" ? ACTION_WIDTH : 0;
-      swipingRef.current = false;
-      gestureLockRef.current = null; // Reset gesture lock
-    };
-
-    const onTouchMove = (e: TouchEvent) => {
-      if (!swipeableRef.current) return;
-
-      const deltaX = e.touches[0].clientX - startXRef.current;
-      const deltaY = e.touches[0].clientY - startYRef.current;
-      const absDX = Math.abs(deltaX);
-      const absDY = Math.abs(deltaY);
-
-      // Phase 1: Decide gesture direction (within first LOCK_THRESHOLD px of movement)
-      if (gestureLockRef.current === null) {
-        if (absDX < LOCK_THRESHOLD && absDY < LOCK_THRESHOLD) return; // Not enough movement yet
-        // Lock direction: horizontal swipe only if X movement clearly dominates Y (at least 1.5x)
-        gestureLockRef.current = absDX > absDY * 1.5 ? "horizontal" : "vertical";
-      }
-
-      // If vertical scroll is locked in, let the browser handle scrolling
-      if (gestureLockRef.current === "vertical") return;
-
-      // Phase 2: Horizontal swipe is locked in
-      e.preventDefault();
-
-      const base = openDirectionRef.current === "left" ? -ACTION_WIDTH : openDirectionRef.current === "right" ? ACTION_WIDTH : 0;
-      const totalX = deltaX + base;
-
-      if (totalX < 0 && !canDeleteRef.current) return;
-      if (totalX > 0 && !canEditRef.current) return;
-
-      swipingRef.current = true;
-      const clampedX = Math.max(-ACTION_WIDTH, Math.min(ACTION_WIDTH, totalX));
-      currentXRef.current = clampedX;
-      applyTransform(clampedX);
-    };
-
-    const onTouchEnd = () => {
-      if (!swipeableRef.current) return;
-
-      // If gesture was vertical or undecided, don't snap
-      if (gestureLockRef.current !== "horizontal") {
-        gestureLockRef.current = null;
-        swipingRef.current = false;
-        return;
-      }
-
-      gestureLockRef.current = null;
-      const threshold = ACTION_WIDTH * 0.35;
-      const x = currentXRef.current;
-
-      let finalX = 0;
-      let dir: "left" | "right" | null = null;
-
-      if (x < -threshold && canDeleteRef.current) {
-        finalX = -ACTION_WIDTH;
-        dir = "left";
-      } else if (x > threshold && canEditRef.current) {
-        finalX = ACTION_WIDTH;
-        dir = "right";
-      }
-
-      setOpenDirection(dir);
-      setConfirmingDelete(false);
-      applyTransform(finalX, SPRING_TRANSITION);
-
-      if (dir === null) {
-        setTimeout(() => { swipingRef.current = false; }, 50);
-      }
-    };
-
-    card.addEventListener("touchstart", onTouchStart, { passive: true });
-    card.addEventListener("touchmove", onTouchMove, { passive: false });
-    card.addEventListener("touchend", onTouchEnd, { passive: true });
-
-    return () => {
-      card.removeEventListener("touchstart", onTouchStart);
-      card.removeEventListener("touchmove", onTouchMove);
-      card.removeEventListener("touchend", onTouchEnd);
-      clearTimeout(confirmTimeoutRef.current);
-    };
-  }, [applyTransform]);
-
-  const resetSwipe = useCallback(() => {
-    setOpenDirection(null);
-    setConfirmingDelete(false);
-    applyTransform(0, EASE_TRANSITION);
-  }, [applyTransform, EASE_TRANSITION]);
-
-  const handleCardClick = useCallback(() => {
-    if (swipingRef.current) return;
-    if (openDirection !== null) {
-      resetSwipe();
-      return;
-    }
-    onNavigate();
-  }, [openDirection, onNavigate, resetSwipe]);
-
-  const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-  const handleDelete = useCallback(async () => {
-    if (!confirmingDelete) {
-      setConfirmingDelete(true);
-      clearTimeout(confirmTimeoutRef.current);
-      confirmTimeoutRef.current = setTimeout(() => {
-        setConfirmingDelete(false);
-      }, 3500);
-      return;
-    }
-    clearTimeout(confirmTimeoutRef.current);
-    if (isActioning) return;
-    setIsActioning(true);
-    try {
-      const res = await fetch(`/api/expenses/${expense.id}`, {
-        method: "DELETE",
+    if (canEdit) {
+      result.push({
+        key: "edit",
+        icon: <Pencil className="size-4" />,
+        label: "수정",
+        color: "var(--apple-orange)",
+        activeColor: "color-mix(in srgb, var(--apple-orange) 85%, black)",
+        onAction: () => router.push(`/expenses/${expense.id}/edit`),
       });
-      if (res.ok) {
-        toast.success("삭제되었습니다.");
-        onActionComplete();
-      } else {
-        const json = await res.json().catch(() => null);
-        toast.error(json?.error?.message ?? "삭제에 실패했습니다.");
-      }
-    } catch {
-      toast.error("요청 중 오류가 발생했습니다.");
-    } finally {
-      setIsActioning(false);
-      resetSwipe();
     }
-  }, [expense.id, isActioning, confirmingDelete, onActionComplete, resetSwipe]);
 
-  const handleEdit = useCallback(() => {
-    resetSwipe();
-    router.push(`/expenses/${expense.id}/edit`);
-  }, [expense.id, router, resetSwipe]);
+    if (canDelete) {
+      result.push({
+        key: "delete",
+        icon: <Trash2 className="size-4" />,
+        label: "삭제",
+        color: "var(--apple-red)",
+        activeColor: "color-mix(in srgb, var(--apple-red) 80%, black)",
+        requireConfirm: true,
+        confirmLabel: "확인?",
+        onAction: async () => {
+          try {
+            const res = await fetch(`/api/expenses/${expense.id}`, { method: "DELETE" });
+            if (res.ok) {
+              toast.success("삭제되었습니다.");
+              router.refresh();
+            } else {
+              const json = await res.json().catch(() => null);
+              toast.error(json?.error?.message ?? "삭제에 실패했습니다.");
+            }
+          } catch {
+            toast.error("요청 중 오류가 발생했습니다.");
+          }
+        },
+      });
+    }
 
+    return result;
+  }, [expense.id, canEdit, canDelete, router]);
 
   return (
-    <div className="relative overflow-hidden rounded-xl">
-      {/* Delete action behind the card (right side, revealed on left swipe) */}
-      {canDelete && (
-        <div className="absolute inset-y-0 right-0 flex items-stretch" style={{ width: ACTION_WIDTH }}>
-          <button
-            onClick={handleDelete}
-            disabled={isActioning}
-            className={cn(
-              "flex flex-1 items-center justify-center text-white text-xs font-semibold transition-colors",
-              confirmingDelete
-                ? "bg-[color-mix(in_srgb,var(--apple-red)_80%,black)] active:bg-[color-mix(in_srgb,var(--apple-red)_70%,black)]"
-                : "bg-[var(--apple-red)] active:bg-[color-mix(in_srgb,var(--apple-red)_85%,black)]"
-            )}
-            aria-label={confirmingDelete ? "삭제 확인" : "삭제"}
-          >
-            {confirmingDelete ? "확인?" : "삭제"}
-          </button>
-        </div>
-      )}
-
-      {/* Edit action behind the card (left side, revealed on right swipe) */}
-      {canEdit && (
-        <div className="absolute inset-y-0 left-0 flex items-stretch" style={{ width: ACTION_WIDTH }}>
-          <button
-            onClick={handleEdit}
-            className="flex flex-1 items-center justify-center bg-[var(--apple-blue)] text-white text-xs font-semibold active:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] transition-colors"
-            aria-label="수정"
-          >
-            수정
-          </button>
-        </div>
-      )}
-
-      {/* Foreground card */}
+    <SwipeableRow
+      id={expense.id}
+      actions={actions}
+      onTap={() => router.push(`/expenses/${expense.id}`)}
+      className="rounded-xl"
+      enabled={actions.length > 0}
+    >
       <div
-        ref={cardRef}
-        onClick={handleCardClick}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            handleCardClick();
-          }
-        }}
-        tabIndex={0}
-        className="relative flex flex-col gap-2 p-4 text-left rounded-xl bg-[var(--card)] border border-[var(--glass-border)] shadow-sm cursor-pointer select-none focus-visible:ring-2 focus-visible:ring-[var(--apple-blue)] focus-visible:ring-offset-1 outline-none"
-        style={{ willChange: "transform" }}
-        role="button"
+        className="relative flex flex-col gap-2 p-4 text-left rounded-xl bg-[var(--card)] border border-[var(--glass-border)] shadow-sm cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--apple-blue)] focus-visible:ring-offset-1 outline-none"
         aria-label={`${expense.title} 상세 보기`}
       >
         <div className="flex items-center justify-between gap-2">
@@ -486,6 +318,6 @@ function SwipeableExpenseCard({
           )}
         </div>
       </div>
-    </div>
+    </SwipeableRow>
   );
 }

@@ -90,10 +90,11 @@ function RoleLabel({
   }
 
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={true}>
       <DropdownMenuTrigger
         disabled={disabled}
-        className={`${badgeClass} inline-flex items-center gap-0.5 cursor-pointer hover:opacity-70 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed outline-none`}
+        render={<button type="button" />}
+        className={`${badgeClass} inline-flex items-center gap-0.5 cursor-pointer hover:opacity-70 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed outline-none min-h-[44px] min-w-[44px] justify-center sm:min-h-0 sm:min-w-0`}
       >
         {current.label}
         <ChevronDown className="size-3 opacity-60" />
@@ -105,7 +106,7 @@ function RoleLabel({
             onClick={() => {
               if (opt.value !== role) onChange?.(opt.value);
             }}
-            className="flex items-center justify-between gap-4"
+            className="flex items-center justify-between gap-4 min-h-[44px] sm:min-h-0"
           >
             {opt.label}
             {opt.value === role && <Check className="size-3.5 text-[var(--apple-blue)]" />}
@@ -334,13 +335,13 @@ export function UsersTable({ users: initialUsers, currentUserId }: UsersTablePro
               </div>
 
               {!isSelf && (
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
                   <Button
                     size="sm"
                     variant={user.isActive ? "destructive" : "default"}
                     disabled={isUpdating || isDeleting}
                     onClick={() => handleToggleActive(user.id, !user.isActive)}
-                    className="flex-1 rounded-xl text-[12px] h-7"
+                    className="flex-1 rounded-full text-[12px] h-10"
                   >
                     {isUpdating && <Loader2 className="size-3 animate-spin" />}
                     {user.isActive ? "비활성화" : "활성화"}
@@ -352,11 +353,11 @@ export function UsersTable({ users: initialUsers, currentUserId }: UsersTablePro
                           size="sm"
                           variant="ghost"
                           disabled={isDeleting}
-                          className="rounded-xl text-red-500 hover:text-red-600 hover:bg-red-50 h-7 w-7 p-0"
+                          className="rounded-full text-red-500 hover:text-red-600 hover:bg-red-50 h-10 w-10 p-0 shrink-0"
                         />
                       }
                     >
-                      {isDeleting ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                      {isDeleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
@@ -368,10 +369,10 @@ export function UsersTable({ users: initialUsers, currentUserId }: UsersTablePro
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel>취소</AlertDialogCancel>
+                        <AlertDialogCancel className="rounded-full min-h-[44px]">취소</AlertDialogCancel>
                         <AlertDialogAction
                           onClick={() => handleDelete(user.id)}
-                          className="bg-red-500 hover:bg-red-600"
+                          className="rounded-full min-h-[44px] bg-red-500 hover:bg-red-600"
                         >
                           삭제
                         </AlertDialogAction>

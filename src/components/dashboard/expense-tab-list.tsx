@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { formatAmount } from "@/lib/validations/expense-form";
-import { CreditCard, Banknote, ArrowRight } from "lucide-react";
+import { SwipeableGroup, SwipeableRow, type SwipeAction } from "@/components/ui/swipeable-row";
+import { CreditCard, Banknote, ArrowRight, Eye, Pencil, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import type { ExpenseStatus } from "@/types";
 
 const STATUS_LABELS: Record<ExpenseStatus, { label: string; className: string }> = {
@@ -92,43 +95,116 @@ export function ExpenseTabList({ expenses }: { expenses: Expense[] }) {
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-[var(--apple-separator)]">
-            {filtered.map((expense, idx) => {
-              const statusInfo =
-                STATUS_LABELS[expense.status as ExpenseStatus] ?? STATUS_LABELS.SUBMITTED;
-              return (
-                <Link
-                  key={expense.id}
-                  href={`/expenses/${expense.id}`}
-                  className={cn(
-                    "flex items-center justify-between gap-2 sm:gap-3 py-2.5 sm:py-3 hover:bg-[rgba(0,0,0,0.03)] rounded-lg px-2 -mx-2 apple-press transition-all duration-200",
-                    "animate-row-enter",
-                    `stagger-${idx + 3}`
-                  )}
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13px] sm:text-[15px] font-medium text-[var(--apple-label)] truncate flex items-center gap-1.5">
-                      <span className="truncate">{expense.title}</span>
-                      {expense.is_urgent && <span className="glass-badge glass-badge-red shrink-0">긴급</span>}
-                    </p>
-                    <p className="text-[11px] sm:text-xs text-[var(--apple-secondary-label)] mt-0.5">
-                      {formatDateKR(expense.created_at)}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                    <span className="text-[13px] sm:text-sm font-medium tabular-nums text-[var(--apple-label)]">
-                      {formatAmount(expense.amount)}원
-                    </span>
-                    <span className={cn(statusInfo.className)}>
-                      {statusInfo.label}
-                    </span>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
+          <SwipeableGroup>
+            <div className="divide-y divide-[var(--apple-separator)]">
+              {filtered.map((expense, idx) => (
+                <DashboardExpenseRow key={expense.id} expense={expense} idx={idx} />
+              ))}
+            </div>
+          </SwipeableGroup>
         )}
       </div>
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard expense row with swipe actions (mobile)
+// ---------------------------------------------------------------------------
+
+function DashboardExpenseRow({ expense, idx }: { expense: Expense; idx: number }) {
+  const router = useRouter();
+  const statusInfo =
+    STATUS_LABELS[expense.status as ExpenseStatus] ?? STATUS_LABELS.SUBMITTED;
+
+  const canEdit = expense.status === "SUBMITTED";
+  const canDelete = ["SUBMITTED", "CANCELLED"].includes(expense.status);
+
+  const actions: SwipeAction[] = useMemo(() => {
+    const result: SwipeAction[] = [];
+
+    result.push({
+      key: "view",
+      icon: <Eye className="size-4" />,
+      label: "보기",
+      color: "var(--apple-blue)",
+      onAction: () => router.push(`/expenses/${expense.id}`),
+    });
+
+    if (canEdit) {
+      result.push({
+        key: "edit",
+        icon: <Pencil className="size-4" />,
+        label: "수정",
+        color: "var(--apple-orange)",
+        onAction: () => router.push(`/expenses/${expense.id}/edit`),
+      });
+    }
+
+    if (canDelete) {
+      result.push({
+        key: "delete",
+        icon: <Trash2 className="size-4" />,
+        label: "삭제",
+        color: "var(--apple-red)",
+        requireConfirm: true,
+        confirmLabel: "확인?",
+        onAction: async () => {
+          try {
+            const res = await fetch(`/api/expenses/${expense.id}`, { method: "DELETE" });
+            if (res.ok) {
+              toast.success("삭제되었습니다.");
+              router.refresh();
+            } else {
+              const json = await res.json().catch(() => null);
+              toast.error(json?.error?.message ?? "삭제에 실패했습니다.");
+            }
+          } catch {
+            toast.error("요청 중 오류가 발생했습니다.");
+          }
+        },
+      });
+    }
+
+    return result;
+  }, [expense.id, expense.status, canEdit, canDelete, router]);
+
+  const handleTap = useCallback(() => {
+    router.push(`/expenses/${expense.id}`);
+  }, [expense.id, router]);
+
+  return (
+    <SwipeableRow
+      id={`dashboard-${expense.id}`}
+      actions={actions}
+      onTap={handleTap}
+      enabled={actions.length > 0}
+    >
+      <div
+        className={cn(
+          "flex items-center justify-between gap-2 sm:gap-3 py-2.5 sm:py-3 hover:bg-[rgba(0,0,0,0.03)] rounded-lg px-2 cursor-pointer apple-press transition-all duration-200",
+          "animate-row-enter",
+          `stagger-${idx + 3}`
+        )}
+      >
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] sm:text-[15px] font-medium text-[var(--apple-label)] truncate flex items-center gap-1.5">
+            <span className="truncate">{expense.title}</span>
+            {expense.is_urgent && <span className="glass-badge glass-badge-red shrink-0">긴급</span>}
+          </p>
+          <p className="text-[11px] sm:text-xs text-[var(--apple-secondary-label)] mt-0.5">
+            {formatDateKR(expense.created_at)}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <span className="text-[13px] sm:text-sm font-medium tabular-nums text-[var(--apple-label)]">
+            {formatAmount(expense.amount)}원
+          </span>
+          <span className={cn(statusInfo.className)}>
+            {statusInfo.label}
+          </span>
+        </div>
+      </div>
+    </SwipeableRow>
   );
 }
