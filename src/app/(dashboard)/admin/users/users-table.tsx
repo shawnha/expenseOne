@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Loader2, Trash2, ChevronDown, Check } from "lucide-react";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { Loader2, Trash2, ChevronDown, Check, Shield, ShieldOff, UserX, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -117,10 +117,339 @@ function RoleLabel({
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* iOS-style long-press context menu for mobile                       */
+/* ------------------------------------------------------------------ */
+
+interface ContextMenuState {
+  user: UserRow;
+  x: number;
+  y: number;
+}
+
+function useLongPress(
+  onLongPress: (e: React.TouchEvent<HTMLDivElement>) => void,
+  delay = 500,
+) {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const movedRef = useRef(false);
+  const activeRef = useRef(false);
+
+  const start = useCallback(
+    (e: React.TouchEvent<HTMLDivElement>) => {
+      movedRef.current = false;
+      activeRef.current = true;
+      timerRef.current = setTimeout(() => {
+        if (!movedRef.current && activeRef.current) {
+          onLongPress(e);
+        }
+      }, delay);
+    },
+    [onLongPress, delay],
+  );
+
+  const move = useCallback(() => {
+    movedRef.current = true;
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  const end = useCallback(() => {
+    activeRef.current = false;
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  return { onTouchStart: start, onTouchMove: move, onTouchEnd: end, onTouchCancel: end };
+}
+
+function MobileContextMenu({
+  menu,
+  currentUserId,
+  updatingId,
+  deletingId,
+  onRoleChange,
+  onToggleActive,
+  onDelete,
+  onClose,
+}: {
+  menu: ContextMenuState;
+  currentUserId: string;
+  updatingId: string | null;
+  deletingId: string | null;
+  onRoleChange: (userId: string, newRole: UserRole) => void;
+  onToggleActive: (userId: string, isActive: boolean) => void;
+  onDelete: (userId: string) => void;
+  onClose: () => void;
+}) {
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({
+    opacity: 0,
+    position: "fixed",
+    left: 0,
+    top: 0,
+  });
+
+  const { user } = menu;
+  const isSelf = user.id === currentUserId;
+  const isUpdating = updatingId === user.id;
+  const isDeleting = deletingId === user.id;
+
+  // Position the menu after first render so we can measure it
+  useEffect(() => {
+    const el = menuRef.current;
+    if (!el) return;
+
+    const menuW = el.offsetWidth;
+    const menuH = el.offsetHeight;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    let left = menu.x - menuW / 2;
+    let top = menu.y + 8;
+
+    // Clamp horizontal
+    if (left < 12) left = 12;
+    if (left + menuW > vw - 12) left = vw - 12 - menuW;
+
+    // Flip above if not enough room below
+    if (top + menuH > vh - 12) {
+      top = menu.y - menuH - 8;
+    }
+    if (top < 12) top = 12;
+
+    setMenuStyle({
+      position: "fixed",
+      left,
+      top,
+      opacity: 1,
+      transform: "scale(1)",
+    });
+  }, [menu.x, menu.y]);
+
+  // Close on Escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  // Prevent body scroll while menu is open
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, []);
+
+  const handleAction = (action: () => void) => {
+    action();
+    onClose();
+  };
+
+  if (showDeleteConfirm) {
+    return (
+      <>
+        {/* Backdrop */}
+        <div className="fixed inset-0 z-[9998] bg-black/30 backdrop-blur-sm" onClick={() => setShowDeleteConfirm(false)} />
+        {/* Confirm dialog */}
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-6">
+          <div className="w-full max-w-[300px] rounded-2xl backdrop-blur-xl bg-white/90 dark:bg-black/90 shadow-2xl border border-[var(--glass-border)] overflow-hidden">
+            <div className="p-5 text-center">
+              <p className="text-[15px] font-semibold text-[var(--apple-label)] mb-1">사용자 삭제</p>
+              <p className="text-[13px] text-[var(--apple-secondary-label)] leading-relaxed">
+                <strong>{user.name}</strong> ({user.email})을(를) 삭제하시겠습니까?
+                모든 경비 내역과 알림이 함께 삭제됩니다.
+              </p>
+            </div>
+            <div className="border-t border-[var(--apple-separator)]">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  onClose();
+                }}
+                className="w-full px-4 py-3 text-[15px] text-[var(--apple-blue)] font-normal active:bg-black/5 border-b border-[var(--apple-separator)]"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onDelete(user.id);
+                  setShowDeleteConfirm(false);
+                  onClose();
+                }}
+                disabled={isDeleting}
+                className="w-full px-4 py-3 text-[15px] text-[var(--apple-red)] font-semibold active:bg-black/5 disabled:opacity-50"
+              >
+                {isDeleting ? "삭제 중..." : "삭제"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <>
+      {/* Backdrop overlay */}
+      <div
+        className="fixed inset-0 z-[9998] bg-black/20"
+        onClick={onClose}
+      />
+      {/* Context menu */}
+      <div
+        ref={menuRef}
+        style={{
+          ...menuStyle,
+          transition: "opacity 0.15s ease, transform 0.15s ease",
+          transformOrigin: "center top",
+        }}
+        className="z-[9999] w-[220px] rounded-2xl backdrop-blur-xl bg-white/80 dark:bg-black/80 shadow-2xl border border-[var(--glass-border)] overflow-hidden"
+      >
+        {/* User info header */}
+        <div className="px-4 py-2.5 border-b border-[var(--apple-separator)]">
+          <p className="text-[13px] font-semibold text-[var(--apple-label)] truncate">{user.name}</p>
+          <p className="text-[11px] text-[var(--apple-secondary-label)] truncate">{user.email}</p>
+        </div>
+
+        {!isSelf && (
+          <>
+            {/* Role toggle */}
+            <button
+              type="button"
+              disabled={isUpdating}
+              onClick={() =>
+                handleAction(() =>
+                  onRoleChange(user.id, user.role === "ADMIN" ? "MEMBER" : "ADMIN"),
+                )
+              }
+              className="w-full px-4 py-3 flex items-center gap-3 active:bg-black/5 disabled:opacity-50 border-b border-[var(--apple-separator)]"
+            >
+              {user.role === "ADMIN" ? (
+                <ShieldOff className="size-[18px] text-[var(--apple-secondary-label)]" />
+              ) : (
+                <Shield className="size-[18px] text-[var(--apple-secondary-label)]" />
+              )}
+              <span className="text-[14px] text-[var(--apple-label)]">
+                {user.role === "ADMIN" ? "크루로 변경" : "관리자로 변경"}
+              </span>
+            </button>
+
+            {/* Active toggle */}
+            <button
+              type="button"
+              disabled={isUpdating}
+              onClick={() =>
+                handleAction(() => onToggleActive(user.id, !user.isActive))
+              }
+              className="w-full px-4 py-3 flex items-center gap-3 active:bg-black/5 disabled:opacity-50 border-b border-[var(--apple-separator)]"
+            >
+              {user.isActive ? (
+                <UserX className="size-[18px] text-[var(--apple-secondary-label)]" />
+              ) : (
+                <UserCheck className="size-[18px] text-[var(--apple-secondary-label)]" />
+              )}
+              <span className="text-[14px] text-[var(--apple-label)]">
+                {user.isActive ? "비활성화" : "활성화"}
+              </span>
+            </button>
+
+            {/* Delete (destructive) */}
+            <button
+              type="button"
+              disabled={isDeleting}
+              onClick={() => setShowDeleteConfirm(true)}
+              className="w-full px-4 py-3 flex items-center gap-3 active:bg-black/5 disabled:opacity-50"
+            >
+              <Trash2 className="size-[18px] text-[var(--apple-red)]" />
+              <span className="text-[14px] text-[var(--apple-red)] font-medium">사용자 삭제</span>
+            </button>
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
+function MobileUserCard({
+  user,
+  currentUserId,
+  onLongPress,
+}: {
+  user: UserRow;
+  currentUserId: string;
+  onLongPress: (user: UserRow, x: number, y: number) => void;
+}) {
+  const isSelf = user.id === currentUserId;
+  const [pressed, setPressed] = useState(false);
+
+  const longPressHandlers = useLongPress(
+    useCallback(
+      (e: React.TouchEvent<HTMLDivElement>) => {
+        // Haptic feedback if available
+        if (navigator.vibrate) navigator.vibrate(10);
+        const touch = e.touches[0] ?? e.changedTouches[0];
+        if (touch) {
+          setPressed(true);
+          setTimeout(() => setPressed(false), 200);
+          onLongPress(user, touch.clientX, touch.clientY);
+        }
+      },
+      [user, onLongPress],
+    ),
+    500,
+  );
+
+  return (
+    <div
+      {...longPressHandlers}
+      className={`rounded-xl p-4 bg-[rgba(0,0,0,0.03)] space-y-3 select-none transition-transform duration-150 ${
+        pressed ? "scale-[1.02] ring-2 ring-[var(--apple-blue)]/30" : ""
+      } ${!user.isActive ? "opacity-50" : ""}`}
+      style={{ WebkitTouchCallout: "none", WebkitUserSelect: "none" }}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className={PRIMARY}>{user.name}</p>
+          <p className={`${SECONDARY} truncate`}>{user.email}</p>
+        </div>
+        <span className={user.isActive ? "glass-badge glass-badge-green" : "glass-badge glass-badge-red"}>
+          {user.isActive ? "활성" : "비활성"}
+        </span>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <RoleLabel role={user.role} interactive={false} />
+        {user.cardLastFour && (
+          <span className={SECONDARY}>카드 ****-{user.cardLastFour}</span>
+        )}
+        <span className={SECONDARY}>{formatDate(user.createdAt)}</span>
+      </div>
+
+      {!isSelf && (
+        <p className="text-[11px] text-[var(--apple-tertiary-label)] text-center">
+          길게 눌러서 관리
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function UsersTable({ users: initialUsers, currentUserId }: UsersTableProps) {
   const [userList, setUserList] = useState(initialUsers);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
   const handleRoleChange = async (userId: string, newRole: UserRole) => {
     setUpdatingId(userId);
@@ -300,91 +629,31 @@ export function UsersTable({ users: initialUsers, currentUserId }: UsersTablePro
         </Table>
       </div>
 
-      {/* Mobile cards */}
+      {/* Mobile cards — long-press for context menu */}
       <div className="space-y-3 lg:hidden">
-        {userList.map((user) => {
-          const isSelf = user.id === currentUserId;
-          const isUpdating = updatingId === user.id;
-          const isDeleting = deletingId === user.id;
-          return (
-            <div
-              key={user.id}
-              className={`rounded-xl p-4 bg-[rgba(0,0,0,0.03)] space-y-3 ${!user.isActive ? "opacity-50" : ""}`}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className={PRIMARY}>{user.name}</p>
-                  <p className={`${SECONDARY} truncate`}>{user.email}</p>
-                </div>
-                <span className={user.isActive ? "glass-badge glass-badge-green" : "glass-badge glass-badge-red"}>
-                  {user.isActive ? "활성" : "비활성"}
-                </span>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <RoleLabel
-                  role={user.role}
-                  interactive={!isSelf}
-                  disabled={isUpdating}
-                  onChange={(newRole) => handleRoleChange(user.id, newRole)}
-                />
-                {user.cardLastFour && (
-                  <span className={SECONDARY}>카드 ****-{user.cardLastFour}</span>
-                )}
-                <span className={SECONDARY}>{formatDate(user.createdAt)}</span>
-              </div>
-
-              {!isSelf && (
-                <div className="flex gap-2 items-center">
-                  <Button
-                    size="sm"
-                    variant={user.isActive ? "destructive" : "default"}
-                    disabled={isUpdating || isDeleting}
-                    onClick={() => handleToggleActive(user.id, !user.isActive)}
-                    className="flex-1 rounded-full text-[12px] h-10"
-                  >
-                    {isUpdating && <Loader2 className="size-3 animate-spin" />}
-                    {user.isActive ? "비활성화" : "활성화"}
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger
-                      render={
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={isDeleting}
-                          className="rounded-full text-red-500 hover:text-red-600 hover:bg-red-50 h-10 w-10 p-0 shrink-0"
-                        />
-                      }
-                    >
-                      {isDeleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>사용자 삭제</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          <strong>{user.name}</strong> ({user.email}) 사용자를 삭제하시겠습니까?
-                          <br />
-                          해당 사용자의 모든 경비 내역과 알림이 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel className="rounded-full min-h-[44px]">취소</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => handleDelete(user.id)}
-                          className="rounded-full min-h-[44px] bg-red-500 hover:bg-red-600"
-                        >
-                          삭제
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {userList.map((user) => (
+          <MobileUserCard
+            key={user.id}
+            user={user}
+            currentUserId={currentUserId}
+            onLongPress={(u, x, y) => setContextMenu({ user: u, x, y })}
+          />
+        ))}
       </div>
+
+      {/* Long-press context menu portal */}
+      {contextMenu && (
+        <MobileContextMenu
+          menu={contextMenu}
+          currentUserId={currentUserId}
+          updatingId={updatingId}
+          deletingId={deletingId}
+          onRoleChange={handleRoleChange}
+          onToggleActive={handleToggleActive}
+          onDelete={handleDelete}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
   );
 }

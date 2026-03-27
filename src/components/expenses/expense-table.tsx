@@ -234,7 +234,7 @@ function MobileExpenseCard({
 
     result.push({
       key: "view",
-      icon: <Eye className="size-4" />,
+      icon: <Eye className="size-5" strokeWidth={2} />,
       label: "보기",
       color: "var(--apple-blue)",
       activeColor: "color-mix(in srgb, var(--apple-blue) 85%, black)",
@@ -244,7 +244,7 @@ function MobileExpenseCard({
     if (canEdit) {
       result.push({
         key: "edit",
-        icon: <Pencil className="size-4" />,
+        icon: <Pencil className="size-5" strokeWidth={2} />,
         label: "수정",
         color: "var(--apple-orange)",
         activeColor: "color-mix(in srgb, var(--apple-orange) 85%, black)",
@@ -255,7 +255,7 @@ function MobileExpenseCard({
     if (canDelete) {
       result.push({
         key: "delete",
-        icon: <Trash2 className="size-4" />,
+        icon: <Trash2 className="size-5" strokeWidth={2} />,
         label: "삭제",
         color: "var(--apple-red)",
         activeColor: "color-mix(in srgb, var(--apple-red) 80%, black)",

@@ -94,7 +94,9 @@ interface SwipeableRowProps {
   enabled?: boolean;
 }
 
-const ACTION_BTN_WIDTH = 60; // px per action button
+const ACTION_BTN_SIZE = 56; // px – iOS Notes style square button
+const ACTION_GAP = 8; // px gap between buttons
+const ACTION_PADDING = 12; // px padding on left/right of action area
 const LOCK_THRESHOLD = 10; // px movement before locking direction
 const SPRING = "transform 0.38s cubic-bezier(0.25, 0.8, 0.25, 1.05)";
 const EASE = "transform 0.28s cubic-bezier(0.25, 0.1, 0.25, 1)";
@@ -119,7 +121,10 @@ export function SwipeableRow({
   const [confirmKey, setConfirmKey] = useState<string | null>(null);
   const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const totalActionsWidth = actions.length * ACTION_BTN_WIDTH;
+  const totalActionsWidth =
+    actions.length * ACTION_BTN_SIZE +
+    (actions.length - 1) * ACTION_GAP +
+    ACTION_PADDING * 2;
 
   // Keep isOpen in a ref so touch handlers can read it without re-attaching
   const isOpenRef = useRef(isOpen);
@@ -293,11 +298,16 @@ export function SwipeableRow({
       className={cn("relative overflow-hidden", className)}
       style={{ contain: "layout" }}
     >
-      {/* Action buttons behind the content (right side) */}
+      {/* Action buttons behind the content – iOS Notes rounded square style */}
       {actions.length > 0 && (
         <div
-          className="absolute inset-y-0 right-0 flex items-stretch bg-[var(--apple-system-background)]"
-          style={{ width: totalActionsWidth }}
+          className="absolute inset-y-0 right-0 flex items-center justify-center bg-[var(--apple-system-background)] dark:bg-[var(--apple-system-background)]"
+          style={{
+            width: totalActionsWidth,
+            paddingLeft: ACTION_PADDING,
+            paddingRight: ACTION_PADDING,
+            gap: ACTION_GAP,
+          }}
           aria-hidden={!isOpen}
         >
           {actions.map((action) => {
@@ -307,20 +317,25 @@ export function SwipeableRow({
                 key={action.key}
                 type="button"
                 onClick={() => handleAction(action)}
-                className="flex flex-1 flex-col items-center justify-center gap-1 text-white transition-colors duration-150"
+                className={cn(
+                  "flex flex-col items-center justify-center gap-1.5 text-white",
+                  "rounded-2xl transition-all duration-150",
+                  "active:scale-90 active:opacity-80",
+                  "shadow-sm"
+                )}
                 style={{
+                  width: ACTION_BTN_SIZE,
+                  height: ACTION_BTN_SIZE,
                   backgroundColor: isConfirming
                     ? (action.activeColor ?? action.color)
                     : action.color,
-                  width: ACTION_BTN_WIDTH,
-                  minWidth: ACTION_BTN_WIDTH,
                 }}
                 aria-label={isConfirming ? (action.confirmLabel ?? "확인?") : action.label}
               >
-                <span className="flex items-center justify-center size-5">
+                <span className="flex items-center justify-center size-[22px]">
                   {action.icon}
                 </span>
-                <span className="text-[10px] font-semibold leading-none">
+                <span className="text-[10px] font-semibold leading-none tracking-tight">
                   {isConfirming ? (action.confirmLabel ?? "확인?") : action.label}
                 </span>
               </button>
