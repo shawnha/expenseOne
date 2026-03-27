@@ -62,8 +62,9 @@ const fetchUserProfile = (userId: string) =>
         profileImageUrl: dbUser.profileImageUrl,
         onboardingCompleted: dbUser.onboardingCompleted,
         isActive: dbUser.isActive,
-        createdAt: dbUser.createdAt,
-        updatedAt: dbUser.updatedAt,
+        // Convert Date to ISO string for unstable_cache JSON serialization
+        createdAt: dbUser.createdAt instanceof Date ? dbUser.createdAt.toISOString() : String(dbUser.createdAt),
+        updatedAt: dbUser.updatedAt instanceof Date ? dbUser.updatedAt.toISOString() : String(dbUser.updatedAt),
       };
     },
     [`user-profile-${userId}`],

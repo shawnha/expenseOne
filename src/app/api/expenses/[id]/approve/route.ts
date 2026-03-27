@@ -18,6 +18,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const updated = await approveExpense(id, admin.id);
 
+    revalidatePath("/");
+    revalidatePath("/expenses");
+    revalidatePath("/admin/pending");
+
     return NextResponse.json({ data: updated });
   } catch (err) {
     return handleError(err);

@@ -72,6 +72,11 @@ export async function PATCH(request: NextRequest) {
 
     await db.update(users).set(updateData).where(eq(users.id, userId));
 
+    revalidatePath("/");
+    revalidatePath("/expenses");
+    revalidatePath("/admin/pending");
+    revalidateTag("user-profile", { expire: 0 });
+
     return NextResponse.json({ data: { success: true } });
   } catch (err) {
     return handleError(err);
@@ -179,6 +184,11 @@ export async function DELETE(request: NextRequest) {
     } catch (authErr: any) {
       console.error("Failed to delete user from Supabase Auth:", authErr.message);
     }
+
+    revalidatePath("/");
+    revalidatePath("/expenses");
+    revalidatePath("/admin/pending");
+    revalidateTag("user-profile", { expire: 0 });
 
     return NextResponse.json({ data: { success: true } });
   } catch (err) {

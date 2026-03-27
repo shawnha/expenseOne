@@ -92,8 +92,8 @@ export default async function DashboardLayout({
         department: cachedUser.department,
         profileImageUrl: cachedUser.profileImageUrl,
         isActive: cachedUser.isActive,
-        createdAt: cachedUser.createdAt.toISOString(),
-        updatedAt: cachedUser.updatedAt.toISOString(),
+        createdAt: String(cachedUser.createdAt),
+        updatedAt: String(cachedUser.updatedAt),
       }
     : {
         id: authUser.id,

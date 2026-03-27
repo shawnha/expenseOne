@@ -55,6 +55,9 @@ export async function POST(request: NextRequest) {
       })
       .where(eq(users.id, user.id));
 
+    revalidatePath("/");
+    revalidateTag("user-profile", { expire: 0 });
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Onboarding error:", error);

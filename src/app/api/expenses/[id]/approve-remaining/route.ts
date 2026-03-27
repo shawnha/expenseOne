@@ -88,6 +88,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
       relatedExpenseId: expense.id,
     });
 
+    revalidatePath("/");
+    revalidatePath("/expenses");
+    revalidatePath("/admin/pending");
+
     return NextResponse.json({ data: updated });
   } catch (err) {
     return handleError(err);
