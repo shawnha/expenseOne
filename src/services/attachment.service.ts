@@ -1,7 +1,15 @@
 import { db } from "@/lib/db";
 import { attachments, expenses } from "@/lib/db/schema";
 import { eq, sum } from "drizzle-orm";
-import { createClient } from "@/lib/supabase/server";
+import { createClient as createServerClient } from "@supabase/supabase-js";
+
+// Service-role client for Storage operations (bypasses RLS)
+function getStorageClient() {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -117,7 +125,7 @@ export async function uploadAttachment(params: {
   const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
   const fileKey = `${expenseId}/${timestamp}_${sanitizedName}`;
 
-  const supabase = await createClient();
+  const supabase = getStorageClient();
   const { error: uploadError } = await supabase.storage
     .from(STORAGE_BUCKET)
     .upload(fileKey, file, {
@@ -189,7 +197,7 @@ export async function deleteAttachment(
   }
 
   // 3. Delete from Supabase Storage
-  const supabase = await createClient();
+  const supabase = getStorageClient();
   const { error: storageError } = await supabase.storage
     .from(STORAGE_BUCKET)
     .remove([attachment.fileKey]);
