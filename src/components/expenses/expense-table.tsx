@@ -290,7 +290,7 @@ function MobileExpenseCard({
       enabled={actions.length > 0}
     >
       <div
-        className="relative flex flex-col gap-2 p-4 text-left rounded-xl bg-[var(--card)] border border-[var(--glass-border)] shadow-sm cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--apple-blue)] focus-visible:ring-offset-1 outline-none"
+        className="relative flex flex-col gap-2 p-4 text-left rounded-xl bg-[var(--apple-system-background)] border border-[var(--glass-border)] shadow-sm cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--apple-blue)] focus-visible:ring-offset-1 outline-none"
         aria-label={`${expense.title} 상세 보기`}
       >
         <div className="flex items-center justify-between gap-2">

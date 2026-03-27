@@ -198,24 +198,33 @@ export function MobileSidebar({ user }: SidebarProps) {
     setOpen(false);
   }, [pathname]);
 
-  // Edge swipe from left to open sidebar
+  // Edge swipe from left to open sidebar — touchmove-based for instant response
   React.useEffect(() => {
+    let edgeSwipe = false;
     const onTouchStart = (e: TouchEvent) => {
       touchStartX.current = e.touches[0].clientX;
       touchStartY.current = e.touches[0].clientY;
+      edgeSwipe = touchStartX.current < 30;
     };
-    const onTouchEnd = (e: TouchEvent) => {
-      const deltaX = e.changedTouches[0].clientX - touchStartX.current;
-      const deltaY = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
-      // Start within 30px of left edge, swipe right >50px, mostly horizontal
-      if (touchStartX.current < 30 && deltaX > 50 && deltaY < 80) {
+    const onTouchMove = (e: TouchEvent) => {
+      if (!edgeSwipe) return;
+      const deltaX = e.touches[0].clientX - touchStartX.current;
+      const deltaY = Math.abs(e.touches[0].clientY - touchStartY.current);
+      // Open as soon as horizontal swipe threshold is met (during swipe, not after)
+      if (deltaX > 30 && deltaY < 80) {
+        edgeSwipe = false;
         setOpen(true);
       }
     };
+    const onTouchEnd = () => {
+      edgeSwipe = false;
+    };
     document.addEventListener("touchstart", onTouchStart, { passive: true });
+    document.addEventListener("touchmove", onTouchMove, { passive: true });
     document.addEventListener("touchend", onTouchEnd, { passive: true });
     return () => {
       document.removeEventListener("touchstart", onTouchStart);
+      document.removeEventListener("touchmove", onTouchMove);
       document.removeEventListener("touchend", onTouchEnd);
     };
   }, []);
@@ -227,7 +236,7 @@ export function MobileSidebar({ user }: SidebarProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden"
+            className="lg:hidden outline-none focus:outline-none focus-visible:outline-none ring-0 focus:ring-0 focus-visible:ring-0 border-0 shadow-none"
             aria-label="메뉴 열기"
           />
         }

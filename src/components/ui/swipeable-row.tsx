@@ -296,7 +296,7 @@ export function SwipeableRow({
       {/* Action buttons behind the content (right side) */}
       {actions.length > 0 && (
         <div
-          className="absolute inset-y-0 right-0 flex items-stretch"
+          className="absolute inset-y-0 right-0 flex items-stretch bg-[var(--apple-system-background)]"
           style={{ width: totalActionsWidth }}
           aria-hidden={!isOpen}
         >
@@ -340,7 +340,7 @@ export function SwipeableRow({
           }
         }}
         tabIndex={0}
-        className="relative select-none"
+        className="relative select-none bg-[var(--apple-system-background)]"
         style={{ willChange: "transform" }}
         role="button"
       >

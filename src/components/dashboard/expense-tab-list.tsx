@@ -182,7 +182,7 @@ function DashboardExpenseRow({ expense, idx }: { expense: Expense; idx: number }
     >
       <div
         className={cn(
-          "flex items-center justify-between gap-2 sm:gap-3 py-2.5 sm:py-3 hover:bg-[rgba(0,0,0,0.03)] rounded-lg px-2 cursor-pointer apple-press transition-all duration-200",
+          "flex items-center justify-between gap-2 sm:gap-3 py-2.5 sm:py-3 hover:bg-[rgba(0,0,0,0.03)] rounded-lg px-2 cursor-pointer apple-press transition-all duration-200 bg-[var(--apple-system-background)]",
           "animate-row-enter",
           `stagger-${idx + 3}`
         )}
