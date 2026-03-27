@@ -203,6 +203,28 @@ export const notifications = expenseSchema.table(
   ],
 );
 
+/**
+ * push_subscriptions -- Web Push 구독 테이블
+ */
+export const pushSubscriptions = expenseSchema.table(
+  "push_subscriptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    endpoint: text("endpoint").notNull(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("idx_push_subs_user").on(table.userId),
+  ],
+);
+
 // ---------------------------------------------------------------------------
 // TypeScript types (insert / select)
 // ---------------------------------------------------------------------------
@@ -218,3 +240,6 @@ export type NewAttachment = typeof attachments.$inferInsert;
 
 export type Notification = typeof notifications.$inferSelect;
 export type NewNotification = typeof notifications.$inferInsert;
+
+export type PushSubscription = typeof pushSubscriptions.$inferSelect;
+export type NewPushSubscription = typeof pushSubscriptions.$inferInsert;

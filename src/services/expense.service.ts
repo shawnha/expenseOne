@@ -29,6 +29,7 @@ import {
   notifyNewDepositRequest,
 } from "./notification.service";
 import { notifySlackCorporateCard } from "./slack.service";
+import { sendPushToAdmins } from "./push.service";
 import { AppError } from "./attachment.service";
 
 // ---------------------------------------------------------------------------
@@ -95,6 +96,15 @@ export async function createExpense(
       expenseUrl: `${appUrl}/expenses/${expense.id}`,
     }).catch((err) => {
       console.error("Failed to send corporate card Slack notification:", err);
+    });
+
+    // Push notification to admins for corporate card (fire-and-forget)
+    sendPushToAdmins(
+      "새 법카사용",
+      `${expense.title} - ${expense.amount.toLocaleString()}원`,
+      `${appUrl}/expenses/${expense.id}`,
+    ).catch((err) => {
+      console.error("[Push] 법카사용 알림 실패:", err);
     });
   } else {
     // Notify all ADMINs for deposit requests (best-effort)

@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { notifications, users } from "@/lib/db/schema";
 import { eq, and, desc, count } from "drizzle-orm";
 import { notifySlackApproved } from "./slack.service";
+import { sendPushToUser, sendPushToAdmins } from "./push.service";
 
 // ---------------------------------------------------------------------------
 // createNotification
@@ -161,6 +162,14 @@ export async function notifyExpenseApproved(
     }).catch((err) => console.error("[Slack] 승인 알림 실패:", err));
   }
 
+  // Fire-and-forget Web Push notification
+  sendPushToUser(
+    submitterId,
+    "입금요청 승인",
+    `"${expenseTitle}" 입금요청이 승인되었습니다.`,
+    expenseUrl(expenseId),
+  ).catch((err) => console.error("[Push] 승인 알림 실패:", err));
+
   return notification;
 }
 
@@ -186,6 +195,14 @@ export async function notifyExpenseRejected(
     message: `"${expenseTitle}" 입금요청이 반려되었습니다. 사유: ${rejectionReason}`,
     relatedExpenseId: expenseId,
   });
+
+  // Fire-and-forget Web Push notification
+  sendPushToUser(
+    submitterId,
+    "입금요청 반려",
+    `"${expenseTitle}" 입금요청이 반려되었습니다.`,
+    expenseUrl(expenseId),
+  ).catch((err) => console.error("[Push] 반려 알림 실패:", err));
 
   return notification;
 }
@@ -223,6 +240,16 @@ export async function notifyNewDepositRequest(
     .insert(notifications)
     .values(notificationValues)
     .returning();
+
+  // Fire-and-forget Web Push to all admins
+  const pushAmount = extra?.amount
+    ? `${extra.amount.toLocaleString()}원`
+    : "";
+  sendPushToAdmins(
+    "새 입금요청",
+    `${submitterName} - "${expenseTitle}" ${pushAmount}`,
+    expenseUrl(expenseId),
+  ).catch((err) => console.error("[Push] 새 입금요청 알림 실패:", err));
 
   return created;
 }

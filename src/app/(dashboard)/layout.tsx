@@ -4,6 +4,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { PullToRefresh } from "@/components/layout/pull-to-refresh";
 import { SplashDismiss } from "@/components/layout/splash-dismiss";
+import { PushPrompt } from "@/components/layout/push-prompt";
 import { Toaster } from "@/components/ui/sonner";
 import type { User } from "@/types";
 
@@ -31,6 +32,7 @@ export default async function DashboardLayout({
       <>
         <SplashDismiss />
         <PullToRefresh />
+        <PushPrompt />
         <Toaster position="top-center" richColors />
         <div className="flex h-dvh overflow-hidden">
           <Sidebar user={mockUser} />
@@ -116,6 +118,7 @@ export default async function DashboardLayout({
   return (
     <>
       <PullToRefresh />
+      <PushPrompt />
       <Toaster position="top-center" richColors />
       <div className="flex h-dvh overflow-hidden">
         {/* Desktop Sidebar */}

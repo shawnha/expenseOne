@@ -1,5 +1,5 @@
-// ExpenseOne Service Worker v5 — NetworkFirst for HTML, CacheFirst for static assets
-const CACHE_NAME = "expenseone-v5";
+// ExpenseOne Service Worker v6 — NetworkFirst for HTML, CacheFirst for static assets, Web Push
+const CACHE_NAME = "expenseone-v6";
 
 const APP_SHELL = ["/offline.html", "/"];
 
@@ -108,4 +108,32 @@ self.addEventListener("fetch", (event) => {
     );
     return;
   }
+});
+
+// ---------------------------------------------------------------------------
+// Web Push Notifications
+// ---------------------------------------------------------------------------
+self.addEventListener("push", (event) => {
+  const data = event.data?.json() ?? {};
+  event.waitUntil(
+    self.registration.showNotification(data.title || "ExpenseOne", {
+      body: data.body || "",
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      data: { url: data.url || "/" },
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || "/";
+  event.waitUntil(
+    clients.matchAll({ type: "window" }).then((windowClients) => {
+      for (const client of windowClients) {
+        if (client.url.includes(url) && "focus" in client) return client.focus();
+      }
+      return clients.openWindow(url);
+    })
+  );
 });

@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { expenses } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { createNotification } from "@/services/notification.service";
+import { sendPushToUser } from "@/services/push.service";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -87,6 +88,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
       message: `"${expense.title}" 건의 후지급(${remainingAmount.toLocaleString()}원)이 승인되었습니다.`,
       relatedExpenseId: expense.id,
     });
+
+    // Fire-and-forget Web Push notification
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    sendPushToUser(
+      expense.submittedById,
+      "후지급 승인",
+      `"${expense.title}" 건의 후지급(${remainingAmount.toLocaleString()}원)이 승인되었습니다.`,
+      `${appUrl}/expenses/${expense.id}`,
+    ).catch((err) => console.error("[Push] 후지급 승인 알림 실패:", err));
 
     revalidatePath("/");
     revalidatePath("/expenses");

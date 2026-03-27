@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { db } from '@/lib/db';
 import { users, notifications } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
+import { sendPushToAdmins } from '@/services/push.service';
 
 export async function POST(request: NextRequest) {
   // CSRF protection: reject requests without valid origin
@@ -100,6 +101,12 @@ export async function POST(request: NextRequest) {
             )
           );
         }
+        // Fire-and-forget Web Push to admins
+        sendPushToAdmins(
+          '새 팀원 합류',
+          `${name}님이 가입했습니다`,
+          '/',
+        ).catch((pushErr) => console.error('[Push] 새 팀원 알림 실패:', pushErr));
       } catch (notifyError) {
         console.error('Admin notification error:', notifyError);
       }
