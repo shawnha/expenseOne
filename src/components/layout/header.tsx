@@ -29,7 +29,7 @@ interface HeaderProps {
 export function Header({ user, title, unreadCount = 0 }: HeaderProps) {
   const router = useRouter();
   const supabase = createClient();
-  const { realtimeUnreadDelta } = useRealtimeNotifications(user.id);
+  const { realtimeUnreadDelta, resetDelta } = useRealtimeNotifications(user.id);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const totalUnread = unreadCount + realtimeUnreadDelta;
@@ -66,6 +66,7 @@ export function Header({ user, title, unreadCount = 0 }: HeaderProps) {
         {/* Notifications */}
         <Link
           href="/notifications"
+          onClick={() => resetDelta()}
           className={cn(
             "relative flex items-center justify-center size-9 sm:size-11 rounded-xl",
             "transition-all duration-300 [transition-timing-function:cubic-bezier(0.25,0.1,0.25,1)]",
