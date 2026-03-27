@@ -49,6 +49,8 @@ export default function RootLayout({
             __html: `(function(){
 try{var t=localStorage.getItem('theme');if(t==='dark')document.documentElement.classList.add('dark')}catch(e){}
 if('serviceWorker'in navigator){navigator.serviceWorker.register('/sw.js').catch(function(){})}
+if(sessionStorage.getItem('splash-shown')){return}
+sessionStorage.setItem('splash-shown','1');
 var css=document.createElement('style');
 css.textContent=[
 '#app-splash{position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--apple-bg,#f2f2f7);transition:opacity .4s ease}',

@@ -7,7 +7,8 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
   );
-  self.skipWaiting();
+  // Don't skipWaiting — let the new SW activate on next app launch
+  // to avoid mid-session chunk mismatch and forced reloads
 });
 
 self.addEventListener("activate", (event) => {
