@@ -129,6 +129,8 @@ interface ContextMenuState {
 
 function useLongPress(
   onLongPress: (e: React.TouchEvent<HTMLDivElement>) => void,
+  onPressStart?: () => void,
+  onPressEnd?: () => void,
   delay = 500,
 ) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -137,32 +139,39 @@ function useLongPress(
 
   const start = useCallback(
     (e: React.TouchEvent<HTMLDivElement>) => {
+      // Prevent text selection on long press
+      e.preventDefault();
       movedRef.current = false;
       activeRef.current = true;
+      onPressStart?.();
       timerRef.current = setTimeout(() => {
         if (!movedRef.current && activeRef.current) {
+          if (navigator.vibrate) navigator.vibrate(10);
           onLongPress(e);
+          onPressEnd?.();
         }
       }, delay);
     },
-    [onLongPress, delay],
+    [onLongPress, onPressStart, onPressEnd, delay],
   );
 
   const move = useCallback(() => {
     movedRef.current = true;
+    onPressEnd?.();
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
-  }, []);
+  }, [onPressEnd]);
 
   const end = useCallback(() => {
     activeRef.current = false;
+    onPressEnd?.();
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
-  }, []);
+  }, [onPressEnd]);
 
   return { onTouchStart: start, onTouchMove: move, onTouchEnd: end, onTouchCancel: end };
 }
@@ -391,32 +400,34 @@ function MobileUserCard({
   onLongPress: (user: UserRow, x: number, y: number) => void;
 }) {
   const isSelf = user.id === currentUserId;
-  const [pressed, setPressed] = useState(false);
+  const [pressing, setPressing] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   const longPressHandlers = useLongPress(
     useCallback(
-      (e: React.TouchEvent<HTMLDivElement>) => {
-        // Haptic feedback if available
-        if (navigator.vibrate) navigator.vibrate(10);
-        const touch = e.touches[0] ?? e.changedTouches[0];
-        if (touch) {
-          setPressed(true);
-          setTimeout(() => setPressed(false), 200);
-          onLongPress(user, touch.clientX, touch.clientY);
+      () => {
+        if (isSelf) return;
+        const el = cardRef.current;
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          onLongPress(user, rect.left + rect.width / 2, rect.bottom);
         }
       },
-      [user, onLongPress],
+      [user, onLongPress, isSelf],
     ),
+    useCallback(() => !isSelf && setPressing(true), [isSelf]),
+    useCallback(() => setPressing(false), []),
     500,
   );
 
   return (
     <div
-      {...longPressHandlers}
-      className={`rounded-xl p-4 bg-[rgba(0,0,0,0.03)] space-y-3 select-none transition-transform duration-150 ${
-        pressed ? "scale-[1.02] ring-2 ring-[var(--apple-blue)]/30" : ""
+      ref={cardRef}
+      {...(isSelf ? {} : longPressHandlers)}
+      className={`rounded-xl p-4 bg-[rgba(0,0,0,0.03)] dark:bg-[rgba(255,255,255,0.05)] space-y-3 select-none transition-all duration-200 ${
+        pressing ? "scale-[0.97] opacity-80 bg-[rgba(0,122,255,0.08)]" : ""
       } ${!user.isActive ? "opacity-50" : ""}`}
-      style={{ WebkitTouchCallout: "none", WebkitUserSelect: "none" }}
+      style={{ WebkitTouchCallout: "none", WebkitUserSelect: "none", touchAction: "pan-y" }}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
