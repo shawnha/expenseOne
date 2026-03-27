@@ -56,6 +56,7 @@ export const notificationTypeEnum = expenseSchema.enum("notification_type", [
   "NEW_DEPOSIT_REQUEST",
   "REMAINING_PAYMENT_REQUEST",
   "REMAINING_PAYMENT_APPROVED",
+  "NEW_USER_JOINED",
 ]);
 
 // ---------------------------------------------------------------------------

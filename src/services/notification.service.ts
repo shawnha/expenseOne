@@ -8,7 +8,7 @@ import { notifySlackApproved } from "./slack.service";
 // ---------------------------------------------------------------------------
 export async function createNotification(data: {
   recipientId: string;
-  type: "DEPOSIT_APPROVED" | "DEPOSIT_REJECTED" | "NEW_DEPOSIT_REQUEST" | "REMAINING_PAYMENT_REQUEST" | "REMAINING_PAYMENT_APPROVED";
+  type: "DEPOSIT_APPROVED" | "DEPOSIT_REJECTED" | "NEW_DEPOSIT_REQUEST" | "REMAINING_PAYMENT_REQUEST" | "REMAINING_PAYMENT_APPROVED" | "NEW_USER_JOINED";
   title: string;
   message: string;
   relatedExpenseId?: string | null;

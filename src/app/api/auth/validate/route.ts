@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { db } from '@/lib/db';
-import { users } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { users, notifications } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
 
 export async function POST(request: NextRequest) {
   // CSRF protection: reject requests without valid origin
@@ -76,6 +76,34 @@ export async function POST(request: NextRequest) {
       profileImageUrl,
       isActive: true,
     });
+
+    // Notify all ADMIN users about the new team member (fire-and-forget)
+    (async () => {
+      try {
+        const admins = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(and(eq(users.role, 'ADMIN'), eq(users.isActive, true)));
+
+        if (admins.length > 0) {
+          const notificationValues = admins.map((admin) => ({
+            recipientId: admin.id,
+            type: 'NEW_USER_JOINED' as const,
+            title: '새 팀원이 합류했습니다',
+            message: `${name}님(${email})이 ExpenseOne에 가입했습니다.`,
+            relatedExpenseId: null,
+          }));
+
+          await Promise.all(
+            notificationValues.map((v) =>
+              db.insert(notifications).values(v)
+            )
+          );
+        }
+      } catch (notifyError) {
+        console.error('Admin notification error:', notifyError);
+      }
+    })();
   } catch (insertError: any) {
     console.error('User registration error:', insertError.message);
     return NextResponse.json({ error: { code: 'registration_failed', message: '계정 생성에 실패했습니다.' } }, { status: 500 });

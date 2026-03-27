@@ -11,6 +11,7 @@ export interface User {
   role: UserRole;
   department: string | null;
   profileImageUrl: string | null;
+  cardLastFour: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
