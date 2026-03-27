@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { Bell } from "lucide-react";
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
 
@@ -15,48 +16,107 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return outputArray;
 }
 
+async function subscribeToPush() {
+  const registration = await navigator.serviceWorker.ready;
+  const existingSub = await registration.pushManager.getSubscription();
+
+  if (existingSub) {
+    await sendSubscriptionToServer(existingSub);
+    return true;
+  }
+
+  // Must be called from user gesture on iOS
+  const permission = await Notification.requestPermission();
+  if (permission !== "granted") return false;
+
+  const subscription = await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
+  });
+
+  await sendSubscriptionToServer(subscription);
+  return true;
+}
+
 export function PushPrompt() {
-  const attempted = useRef(false);
+  const [showBanner, setShowBanner] = useState(false);
+  const [subscribing, setSubscribing] = useState(false);
+  const checked = useRef(false);
 
   useEffect(() => {
-    if (attempted.current) return;
-    attempted.current = true;
+    if (checked.current) return;
+    checked.current = true;
 
-    // Guards
     if (!VAPID_PUBLIC_KEY) return;
     if (!("serviceWorker" in navigator)) return;
     if (!("PushManager" in window)) return;
+    if (typeof Notification === "undefined") return;
+
+    // Already granted — silently re-subscribe (ensure server has token)
+    if (Notification.permission === "granted") {
+      subscribeToPush().catch(() => {});
+      return;
+    }
+
+    // Already denied — nothing we can do
     if (Notification.permission === "denied") return;
 
-    (async () => {
-      try {
-        const registration = await navigator.serviceWorker.ready;
-        const existingSub = await registration.pushManager.getSubscription();
-
-        if (existingSub) {
-          // Already subscribed — ensure server knows about it
-          await sendSubscriptionToServer(existingSub);
-          return;
-        }
-
-        // Request permission (shows browser prompt)
-        const permission = await Notification.requestPermission();
-        if (permission !== "granted") return;
-
-        // Subscribe
-        const subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
-        });
-
-        await sendSubscriptionToServer(subscription);
-      } catch (err) {
-        console.error("[PushPrompt] Error subscribing to push:", err);
-      }
-    })();
+    // "default" — show banner (need user gesture for iOS)
+    // Don't show if user dismissed before
+    if (!sessionStorage.getItem("push-banner-dismissed")) {
+      setShowBanner(true);
+    }
   }, []);
 
-  return null; // No visible UI — auto-prompts on mount
+  const handleEnable = useCallback(async () => {
+    setSubscribing(true);
+    try {
+      const success = await subscribeToPush();
+      if (success) {
+        setShowBanner(false);
+      }
+    } catch (err) {
+      console.error("[PushPrompt] Error:", err);
+    } finally {
+      setSubscribing(false);
+    }
+  }, []);
+
+  const handleDismiss = useCallback(() => {
+    setShowBanner(false);
+    sessionStorage.setItem("push-banner-dismissed", "1");
+  }, []);
+
+  if (!showBanner) return null;
+
+  return (
+    <div className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] left-4 right-4 z-50 p-3 rounded-2xl backdrop-blur-xl bg-white/90 dark:bg-black/90 shadow-2xl border border-[var(--apple-separator)] flex items-center gap-3 animate-fade-up">
+      <div className="flex items-center justify-center size-10 rounded-xl bg-[var(--apple-blue)]/10 shrink-0">
+        <Bell className="size-5 text-[var(--apple-blue)]" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[13px] font-medium text-[var(--apple-label)]">알림을 켜시겠어요?</p>
+        <p className="text-[11px] text-[var(--apple-secondary-label)]">승인/반려 결과를 바로 받아보세요</p>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <button
+          type="button"
+          onClick={handleDismiss}
+          className="text-[12px] text-[var(--apple-secondary-label)] px-2 py-1"
+        >
+          닫기
+        </button>
+        <button
+          type="button"
+          onClick={handleEnable}
+          disabled={subscribing}
+          className="text-[12px] font-semibold text-white bg-[var(--apple-blue)] px-3 py-1.5 rounded-full disabled:opacity-50"
+        >
+          {subscribing ? "..." : "허용"}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 async function sendSubscriptionToServer(subscription: PushSubscription) {
