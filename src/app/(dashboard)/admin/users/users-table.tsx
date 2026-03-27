@@ -209,7 +209,7 @@ function MobileContextMenu({
   const isUpdating = updatingId === user.id;
   const isDeleting = deletingId === user.id;
 
-  // Position the menu after first render so we can measure it
+  // Position the menu centered horizontally, above the touch point
   useEffect(() => {
     const el = menuRef.current;
     if (!el) return;
@@ -219,18 +219,22 @@ function MobileContextMenu({
     const vw = window.innerWidth;
     const vh = window.innerHeight;
 
-    let left = menu.x - menuW / 2;
-    let top = menu.y + 8;
+    // Center horizontally on screen
+    let left = (vw - menuW) / 2;
 
-    // Clamp horizontal
+    // Position above the touch point
+    let top = menu.y - menuH - 12;
+
+    // If no room above, show below
+    if (top < 12) {
+      top = menu.y + 12;
+    }
+
+    // Clamp to viewport
+    if (top + menuH > vh - 12) top = vh - 12 - menuH;
+    if (top < 12) top = 12;
     if (left < 12) left = 12;
     if (left + menuW > vw - 12) left = vw - 12 - menuW;
-
-    // Flip above if not enough room below
-    if (top + menuH > vh - 12) {
-      top = menu.y - menuH - 8;
-    }
-    if (top < 12) top = 12;
 
     setMenuStyle({
       position: "fixed",
@@ -312,7 +316,7 @@ function MobileContextMenu({
     <>
       {/* Backdrop overlay */}
       <div
-        className="fixed inset-0 z-[9998] bg-black/20"
+        className="fixed inset-0 z-[9998] bg-black/10"
         onClick={onClose}
       />
       {/* Context menu */}
@@ -410,7 +414,7 @@ function MobileUserCard({
         const el = cardRef.current;
         if (el) {
           const rect = el.getBoundingClientRect();
-          onLongPress(user, rect.left + rect.width / 2, rect.bottom);
+          onLongPress(user, rect.left + rect.width / 2, rect.top);
         }
       },
       [user, onLongPress, isSelf],
@@ -424,8 +428,8 @@ function MobileUserCard({
     <div
       ref={cardRef}
       {...(isSelf ? {} : longPressHandlers)}
-      className={`rounded-xl p-4 bg-[rgba(0,0,0,0.03)] dark:bg-[rgba(255,255,255,0.05)] space-y-3 select-none transition-all duration-200 ${
-        pressing ? "scale-[0.97] opacity-80 bg-[rgba(0,122,255,0.08)]" : ""
+      className={`rounded-xl p-4 bg-[rgba(0,0,0,0.03)] dark:bg-[rgba(255,255,255,0.05)] space-y-3 select-none transition-all duration-300 ease-out ${
+        pressing ? "scale-[0.98] brightness-95" : ""
       } ${!user.isActive ? "opacity-50" : ""}`}
       style={{ WebkitTouchCallout: "none", WebkitUserSelect: "none", touchAction: "pan-y" }}
     >
