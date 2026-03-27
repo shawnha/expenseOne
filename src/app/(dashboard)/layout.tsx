@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getAuthUser, getCachedClient } from "@/lib/supabase/cached";
+import { getAuthUser, getCachedClient, getCachedCurrentUser } from "@/lib/supabase/cached";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { PullToRefresh } from "@/components/layout/pull-to-refresh";
@@ -65,9 +65,9 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  // Fetch profile and notification count in parallel
-  const [profileResult, notifResult] = await Promise.all([
-    supabase.from("users").select("*").eq("id", authUser.id).single(),
+  // Fetch profile (cached — shared with child pages) and notification count in parallel
+  const [cachedUser, notifResult] = await Promise.all([
+    getCachedCurrentUser(),
     supabase
       .from("notifications")
       .select("*", { count: "exact", head: true })
@@ -75,30 +75,25 @@ export default async function DashboardLayout({
       .eq("is_read", false),
   ]);
 
-  const { data: userProfile, error: profileError } = profileResult;
   const { count: unreadCount } = notifResult;
 
-  if (profileError) {
-    console.error("Failed to fetch user profile:", profileError.message);
-  }
-
   // Redirect to onboarding if profile is incomplete
-  if (userProfile && !userProfile.onboarding_completed) {
+  if (cachedUser && !cachedUser.onboardingCompleted) {
     redirect("/onboarding");
   }
 
-  // If no profile exists, create a default one or redirect
-  const user: User = userProfile
+  // Map cached profile to User type, fallback to auth metadata if no profile
+  const user: User = cachedUser
     ? {
-        id: userProfile.id,
-        email: userProfile.email,
-        name: userProfile.name,
-        role: userProfile.role as User["role"],
-        department: userProfile.department,
-        profileImageUrl: userProfile.profile_image_url,
-        isActive: userProfile.is_active,
-        createdAt: userProfile.created_at,
-        updatedAt: userProfile.updated_at,
+        id: cachedUser.id,
+        email: cachedUser.email,
+        name: cachedUser.name,
+        role: cachedUser.role,
+        department: cachedUser.department,
+        profileImageUrl: cachedUser.profileImageUrl,
+        isActive: cachedUser.isActive,
+        createdAt: cachedUser.createdAt.toISOString(),
+        updatedAt: cachedUser.updatedAt.toISOString(),
       }
     : {
         id: authUser.id,

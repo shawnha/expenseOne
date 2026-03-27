@@ -99,7 +99,7 @@ d.innerHTML=[
 ].join('');
 (document.body||document.documentElement).appendChild(d);
 window.__splashStart=Date.now();
-window.__splashMinMs=1000;
+window.__splashMinMs=0;
 window.__splashDismiss=function(){var s=document.getElementById('app-splash');if(!s)return;var elapsed=Date.now()-window.__splashStart;var wait=Math.max(0,window.__splashMinMs-elapsed);setTimeout(function(){s.classList.add('hide');setTimeout(function(){if(s.parentNode)s.parentNode.removeChild(s)},400)},wait)};
 setTimeout(function(){window.__splashDismiss&&window.__splashDismiss()},3000);
 })();`,

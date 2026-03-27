@@ -40,7 +40,12 @@ export const getCachedCurrentUser = cache(async () => {
       email: users.email,
       name: users.name,
       role: users.role,
+      department: users.department,
+      profileImageUrl: users.profileImageUrl,
+      onboardingCompleted: users.onboardingCompleted,
       isActive: users.isActive,
+      createdAt: users.createdAt,
+      updatedAt: users.updatedAt,
     })
     .from(users)
     .where(eq(users.id, authUser.id));
@@ -52,5 +57,11 @@ export const getCachedCurrentUser = cache(async () => {
     email: dbUser.email,
     name: dbUser.name,
     role: dbUser.role as "MEMBER" | "ADMIN",
+    department: dbUser.department,
+    profileImageUrl: dbUser.profileImageUrl,
+    onboardingCompleted: dbUser.onboardingCompleted,
+    isActive: dbUser.isActive,
+    createdAt: dbUser.createdAt,
+    updatedAt: dbUser.updatedAt,
   };
 });
