@@ -64,6 +64,18 @@ export const notificationTypeEnum = expenseSchema.enum("notification_type", [
 // ---------------------------------------------------------------------------
 
 /**
+ * departments -- 부서 테이블
+ */
+export const departments = expenseSchema.table("departments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 100 }).unique().notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/**
  * users -- 사용자 테이블
  */
 export const users = expenseSchema.table("users", {
@@ -243,3 +255,6 @@ export type NewNotification = typeof notifications.$inferInsert;
 
 export type PushSubscription = typeof pushSubscriptions.$inferSelect;
 export type NewPushSubscription = typeof pushSubscriptions.$inferInsert;
+
+export type Department = typeof departments.$inferSelect;
+export type NewDepartment = typeof departments.$inferInsert;

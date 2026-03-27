@@ -20,6 +20,12 @@ const updateProfileSchema = z.object({
     .regex(/^\d{4}$/, "카드 끝 4자리 숫자를 입력해주세요")
     .optional()
     .or(z.literal("")),
+  department: z
+    .string()
+    .max(100, "부서명은 100자 이내로 입력해주세요")
+    .optional()
+    .or(z.literal(""))
+    .or(z.null()),
 });
 
 // ---------------------------------------------------------------------------
@@ -42,20 +48,28 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const { name, cardLastFour } = parsed.data;
+    const { name, cardLastFour, department } = parsed.data;
+
+    const updateData: Record<string, any> = {
+      name,
+      cardLastFour: cardLastFour || null,
+      updatedAt: new Date(),
+    };
+
+    // Only update department if it was provided in the request
+    if (department !== undefined) {
+      updateData.department = department || null;
+    }
 
     const [updated] = await db
       .update(users)
-      .set({
-        name,
-        cardLastFour: cardLastFour || null,
-        updatedAt: new Date(),
-      })
+      .set(updateData)
       .where(eq(users.id, user.id))
       .returning({
         id: users.id,
         name: users.name,
         cardLastFour: users.cardLastFour,
+        department: users.department,
       });
 
     revalidatePath("/");

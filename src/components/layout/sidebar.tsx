@@ -11,6 +11,7 @@ import {
   Clock,
   BarChart3,
   Users,
+  Building2,
   Bell,
   Settings,
 } from "lucide-react";
@@ -41,6 +42,7 @@ const adminNavItems: NavItem[] = [
   { label: "승인 대기", href: "/admin/pending", icon: <Clock className="size-[18px]" /> },
   { label: "리포트", href: "/admin/reports", icon: <BarChart3 className="size-[18px]" /> },
   { label: "사용자 관리", href: "/admin/users", icon: <Users className="size-[18px]" /> },
+  { label: "부서 관리", href: "/admin/departments", icon: <Building2 className="size-[18px]" /> },
 ];
 
 const bottomNavItems: NavItem[] = [
