@@ -125,7 +125,7 @@ export async function markAllAsRead(userId: string) {
 // Helper: build expense URL
 // ---------------------------------------------------------------------------
 function expenseUrl(expenseId: string): string {
-  return `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/expenses/${expenseId}`;
+  return `/expenses/${expenseId}`;
 }
 
 // ---------------------------------------------------------------------------

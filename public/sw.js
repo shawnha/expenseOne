@@ -115,11 +115,15 @@ self.addEventListener("fetch", (event) => {
 // ---------------------------------------------------------------------------
 self.addEventListener("push", (event) => {
   const data = event.data?.json() ?? {};
+  // Always show notification — even when app is in foreground
+  // (Service Worker push events always fire regardless of app state)
   event.waitUntil(
     self.registration.showNotification(data.title || "ExpenseOne", {
       body: data.body || "",
       icon: "/icon-192.png",
       badge: "/icon-192.png",
+      tag: data.tag || `push-${Date.now()}`,
+      renotify: true,
       data: { url: data.url || "/" },
     })
   );
@@ -127,13 +131,32 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = event.notification.data?.url || "/";
+  let targetUrl = event.notification.data?.url || "/";
+
+  // Convert absolute URL to path for matching
+  try {
+    const parsed = new URL(targetUrl);
+    if (parsed.origin === self.location.origin) {
+      targetUrl = parsed.pathname + parsed.search;
+    }
+  } catch {
+    // Already a relative path
+  }
+
   event.waitUntil(
-    clients.matchAll({ type: "window" }).then((windowClients) => {
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
+      // Try to find an existing window and navigate it
       for (const client of windowClients) {
-        if (client.url.includes(url) && "focus" in client) return client.focus();
+        if ("focus" in client) {
+          return client.focus().then(() => {
+            if ("navigate" in client) {
+              return client.navigate(targetUrl);
+            }
+          });
+        }
       }
-      return clients.openWindow(url);
+      // No existing window — open a new one
+      return clients.openWindow(targetUrl);
     })
   );
 });
