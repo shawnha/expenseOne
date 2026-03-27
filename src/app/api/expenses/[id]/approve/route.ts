@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { requireAdmin, handleError, validateOrigin, validateUUID } from "@/lib/api-utils";
 import { approveExpense } from "@/services/expense.service";
 

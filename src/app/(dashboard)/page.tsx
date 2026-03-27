@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { getAuthUser, getCachedClient, getCachedCurrentUser } from "@/lib/supabase/cached";
 import { cn } from "@/lib/utils";
 import { formatAmount } from "@/lib/validations/expense-form";
@@ -63,9 +64,10 @@ async function getDashboardData() {
   const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
 
   // Build all queries (will execute in parallel)
+  // Use Supabase RPC-style sum via single-row select for approved amount
   const approvedAmountQ = supabase
     .from("expenses")
-    .select("amount")
+    .select("amount", { count: "exact", head: false })
     .eq("status", "APPROVED")
     .eq("submitted_by_id", authUser.id)
     .gte("created_at", startOfMonth)
@@ -133,7 +135,7 @@ async function getDashboardData() {
 }
 
 // ---------------------------------------------------------------------------
-// Page component
+// Stat card config
 // ---------------------------------------------------------------------------
 
 const STAT_CONFIGS = [
@@ -143,7 +145,60 @@ const STAT_CONFIGS = [
   { icon: <CheckCircle2 key="check" className="size-5 text-[var(--apple-green)]" />, accent: "glass-card-accent glass-card-accent-green", iconBg: "icon-container icon-container-green" },
 ];
 
-export default async function DashboardHomePage() {
+// ---------------------------------------------------------------------------
+// Skeleton fallback for Suspense streaming
+// ---------------------------------------------------------------------------
+
+function DashboardSkeleton() {
+  return (
+    <>
+      {/* Skeleton stat cards — 2x2 on mobile, 4-col on desktop */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        {STAT_CONFIGS.map((cfg, i) => (
+          <div
+            key={i}
+            className={cn(
+              "glass-card p-3 sm:p-4 lg:p-5",
+              cfg.accent,
+            )}
+          >
+            <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+              <div className={cn("size-8 sm:size-9 lg:size-10 animate-pulse rounded-xl bg-[var(--apple-fill)]")} />
+            </div>
+            <div className="h-7 sm:h-8 lg:h-9 w-24 animate-pulse rounded-lg bg-[var(--apple-fill)]" />
+            <div className="h-3 sm:h-3.5 w-16 animate-pulse rounded-md bg-[var(--apple-fill)] mt-2" />
+          </div>
+        ))}
+      </div>
+
+      {/* Skeleton recent expenses list */}
+      <div className="glass-card p-3 sm:p-4 lg:p-5">
+        {/* Tab bar placeholder */}
+        <div className="flex gap-2 mb-4">
+          <div className="h-8 w-16 animate-pulse rounded-full bg-[var(--apple-fill)]" />
+          <div className="h-8 w-20 animate-pulse rounded-full bg-[var(--apple-fill)]" />
+          <div className="h-8 w-20 animate-pulse rounded-full bg-[var(--apple-fill)]" />
+        </div>
+        {/* Row placeholders */}
+        {[0, 1, 2, 3].map((j) => (
+          <div key={j} className="flex items-center justify-between py-3 border-b border-[var(--apple-separator)] last:border-b-0">
+            <div className="flex flex-col gap-1.5">
+              <div className="h-4 w-32 sm:w-44 animate-pulse rounded-md bg-[var(--apple-fill)]" />
+              <div className="h-3 w-20 animate-pulse rounded-md bg-[var(--apple-fill)]" />
+            </div>
+            <div className="h-5 w-20 animate-pulse rounded-md bg-[var(--apple-fill)]" />
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Async dashboard content (streamed via Suspense)
+// ---------------------------------------------------------------------------
+
+async function DashboardContent() {
   const {
     totalApproved,
     submittedCount,
@@ -162,15 +217,7 @@ export default async function DashboardHomePage() {
   ];
 
   return (
-    <div className="flex flex-col gap-4 sm:gap-5 lg:gap-6 pb-20 lg:pb-0">
-      {/* Page header */}
-      <div className="animate-fade-up">
-        <h1 className="text-lg sm:text-xl lg:text-[22px] font-bold tracking-[-0.01em] text-[var(--apple-label)]">대시보드</h1>
-        <p className="text-[13px] sm:text-sm text-[var(--apple-secondary-label)] mt-0.5">
-          이번 달 비용 현황을 확인하세요.
-        </p>
-      </div>
-
+    <>
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {summaryCards.map((card, i) => (
@@ -197,8 +244,31 @@ export default async function DashboardHomePage() {
 
       {/* Tab filter + Recent expenses */}
       <ExpenseTabList expenses={recentExpenses} />
+    </>
+  );
+}
 
-      {/* Floating action button */}
+// ---------------------------------------------------------------------------
+// Page component
+// ---------------------------------------------------------------------------
+
+export default function DashboardHomePage() {
+  return (
+    <div className="flex flex-col gap-4 sm:gap-5 lg:gap-6 pb-20 lg:pb-0">
+      {/* Page header — renders immediately */}
+      <div className="animate-fade-up">
+        <h1 className="text-lg sm:text-xl lg:text-[22px] font-bold tracking-[-0.01em] text-[var(--apple-label)]">대시보드</h1>
+        <p className="text-[13px] sm:text-sm text-[var(--apple-secondary-label)] mt-0.5">
+          이번 달 비용 현황을 확인하세요.
+        </p>
+      </div>
+
+      {/* Data-dependent content — streamed via Suspense */}
+      <Suspense fallback={<DashboardSkeleton />}>
+        <DashboardContent />
+      </Suspense>
+
+      {/* Floating action button — renders immediately */}
       <Link
         href="/expenses/new"
         className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-6 z-50 flex items-center justify-center size-14 rounded-full bg-[var(--apple-blue)] text-white shadow-[0_4px_16px_rgba(0,122,255,0.4)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] hover:shadow-[0_6px_20px_rgba(0,122,255,0.5)] hover:scale-105 active:scale-95 transition-all duration-200"

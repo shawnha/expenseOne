@@ -3,6 +3,8 @@
   "short_name": "ExpenseOne",
   "description": "팀 비용을 효율적으로 관리하세요",
   "start_url": "/",
+  "scope": "/",
+  "id": "/",
   "display": "standalone",
   "background_color": "#f2f2f7",
   "theme_color": "#007AFF",

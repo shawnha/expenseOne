@@ -1,7 +1,12 @@
-// ExpenseOne Service Worker v4 — NetworkFirst for HTML, CacheFirst for static assets
-const CACHE_NAME = "expenseone-v4";
+// ExpenseOne Service Worker v5 — NetworkFirst for HTML, CacheFirst for static assets
+const CACHE_NAME = "expenseone-v5";
+
+const APP_SHELL = ["/offline.html", "/"];
 
 self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
+  );
   self.skipWaiting();
 });
 
@@ -80,7 +85,7 @@ self.addEventListener("fetch", (event) => {
           return response;
         })
         .catch(() =>
-          caches.match(request).then((cached) => cached || caches.match("/"))
+          caches.match(request).then((cached) => cached || caches.match("/offline.html"))
         )
     );
     return;

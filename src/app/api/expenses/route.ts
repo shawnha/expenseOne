@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { requireAuth, errorResponse, handleError, validateOrigin, jsonWithCache } from "@/lib/api-utils";
 import {
   createExpenseSchema,
@@ -60,6 +61,10 @@ export async function POST(request: NextRequest) {
     }
 
     const expense = await createExpense(parsed.data, user.id, user.name, user.email);
+
+    revalidatePath("/");
+    revalidatePath("/expenses");
+    revalidatePath("/admin/pending");
 
     return NextResponse.json({ data: expense }, { status: 201 });
   } catch (err) {

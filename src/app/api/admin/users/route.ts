@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { requireAdmin, errorResponse, handleError, validateOrigin } from "@/lib/api-utils";
 import { db } from "@/lib/db";

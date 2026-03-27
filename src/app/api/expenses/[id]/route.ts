@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { requireAuth, errorResponse, handleError, validateOrigin, validateUUID, jsonWithCache } from "@/lib/api-utils";
 import { updateExpenseSchema } from "@/lib/validations/expense";
 import {
@@ -46,6 +47,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     const updated = await updateExpense(id, parsed.data, user.id);
 
+    revalidatePath("/");
+    revalidatePath("/expenses");
+    revalidatePath("/admin/pending");
+
     return NextResponse.json({ data: updated });
   } catch (err) {
     return handleError(err);
@@ -63,6 +68,10 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     const id = validateUUID((await context.params).id);
 
     await deleteExpense(id, user.id, user.role);
+
+    revalidatePath("/");
+    revalidatePath("/expenses");
+    revalidatePath("/admin/pending");
 
     return NextResponse.json({ data: { success: true } });
   } catch (err) {
