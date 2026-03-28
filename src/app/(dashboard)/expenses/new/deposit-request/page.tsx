@@ -41,6 +41,7 @@ import {
 } from "@/lib/validations/expense-form";
 import type { DocumentType } from "@/types";
 import { cn } from "@/lib/utils";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 
 // ============================================================
 // 은행 목록 (시중은행 + 인터넷은행 + 특수은행)
@@ -139,7 +140,7 @@ export default function DepositRequestPage() {
     control,
     setValue,
     watch,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<DepositRequestFormData>({
     resolver: zodResolver(depositRequestFormSchema),
     shouldFocusError: true,
@@ -154,6 +155,9 @@ export default function DepositRequestPage() {
       prePaidPercentage: null,
     },
   });
+
+  // Warn on unsaved changes (browser close / refresh)
+  useUnsavedChanges(isDirty || files.length > 0);
 
   const watchedIsPrePaid = watch("isPrePaid");
   const watchedPrePaidPercentage = watch("prePaidPercentage");
@@ -336,11 +340,14 @@ export default function DepositRequestPage() {
               .then((res) => { if (!res.ok) throw new Error(fileItem.file.name); return res; });
           })
         );
-        uploadResults.forEach((r) => {
-          if (r.status === "rejected") {
-            toast.error(`파일 "${r.reason?.message}" 업로드에 실패했습니다.`);
+        const failed = uploadResults.filter((r) => r.status === "rejected");
+        if (failed.length > 0) {
+          if (failed.length === files.length) {
+            toast.error("파일 업로드에 실패했습니다. 비용 상세에서 다시 첨부해주세요.");
+          } else {
+            toast.error(`${files.length}개 파일 중 ${failed.length}개 업로드 실패. 비용 상세에서 다시 첨부해주세요.`);
           }
-        });
+        }
       }
 
       // Save to recent accounts

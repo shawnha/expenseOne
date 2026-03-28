@@ -59,6 +59,7 @@ import {
 import type { DocumentType } from "@/types";
 import type { ExpenseEditData, ExistingAttachment } from "./page";
 import { cn } from "@/lib/utils";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -195,7 +196,7 @@ function CorporateCardEditForm({
     handleSubmit,
     control,
     setValue,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<CorporateCardFormData>({
     resolver: zodResolver(corporateCardFormSchema),
     shouldFocusError: true,
@@ -208,6 +209,9 @@ function CorporateCardEditForm({
       description: expense.description ?? "",
     },
   });
+
+  // Warn on unsaved changes (browser close / refresh)
+  useUnsavedChanges(isDirty || newFiles.length > 0 || removedAttachmentIds.length > 0);
 
   const handleAmountChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -264,15 +268,24 @@ function CorporateCardEditForm({
 
       // Upload new attachments in parallel
       if (newFiles.length > 0) {
-        await Promise.allSettled(
+        const uploadResults = await Promise.allSettled(
           newFiles.map((fileItem) => {
             const formData = new FormData();
             formData.append("file", fileItem.file);
             formData.append("expenseId", expense.id);
             formData.append("documentType", fileItem.documentType || "OTHER");
-            return fetch("/api/attachments/upload", { method: "POST", body: formData });
+            return fetch("/api/attachments/upload", { method: "POST", body: formData })
+              .then((res) => { if (!res.ok) throw new Error(fileItem.file.name); return res; });
           }),
         );
+        const failed = uploadResults.filter((r) => r.status === "rejected");
+        if (failed.length > 0) {
+          if (failed.length === newFiles.length) {
+            toast.error("파일 업로드에 실패했습니다. 비용 상세에서 다시 첨부해주세요.");
+          } else {
+            toast.error(`${newFiles.length}개 파일 중 ${failed.length}개 업로드 실패. 비용 상세에서 다시 첨부해주세요.`);
+          }
+        }
       }
 
       toast.success("비용이 수정되었습니다.");
@@ -449,7 +462,7 @@ function DepositRequestEditForm({
     handleSubmit,
     control,
     setValue,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<DepositRequestFormData>({
     resolver: zodResolver(depositRequestFormSchema),
     shouldFocusError: true,
@@ -465,6 +478,9 @@ function DepositRequestEditForm({
       description: expense.description ?? "",
     },
   });
+
+  // Warn on unsaved changes (browser close / refresh)
+  useUnsavedChanges(isDirty || newFiles.length > 0 || removedAttachmentIds.length > 0);
 
   const handleAmountChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -560,14 +576,18 @@ function DepositRequestEditForm({
             formData.append("file", fileItem.file);
             formData.append("expenseId", expense.id);
             formData.append("documentType", fileItem.documentType || "OTHER");
-            return fetch("/api/attachments/upload", { method: "POST", body: formData });
+            return fetch("/api/attachments/upload", { method: "POST", body: formData })
+              .then((res) => { if (!res.ok) throw new Error(fileItem.file.name); return res; });
           }),
         );
-        uploadResults.forEach((result, idx) => {
-          if (result.status === "rejected" || (result.status === "fulfilled" && !result.value.ok)) {
-            toast.error(`파일 "${newFiles[idx].file.name}" 업로드에 실패했습니다.`);
+        const failed = uploadResults.filter((r) => r.status === "rejected");
+        if (failed.length > 0) {
+          if (failed.length === newFiles.length) {
+            toast.error("파일 업로드에 실패했습니다. 비용 상세에서 다시 첨부해주세요.");
+          } else {
+            toast.error(`${newFiles.length}개 파일 중 ${failed.length}개 업로드 실패. 비용 상세에서 다시 첨부해주세요.`);
           }
-        });
+        }
       }
       toast.success("입금요청이 수정되었습니다.");
       router.push(`/expenses/${expense.id}`);

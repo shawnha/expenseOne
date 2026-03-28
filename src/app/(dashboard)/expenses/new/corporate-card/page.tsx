@@ -28,6 +28,7 @@ import {
   formatDateISO,
 } from "@/lib/validations/expense-form";
 import { cn } from "@/lib/utils";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 
 export default function CorporateCardPage() {
   const router = useRouter();
@@ -47,7 +48,7 @@ export default function CorporateCardPage() {
     handleSubmit,
     control,
     setValue,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<CorporateCardFormData>({
     resolver: zodResolver(corporateCardFormSchema),
     shouldFocusError: true,
@@ -58,6 +59,9 @@ export default function CorporateCardPage() {
       isUrgent: false,
     },
   });
+
+  // Warn on unsaved changes (browser close / refresh)
+  useUnsavedChanges(isDirty || files.length > 0);
 
   // 금액 계산 로직
   const calcFinalAmount = useCallback(
@@ -166,15 +170,24 @@ export default function CorporateCardPage() {
 
       // Upload attachments in parallel
       if (files.length > 0 && expenseId) {
-        await Promise.all(
+        const uploadResults = await Promise.allSettled(
           files.map((fileItem) => {
             const formData = new FormData();
             formData.append("file", fileItem.file);
             formData.append("expenseId", expenseId);
             formData.append("documentType", fileItem.documentType || "OTHER");
-            return fetch("/api/attachments/upload", { method: "POST", body: formData });
+            return fetch("/api/attachments/upload", { method: "POST", body: formData })
+              .then((res) => { if (!res.ok) throw new Error(fileItem.file.name); return res; });
           })
         );
+        const failed = uploadResults.filter((r) => r.status === "rejected");
+        if (failed.length > 0) {
+          if (failed.length === files.length) {
+            toast.error("파일 업로드에 실패했습니다. 비용 상세에서 다시 첨부해주세요.");
+          } else {
+            toast.error(`${files.length}개 파일 중 ${failed.length}개 업로드 실패. 비용 상세에서 다시 첨부해주세요.`);
+          }
+        }
       }
 
       setShowSuccess(true);
