@@ -103,7 +103,7 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
           <p className="text-sm text-[var(--apple-secondary-label)]">비용이 없습니다</p>
           <Link
             href="/expenses/new"
-            className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 glass text-sm font-medium text-[var(--apple-blue)] hover:bg-[rgba(0,0,0,0.05)] transition-colors apple-press"
+            className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 glass text-sm font-medium text-[var(--apple-blue)] hover:bg-[rgba(0,0,0,0.05)] dark:hover:bg-[rgba(255,255,255,0.08)] transition-colors apple-press"
           >
             <Plus className="size-4" />
             첫 비용 제출하기

@@ -451,7 +451,7 @@ export default function DepositRequestPage() {
                 const withholdingAmount = freelancerDeduction ? Math.round(withholdingBase * 0.033) : 0;
                 const finalAmount = withholdingBase - withholdingAmount;
                 return (
-                  <div className="px-3 py-2 text-[13px] text-[var(--apple-secondary-label)] space-y-0.5 border border-[rgba(0,0,0,0.06)] rounded-xl">
+                  <div className="px-3 py-2 text-[13px] text-[var(--apple-secondary-label)] space-y-0.5 border border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)] rounded-xl">
                     <div className="flex justify-between">
                       <span>공급가액</span>
                       <span>{formatAmount(supplyAmount)}원</span>
@@ -468,7 +468,7 @@ export default function DepositRequestPage() {
                         <span>-{formatAmount(withholdingAmount)}원</span>
                       </div>
                     )}
-                    <div className="flex justify-between font-medium text-[var(--apple-label)] pt-1 border-t border-[rgba(0,0,0,0.06)]">
+                    <div className="flex justify-between font-medium text-[var(--apple-label)] pt-1 border-t border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)]">
                       <span>실지급액</span>
                       <span>{formatAmount(finalAmount)}원</span>
                     </div>
@@ -484,7 +484,7 @@ export default function DepositRequestPage() {
 
             {/* 긴급 / 선지급 체크박스 */}
             <div className="flex flex-col gap-3">
-              <label className="flex items-center gap-3 cursor-pointer select-none px-3 py-2.5 rounded-xl glass-subtle hover:bg-[rgba(0,0,0,0.03)] transition-colors">
+              <label className="flex items-center gap-3 cursor-pointer select-none px-3 py-2.5 rounded-xl glass-subtle hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)] transition-colors">
                 <input
                   type="checkbox"
                   {...register("isUrgent")}
@@ -501,7 +501,7 @@ export default function DepositRequestPage() {
                 control={control}
                 render={({ field }) => (
                   <div className="space-y-3">
-                    <label className="flex items-center gap-3 cursor-pointer select-none px-3 py-2.5 rounded-xl glass-subtle hover:bg-[rgba(0,0,0,0.03)] transition-colors">
+                    <label className="flex items-center gap-3 cursor-pointer select-none px-3 py-2.5 rounded-xl glass-subtle hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)] transition-colors">
                       <input
                         type="checkbox"
                         checked={field.value ?? false}
@@ -537,7 +537,7 @@ export default function DepositRequestPage() {
                               "px-4 py-2 rounded-full text-sm font-medium transition-all",
                               prePaidMode === "full"
                                 ? "bg-[var(--apple-blue)] text-white shadow-sm"
-                                : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)]"
+                                : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]"
                             )}
                           >
                             전액 (100%)
@@ -552,7 +552,7 @@ export default function DepositRequestPage() {
                               "px-4 py-2 rounded-full text-sm font-medium transition-all",
                               prePaidMode === "partial"
                                 ? "bg-[var(--apple-blue)] text-white shadow-sm"
-                                : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)]"
+                                : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]"
                             )}
                           >
                             부분
@@ -588,7 +588,7 @@ export default function DepositRequestPage() {
                           const prePaidAmount = Math.round(totalBeforeWithholding * watchedPrePaidPercentage / 100);
                           const postPaidAmount = totalBeforeWithholding - prePaidAmount - withholdingAmount;
                           return (
-                            <div className="px-3 py-2 text-[13px] text-[var(--apple-secondary-label)] space-y-0.5 border border-[rgba(0,0,0,0.06)] rounded-xl">
+                            <div className="px-3 py-2 text-[13px] text-[var(--apple-secondary-label)] space-y-0.5 border border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)] rounded-xl">
                               <div className="flex justify-between">
                                 <span>총 금액</span>
                                 <span>{formatAmount(totalBeforeWithholding)}원</span>
@@ -603,7 +603,7 @@ export default function DepositRequestPage() {
                                   <span>-{formatAmount(withholdingAmount)}원</span>
                                 </div>
                               )}
-                              <div className="flex justify-between font-medium text-[var(--apple-label)] pt-1 border-t border-[rgba(0,0,0,0.06)]">
+                              <div className="flex justify-between font-medium text-[var(--apple-label)] pt-1 border-t border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)]">
                                 <span>후지급금</span>
                                 <span>{formatAmount(postPaidAmount)}원</span>
                               </div>
@@ -640,7 +640,7 @@ export default function DepositRequestPage() {
                             "px-4 py-2 rounded-full text-sm font-medium transition-all",
                             field.value === option.value && !showCustomCategory
                               ? "bg-[var(--apple-blue)] text-white shadow-sm"
-                              : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)]"
+                              : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]"
                           )}
                         >
                           {option.label}
@@ -656,7 +656,7 @@ export default function DepositRequestPage() {
                           "px-4 py-2 rounded-full text-sm font-medium transition-all",
                           showCustomCategory
                             ? "bg-[var(--apple-blue)] text-white shadow-sm"
-                            : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)]"
+                            : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]"
                         )}
                       >
                         + 직접 입력
@@ -716,7 +716,7 @@ export default function DepositRequestPage() {
                       key={idx}
                       type="button"
                       onClick={() => applyRecentAccount(account)}
-                      className="flex items-center justify-between px-3 py-2.5 rounded-xl glass-subtle text-left hover:bg-[rgba(0,0,0,0.03)] transition-colors group"
+                      className="flex items-center justify-between px-3 py-2.5 rounded-xl glass-subtle text-left hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)] transition-colors group"
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="text-[13px] font-medium text-[var(--apple-blue)] shrink-0">{account.bankName}</span>
@@ -742,7 +742,7 @@ export default function DepositRequestPage() {
                   <Popover open={bankOpen} onOpenChange={setBankOpen}>
                     <PopoverTrigger
                       className={cn(
-                        "flex h-10 w-full items-center justify-between rounded-xl border border-[var(--apple-separator)] bg-[var(--apple-secondary-system-background)] px-3 text-sm transition-colors hover:bg-[rgba(0,0,0,0.03)]",
+                        "flex h-10 w-full items-center justify-between rounded-xl border border-[var(--apple-separator)] bg-[var(--apple-secondary-system-background)] px-3 text-sm transition-colors hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]",
                         !field.value && "text-[var(--apple-secondary-label)]",
                         errors.bankName && "border-[var(--apple-red)] ring-2 ring-[rgba(255,59,48,0.2)]"
                       )}

@@ -142,7 +142,7 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
               return (
                 <TableRow
                   key={expense.id}
-                  className="cursor-pointer hover:bg-[rgba(0,0,0,0.03)] transition-colors"
+                  className="cursor-pointer hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)] transition-colors"
                   onClick={() => router.push(`/expenses/${expense.id}`)}
                   tabIndex={0}
                   aria-label={`${expense.title} 상세 보기`}

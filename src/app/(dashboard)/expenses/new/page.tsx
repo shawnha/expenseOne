@@ -33,7 +33,7 @@ export default function NewExpensePage() {
           <Link
             key={type.href}
             href={type.href}
-            className={`glass p-5 flex flex-col gap-3 transition-all duration-200 hover:bg-[rgba(0,0,0,0.05)] hover:shadow-lg hover:scale-[1.02] group apple-press animate-card-enter stagger-${index + 1}`}
+            className={`glass p-5 flex flex-col gap-3 transition-all duration-200 hover:bg-[rgba(0,0,0,0.05)] dark:hover:bg-[rgba(255,255,255,0.08)] hover:shadow-lg hover:scale-[1.02] group apple-press animate-card-enter stagger-${index + 1}`}
           >
             <div className="flex items-center justify-center size-12 rounded-2xl bg-[var(--apple-secondary-system-background)]">
               {type.icon}

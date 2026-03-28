@@ -264,13 +264,13 @@ export function DepartmentManager({ initialDepartments }: DepartmentManagerProps
                 enabled
                 className="rounded-xl"
               >
-                <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[rgba(0,0,0,0.03)] transition-colors group">
+                <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)] transition-colors group">
                   {/* Reorder buttons */}
                   <div className="flex flex-col gap-0.5 opacity-40 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => handleMoveUp(index)}
                       disabled={index === 0 || savingId === dept.id}
-                      className="p-0.5 rounded hover:bg-[rgba(0,0,0,0.06)] disabled:opacity-20 disabled:cursor-not-allowed"
+                      className="p-0.5 rounded hover:bg-[rgba(0,0,0,0.06)] dark:hover:bg-[rgba(255,255,255,0.08)] disabled:opacity-20 disabled:cursor-not-allowed"
                       aria-label="위로 이동"
                     >
                       <ChevronUp className="size-3.5" />
@@ -278,7 +278,7 @@ export function DepartmentManager({ initialDepartments }: DepartmentManagerProps
                     <button
                       onClick={() => handleMoveDown(index)}
                       disabled={index === departments.length - 1 || savingId === dept.id}
-                      className="p-0.5 rounded hover:bg-[rgba(0,0,0,0.06)] disabled:opacity-20 disabled:cursor-not-allowed"
+                      className="p-0.5 rounded hover:bg-[rgba(0,0,0,0.06)] dark:hover:bg-[rgba(255,255,255,0.08)] disabled:opacity-20 disabled:cursor-not-allowed"
                       aria-label="아래로 이동"
                     >
                       <ChevronDown className="size-3.5" />

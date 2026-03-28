@@ -91,7 +91,7 @@ function NavLink({
         "transition-all duration-200",
         isActive
           ? "nav-link-active text-[var(--apple-blue)] font-medium"
-          : "text-[var(--apple-secondary-label)] hover:bg-[rgba(0,0,0,0.04)] hover:text-[var(--apple-label)]"
+          : "text-[var(--apple-secondary-label)] hover:bg-[rgba(0,0,0,0.04)] dark:hover:bg-[rgba(255,255,255,0.06)] hover:text-[var(--apple-label)]"
       )}
     >
       <span

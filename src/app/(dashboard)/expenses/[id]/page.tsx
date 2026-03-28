@@ -221,7 +221,7 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
           {canEdit && !isAdmin && (
             <Link
               href={`/expenses/${id}/edit`}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full glass text-sm font-medium text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.05)] transition-colors apple-press"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full glass text-sm font-medium text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.05)] dark:hover:bg-[rgba(255,255,255,0.08)] transition-colors apple-press"
             >
               수정
             </Link>
@@ -250,7 +250,7 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
         <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-4">비용 정보</h2>
 
         {/* Amount */}
-        <div className="mb-5 p-4 rounded-xl bg-[rgba(0,0,0,0.04)]">
+        <div className="mb-5 p-4 rounded-xl bg-[rgba(0,0,0,0.04)] dark:bg-[rgba(255,255,255,0.06)]">
           <span className="text-[13px] text-[var(--apple-secondary-label)]">금액</span>
           <p className="text-xl sm:text-2xl font-semibold tabular-nums text-[var(--apple-label)]">{formatAmount(expense.amount)}원</p>
         </div>
@@ -263,7 +263,7 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
         </div>
 
         {expense.description && (
-          <div className="mt-4 pt-4 border-t border-[rgba(0,0,0,0.06)]">
+          <div className="mt-4 pt-4 border-t border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)]">
             <span className="text-[13px] text-[var(--apple-secondary-label)]">설명</span>
             <p className="text-sm mt-1 whitespace-pre-wrap text-[var(--apple-label)]">{expense.description}</p>
           </div>
@@ -271,7 +271,7 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
 
         {/* Corporate card fields */}
         {isCorporateCard && (expense.merchantName || expense.cardLastFour) && (
-          <div className="mt-4 pt-4 border-t border-[rgba(0,0,0,0.06)] grid gap-4 sm:grid-cols-2">
+          <div className="mt-4 pt-4 border-t border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)] grid gap-4 sm:grid-cols-2">
             {expense.merchantName && (
               <InfoRow label="가맹점명" value={expense.merchantName} />
             )}
@@ -283,7 +283,7 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
 
         {/* Deposit request fields */}
         {isDepositRequest && (
-          <div className="mt-4 pt-4 border-t border-[rgba(0,0,0,0.06)] grid gap-4 sm:grid-cols-2">
+          <div className="mt-4 pt-4 border-t border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)] grid gap-4 sm:grid-cols-2">
             {expense.bankName && <InfoRow label="은행명" value={expense.bankName} />}
             {expense.accountHolder && <InfoRow label="예금주" value={expense.accountHolder} />}
             {expense.accountNumber && <InfoRow label="계좌번호" value={expense.accountNumber} />}
@@ -301,9 +301,9 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
           const prePaidAmount = Math.round(expense.amount * expense.prePaidPercentage / 100);
           const remainingAmount = expense.amount - prePaidAmount;
           return (
-            <div className="mt-4 pt-4 border-t border-[rgba(0,0,0,0.06)]">
+            <div className="mt-4 pt-4 border-t border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)]">
               <h3 className="text-[13px] font-semibold text-[var(--apple-label)] mb-3">선지급 내역</h3>
-              <div className="px-3 py-2.5 text-[13px] text-[var(--apple-secondary-label)] space-y-1 border border-[rgba(0,0,0,0.06)] rounded-xl">
+              <div className="px-3 py-2.5 text-[13px] text-[var(--apple-secondary-label)] space-y-1 border border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)] rounded-xl">
                 <div className="flex justify-between">
                   <span>총 금액</span>
                   <span className="font-medium text-[var(--apple-label)]">{formatAmount(expense.amount)}원</span>
@@ -405,7 +405,7 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
             {attachments.map((attachment) => (
               <div
                 key={attachment.id}
-                className="flex items-center gap-3 p-3 rounded-xl bg-[rgba(0,0,0,0.04)]"
+                className="flex items-center gap-3 p-3 rounded-xl bg-[rgba(0,0,0,0.04)] dark:bg-[rgba(255,255,255,0.06)]"
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-[var(--apple-label)] truncate">{attachment.fileName}</p>
@@ -487,7 +487,7 @@ function TimelineItem({
             active ? dotColors[variant] : "border-2 border-[#d1d1d6] bg-[var(--apple-secondary-system-background)]"
           )}
         />
-        {!isLast && <div className="w-px flex-1 bg-[rgba(0,0,0,0.08)] min-h-4" />}
+        {!isLast && <div className="w-px flex-1 bg-[rgba(0,0,0,0.08)] dark:bg-[rgba(255,255,255,0.1)] min-h-4" />}
       </div>
       <div className="pb-4">
         <div className="flex items-center gap-2">

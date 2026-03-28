@@ -112,8 +112,8 @@ function ExistingAttachmentItem({
       ?.label ?? attachment.documentType;
 
   return (
-    <div className="flex items-center gap-3 rounded-xl p-3 bg-[rgba(0,0,0,0.04)]">
-      <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[rgba(0,0,0,0.03)]">
+    <div className="flex items-center gap-3 rounded-xl p-3 bg-[rgba(0,0,0,0.04)] dark:bg-[rgba(255,255,255,0.06)]">
+      <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[rgba(0,0,0,0.03)] dark:bg-[rgba(255,255,255,0.05)]">
         {isImage ? (
           <ImageIcon className="size-6 text-[var(--apple-secondary-label)]" />
         ) : (
@@ -336,7 +336,7 @@ function CorporateCardEditForm({
                           "px-4 py-2 rounded-full text-sm font-medium transition-all",
                           field.value === option.value && !showCustomCategory
                             ? "bg-[var(--apple-blue)] text-white shadow-sm"
-                            : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)]"
+                            : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]"
                         )}
                       >
                         {option.label}
@@ -349,7 +349,7 @@ function CorporateCardEditForm({
                         "px-4 py-2 rounded-full text-sm font-medium transition-all",
                         showCustomCategory
                           ? "bg-[var(--apple-blue)] text-white shadow-sm"
-                          : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)]"
+                          : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]"
                       )}
                     >
                       + 직접 입력
@@ -371,7 +371,7 @@ function CorporateCardEditForm({
               <Label>거래일 <span className="text-[var(--apple-red)]">*</span></Label>
               <Controller name="transactionDate" control={control} render={({ field }) => (
                 <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-                  <PopoverTrigger className={cn("flex h-10 w-full items-center justify-start gap-2 rounded-xl border border-[var(--apple-separator)] bg-[var(--apple-secondary-system-background)] px-3 text-sm transition-colors hover:bg-[rgba(0,0,0,0.03)]", !field.value && "text-[var(--apple-secondary-label)]", errors.transactionDate && "border-[var(--apple-red)] ring-2 ring-[rgba(255,59,48,0.2)]")} aria-invalid={!!errors.transactionDate}>
+                  <PopoverTrigger className={cn("flex h-10 w-full items-center justify-start gap-2 rounded-xl border border-[var(--apple-separator)] bg-[var(--apple-secondary-system-background)] px-3 text-sm transition-colors hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]", !field.value && "text-[var(--apple-secondary-label)]", errors.transactionDate && "border-[var(--apple-red)] ring-2 ring-[rgba(255,59,48,0.2)]")} aria-invalid={!!errors.transactionDate}>
                     <CalendarIcon className="size-4 text-[var(--apple-secondary-label)]" />
                     {field.value ? format(field.value, "yyyy.MM.dd", { locale: ko }) : "날짜 선택"}
                   </PopoverTrigger>
@@ -611,15 +611,15 @@ function DepositRequestEditForm({
             </div>
             {/* 긴급 / 선지급 */}
             <div className="flex flex-col gap-3">
-              <label className="flex items-center gap-3 cursor-pointer select-none px-3 py-2.5 rounded-xl glass-subtle hover:bg-[rgba(0,0,0,0.03)] transition-colors">
-                <input type="checkbox" {...register("isUrgent")} className="size-4 rounded border-[rgba(0,0,0,0.15)] text-[var(--apple-red)] focus:ring-[var(--apple-red)] cursor-pointer" />
+              <label className="flex items-center gap-3 cursor-pointer select-none px-3 py-2.5 rounded-xl glass-subtle hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)] transition-colors">
+                <input type="checkbox" {...register("isUrgent")} className="size-4 rounded border-[rgba(0,0,0,0.15)] dark:border-[rgba(255,255,255,0.2)] text-[var(--apple-red)] focus:ring-[var(--apple-red)] cursor-pointer" />
                 <div>
                   <span className="text-sm font-medium text-[var(--apple-label)]">긴급</span>
                   <p className="text-[12px] text-[var(--apple-secondary-label)]">빠른 처리가 필요한 경우 체크해주세요</p>
                 </div>
               </label>
-              <label className="flex items-center gap-3 cursor-pointer select-none px-3 py-2.5 rounded-xl glass-subtle hover:bg-[rgba(0,0,0,0.03)] transition-colors">
-                <input type="checkbox" {...register("isPrePaid")} className="size-4 rounded border-[rgba(0,0,0,0.15)] text-[var(--apple-blue)] focus:ring-[var(--apple-blue)] cursor-pointer" />
+              <label className="flex items-center gap-3 cursor-pointer select-none px-3 py-2.5 rounded-xl glass-subtle hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)] transition-colors">
+                <input type="checkbox" {...register("isPrePaid")} className="size-4 rounded border-[rgba(0,0,0,0.15)] dark:border-[rgba(255,255,255,0.2)] text-[var(--apple-blue)] focus:ring-[var(--apple-blue)] cursor-pointer" />
                 <div>
                   <span className="text-sm font-medium text-[var(--apple-label)]">선지급</span>
                   <p className="text-[12px] text-[var(--apple-secondary-label)]">사전에 지급이 필요한 경우 체크해주세요</p>
@@ -640,7 +640,7 @@ function DepositRequestEditForm({
                           "px-4 py-2 rounded-full text-sm font-medium transition-all",
                           field.value === option.value && !showCustomCategory
                             ? "bg-[var(--apple-blue)] text-white shadow-sm"
-                            : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)]"
+                            : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]"
                         )}
                       >
                         {option.label}
@@ -653,7 +653,7 @@ function DepositRequestEditForm({
                         "px-4 py-2 rounded-full text-sm font-medium transition-all",
                         showCustomCategory
                           ? "bg-[var(--apple-blue)] text-white shadow-sm"
-                          : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)]"
+                          : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]"
                       )}
                     >
                       + 직접 입력

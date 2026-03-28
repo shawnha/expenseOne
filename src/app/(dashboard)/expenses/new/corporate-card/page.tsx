@@ -271,7 +271,7 @@ export default function CorporateCardPage() {
                     type="checkbox"
                     checked={vatIncluded}
                     onChange={(e) => handleVatToggle(e.target.checked)}
-                    className="size-4 rounded border-[rgba(0,0,0,0.15)] text-[var(--apple-blue)] focus:ring-[var(--apple-blue)] cursor-pointer"
+                    className="size-4 rounded border-[rgba(0,0,0,0.15)] dark:border-[rgba(255,255,255,0.2)] text-[var(--apple-blue)] focus:ring-[var(--apple-blue)] cursor-pointer"
                   />
                   <span className="text-[13px] text-[var(--apple-secondary-label)]">
                     VAT 포함 (+10%)
@@ -282,7 +282,7 @@ export default function CorporateCardPage() {
                     type="checkbox"
                     checked={freelancerDeduction}
                     onChange={(e) => handleFreelancerToggle(e.target.checked)}
-                    className="size-4 rounded border-[rgba(0,0,0,0.15)] text-[var(--apple-blue)] focus:ring-[var(--apple-blue)] cursor-pointer"
+                    className="size-4 rounded border-[rgba(0,0,0,0.15)] dark:border-[rgba(255,255,255,0.2)] text-[var(--apple-blue)] focus:ring-[var(--apple-blue)] cursor-pointer"
                   />
                   <span className="text-[13px] text-[var(--apple-secondary-label)]">
                     프리랜서 원천징수 (-3.3%)
@@ -315,7 +315,7 @@ export default function CorporateCardPage() {
                       </span>
                     </div>
                   )}
-                  <div className="flex justify-between font-semibold border-t border-[rgba(0,0,0,0.08)] pt-1 mt-1">
+                  <div className="flex justify-between font-semibold border-t border-[rgba(0,0,0,0.08)] dark:border-[rgba(255,255,255,0.1)] pt-1 mt-1">
                     <span>실지급액</span>
                     <span className="text-[var(--apple-blue)]">
                       {formatAmount(finalAmount)}원
@@ -354,7 +354,7 @@ export default function CorporateCardPage() {
                             "px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors border",
                             field.value === opt.value && !showCustomCategory
                               ? "bg-[var(--apple-blue)] text-white border-[var(--apple-blue)]"
-                              : "glass-subtle border-[var(--apple-separator)] text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)]"
+                              : "glass-subtle border-[var(--apple-separator)] text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]"
                           )}
                         >
                           {opt.label}
@@ -370,7 +370,7 @@ export default function CorporateCardPage() {
                           "px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors border",
                           showCustomCategory
                             ? "bg-[var(--apple-blue)] text-white border-[var(--apple-blue)]"
-                            : "glass-subtle border-[var(--apple-separator)] text-[var(--apple-secondary-label)] hover:bg-[rgba(0,0,0,0.03)]"
+                            : "glass-subtle border-[var(--apple-separator)] text-[var(--apple-secondary-label)] hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]"
                         )}
                       >
                         + 직접 입력

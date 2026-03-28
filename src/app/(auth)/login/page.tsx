@@ -111,7 +111,7 @@ function LoginContent() {
             <button
               onClick={handleLogin}
               disabled={loading}
-              className="inline-flex w-full items-center justify-center gap-2.5 h-[52px] rounded-full text-[15px] font-medium bg-[rgba(255,255,255,0.7)] backdrop-blur-xl border border-[rgba(0,0,0,0.06)] hover:bg-[rgba(255,255,255,0.85)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.08)] hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 text-[var(--apple-label)] disabled:opacity-50"
+              className="inline-flex w-full items-center justify-center gap-2.5 h-[52px] rounded-full text-[15px] font-medium bg-[rgba(255,255,255,0.7)] dark:bg-[rgba(255,255,255,0.1)] backdrop-blur-xl border border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.85)] dark:hover:bg-[rgba(255,255,255,0.15)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.08)] hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 text-[var(--apple-label)] disabled:opacity-50"
             >
               {loading ? (
                 <div className="size-5 border-2 border-[var(--apple-blue)] border-t-transparent rounded-full animate-spin" />

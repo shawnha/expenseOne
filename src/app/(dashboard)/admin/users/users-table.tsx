@@ -565,7 +565,7 @@ export function UsersTable({ users: initialUsers, currentUserId }: UsersTablePro
               return (
                 <TableRow
                   key={user.id}
-                  className={`hover:bg-[rgba(0,0,0,0.03)] ${!user.isActive ? "opacity-50" : ""}`}
+                  className={`hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)] ${!user.isActive ? "opacity-50" : ""}`}
                 >
                   <TableCell className={PRIMARY}>{user.name}</TableCell>
                   <TableCell className={SECONDARY}>{user.email}</TableCell>

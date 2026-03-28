@@ -153,7 +153,7 @@ export function PendingTable({ expenses }: PendingTableProps) {
             {expenses.map((expense, index) => (
               <TableRow
                 key={expense.id}
-                className={`hover:bg-[rgba(0,0,0,0.03)] cursor-pointer animate-row-enter stagger-${Math.min(index + 1, 8)}`}
+                className={`hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)] cursor-pointer animate-row-enter stagger-${Math.min(index + 1, 8)}`}
                 onClick={() => router.push(`/expenses/${expense.id}`)}
                 tabIndex={0}
                 role="link"
@@ -219,11 +219,11 @@ export function PendingTable({ expenses }: PendingTableProps) {
       {/* Mobile cards */}
       <div className="space-y-3 lg:hidden">
         {expenses.map((expense, index) => (
-          <div key={expense.id} className={`rounded-xl bg-[rgba(0,0,0,0.03)] overflow-hidden animate-card-enter stagger-${Math.min(index + 1, 8)}`}>
+          <div key={expense.id} className={`rounded-xl bg-[rgba(0,0,0,0.03)] dark:bg-[rgba(255,255,255,0.05)] overflow-hidden animate-card-enter stagger-${Math.min(index + 1, 8)}`}>
             <button
               type="button"
               onClick={() => router.push(`/expenses/${expense.id}`)}
-              className="w-full p-4 pb-2 text-left space-y-2 active:bg-[rgba(0,0,0,0.05)] transition-colors"
+              className="w-full p-4 pb-2 text-left space-y-2 active:bg-[rgba(0,0,0,0.05)] dark:active:bg-[rgba(255,255,255,0.08)] transition-colors"
               aria-label={`${expense.title} 상세 보기`}
             >
               <div className="flex items-start justify-between gap-2">

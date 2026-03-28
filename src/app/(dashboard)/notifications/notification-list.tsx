@@ -188,7 +188,7 @@ export default function NotificationList({
                 key={notification.id}
                 type="button"
                 onClick={() => handleClick(notification)}
-                className={`flex w-full items-start gap-3 px-3 py-3.5 text-left transition-colors rounded-xl hover:bg-[rgba(0,0,0,0.03)] apple-press animate-row-enter stagger-${Math.min(index + 1, 8)} ${
+                className={`flex w-full items-start gap-3 px-3 py-3.5 text-left transition-colors rounded-xl hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)] apple-press animate-row-enter stagger-${Math.min(index + 1, 8)} ${
                   !notification.isRead ? "bg-[rgba(0,122,255,0.04)]" : ""
                 }`}
                 aria-label={`${notification.title} - ${notification.isRead ? "읽음" : "읽지 않음"}`}

@@ -78,7 +78,7 @@ export function Header({ user, title, unreadCount = 0 }: HeaderProps) {
           className={cn(
             "relative flex items-center justify-center size-9 sm:size-11 rounded-xl",
             "transition-all duration-300 [transition-timing-function:cubic-bezier(0.25,0.1,0.25,1)]",
-            "hover:bg-[rgba(0,0,0,0.04)]",
+            "hover:bg-[rgba(0,0,0,0.04)] dark:hover:bg-[rgba(255,255,255,0.06)]",
             "active:scale-95"
           )}
           aria-label="알림"
@@ -105,7 +105,7 @@ export function Header({ user, title, unreadCount = 0 }: HeaderProps) {
             render={
               <button
                 type="button"
-                className="flex items-center gap-2 rounded-xl px-2 py-1.5 transition-all duration-200 hover:bg-[rgba(0,0,0,0.04)] active:scale-[0.98] focus-visible:outline-none"
+                className="flex items-center gap-2 rounded-xl px-2 py-1.5 transition-all duration-200 hover:bg-[rgba(0,0,0,0.04)] dark:hover:bg-[rgba(255,255,255,0.06)] active:scale-[0.98] focus-visible:outline-none"
                 aria-label="사용자 메뉴"
               >
                 <div className="flex size-7 items-center justify-center rounded-full bg-[rgba(0,122,255,0.1)] text-[var(--apple-blue)] text-xs font-semibold">
