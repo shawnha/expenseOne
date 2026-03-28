@@ -268,10 +268,12 @@ export function BottomTabBar({ userId, isAdmin, unreadCount }: BottomTabBarProps
                 onTouchStart={hasQuickActions ? handleLongPressStart : undefined}
                 onTouchEnd={hasQuickActions ? handleLongPressEnd : undefined}
                 onTouchCancel={hasQuickActions ? handleLongPressCancel : undefined}
+                onContextMenu={hasQuickActions ? (e) => e.preventDefault() : undefined}
                 className={cn(
                   "flex flex-col items-center justify-center gap-0.5 pt-1.5 min-w-[56px]",
                   "transition-colors duration-200",
-                  "apple-press"
+                  "apple-press",
+                  hasQuickActions && "[&]:[-webkit-touch-callout:none]"
                 )}
                 aria-label={tab.label}
               >
