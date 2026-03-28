@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MobileSidebar } from "@/components/layout/sidebar";
+// MobileSidebar removed — bottom tab bar replaces sidebar on mobile
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { createClient } from "@/lib/supabase/client";
 import { useRealtimeNotifications } from "@/hooks/use-realtime-notifications";
@@ -68,12 +68,8 @@ export function Header({ user, title, unreadCount = 0 }: HeaderProps) {
       <PlugSplash mode="disconnecting" onComplete={completeSignOut} />
     )}
     <header className="sticky top-0 z-40 flex h-14 items-center gap-2 sm:gap-4 glass-header px-3 sm:px-4 lg:px-6 overflow-hidden max-w-full">
-      {/* Mobile: admin gets sidebar hamburger, member gets logo */}
-      {user.role === "ADMIN" ? (
-        <MobileSidebar user={user} />
-      ) : (
-        <MobileLogo />
-      )}
+      {/* Mobile: logo (sidebar is replaced by bottom tab bar) */}
+      <MobileLogo />
 
       {/* Page title */}
       {title && (
