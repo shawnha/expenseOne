@@ -18,6 +18,7 @@ import { CancelExpenseButton } from "@/components/expenses/cancel-expense-button
 import { RequestRemainingButton } from "@/components/expenses/request-remaining-button";
 import { ApproveRemainingButton } from "@/components/expenses/approve-remaining-button";
 import { AdminApproveReject } from "@/components/expenses/admin-approve-reject";
+import { AdminQuickEditButton } from "@/components/expenses/admin-quick-edit-button";
 import type {
   ExpenseType,
   ExpenseStatus,
@@ -203,7 +204,21 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
           <h1 className="text-lg sm:text-xl font-semibold text-[var(--apple-label)]">{expense.title}</h1>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {canEdit && (
+          {isAdmin && (
+            <AdminQuickEditButton
+              expense={{
+                id: expense.id,
+                title: expense.title,
+                category: expense.category,
+                amount: expense.amount,
+                status: expense.status,
+                type: expense.type,
+                createdAt: expense.createdAt ?? "",
+                submitter: expense.submitter ? { name: expense.submitter.name } : null,
+              }}
+            />
+          )}
+          {canEdit && !isAdmin && (
             <Link
               href={`/expenses/${id}/edit`}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full glass text-sm font-medium text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.05)] transition-colors apple-press"
