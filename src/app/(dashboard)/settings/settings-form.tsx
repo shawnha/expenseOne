@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, Bell, BellRing } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -216,14 +216,120 @@ export function SettingsForm({ user }: SettingsFormProps) {
         </div>
       </div>
 
-      <div className="glass p-6 animate-card-enter stagger-2">
-        <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-5">
-          계정 정보
-        </h2>
-        <div className="space-y-3 text-sm text-[var(--apple-secondary-label)]">
-          <p>이름, 부서, 법인카드 끝 4자리를 수정할 수 있습니다.</p>
-          <p>역할 변경은 관리자에게 문의해주세요.</p>
+      <div className="flex flex-col gap-5">
+        <div className="glass p-6 animate-card-enter stagger-2">
+          <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-5">
+            계정 정보
+          </h2>
+          <div className="space-y-3 text-sm text-[var(--apple-secondary-label)]">
+            <p>이름, 부서, 법인카드 끝 4자리를 수정할 수 있습니다.</p>
+            <p>역할 변경은 관리자에게 문의해주세요.</p>
+          </div>
         </div>
+
+        {user.role === "ADMIN" && <PushTestCard />}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Push 알림 테스트 카드 (ADMIN only)
+// ---------------------------------------------------------------------------
+function PushTestCard() {
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<{
+    ok: boolean;
+    message: string;
+    debug?: Record<string, unknown>;
+  } | null>(null);
+  const [pushStatus, setPushStatus] = useState<string>("확인 중...");
+
+  useEffect(() => {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      setPushStatus("미지원 (이 브라우저는 Push를 지원하지 않습니다)");
+      return;
+    }
+    if (typeof Notification === "undefined") {
+      setPushStatus("미지원");
+      return;
+    }
+    if (Notification.permission === "granted") {
+      setPushStatus("허용됨 ✓");
+    } else if (Notification.permission === "denied") {
+      setPushStatus("차단됨 ✕ (브라우저 설정에서 허용해주세요)");
+    } else {
+      setPushStatus("미설정 (알림 배너에서 허용해주세요)");
+    }
+  }, []);
+
+  const handleTest = useCallback(async () => {
+    setSending(true);
+    setResult(null);
+    try {
+      const res = await fetch("/api/push/test", { method: "POST" });
+      const data = await res.json();
+      setResult(data);
+      if (data.ok) {
+        toast.success("테스트 Push 전송 완료!");
+      } else {
+        toast.error(data.message || "Push 전송 실패");
+      }
+    } catch (err) {
+      setResult({ ok: false, message: "요청 실패" });
+      toast.error("Push 테스트 요청에 실패했습니다.");
+    } finally {
+      setSending(false);
+    }
+  }, []);
+
+  return (
+    <div className="glass p-6 animate-card-enter stagger-3">
+      <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-4 flex items-center gap-2">
+        <BellRing className="size-4" />
+        Push 알림 테스트
+      </h2>
+
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-[13px] text-[var(--apple-secondary-label)]">알림 권한</span>
+          <span className="text-[13px] font-medium text-[var(--apple-label)]">{pushStatus}</span>
+        </div>
+
+        <Button
+          onClick={handleTest}
+          disabled={sending}
+          className="w-full rounded-full h-10 bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] text-white"
+        >
+          {sending ? (
+            <>
+              <Loader2 className="size-4 animate-spin mr-1.5" />
+              전송 중...
+            </>
+          ) : (
+            <>
+              <Bell className="size-4 mr-1.5" />
+              테스트 알림 보내기
+            </>
+          )}
+        </Button>
+
+        {result && (
+          <div
+            className={`rounded-xl p-3 text-[13px] ${
+              result.ok
+                ? "bg-[rgba(52,199,89,0.1)] text-[var(--apple-green)]"
+                : "bg-[rgba(255,59,48,0.1)] text-[var(--apple-red)]"
+            }`}
+          >
+            <p className="font-medium">{result.message}</p>
+            {result.debug && (
+              <pre className="mt-2 text-[11px] opacity-70 whitespace-pre-wrap break-all">
+                {JSON.stringify(result.debug, null, 2)}
+              </pre>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
