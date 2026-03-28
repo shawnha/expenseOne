@@ -96,7 +96,7 @@ export function ExpenseTabList({ expenses }: { expenses: Expense[] }) {
           </div>
         ) : (
           <SwipeableGroup>
-            <div className="divide-y divide-[var(--apple-separator)]">
+            <div className="flex flex-col gap-2.5">
               {filtered.map((expense, idx) => (
                 <DashboardExpenseRow key={expense.id} expense={expense} idx={idx} />
               ))}
@@ -170,30 +170,33 @@ function DashboardExpenseRow({ expense, idx }: { expense: Expense; idx: number }
       id={`dashboard-${expense.id}`}
       actions={actions}
       onTap={handleTap}
+      className="rounded-xl"
       enabled={actions.length > 0}
     >
       <div
         className={cn(
-          "flex items-center justify-between gap-2 sm:gap-3 py-2.5 sm:py-3 hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.04)] rounded-lg px-2 cursor-pointer apple-press transition-all duration-200",
+          "relative flex flex-col gap-2 p-3.5 sm:p-4 rounded-xl",
+          "bg-[var(--apple-system-background)] border border-[var(--glass-border)] shadow-sm",
+          "cursor-pointer apple-press transition-all duration-200",
           "animate-row-enter",
           `stagger-${idx + 3}`
         )}
       >
-        <div className="flex-1 min-w-0">
-          <p className="text-[13px] sm:text-[15px] font-medium text-[var(--apple-label)] truncate flex items-center gap-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[13px] sm:text-sm font-medium text-[var(--apple-label)] truncate flex items-center gap-1.5">
             <span className="truncate">{expense.title}</span>
             {expense.is_urgent && <span className="glass-badge glass-badge-red shrink-0">긴급</span>}
           </p>
-          <p className="text-[11px] sm:text-xs text-[var(--apple-secondary-label)] mt-0.5">
-            {formatDateKR(expense.created_at)}
-          </p>
+          <span className={cn(statusInfo.className, "shrink-0")}>
+            {statusInfo.label}
+          </span>
         </div>
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[11px] sm:text-xs text-[var(--apple-secondary-label)]">
+            {formatDateKR(expense.created_at)}
+          </span>
           <span className="text-[13px] sm:text-sm font-medium tabular-nums text-[var(--apple-label)]">
             {formatAmount(expense.amount)}원
-          </span>
-          <span className={cn(statusInfo.className)}>
-            {statusInfo.label}
           </span>
         </div>
       </div>
