@@ -85,7 +85,7 @@ d.innerHTML=[
 '<rect class="sp-l2" x="8" y="14.75" width="12" height="2.5" rx="1.25" fill="white" opacity="0.3"/>',
 '<rect class="sp-l3" x="8" y="19.5" width="16" height="2.5" rx="1.25" fill="white"/>',
 '</svg></div>',
-'<div class="sp-name">ExpenseOne</div>',
+'<div class="sp-name">Expense<span style="color:#EF3B2D"><svg viewBox="0 0 100 100" fill="none" style="display:inline-block;width:0.75em;height:0.75em;margin-left:-0.05em;vertical-align:baseline"><path d="M50 5 C25 5 5 25 5 50 C5 75 25 95 50 95" stroke="#EF3B2D" stroke-width="14" stroke-linecap="round" fill="none"/><path d="M50 5 C75 5 95 25 95 50 C95 75 75 95 50 95" stroke="#EF3B2D" stroke-width="14" stroke-linecap="round" fill="none"/></svg>ne</span></div>',
 '<div class="sp-plug"><svg width="56" height="18" viewBox="-1 -1 20 14" fill="none">',
 '<rect x="0" y="2" width="10" height="8" rx="1.5" stroke="currentColor" stroke-width="1.2" fill="none"/>',
 '<rect x="3" y="4" width="1.5" height="4" rx=".5" fill="currentColor" opacity=".3"/>',

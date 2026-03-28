@@ -363,7 +363,7 @@ export function SwipeableRow({
           }
         }}
         tabIndex={0}
-        className="relative select-none bg-[var(--apple-system-background)]"
+        className="relative select-none bg-inherit"
         style={{ willChange: "transform" }}
         role="button"
       >

@@ -76,7 +76,7 @@ export function ExpenseTabList({ expenses }: { expenses: Expense[] }) {
       </div>
 
       {/* Filtered list */}
-      <div className="glass-card p-3 sm:p-4 lg:p-5 animate-fade-up-3">
+      <div className="animate-fade-up-3">
         <div className="flex items-center justify-between mb-3 sm:mb-4">
           <h2 className="text-[15px] sm:text-base font-semibold text-[var(--apple-label)]">최근 제출</h2>
           <Link
@@ -89,7 +89,7 @@ export function ExpenseTabList({ expenses }: { expenses: Expense[] }) {
         </div>
 
         {filtered.length === 0 ? (
-          <div className="glass-subtle p-6 sm:p-8 text-center">
+          <div className="py-8 sm:py-10 text-center">
             <p className="text-[13px] sm:text-sm text-[var(--apple-secondary-label)]">
               {activeTab === "CORPORATE_CARD" ? "법카사용 내역이 없습니다." : "입금요청 내역이 없습니다."}
             </p>
@@ -182,7 +182,7 @@ function DashboardExpenseRow({ expense, idx }: { expense: Expense; idx: number }
     >
       <div
         className={cn(
-          "flex items-center justify-between gap-2 sm:gap-3 py-2.5 sm:py-3 hover:bg-[rgba(0,0,0,0.03)] rounded-lg px-2 cursor-pointer apple-press transition-all duration-200 bg-[var(--apple-system-background)]",
+          "flex items-center justify-between gap-2 sm:gap-3 py-2.5 sm:py-3 hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.04)] rounded-lg px-2 cursor-pointer apple-press transition-all duration-200",
           "animate-row-enter",
           `stagger-${idx + 3}`
         )}

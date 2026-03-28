@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-// MobileSidebar removed — bottom tab bar replaces sidebar on mobile
+import { ExpenseOneLogo } from "@/components/layout/expense-one-logo";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { createClient } from "@/lib/supabase/client";
 import { useRealtimeNotifications } from "@/hooks/use-realtime-notifications";
@@ -22,15 +22,8 @@ import type { User } from "@/types";
 
 function MobileLogo() {
   return (
-    <div className="flex items-center gap-2 lg:hidden">
-      <div className="flex items-center justify-center size-7 rounded-lg bg-gradient-to-br from-[#007AFF] to-[#5856D6] shadow-[0_1px_4px_rgba(0,122,255,0.25)]">
-        <svg viewBox="0 0 32 32" className="size-4" fill="none">
-          <rect x="8" y="10" width="16" height="2.5" rx="1.25" fill="white" />
-          <rect x="8" y="14.75" width="12" height="2.5" rx="1.25" fill="white" />
-          <rect x="8" y="19.5" width="16" height="2.5" rx="1.25" fill="white" />
-        </svg>
-      </div>
-      <span className="text-[15px] font-bold tracking-[-0.02em] text-[var(--apple-label)]">ExpenseOne</span>
+    <div className="lg:hidden">
+      <ExpenseOneLogo size="sm" />
     </div>
   );
 }

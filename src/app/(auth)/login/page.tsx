@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import { useRouter } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
+import { ExpenseOneLogo } from '@/components/layout/expense-one-logo';
 
 const GOOGLE_CLIENT_ID = (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '').trim();
 
@@ -91,7 +92,7 @@ function LoginContent() {
                 <rect x="8" y="19.5" width="16" height="2.5" rx="1.25" fill="white" />
               </svg>
             </div>
-            <h1 className="text-xl sm:text-[22px] font-bold tracking-[-0.01em] text-[var(--apple-label)]">ExpenseOne</h1>
+            <h1><ExpenseOneLogo size="lg" /></h1>
             <p className="text-sm sm:text-[15px] text-[var(--apple-secondary-label)] mt-1.5">
               팀 비용을 효율적으로 관리하세요
             </p>
