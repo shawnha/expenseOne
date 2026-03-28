@@ -188,6 +188,14 @@ export function SwipeableRow({
       // Decide gesture direction
       if (gestureLockRef.current === null) {
         if (absDX < LOCK_THRESHOLD && absDY < LOCK_THRESHOLD) return;
+
+        // If row is closed and user swipes RIGHT (dx > 0), don't capture —
+        // let the browser handle it (iOS back gesture, etc.)
+        if (!isOpenRef.current && dx > 0) {
+          gestureLockRef.current = "vertical"; // treat as non-ours
+          return;
+        }
+
         gestureLockRef.current = absDX > absDY * 1.4 ? "horizontal" : "vertical";
       }
 
