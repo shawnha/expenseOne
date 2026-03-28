@@ -85,11 +85,10 @@ function LoginContent() {
       <div className="w-full max-w-sm animate-in fade-in slide-in-from-bottom-4 duration-700">
         <div className="glass-strong p-6 sm:p-8 lg:p-10 text-center rounded-2xl">
           <div className="mb-8">
-            <div className="inline-flex items-center justify-center size-16 sm:size-20 rounded-full bg-[var(--apple-blue)] mb-4 sm:mb-5">
-              <svg viewBox="0 0 32 32" className="size-8 sm:size-10" fill="none">
-                <rect x="8" y="10" width="16" height="2.5" rx="1.25" fill="white" />
-                <rect x="8" y="14.75" width="12" height="2.5" rx="1.25" fill="white" />
-                <rect x="8" y="19.5" width="16" height="2.5" rx="1.25" fill="white" />
+            <div className="inline-flex items-center justify-center size-16 sm:size-20 rounded-2xl bg-gradient-to-br from-[#EF3B2D] to-[#D42B1F] shadow-[0_4px_16px_rgba(239,59,45,0.3)] mb-4 sm:mb-5">
+              <svg viewBox="0 0 100 100" className="size-8 sm:size-10" fill="none">
+                <path d="M38 8 A45 45 0 1 0 62 92" stroke="white" strokeWidth="14" strokeLinecap="round" fill="none" />
+                <path d="M62 92 A45 45 0 0 0 38 8" stroke="white" strokeWidth="14" strokeLinecap="round" fill="none" />
               </svg>
             </div>
             <h1><ExpenseOneLogo size="lg" /></h1>

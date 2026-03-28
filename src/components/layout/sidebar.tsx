@@ -127,7 +127,7 @@ function SidebarContent({
     <div className="flex h-full flex-col">
       {/* Logo */}
       <div className="flex h-14 items-center px-4 relative z-[2]">
-        <ExpenseOneLogo size="md" />
+        <ExpenseOneLogo size="md" showIcon />
       </div>
 
       {/* Navigation */}

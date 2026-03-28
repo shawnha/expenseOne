@@ -1,32 +1,71 @@
 import { cn } from "@/lib/utils";
 
 /**
- * HanahOne-style "O" symbol — red crescent circle from brand C.I.
- * Rendered inline at the text's font size via `1em` sizing.
+ * HanahOne-style "O" symbol — two open crescent arcs forming an incomplete circle.
+ * Left arc: large sweep from ~11 o'clock to ~7 o'clock
+ * Right arc: smaller sweep from ~1 o'clock to ~5 o'clock
+ * Gaps at top-left and bottom-right.
  */
 function OneSymbol({ className }: { className?: string }) {
   return (
     <svg
       viewBox="0 0 100 100"
       fill="none"
-      className={cn("inline-block size-[0.75em] -ml-[0.05em] align-baseline", className)}
+      className={cn("inline-block size-[0.85em] align-[-0.08em]", className)}
       aria-hidden="true"
     >
+      {/* Left crescent: from ~40°(top-right area) counter-clockwise to ~320°(bottom-left area) */}
       <path
-        d="M50 5 C25 5 5 25 5 50 C5 75 25 95 50 95"
+        d="M38 8 A45 45 0 1 0 62 92"
         stroke="#EF3B2D"
-        strokeWidth="14"
+        strokeWidth="12"
         strokeLinecap="round"
         fill="none"
       />
+      {/* Right crescent: from ~320° clockwise to ~40° */}
       <path
-        d="M50 5 C75 5 95 25 95 50 C95 75 75 95 50 95"
+        d="M62 92 A45 45 0 0 0 38 8"
         stroke="#EF3B2D"
-        strokeWidth="14"
+        strokeWidth="12"
         strokeLinecap="round"
         fill="none"
       />
     </svg>
+  );
+}
+
+/**
+ * App icon — red circle symbol on white/dark rounded square
+ */
+function AppIcon({ size = "md" }: { size?: "sm" | "md" }) {
+  const sizeClass = size === "sm" ? "size-7" : "size-8";
+  const svgSize = size === "sm" ? "size-4" : "size-5";
+  return (
+    <div
+      className={cn(
+        sizeClass,
+        "flex items-center justify-center rounded-xl",
+        "bg-gradient-to-br from-[#EF3B2D] to-[#D42B1F]",
+        "shadow-[0_2px_8px_rgba(239,59,45,0.3)]"
+      )}
+    >
+      <svg viewBox="0 0 100 100" fill="none" className={svgSize}>
+        <path
+          d="M38 8 A45 45 0 1 0 62 92"
+          stroke="white"
+          strokeWidth="14"
+          strokeLinecap="round"
+          fill="none"
+        />
+        <path
+          d="M62 92 A45 45 0 0 0 38 8"
+          stroke="white"
+          strokeWidth="14"
+          strokeLinecap="round"
+          fill="none"
+        />
+      </svg>
+    </div>
   );
 }
 
@@ -36,9 +75,11 @@ function OneSymbol({ className }: { className?: string }) {
  */
 export function ExpenseOneLogo({
   size = "md",
+  showIcon = false,
   className,
 }: {
   size?: "sm" | "md" | "lg" | "xl";
+  showIcon?: boolean;
   className?: string;
 }) {
   const sizeClasses = {
@@ -51,15 +92,19 @@ export function ExpenseOneLogo({
   return (
     <span
       className={cn(
-        "font-bold tracking-[-0.02em] text-[var(--apple-label)]",
+        "inline-flex items-center font-bold tracking-[-0.02em] text-[var(--apple-label)]",
         sizeClasses[size],
+        showIcon && "gap-2.5",
         className
       )}
     >
-      Expense
-      <span className="text-[#EF3B2D]">
-        <OneSymbol />
-        ne
+      {showIcon && <AppIcon size={size === "sm" ? "sm" : "md"} />}
+      <span>
+        Expense
+        <span className="text-[#EF3B2D]">
+          <OneSymbol />
+          ne
+        </span>
       </span>
     </span>
   );
