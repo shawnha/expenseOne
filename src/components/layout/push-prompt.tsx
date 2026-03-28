@@ -90,7 +90,7 @@ export function PushPrompt() {
   if (!showBanner) return null;
 
   return (
-    <div className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] left-4 right-4 z-50 p-3 rounded-2xl backdrop-blur-xl bg-white/90 dark:bg-black/90 shadow-2xl border border-[var(--apple-separator)] flex items-center gap-3 animate-fade-up">
+    <div className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] lg:bottom-[calc(1.5rem+env(safe-area-inset-bottom))] max-lg:bottom-[calc(66px+env(safe-area-inset-bottom,0px)+0.75rem)] left-4 right-4 z-50 p-3 rounded-2xl backdrop-blur-xl bg-white/90 dark:bg-black/90 shadow-2xl border border-[var(--apple-separator)] flex items-center gap-3 animate-fade-up">
       <div className="flex items-center justify-center size-10 rounded-xl bg-[var(--apple-blue)]/10 shrink-0">
         <Bell className="size-5 text-[var(--apple-blue)]" />
       </div>

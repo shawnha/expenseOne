@@ -192,53 +192,11 @@ export function Sidebar({ user }: SidebarProps) {
 export function MobileSidebar({ user }: SidebarProps) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
-  const touchStartX = useRef(0);
-  const touchStartY = useRef(0);
 
   // Close sidebar whenever page changes (back gesture, link tap, etc.)
   React.useEffect(() => {
     setOpen(false);
   }, [pathname]);
-
-  // Edge swipe from left to open sidebar
-  // Only enabled in standalone PWA mode — in Safari browser the left-edge
-  // swipe is reserved for the native back gesture.
-  React.useEffect(() => {
-    const isStandalone =
-      typeof window !== "undefined" &&
-      (("standalone" in window.navigator &&
-        (window.navigator as unknown as { standalone: boolean }).standalone) ||
-        window.matchMedia("(display-mode: standalone)").matches);
-
-    if (!isStandalone) return; // Safari browser — don't intercept edge swipe
-
-    let edgeSwipe = false;
-    const onTouchStart = (e: TouchEvent) => {
-      touchStartX.current = e.touches[0].clientX;
-      touchStartY.current = e.touches[0].clientY;
-      edgeSwipe = touchStartX.current < 30;
-    };
-    const onTouchMove = (e: TouchEvent) => {
-      if (!edgeSwipe) return;
-      const deltaX = e.touches[0].clientX - touchStartX.current;
-      const deltaY = Math.abs(e.touches[0].clientY - touchStartY.current);
-      if (deltaX > 30 && deltaY < 80) {
-        edgeSwipe = false;
-        setOpen(true);
-      }
-    };
-    const onTouchEnd = () => {
-      edgeSwipe = false;
-    };
-    document.addEventListener("touchstart", onTouchStart, { passive: true });
-    document.addEventListener("touchmove", onTouchMove, { passive: true });
-    document.addEventListener("touchend", onTouchEnd, { passive: true });
-    return () => {
-      document.removeEventListener("touchstart", onTouchStart);
-      document.removeEventListener("touchmove", onTouchMove);
-      document.removeEventListener("touchend", onTouchEnd);
-    };
-  }, []);
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>

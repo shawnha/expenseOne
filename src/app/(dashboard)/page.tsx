@@ -268,10 +268,10 @@ export default function DashboardHomePage() {
         <DashboardContent />
       </Suspense>
 
-      {/* Floating action button — renders immediately */}
+      {/* FAB — desktop only (mobile has bottom tab bar) */}
       <Link
         href="/expenses/new"
-        className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-6 z-50 flex items-center justify-center size-14 rounded-full bg-[var(--apple-blue)] text-white shadow-[0_4px_16px_rgba(0,122,255,0.4)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] hover:shadow-[0_6px_20px_rgba(0,122,255,0.5)] hover:scale-105 active:scale-95 transition-all duration-200"
+        className="hidden lg:flex fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-6 z-50 items-center justify-center size-14 rounded-full bg-[var(--apple-blue)] text-white shadow-[0_4px_16px_rgba(0,122,255,0.4)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] hover:shadow-[0_6px_20px_rgba(0,122,255,0.5)] hover:scale-105 active:scale-95 transition-all duration-200"
       >
         <Plus className="size-6" />
       </Link>
