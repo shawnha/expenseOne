@@ -860,7 +860,7 @@ export default function DepositRequestPage() {
         </div>
 
         {/* 버튼 */}
-        <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end sticky bottom-4 sm:static z-10 bg-[var(--background)]/80 backdrop-blur-md sm:bg-transparent sm:backdrop-blur-none p-3 -mx-3 sm:mx-0 sm:p-0 rounded-2xl sm:rounded-none">
+        <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <Link href="/expenses" className="w-full sm:w-auto">
             <Button type="button" variant="outline" className="w-full rounded-full h-11 glass border-[var(--apple-separator)]">
               취소
