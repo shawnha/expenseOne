@@ -23,7 +23,7 @@ import type { User } from "@/types";
 function MobileLogo() {
   return (
     <div className="lg:hidden">
-      <ExpenseOneLogo size="sm" />
+      <ExpenseOneLogo size="sm" showIcon />
     </div>
   );
 }
