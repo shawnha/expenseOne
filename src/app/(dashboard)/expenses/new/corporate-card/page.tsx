@@ -37,6 +37,7 @@ export default function CorporateCardPage() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [amountDisplay, setAmountDisplay] = useState("");
   const [showCustomCategory, setShowCustomCategory] = useState(false);
+  const [showCustomMerchant, setShowCustomMerchant] = useState(false);
 
   // VAT / 프리랜서 원천징수
   const [vatIncluded, setVatIncluded] = useState(false);
@@ -407,13 +408,63 @@ export default function CorporateCardPage() {
               )}
             </div>
 
-            {/* 가맹점명 */}
+            {/* 가맹점명 — 버튼 토글 + 직접 입력 */}
             <div className="space-y-1.5">
-              <Label htmlFor="merchantName">가맹점명</Label>
-              <Input
-                id="merchantName"
-                placeholder="예: 교보문고"
-                {...register("merchantName")}
+              <Label>가맹점명</Label>
+              <Controller
+                name="merchantName"
+                control={control}
+                render={({ field }) => (
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { value: "쿠팡", label: "쿠팡" },
+                        { value: "네이버", label: "네이버" },
+                        { value: "기타", label: "기타" },
+                      ].map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => {
+                            field.onChange(opt.value);
+                            setShowCustomMerchant(false);
+                          }}
+                          className={cn(
+                            "px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors border",
+                            field.value === opt.value && !showCustomMerchant
+                              ? "bg-[var(--apple-blue)] text-white border-[var(--apple-blue)]"
+                              : "glass-subtle border-[var(--apple-separator)] text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]"
+                          )}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowCustomMerchant(true);
+                          field.onChange("");
+                        }}
+                        className={cn(
+                          "px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors border",
+                          showCustomMerchant
+                            ? "bg-[var(--apple-blue)] text-white border-[var(--apple-blue)]"
+                            : "glass-subtle border-[var(--apple-separator)] text-[var(--apple-secondary-label)] hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]"
+                        )}
+                      >
+                        + 직접 입력
+                      </button>
+                    </div>
+                    {showCustomMerchant && (
+                      <Input
+                        placeholder="가맹점명을 직접 입력하세요"
+                        value={field.value ?? ""}
+                        onChange={(e) => field.onChange(e.target.value)}
+                        className="mt-1"
+                      />
+                    )}
+                  </div>
+                )}
               />
               {errors.merchantName && (
                 <p className="text-xs text-[var(--apple-red)]">
