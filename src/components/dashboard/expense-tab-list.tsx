@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { formatAmount } from "@/lib/validations/expense-form";
 import { SwipeableGroup, SwipeableRow, type SwipeAction } from "@/components/ui/swipeable-row";
-import { CreditCard, Banknote, ArrowRight, Eye, Pencil, Trash2 } from "lucide-react";
+import { CreditCard, Banknote, ArrowRight, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { ExpenseStatus } from "@/types";
 
@@ -122,14 +122,6 @@ function DashboardExpenseRow({ expense, idx }: { expense: Expense; idx: number }
 
   const actions: SwipeAction[] = useMemo(() => {
     const result: SwipeAction[] = [];
-
-    result.push({
-      key: "view",
-      icon: <Eye className="size-5" strokeWidth={2} />,
-      label: "보기",
-      color: "var(--apple-blue)",
-      onAction: () => router.push(`/expenses/${expense.id}`),
-    });
 
     if (canEdit) {
       result.push({
