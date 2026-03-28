@@ -200,8 +200,18 @@ export function MobileSidebar({ user }: SidebarProps) {
     setOpen(false);
   }, [pathname]);
 
-  // Edge swipe from left to open sidebar — touchmove-based for instant response
+  // Edge swipe from left to open sidebar
+  // Only enabled in standalone PWA mode — in Safari browser the left-edge
+  // swipe is reserved for the native back gesture.
   React.useEffect(() => {
+    const isStandalone =
+      typeof window !== "undefined" &&
+      (("standalone" in window.navigator &&
+        (window.navigator as unknown as { standalone: boolean }).standalone) ||
+        window.matchMedia("(display-mode: standalone)").matches);
+
+    if (!isStandalone) return; // Safari browser — don't intercept edge swipe
+
     let edgeSwipe = false;
     const onTouchStart = (e: TouchEvent) => {
       touchStartX.current = e.touches[0].clientX;
@@ -212,7 +222,6 @@ export function MobileSidebar({ user }: SidebarProps) {
       if (!edgeSwipe) return;
       const deltaX = e.touches[0].clientX - touchStartX.current;
       const deltaY = Math.abs(e.touches[0].clientY - touchStartY.current);
-      // Open as soon as horizontal swipe threshold is met (during swipe, not after)
       if (deltaX > 30 && deltaY < 80) {
         edgeSwipe = false;
         setOpen(true);
