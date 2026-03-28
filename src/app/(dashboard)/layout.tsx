@@ -7,6 +7,7 @@ import { PullToRefresh } from "@/components/layout/pull-to-refresh";
 import { SplashDismiss } from "@/components/layout/splash-dismiss";
 import { PushPrompt } from "@/components/layout/push-prompt";
 import { Toaster } from "@/components/ui/sonner";
+import { SwUpdatePrompt } from "@/components/layout/sw-update-prompt";
 import type { User } from "@/types";
 
 export default async function DashboardLayout({
@@ -121,6 +122,7 @@ export default async function DashboardLayout({
     <>
       <PullToRefresh />
       <PushPrompt />
+      <SwUpdatePrompt />
       <Toaster position="top-center" richColors />
       <div className="flex h-dvh overflow-hidden">
         {/* Desktop Sidebar */}
