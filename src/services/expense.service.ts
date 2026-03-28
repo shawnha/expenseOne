@@ -284,7 +284,10 @@ export async function updateExpense(
   expenseId: string,
   input: UpdateExpenseInput,
   userId: string,
+  userRole?: "MEMBER" | "ADMIN",
 ) {
+  const isAdmin = userRole === "ADMIN";
+
   // 1. Fetch existing expense
   const [expense] = await db
     .select()
@@ -295,13 +298,13 @@ export async function updateExpense(
     throw new AppError("NOT_FOUND", "비용을 찾을 수 없습니다.");
   }
 
-  // 2. Only the submitter can update
-  if (expense.submittedById !== userId) {
+  // 2. Only the submitter can update (admins can edit any expense)
+  if (!isAdmin && expense.submittedById !== userId) {
     throw new AppError("FORBIDDEN", "본인이 제출한 비용만 수정할 수 있습니다.");
   }
 
-  // 3. Check update eligibility — both types editable in SUBMITTED or APPROVED
-  if (expense.status !== "SUBMITTED" && expense.status !== "APPROVED") {
+  // 3. Check update eligibility — admins can edit any status
+  if (!isAdmin && expense.status !== "SUBMITTED" && expense.status !== "APPROVED") {
     throw new AppError(
       "FORBIDDEN",
       "제출 또는 승인 상태의 비용만 수정할 수 있습니다.",
@@ -312,28 +315,42 @@ export async function updateExpense(
   //    to guard against concurrent state changes (TOCTOU).
   const updateConditions = [
     eq(expenses.id, expenseId),
-    eq(expenses.submittedById, userId),
   ];
 
-  updateConditions.push(
-    or(
-      eq(expenses.status, "SUBMITTED"),
-      eq(expenses.status, "APPROVED"),
-    )!,
-  );
+  // Non-admin: enforce ownership and status constraints
+  if (!isAdmin) {
+    updateConditions.push(eq(expenses.submittedById, userId));
+    updateConditions.push(
+      or(
+        eq(expenses.status, "SUBMITTED"),
+        eq(expenses.status, "APPROVED"),
+      )!,
+    );
+  }
 
-  // If an approved deposit request is edited, reset status to SUBMITTED (needs re-approval)
+  // Build the update set
+  const { status: inputStatus, ...restInput } = input;
+
+  // If an approved deposit request is edited by a non-admin, reset status to SUBMITTED (needs re-approval)
   const wasApproved = expense.type === "DEPOSIT_REQUEST" && expense.status === "APPROVED";
+
+  const updateSet: Record<string, unknown> = {
+    ...restInput,
+    updatedAt: new Date(),
+  };
+
+  // Admin can explicitly set status
+  if (inputStatus && isAdmin) {
+    updateSet.status = inputStatus;
+  } else if (wasApproved && !isAdmin) {
+    updateSet.status = "SUBMITTED";
+    updateSet.approvedById = null;
+    updateSet.approvedAt = null;
+  }
 
   const [updated] = await db
     .update(expenses)
-    .set({
-      ...input,
-      updatedAt: new Date(),
-      ...(wasApproved
-        ? { status: "SUBMITTED" as const, approvedById: null, approvedAt: null }
-        : {}),
-    })
+    .set(updateSet)
     .where(and(...updateConditions))
     .returning();
 

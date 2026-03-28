@@ -45,7 +45,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       );
     }
 
-    const updated = await updateExpense(id, parsed.data, user.id);
+    const updated = await updateExpense(id, parsed.data, user.id, user.role);
 
     revalidatePath("/");
     revalidatePath("/expenses");

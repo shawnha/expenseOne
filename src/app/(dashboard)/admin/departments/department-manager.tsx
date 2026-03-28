@@ -1,13 +1,11 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import {
   Plus,
   Pencil,
   Trash2,
-  Check,
-  X,
   Loader2,
   ChevronUp,
   ChevronDown,
@@ -16,6 +14,12 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { SwipeableGroup, SwipeableRow } from "@/components/ui/swipeable-row";
 import type { SwipeAction } from "@/components/ui/swipeable-row";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface Department {
   id: string;
@@ -74,12 +78,17 @@ export function DepartmentManager({ initialDepartments }: DepartmentManagerProps
     }
   };
 
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const editInputRef = useRef<HTMLInputElement>(null);
+
   const handleEdit = (dept: Department) => {
     setEditingId(dept.id);
     setEditName(dept.name);
+    setEditDialogOpen(true);
   };
 
   const handleCancelEdit = () => {
+    setEditDialogOpen(false);
     setEditingId(null);
     setEditName("");
   };
@@ -102,6 +111,7 @@ export function DepartmentManager({ initialDepartments }: DepartmentManagerProps
       }
 
       toast.success("부서가 수정되었습니다.");
+      setEditDialogOpen(false);
       setEditingId(null);
       setEditName("");
       await refreshDepartments();
@@ -250,8 +260,8 @@ export function DepartmentManager({ initialDepartments }: DepartmentManagerProps
               <SwipeableRow
                 key={dept.id}
                 id={dept.id}
-                actions={editingId === dept.id ? [] : getActions(dept)}
-                enabled={editingId !== dept.id}
+                actions={getActions(dept)}
+                enabled
                 className="rounded-xl"
               >
                 <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[rgba(0,0,0,0.03)] transition-colors group">
@@ -277,48 +287,9 @@ export function DepartmentManager({ initialDepartments }: DepartmentManagerProps
 
                   {/* Department name */}
                   <div className="flex-1 min-w-0">
-                    {editingId === dept.id ? (
-                      <div className="flex items-center gap-2">
-                        <Input
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          maxLength={100}
-                          className="h-8 text-sm flex-1"
-                          autoFocus
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") handleSaveEdit(dept.id);
-                            if (e.key === "Escape") handleCancelEdit();
-                          }}
-                        />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-8 rounded-full text-[var(--apple-green)] hover:bg-[rgba(52,199,89,0.1)] shrink-0"
-                          onClick={() => handleSaveEdit(dept.id)}
-                          disabled={savingId === dept.id || !editName.trim()}
-                          aria-label="저장"
-                        >
-                          {savingId === dept.id ? (
-                            <Loader2 className="size-4 animate-spin" />
-                          ) : (
-                            <Check className="size-4" />
-                          )}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-8 rounded-full text-[var(--apple-secondary-label)] hover:bg-[rgba(0,0,0,0.06)] shrink-0"
-                          onClick={handleCancelEdit}
-                          aria-label="취소"
-                        >
-                          <X className="size-4" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <span className="text-sm font-medium text-[var(--apple-label)]">
-                        {dept.name}
-                      </span>
-                    )}
+                    <span className="text-sm font-medium text-[var(--apple-label)]">
+                      {dept.name}
+                    </span>
                   </div>
                 </div>
               </SwipeableRow>
@@ -326,6 +297,57 @@ export function DepartmentManager({ initialDepartments }: DepartmentManagerProps
           </div>
         </SwipeableGroup>
       )}
+
+      {/* Edit department dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={(open) => {
+        if (!open) handleCancelEdit();
+      }}>
+        <DialogContent
+          showCloseButton={false}
+          className="glass border-0 ring-1 ring-white/20 shadow-2xl"
+        >
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold text-[var(--apple-label)]">
+              부서명 수정
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <Input
+              ref={editInputRef}
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              maxLength={100}
+              placeholder="부서명"
+              className="w-full"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && editingId) handleSaveEdit(editingId);
+                if (e.key === "Escape") handleCancelEdit();
+              }}
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button
+              variant="ghost"
+              className="rounded-full h-9 px-5 text-[var(--apple-secondary-label)]"
+              onClick={handleCancelEdit}
+            >
+              취소
+            </Button>
+            <Button
+              className="rounded-full h-9 px-5 bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] text-white"
+              onClick={() => editingId && handleSaveEdit(editingId)}
+              disabled={savingId !== null || !editName.trim()}
+            >
+              {savingId !== null ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                "저장"
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

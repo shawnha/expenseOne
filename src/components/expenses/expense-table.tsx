@@ -15,7 +15,8 @@ import { formatAmount } from "@/lib/validations/expense-form";
 import { getCategoryLabel } from "@/lib/utils/expense-utils";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { Eye, Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
+import { AdminQuickEditDialog } from "@/components/expenses/admin-quick-edit-dialog";
 import type { ExpenseType, ExpenseStatus } from "@/types";
 
 interface ExpenseRow {
@@ -84,6 +85,8 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [editExpense, setEditExpense] = useState<ExpenseRow | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   const handleAdminDelete = useCallback(async (expenseId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -109,6 +112,11 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
     }
   }, [confirmId, router]);
 
+  const handleQuickEdit = useCallback((expense: ExpenseRow) => {
+    setEditExpense(expense);
+    setEditDialogOpen(true);
+  }, []);
+
   return (
     <>
       {/* Desktop table */}
@@ -123,7 +131,7 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
               <TableHead className="w-[72px]">상태</TableHead>
               <TableHead className="w-[100px]">제출일</TableHead>
               {showSubmitter && <TableHead className="w-[80px]">제출자</TableHead>}
-              {isAdmin && <TableHead className="text-center w-[72px]">작업</TableHead>}
+              {isAdmin && <TableHead className="text-center w-[100px]">작업</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -170,22 +178,33 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
                     <TableCell className="text-[var(--apple-secondary-label)]">{expense.submitter?.name ?? "-"}</TableCell>
                   )}
                   {isAdmin && (
-                    <TableCell className="text-center w-[72px]">
-                      {canAdminDelete && (
+                    <TableCell className="text-center w-[100px]">
+                      <div className="flex items-center justify-center gap-1">
                         <button
-                          onClick={(e) => handleAdminDelete(expense.id, e)}
-                          disabled={deletingId === expense.id}
-                          className={cn(
-                            "px-2.5 py-1 text-xs font-medium rounded-full transition-colors apple-press",
-                            confirmId === expense.id
-                              ? "bg-[var(--apple-red)] text-white hover:bg-[color-mix(in_srgb,var(--apple-red)_85%,black)]"
-                              : "text-[var(--apple-red)] hover:bg-[rgba(255,59,48,0.1)]"
-                          )}
-                          onBlur={() => setConfirmId(null)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleQuickEdit(expense);
+                          }}
+                          className="px-2.5 py-1 text-xs font-medium rounded-full text-[var(--apple-orange)] hover:bg-[rgba(255,149,0,0.1)] transition-colors apple-press"
                         >
-                          {deletingId === expense.id ? "..." : confirmId === expense.id ? "확인" : "삭제"}
+                          수정
                         </button>
-                      )}
+                        {canAdminDelete && (
+                          <button
+                            onClick={(e) => handleAdminDelete(expense.id, e)}
+                            disabled={deletingId === expense.id}
+                            className={cn(
+                              "px-2.5 py-1 text-xs font-medium rounded-full transition-colors apple-press",
+                              confirmId === expense.id
+                                ? "bg-[var(--apple-red)] text-white hover:bg-[color-mix(in_srgb,var(--apple-red)_85%,black)]"
+                                : "text-[var(--apple-red)] hover:bg-[rgba(255,59,48,0.1)]"
+                            )}
+                            onBlur={() => setConfirmId(null)}
+                          >
+                            {deletingId === expense.id ? "..." : confirmId === expense.id ? "확인" : "삭제"}
+                          </button>
+                        )}
+                      </div>
                     </TableCell>
                   )}
                 </TableRow>
@@ -203,10 +222,21 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
               key={expense.id}
               expense={expense}
               showSubmitter={showSubmitter}
+              isAdmin={isAdmin}
+              onQuickEdit={handleQuickEdit}
             />
           ))}
         </div>
       </SwipeableGroup>
+
+      {/* Admin quick edit dialog */}
+      {isAdmin && (
+        <AdminQuickEditDialog
+          expense={editExpense}
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+        />
+      )}
     </>
   );
 }
@@ -218,38 +248,46 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
 function MobileExpenseCard({
   expense,
   showSubmitter,
+  isAdmin,
+  onQuickEdit,
 }: {
   expense: ExpenseRow;
   showSubmitter: boolean;
+  isAdmin: boolean;
+  onQuickEdit: (expense: ExpenseRow) => void;
 }) {
   const router = useRouter();
   const typeInfo = TYPE_LABELS[expense.type];
   const statusInfo = STATUS_LABELS[expense.status];
 
   const canDelete = ["SUBMITTED", "CANCELLED", "APPROVED"].includes(expense.status);
-  const canEdit = ["SUBMITTED", "APPROVED"].includes(expense.status);
 
   const actions: SwipeAction[] = useMemo(() => {
     const result: SwipeAction[] = [];
 
-    result.push({
-      key: "view",
-      icon: <Eye className="size-5" strokeWidth={2} />,
-      label: "보기",
-      color: "var(--apple-blue)",
-      activeColor: "color-mix(in srgb, var(--apple-blue) 85%, black)",
-      onAction: () => router.push(`/expenses/${expense.id}`),
-    });
-
-    if (canEdit) {
+    if (isAdmin) {
+      // Admin: swipe shows edit (quick popup) and delete
       result.push({
         key: "edit",
         icon: <Pencil className="size-5" strokeWidth={2} />,
         label: "수정",
         color: "var(--apple-orange)",
         activeColor: "color-mix(in srgb, var(--apple-orange) 85%, black)",
-        onAction: () => router.push(`/expenses/${expense.id}/edit`),
+        onAction: () => onQuickEdit(expense),
       });
+    } else {
+      // Member: swipe shows edit (navigate to edit page)
+      const canEdit = ["SUBMITTED", "APPROVED"].includes(expense.status);
+      if (canEdit) {
+        result.push({
+          key: "edit",
+          icon: <Pencil className="size-5" strokeWidth={2} />,
+          label: "수정",
+          color: "var(--apple-orange)",
+          activeColor: "color-mix(in srgb, var(--apple-orange) 85%, black)",
+          onAction: () => router.push(`/expenses/${expense.id}/edit`),
+        });
+      }
     }
 
     if (canDelete) {
@@ -279,7 +317,7 @@ function MobileExpenseCard({
     }
 
     return result;
-  }, [expense.id, canEdit, canDelete, router]);
+  }, [expense, isAdmin, canDelete, router, onQuickEdit]);
 
   return (
     <SwipeableRow
