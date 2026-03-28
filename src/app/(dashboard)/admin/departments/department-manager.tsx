@@ -9,12 +9,13 @@ import {
   Check,
   X,
   Loader2,
-  GripVertical,
   ChevronUp,
   ChevronDown,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { SwipeableGroup, SwipeableRow } from "@/components/ui/swipeable-row";
+import type { SwipeAction } from "@/components/ui/swipeable-row";
 
 interface Department {
   id: string;
@@ -139,7 +140,6 @@ export function DepartmentManager({ initialDepartments }: DepartmentManagerProps
     const dept = departments[index];
     const prev = departments[index - 1];
 
-    // Swap sort orders
     setSavingId(dept.id);
     try {
       await Promise.all([
@@ -189,6 +189,25 @@ export function DepartmentManager({ initialDepartments }: DepartmentManagerProps
     }
   };
 
+  const getActions = (dept: Department): SwipeAction[] => [
+    {
+      key: "edit",
+      icon: <Pencil className="size-4" />,
+      label: "수정",
+      color: "var(--apple-orange, #FF9500)",
+      onAction: () => handleEdit(dept),
+    },
+    {
+      key: "delete",
+      icon: <Trash2 className="size-4" />,
+      label: "삭제",
+      color: "var(--apple-red, #FF3B30)",
+      requireConfirm: true,
+      confirmLabel: "확인?",
+      onAction: () => handleDelete(dept.id),
+    },
+  ];
+
   return (
     <div className="glass p-6 animate-card-enter stagger-1">
       {/* Add new department */}
@@ -225,112 +244,87 @@ export function DepartmentManager({ initialDepartments }: DepartmentManagerProps
           등록된 부서가 없습니다.
         </div>
       ) : (
-        <div className="space-y-1">
-          {departments.map((dept, index) => (
-            <div
-              key={dept.id}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[rgba(0,0,0,0.03)] transition-colors group"
-            >
-              {/* Reorder buttons */}
-              <div className="flex flex-col gap-0.5 opacity-40 group-hover:opacity-100 transition-opacity">
-                <button
-                  onClick={() => handleMoveUp(index)}
-                  disabled={index === 0 || savingId === dept.id}
-                  className="p-0.5 rounded hover:bg-[rgba(0,0,0,0.06)] disabled:opacity-20 disabled:cursor-not-allowed"
-                  aria-label="위로 이동"
-                >
-                  <ChevronUp className="size-3.5" />
-                </button>
-                <button
-                  onClick={() => handleMoveDown(index)}
-                  disabled={index === departments.length - 1 || savingId === dept.id}
-                  className="p-0.5 rounded hover:bg-[rgba(0,0,0,0.06)] disabled:opacity-20 disabled:cursor-not-allowed"
-                  aria-label="아래로 이동"
-                >
-                  <ChevronDown className="size-3.5" />
-                </button>
-              </div>
+        <SwipeableGroup>
+          <div className="space-y-1">
+            {departments.map((dept, index) => (
+              <SwipeableRow
+                key={dept.id}
+                id={dept.id}
+                actions={editingId === dept.id ? [] : getActions(dept)}
+                enabled={editingId !== dept.id}
+                className="rounded-xl"
+              >
+                <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[rgba(0,0,0,0.03)] transition-colors group">
+                  {/* Reorder buttons */}
+                  <div className="flex flex-col gap-0.5 opacity-40 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => handleMoveUp(index)}
+                      disabled={index === 0 || savingId === dept.id}
+                      className="p-0.5 rounded hover:bg-[rgba(0,0,0,0.06)] disabled:opacity-20 disabled:cursor-not-allowed"
+                      aria-label="위로 이동"
+                    >
+                      <ChevronUp className="size-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleMoveDown(index)}
+                      disabled={index === departments.length - 1 || savingId === dept.id}
+                      className="p-0.5 rounded hover:bg-[rgba(0,0,0,0.06)] disabled:opacity-20 disabled:cursor-not-allowed"
+                      aria-label="아래로 이동"
+                    >
+                      <ChevronDown className="size-3.5" />
+                    </button>
+                  </div>
 
-              {/* Department name */}
-              <div className="flex-1 min-w-0">
-                {editingId === dept.id ? (
-                  <Input
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    maxLength={100}
-                    className="h-8 text-sm"
-                    autoFocus
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleSaveEdit(dept.id);
-                      if (e.key === "Escape") handleCancelEdit();
-                    }}
-                  />
-                ) : (
-                  <span className="text-sm font-medium text-[var(--apple-label)]">
-                    {dept.name}
-                  </span>
-                )}
-              </div>
-
-              {/* Actions */}
-              <div className="flex items-center gap-1">
-                {editingId === dept.id ? (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 rounded-full text-[var(--apple-green)] hover:bg-[rgba(52,199,89,0.1)]"
-                      onClick={() => handleSaveEdit(dept.id)}
-                      disabled={savingId === dept.id || !editName.trim()}
-                      aria-label="저장"
-                    >
-                      {savingId === dept.id ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <Check className="size-4" />
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 rounded-full text-[var(--apple-secondary-label)] hover:bg-[rgba(0,0,0,0.06)]"
-                      onClick={handleCancelEdit}
-                      aria-label="취소"
-                    >
-                      <X className="size-4" />
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 rounded-full text-[var(--apple-secondary-label)] hover:bg-[rgba(0,0,0,0.06)] opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => handleEdit(dept)}
-                      aria-label="수정"
-                    >
-                      <Pencil className="size-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 rounded-full text-[var(--apple-red,#FF3B30)] hover:bg-[rgba(255,59,48,0.1)] opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => handleDelete(dept.id)}
-                      disabled={deletingId === dept.id}
-                      aria-label="삭제"
-                    >
-                      {deletingId === dept.id ? (
-                        <Loader2 className="size-3.5 animate-spin" />
-                      ) : (
-                        <Trash2 className="size-3.5" />
-                      )}
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
+                  {/* Department name */}
+                  <div className="flex-1 min-w-0">
+                    {editingId === dept.id ? (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          maxLength={100}
+                          className="h-8 text-sm flex-1"
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSaveEdit(dept.id);
+                            if (e.key === "Escape") handleCancelEdit();
+                          }}
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 rounded-full text-[var(--apple-green)] hover:bg-[rgba(52,199,89,0.1)] shrink-0"
+                          onClick={() => handleSaveEdit(dept.id)}
+                          disabled={savingId === dept.id || !editName.trim()}
+                          aria-label="저장"
+                        >
+                          {savingId === dept.id ? (
+                            <Loader2 className="size-4 animate-spin" />
+                          ) : (
+                            <Check className="size-4" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 rounded-full text-[var(--apple-secondary-label)] hover:bg-[rgba(0,0,0,0.06)] shrink-0"
+                          onClick={handleCancelEdit}
+                          aria-label="취소"
+                        >
+                          <X className="size-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <span className="text-sm font-medium text-[var(--apple-label)]">
+                        {dept.name}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </SwipeableRow>
+            ))}
+          </div>
+        </SwipeableGroup>
       )}
     </div>
   );
