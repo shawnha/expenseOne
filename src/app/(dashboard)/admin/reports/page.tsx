@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
+  Building2,
   Download,
   Loader2,
 } from "lucide-react";
@@ -48,6 +49,13 @@ interface ReportSummary {
   totalAmount: number;
 }
 
+interface DepartmentBreakdown {
+  department: string;
+  totalAmount: number;
+  count: number;
+  approvedAmount: number;
+}
+
 export default function AdminReportsPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -60,6 +68,8 @@ export default function AdminReportsPage() {
   });
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [deptData, setDeptData] = useState<DepartmentBreakdown[]>([]);
+  const [deptLoading, setDeptLoading] = useState(false);
 
   const buildParams = useCallback(() => {
     const params = new URLSearchParams();
@@ -94,9 +104,28 @@ export default function AdminReportsPage() {
     }
   }, [buildParams]);
 
+  const fetchDeptBreakdown = useCallback(async () => {
+    setDeptLoading(true);
+    try {
+      const params = buildParams();
+      const res = await fetch(`/api/admin/reports/department?${params.toString()}`);
+      if (res.ok) {
+        const json = await res.json();
+        setDeptData(json.data ?? []);
+      } else {
+        setDeptData([]);
+      }
+    } catch {
+      setDeptData([]);
+    } finally {
+      setDeptLoading(false);
+    }
+  }, [buildParams]);
+
   useEffect(() => {
     fetchSummary();
-  }, [fetchSummary]);
+    fetchDeptBreakdown();
+  }, [fetchSummary, fetchDeptBreakdown]);
 
   const handleDownload = async () => {
     setDownloading(true);
@@ -238,6 +267,61 @@ export default function AdminReportsPage() {
           </Button>
         </div>
       </div>
+
+      {/* Department Breakdown */}
+      <div className="glass p-4 sm:p-5 lg:p-6 animate-fade-up-1">
+        <div className="flex items-center gap-2 mb-5">
+          <Building2 className="size-4 text-[var(--apple-blue)]" />
+          <h2 className="text-[15px] font-semibold text-[var(--apple-label)]">부서별 비용</h2>
+        </div>
+        {deptLoading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="size-5 animate-spin text-[var(--apple-blue)]" />
+          </div>
+        ) : deptData.length === 0 ? (
+          <p className="py-6 text-center text-sm text-[var(--apple-secondary-label)]">데이터가 없습니다</p>
+        ) : (
+          <DepartmentBarChart data={deptData} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Department horizontal bar chart
+// ---------------------------------------------------------------------------
+
+function DepartmentBarChart({ data }: { data: DepartmentBreakdown[] }) {
+  const maxValue = Math.max(...data.map((d) => d.totalAmount), 1);
+
+  return (
+    <div className="space-y-4">
+      {data.map((item, idx) => {
+        const pct = (item.totalAmount / maxValue) * 100;
+        return (
+          <div key={item.department} className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="flex items-center justify-center size-6 rounded-full bg-[rgba(0,122,255,0.08)] text-[11px] font-bold text-[var(--apple-blue)] tabular-nums">
+                  {idx + 1}
+                </span>
+                <span className="text-[13px] font-medium text-[var(--apple-label)]">{item.department}</span>
+                <span className="text-[11px] text-[var(--apple-secondary-label)] tabular-nums">{item.count}건</span>
+              </div>
+              <span className="shrink-0 text-[13px] font-semibold tabular-nums text-[var(--apple-label)]">
+                {formatAmount(item.totalAmount)}원
+              </span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-[rgba(0,0,0,0.04)] dark:bg-[rgba(255,255,255,0.06)]">
+              <div
+                className="h-full rounded-full progress-bar-gradient-blue transition-all duration-700 ease-out"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
