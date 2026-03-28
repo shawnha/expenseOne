@@ -1,41 +1,7 @@
 import { cn } from "@/lib/utils";
 
 /**
- * HanahOne-style "O" symbol — two open crescent arcs forming an incomplete circle.
- * Left arc: large sweep from ~11 o'clock to ~7 o'clock
- * Right arc: smaller sweep from ~1 o'clock to ~5 o'clock
- * Gaps at top-left and bottom-right.
- */
-function OneSymbol({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 100 100"
-      fill="none"
-      className={cn("inline-block size-[0.85em] align-[-0.08em]", className)}
-      aria-hidden="true"
-    >
-      {/* Left crescent: from ~40°(top-right area) counter-clockwise to ~320°(bottom-left area) */}
-      <path
-        d="M38 8 A45 45 0 1 0 62 92"
-        stroke="#EF3B2D"
-        strokeWidth="12"
-        strokeLinecap="round"
-        fill="none"
-      />
-      {/* Right crescent: from ~320° clockwise to ~40° */}
-      <path
-        d="M62 92 A45 45 0 0 0 38 8"
-        stroke="#EF3B2D"
-        strokeWidth="12"
-        strokeLinecap="round"
-        fill="none"
-      />
-    </svg>
-  );
-}
-
-/**
- * App icon — red circle symbol on white/dark rounded square
+ * Original app icon — blue gradient rounded square with three lines
  */
 function AppIcon({ size = "md" }: { size?: "sm" | "md" }) {
   const sizeClass = size === "sm" ? "size-7" : "size-8";
@@ -45,33 +11,21 @@ function AppIcon({ size = "md" }: { size?: "sm" | "md" }) {
       className={cn(
         sizeClass,
         "flex items-center justify-center rounded-xl",
-        "bg-gradient-to-br from-[#EF3B2D] to-[#D42B1F]",
-        "shadow-[0_2px_8px_rgba(239,59,45,0.3)]"
+        "bg-gradient-to-br from-[#007AFF] to-[#5856D6]",
+        "shadow-[0_2px_8px_rgba(0,122,255,0.3)]"
       )}
     >
-      <svg viewBox="0 0 100 100" fill="none" className={svgSize}>
-        <path
-          d="M38 8 A45 45 0 1 0 62 92"
-          stroke="white"
-          strokeWidth="14"
-          strokeLinecap="round"
-          fill="none"
-        />
-        <path
-          d="M62 92 A45 45 0 0 0 38 8"
-          stroke="white"
-          strokeWidth="14"
-          strokeLinecap="round"
-          fill="none"
-        />
+      <svg viewBox="0 0 32 32" className={svgSize} fill="none">
+        <rect x="8" y="10" width="16" height="2.5" rx="1.25" fill="white" />
+        <rect x="8" y="14.75" width="12" height="2.5" rx="1.25" fill="white" />
+        <rect x="8" y="19.5" width="16" height="2.5" rx="1.25" fill="white" />
       </svg>
     </div>
   );
 }
 
 /**
- * Branded "Expense One" text with the red "O" symbol.
- * Usage: <ExpenseOneLogo size="sm" /> or <ExpenseOneLogo size="lg" />
+ * Branded "ExpenseOne" text — "Expense" in label color, "One" in blue.
  */
 export function ExpenseOneLogo({
   size = "md",
@@ -100,11 +54,7 @@ export function ExpenseOneLogo({
     >
       {showIcon && <AppIcon size={size === "sm" ? "sm" : "md"} />}
       <span>
-        Expense
-        <span className="text-[#EF3B2D]">
-          <OneSymbol />
-          ne
-        </span>
+        Expense<span className="text-[var(--apple-blue)]">One</span>
       </span>
     </span>
   );

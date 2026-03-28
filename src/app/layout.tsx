@@ -56,7 +56,7 @@ var css=document.createElement('style');
 css.textContent=[
 '#app-splash{position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--apple-bg,#f2f2f7);transition:opacity .4s ease}',
 '#app-splash.hide{opacity:0;pointer-events:none}',
-'.sp-logo{width:80px;height:80px;border-radius:20px;background:linear-gradient(135deg,#EF3B2D,#D42B1F);display:flex;align-items:center;justify-content:center;opacity:0;transform:scale(.6);animation:sp-pop .5s cubic-bezier(.34,1.56,.64,1) .1s forwards}',
+'.sp-logo{width:80px;height:80px;border-radius:20px;background:linear-gradient(135deg,#007AFF,#5856D6);display:flex;align-items:center;justify-content:center;opacity:0;transform:scale(.6);animation:sp-pop .5s cubic-bezier(.34,1.56,.64,1) .1s forwards}',
 '.sp-l1{opacity:0;animation:sp-fade .3s ease .5s forwards}',
 '.sp-l2{opacity:0;animation:sp-fade-dim .3s ease .65s forwards}',
 '.sp-l3{opacity:0;animation:sp-fade .3s ease .8s forwards}',
@@ -80,11 +80,12 @@ css.textContent=[
 document.head.appendChild(css);
 var d=document.createElement('div');d.id='app-splash';
 d.innerHTML=[
-'<div class="sp-logo"><svg viewBox="0 0 100 100" fill="none" width="48" height="48">',
-'<path class="sp-l1" d="M38 8 A45 45 0 1 0 62 92" stroke="white" stroke-width="14" stroke-linecap="round" fill="none"/>',
-'<path class="sp-l3" d="M62 92 A45 45 0 0 0 38 8" stroke="white" stroke-width="14" stroke-linecap="round" fill="none"/>',
+'<div class="sp-logo"><svg viewBox="0 0 32 32" fill="none" width="48" height="48">',
+'<rect class="sp-l1" x="8" y="10" width="16" height="2.5" rx="1.25" fill="white"/>',
+'<rect class="sp-l2" x="8" y="14.75" width="12" height="2.5" rx="1.25" fill="white" opacity="0.3"/>',
+'<rect class="sp-l3" x="8" y="19.5" width="16" height="2.5" rx="1.25" fill="white"/>',
 '</svg></div>',
-'<div class="sp-name">Expense<span style="color:#EF3B2D"><svg viewBox="0 0 100 100" fill="none" style="display:inline-block;width:0.85em;height:0.85em;vertical-align:-0.08em"><path d="M38 8 A45 45 0 1 0 62 92" stroke="#EF3B2D" stroke-width="12" stroke-linecap="round" fill="none"/><path d="M62 92 A45 45 0 0 0 38 8" stroke="#EF3B2D" stroke-width="12" stroke-linecap="round" fill="none"/></svg>ne</span></div>',
+'<div class="sp-name">Expense<span style="color:#007AFF">One</span></div>',
 '<div class="sp-plug"><svg width="56" height="18" viewBox="-1 -1 20 14" fill="none">',
 '<rect x="0" y="2" width="10" height="8" rx="1.5" stroke="currentColor" stroke-width="1.2" fill="none"/>',
 '<rect x="3" y="4" width="1.5" height="4" rx=".5" fill="currentColor" opacity=".3"/>',
