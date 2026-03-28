@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
-  ArrowLeft,
   Download,
 } from "lucide-react";
 import { getCachedCurrentUser } from "@/lib/supabase/cached";
@@ -14,6 +13,7 @@ import {
 } from "@/lib/validations/expense-form";
 import { getCategoryLabel } from "@/lib/utils/expense-utils";
 
+import { BackToListButton } from "@/components/expenses/back-to-list-button";
 import { CancelExpenseButton } from "@/components/expenses/cancel-expense-button";
 import { RequestRemainingButton } from "@/components/expenses/request-remaining-button";
 import { ApproveRemainingButton } from "@/components/expenses/approve-remaining-button";
@@ -185,13 +185,7 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
     <div className="flex flex-col gap-5 max-w-3xl">
       {/* Back */}
       <div className="animate-fade-up">
-        <Link
-          href="/expenses"
-          className="inline-flex items-center gap-1.5 text-sm text-[var(--apple-blue)] hover:text-[color-mix(in_srgb,var(--apple-blue)_85%,black)] transition-colors font-medium apple-press"
-        >
-          <ArrowLeft className="size-3.5" />
-          목록으로
-        </Link>
+        <BackToListButton />
       </div>
 
       {/* Header */}
