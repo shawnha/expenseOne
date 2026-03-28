@@ -1,5 +1,5 @@
-// ExpenseOne Service Worker v6 — NetworkFirst for HTML, CacheFirst for static assets, Web Push
-const CACHE_NAME = "expenseone-v6";
+// ExpenseOne Service Worker v7 — NetworkFirst for HTML, CacheFirst for static assets, Web Push
+const CACHE_NAME = "expenseone-v7";
 
 const APP_SHELL = ["/offline.html", "/"];
 
