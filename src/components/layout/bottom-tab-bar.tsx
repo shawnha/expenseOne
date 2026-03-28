@@ -213,7 +213,8 @@ export function BottomTabBar({ userId, isAdmin, unreadCount }: BottomTabBarProps
         className={cn(
           "fixed bottom-0 left-0 right-0 z-50 lg:hidden",
           "glass-header border-t border-[var(--apple-separator)]",
-          "pb-[env(safe-area-inset-bottom,0px)]"
+          "pb-[env(safe-area-inset-bottom,0px)]",
+          "select-none [-webkit-touch-callout:none]"
         )}
       >
         <div className="flex items-end justify-around h-[50px]">
@@ -273,7 +274,7 @@ export function BottomTabBar({ userId, isAdmin, unreadCount }: BottomTabBarProps
                   "flex flex-col items-center justify-center gap-0.5 pt-1.5 min-w-[56px]",
                   "transition-colors duration-200",
                   "apple-press",
-                  hasQuickActions && "[&]:[-webkit-touch-callout:none]"
+                  hasQuickActions && "[&]:[-webkit-touch-callout:none] select-none"
                 )}
                 aria-label={tab.label}
               >
