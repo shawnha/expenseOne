@@ -291,6 +291,26 @@ export function DepartmentManager({ initialDepartments }: DepartmentManagerProps
                       {dept.name}
                     </span>
                   </div>
+
+                  {/* Desktop edit/delete buttons (hidden on mobile where swipe is used) */}
+                  <div className="hidden sm:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => handleEdit(dept)}
+                      disabled={savingId === dept.id}
+                      className="p-1.5 rounded-lg hover:bg-[rgba(255,149,0,0.1)] text-[var(--apple-orange,#FF9500)] transition-colors disabled:opacity-30"
+                      aria-label={`${dept.name} 수정`}
+                    >
+                      <Pencil className="size-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(dept.id)}
+                      disabled={savingId === dept.id}
+                      className="p-1.5 rounded-lg hover:bg-[rgba(255,59,48,0.1)] text-[var(--apple-red,#FF3B30)] transition-colors disabled:opacity-30"
+                      aria-label={`${dept.name} 삭제`}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </div>
                 </div>
               </SwipeableRow>
             ))}
