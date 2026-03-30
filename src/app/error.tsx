@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { ExpenseOneLogo } from "@/components/layout/expense-one-logo";
 
 export default function RootError({
   error,
@@ -31,26 +32,8 @@ export default function RootError({
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-[var(--apple-system-background,#f2f2f7)] px-4 text-center">
       {/* Branding */}
-      <div className="mb-6 flex items-center gap-2">
-        <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--apple-blue,#007AFF)]">
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="white"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M2 17l10-10M12 7l10 10" />
-            <path d="M2 7h4v4" />
-            <path d="M22 7h-4v4" />
-          </svg>
-        </div>
-        <span className="text-lg font-semibold tracking-tight text-[var(--apple-label,#1c1c1e)]">
-          ExpenseOne
-        </span>
+      <div className="mb-6">
+        <ExpenseOneLogo size="lg" showIcon />
       </div>
 
       {/* Glass card */}
