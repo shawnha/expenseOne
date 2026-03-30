@@ -30,6 +30,9 @@ export function ThemeToggle() {
         document.documentElement.classList.remove("dark");
         localStorage.setItem("theme", "light");
       }
+      // Update PWA status bar color
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute("content", next ? "#000000" : "#F2F2F7");
       // Release phase — thumb snaps to new position
       setTimeout(() => {
         setStretching(false);
