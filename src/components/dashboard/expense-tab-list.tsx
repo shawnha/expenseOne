@@ -47,51 +47,33 @@ export function ExpenseTabList({ expenses }: { expenses: Expense[] }) {
           type="button"
           role="tab"
           aria-selected={activeTab === "CORPORATE_CARD"}
+          aria-label="법카사용 내역 — 법인카드 사용내역을 제출합니다"
           onClick={() => setActiveTab("CORPORATE_CARD")}
           className={cn(
-            "inline-flex flex-col items-start gap-0.5 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-full sm:rounded-full apple-press transition-all duration-200",
+            "inline-flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-full sm:rounded-full apple-press transition-all duration-200 text-[13px] sm:text-sm font-medium",
             activeTab === "CORPORATE_CARD"
               ? "bg-[var(--apple-blue)] text-white shadow-[0_2px_8px_rgba(0,122,255,0.25)]"
               : "glass-button text-[var(--apple-label)]"
           )}
         >
-          <span className="inline-flex items-center gap-1.5 sm:gap-2 text-[13px] sm:text-sm font-medium">
-            <CreditCard className="size-3.5 sm:size-4" />
-            법카사용 내역
-          </span>
-          <span className={cn(
-            "text-[11px] pl-5 sm:pl-6 leading-tight",
-            activeTab === "CORPORATE_CARD"
-              ? "text-white/70"
-              : "text-[var(--apple-secondary-label)]"
-          )}>
-            법인카드 사용내역을 제출합니다
-          </span>
+          <CreditCard className="size-3.5 sm:size-4" />
+          법카사용 내역
         </button>
         <button
           type="button"
           role="tab"
           aria-selected={activeTab === "DEPOSIT_REQUEST"}
+          aria-label="입금요청 — 입금을 요청합니다. 승인 필수"
           onClick={() => setActiveTab("DEPOSIT_REQUEST")}
           className={cn(
-            "inline-flex flex-col items-start gap-0.5 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-full sm:rounded-full apple-press transition-all duration-200",
+            "inline-flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-full sm:rounded-full apple-press transition-all duration-200 text-[13px] sm:text-sm font-medium",
             activeTab === "DEPOSIT_REQUEST"
               ? "bg-[var(--apple-blue)] text-white shadow-[0_2px_8px_rgba(0,122,255,0.25)]"
               : "glass-button text-[var(--apple-label)]"
           )}
         >
-          <span className="inline-flex items-center gap-1.5 sm:gap-2 text-[13px] sm:text-sm font-medium">
-            <Banknote className="size-3.5 sm:size-4" />
-            입금요청
-          </span>
-          <span className={cn(
-            "text-[11px] pl-5 sm:pl-6 leading-tight",
-            activeTab === "DEPOSIT_REQUEST"
-              ? "text-white/70"
-              : "text-[var(--apple-secondary-label)]"
-          )}>
-            입금을 요청합니다. 승인 필수
-          </span>
+          <Banknote className="size-3.5 sm:size-4" />
+          입금요청
         </button>
       </div>
 
