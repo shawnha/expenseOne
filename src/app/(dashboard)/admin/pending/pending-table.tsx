@@ -313,7 +313,7 @@ export function PendingTable({ expenses }: PendingTableProps) {
         {expenses.map((expense, index) => (
           <div
             key={expense.id}
-            className={`rounded-xl bg-[rgba(0,0,0,0.03)] dark:bg-[rgba(255,255,255,0.05)] overflow-hidden animate-card-enter stagger-${Math.min(index + 1, 8)} ${selectedIds.has(expense.id) ? "ring-2 ring-[var(--apple-blue)] ring-opacity-50" : ""}`}
+            className={`rounded-xl bg-[var(--apple-system-background)] border border-[var(--glass-border)] shadow-sm overflow-hidden animate-card-enter stagger-${Math.min(index + 1, 8)} ${selectedIds.has(expense.id) ? "ring-2 ring-[var(--apple-blue)] ring-opacity-50" : ""}`}
           >
             <div className="flex items-start gap-3 p-4 pb-2">
               <div className="pt-0.5" onClick={(e) => e.stopPropagation()}>

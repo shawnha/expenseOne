@@ -428,7 +428,7 @@ function MobileUserCard({
     <div
       ref={cardRef}
       {...(isSelf ? {} : longPressHandlers)}
-      className={`rounded-xl p-4 bg-[rgba(0,0,0,0.03)] dark:bg-[rgba(255,255,255,0.05)] space-y-3 select-none transition-all duration-300 ease-out ${
+      className={`rounded-xl p-4 bg-[var(--apple-system-background)] border border-[var(--glass-border)] shadow-sm space-y-3 select-none transition-all duration-300 ease-out ${
         pressing ? "scale-[0.98] brightness-95" : ""
       } ${!user.isActive ? "opacity-50" : ""}`}
       style={{ WebkitTouchCallout: "none", WebkitUserSelect: "none", touchAction: "pan-y" }}
