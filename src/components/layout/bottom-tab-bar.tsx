@@ -61,6 +61,7 @@ function getTabItems(isAdmin: boolean, badge: number): TabItem[] {
 
 function isActivePath(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
+  if (href === "/admin") return pathname === "/admin";
   return pathname === href || pathname.startsWith(href + "/");
 }
 
@@ -274,7 +275,7 @@ export function BottomTabBar({ userId, isAdmin, unreadCount }: BottomTabBarProps
                   "flex flex-col items-center justify-center gap-0.5 pt-1.5 min-w-[56px]",
                   "transition-colors duration-200",
                   "apple-press",
-                  hasQuickActions && "[&]:[-webkit-touch-callout:none] select-none"
+                  hasQuickActions && "[&]:[-webkit-touch-callout:none] [&]:[-webkit-user-select:none] select-none"
                 )}
                 aria-label={tab.label}
               >
