@@ -185,8 +185,8 @@ export function BottomTabBar({ userId, isAdmin, unreadCount }: BottomTabBarProps
     longPressTriggered.current = false;
     longPressTimer.current = setTimeout(() => {
       longPressTriggered.current = true;
-      // Haptic feedback if available
-      if (navigator.vibrate) navigator.vibrate(10);
+      // Haptic feedback (Android only — iOS doesn't support navigator.vibrate)
+      if (navigator.vibrate) navigator.vibrate(50);
       setQuickActionsOpen(true);
     }, 400);
   }, []);
