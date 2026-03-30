@@ -51,7 +51,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `(function(){
 try{var t=localStorage.getItem('theme');if(t==='dark'){document.documentElement.classList.add('dark')}}catch(e){}
-if('serviceWorker'in navigator){navigator.serviceWorker.register('/sw.js').catch(function(){})}
+if('serviceWorker'in navigator){navigator.serviceWorker.register('/sw.js',{updateViaCache:'none'}).catch(function(){})}
 if(sessionStorage.getItem('splash-shown')){return}
 sessionStorage.setItem('splash-shown','1');
 var css=document.createElement('style');
