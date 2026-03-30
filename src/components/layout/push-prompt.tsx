@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { usePathname } from "next/navigation";
 import { Bell } from "lucide-react";
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
@@ -38,10 +39,14 @@ async function subscribeToPush() {
   return true;
 }
 
+const STORAGE_KEY = "push-prompt-dismissed";
+const ALLOWED_PATHS = ["/"];
+
 export function PushPrompt() {
   const [showBanner, setShowBanner] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
   const checked = useRef(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     if (checked.current) return;
@@ -63,7 +68,7 @@ export function PushPrompt() {
 
     // "default" — show banner (need user gesture for iOS)
     // Don't show if user dismissed before
-    if (!sessionStorage.getItem("push-banner-dismissed")) {
+    if (!localStorage.getItem(STORAGE_KEY)) {
       setShowBanner(true);
     }
   }, []);
@@ -84,10 +89,12 @@ export function PushPrompt() {
 
   const handleDismiss = useCallback(() => {
     setShowBanner(false);
-    sessionStorage.setItem("push-banner-dismissed", "1");
+    localStorage.setItem(STORAGE_KEY, "1");
   }, []);
 
+  // Only show on allowed paths (home page), never on /notifications
   if (!showBanner) return null;
+  if (!ALLOWED_PATHS.includes(pathname)) return null;
 
   return (
     <div className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] lg:bottom-[calc(1.5rem+env(safe-area-inset-bottom))] max-lg:bottom-[calc(66px+env(safe-area-inset-bottom,0px)+0.75rem)] left-4 right-4 z-50 p-3 rounded-2xl backdrop-blur-xl bg-white/90 dark:bg-black/90 shadow-2xl border border-[var(--apple-separator)] flex items-center gap-3 animate-fade-up">
@@ -102,7 +109,7 @@ export function PushPrompt() {
         <button
           type="button"
           onClick={handleDismiss}
-          className="text-[12px] text-[var(--apple-secondary-label)] px-2 py-1"
+          className="text-[12px] text-[var(--apple-secondary-label)] px-3 py-2 min-h-[44px] flex items-center justify-center"
         >
           닫기
         </button>
@@ -110,7 +117,7 @@ export function PushPrompt() {
           type="button"
           onClick={handleEnable}
           disabled={subscribing}
-          className="text-[12px] font-semibold text-white bg-[var(--apple-blue)] px-3 py-1.5 rounded-full disabled:opacity-50"
+          className="text-[12px] font-semibold text-white bg-[var(--apple-blue)] px-4 py-2 min-h-[44px] rounded-full disabled:opacity-50 flex items-center justify-center"
         >
           {subscribing ? "..." : "허용"}
         </button>

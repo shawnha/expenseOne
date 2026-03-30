@@ -224,6 +224,7 @@ async function DashboardContent() {
           <Link
             key={card.title}
             href={card.href}
+            aria-label={`${card.title}: ${card.value}`}
             className={cn(
               "glass-card p-3 sm:p-4 lg:p-5 group apple-press block",
               STAT_CONFIGS[i].accent,
@@ -232,7 +233,7 @@ async function DashboardContent() {
             )}
           >
             <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-              <div className={cn("size-8 sm:size-9 lg:size-10", STAT_CONFIGS[i].iconBg)}>
+              <div className={cn("size-8 sm:size-9 lg:size-10", STAT_CONFIGS[i].iconBg)} aria-hidden="true">
                 {STAT_CONFIGS[i].icon}
               </div>
             </div>
@@ -271,9 +272,10 @@ export default function DashboardHomePage() {
       {/* FAB — desktop only (mobile has bottom tab bar) */}
       <Link
         href="/expenses/new"
+        aria-label="새 비용 제출"
         className="hidden lg:flex fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-6 z-50 items-center justify-center size-14 rounded-full bg-[var(--apple-blue)] text-white shadow-[0_4px_16px_rgba(0,122,255,0.4)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] hover:shadow-[0_6px_20px_rgba(0,122,255,0.5)] hover:scale-105 active:scale-95 transition-all duration-200"
       >
-        <Plus className="size-6" />
+        <Plus className="size-6" aria-hidden="true" />
       </Link>
     </div>
   );

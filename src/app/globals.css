@@ -1053,7 +1053,7 @@
 /* ------------------------------------------------------------------ */
 
 .ambient-orb {
-  position: absolute;
+  position: fixed;
   border-radius: 50%;
   filter: blur(80px);
   pointer-events: none;
@@ -1062,7 +1062,7 @@
 }
 
 .ambient-orb-blue {
-  background: radial-gradient(circle, rgba(0, 122, 255, 0.12) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(0, 122, 255, 0.22) 0%, transparent 70%);
   width: 250px;
   height: 250px;
   top: -50px;
@@ -1071,7 +1071,7 @@
 }
 
 .ambient-orb-purple {
-  background: radial-gradient(circle, rgba(88, 86, 214, 0.1) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(88, 86, 214, 0.18) 0%, transparent 70%);
   width: 200px;
   height: 200px;
   bottom: 10%;
@@ -1080,7 +1080,7 @@
 }
 
 .ambient-orb-teal {
-  background: radial-gradient(circle, rgba(90, 200, 250, 0.08) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(90, 200, 250, 0.15) 0%, transparent 70%);
   width: 180px;
   height: 180px;
   top: 40%;
@@ -1107,15 +1107,15 @@
 }
 
 .dark .ambient-orb-blue {
-  background: radial-gradient(circle, rgba(10, 132, 255, 0.15) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(10, 132, 255, 0.25) 0%, transparent 70%);
 }
 
 .dark .ambient-orb-purple {
-  background: radial-gradient(circle, rgba(94, 92, 230, 0.12) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(94, 92, 230, 0.2) 0%, transparent 70%);
 }
 
 .dark .ambient-orb-teal {
-  background: radial-gradient(circle, rgba(100, 210, 255, 0.08) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(100, 210, 255, 0.15) 0%, transparent 70%);
 }
 
 @keyframes orb-drift-1 {

@@ -81,11 +81,11 @@ export function Header({ user, title, unreadCount = 0 }: HeaderProps) {
             "hover:bg-[rgba(0,0,0,0.04)] dark:hover:bg-[rgba(255,255,255,0.06)]",
             "active:scale-95"
           )}
-          aria-label="알림"
+          aria-label={totalUnread > 0 ? `알림 ${totalUnread}건 읽지 않음` : "알림"}
         >
           <Bell className="size-[18px] text-[var(--apple-secondary-label)]" />
           {totalUnread > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-[var(--apple-red)] text-white text-[10px] font-semibold px-1 shadow-[0_2px_6px_rgba(255,59,48,0.3)] animate-[scale-in_0.3s_cubic-bezier(0.34,1.56,0.64,1)]">
+            <span aria-hidden="true" className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-[var(--apple-red)] text-white text-[10px] font-semibold px-1 shadow-[0_2px_6px_rgba(255,59,48,0.3)] animate-[scale-in_0.3s_cubic-bezier(0.34,1.56,0.64,1)]">
               {totalUnread > 99 ? "99+" : totalUnread}
             </span>
           )}

@@ -100,7 +100,7 @@ function LoginContent() {
 
           <div className="space-y-4">
             {errorMessage && (
-              <div className="px-4 py-3 text-sm text-[var(--apple-red)] rounded-2xl bg-[rgba(255,59,48,0.08)] backdrop-blur-sm border border-[rgba(255,59,48,0.12)]">
+              <div role="alert" className="px-4 py-3 text-sm text-[var(--apple-red)] rounded-2xl bg-[rgba(255,59,48,0.08)] backdrop-blur-sm border border-[rgba(255,59,48,0.12)]">
                 {errorMessage}
                 {debugMsg && (
                   <p className="mt-1 text-xs text-[#8e8e93] break-all">{debugMsg}</p>

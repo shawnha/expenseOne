@@ -3,6 +3,8 @@ import { departments } from "@/lib/db/schema";
 import { asc } from "drizzle-orm";
 import { DepartmentManager } from "./department-manager";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminDepartmentsPage() {
   // DEV ONLY: mock data
   if (process.env.BYPASS_AUTH === "true") {

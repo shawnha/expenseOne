@@ -13,7 +13,6 @@ const inter = Inter({
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
   viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#F2F2F7" },
@@ -51,7 +50,7 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){
-try{var t=localStorage.getItem('theme');if(t==='dark'){document.documentElement.classList.add('dark');var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content','#000000')}}catch(e){}
+try{var t=localStorage.getItem('theme');if(t==='dark'){document.documentElement.classList.add('dark')}}catch(e){}
 if('serviceWorker'in navigator){navigator.serviceWorker.register('/sw.js').catch(function(){})}
 if(sessionStorage.getItem('splash-shown')){return}
 sessionStorage.setItem('splash-shown','1');

@@ -84,14 +84,17 @@ export function PullToRefresh() {
       }
     };
 
-    document.addEventListener("touchstart", onTouchStart, { passive: true });
-    document.addEventListener("touchmove", onTouchMove, { passive: false });
-    document.addEventListener("touchend", onTouchEnd, { passive: true });
+    // Attach listeners to the scrollable main element instead of document
+    // to avoid degrading scroll performance across the entire page
+    const scrollEl = getScrollableParent() ?? document;
+    scrollEl.addEventListener("touchstart", onTouchStart as EventListener, { passive: true });
+    scrollEl.addEventListener("touchmove", onTouchMove as EventListener, { passive: false });
+    scrollEl.addEventListener("touchend", onTouchEnd as EventListener, { passive: true });
 
     return () => {
-      document.removeEventListener("touchstart", onTouchStart);
-      document.removeEventListener("touchmove", onTouchMove);
-      document.removeEventListener("touchend", onTouchEnd);
+      scrollEl.removeEventListener("touchstart", onTouchStart as EventListener);
+      scrollEl.removeEventListener("touchmove", onTouchMove as EventListener);
+      scrollEl.removeEventListener("touchend", onTouchEnd as EventListener);
     };
   }, [router, getScrollableParent]);
 

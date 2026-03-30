@@ -1,7 +1,7 @@
-// ExpenseOne Service Worker v7 — NetworkFirst for HTML, CacheFirst for static assets, Web Push
-const CACHE_NAME = "expenseone-v7";
+// ExpenseOne Service Worker v8 — Instant splash shell + NetworkFirst HTML + CacheFirst static + Web Push
+const CACHE_NAME = "expenseone-v8";
 
-const APP_SHELL = ["/offline.html", "/"];
+const APP_SHELL = ["/offline.html", "/splash-shell.html"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -78,9 +78,59 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // NetworkFirst for HTML pages — always try the network first to avoid
-  // serving stale HTML that references old JS chunks after a new deployment.
-  // Only fall back to cache when the network is truly unavailable (offline).
+  // Instant splash shell — for HTML navigation requests, return cached splash
+  // shell immediately so the user sees the splash animation with zero delay.
+  // The shell loads the real page in a hidden iframe, then fades in when ready.
+  // Skip if _nosplash param is present (request from the shell's iframe).
+  if (
+    request.mode === "navigate" &&
+    request.headers.get("accept")?.includes("text/html") &&
+    !url.searchParams.has("_nosplash") &&
+    url.pathname !== "/splash-shell.html" &&
+    url.pathname !== "/shell-test.html" &&
+    url.pathname !== "/offline.html"
+  ) {
+    event.respondWith(
+      caches.match("/splash-shell.html").then((cached) => {
+        if (cached) {
+          // Clone the cached response and inject the original URL as a header
+          // so splash-shell.html can read it. We use a custom response
+          // with the same body but add a header for the target URL.
+          const originalPath = url.pathname + url.search;
+          const headers = new Headers(cached.headers);
+          headers.set("X-Original-URL", originalPath);
+          return cached.clone().text().then((body) => {
+            // Inject the target URL into the HTML
+            const injected = body.replace(
+              "var targetUrl = location.hash.slice(1) || '/';",
+              "var targetUrl = '" + originalPath.replace(/'/g, "\\'") + "';"
+            );
+            return new Response(injected, {
+              status: 200,
+              statusText: "OK",
+              headers: { "Content-Type": "text/html; charset=utf-8" },
+            });
+          });
+        }
+        // No cached shell — fall through to normal fetch
+        return fetch(request)
+          .then((response) => {
+            if (response.ok) {
+              const clone = response.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+            }
+            return response;
+          })
+          .catch(() =>
+            caches.match(request).then((c) => c || caches.match("/offline.html"))
+          );
+      })
+    );
+    return;
+  }
+
+  // NetworkFirst for HTML pages (including _nosplash iframe requests) — always
+  // try the network first to avoid serving stale HTML after a new deployment.
   if (request.headers.get("accept")?.includes("text/html")) {
     event.respondWith(
       fetch(request)

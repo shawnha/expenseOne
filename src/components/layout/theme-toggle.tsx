@@ -30,9 +30,12 @@ export function ThemeToggle() {
         document.documentElement.classList.remove("dark");
         localStorage.setItem("theme", "light");
       }
-      // Update PWA status bar color
-      const meta = document.querySelector('meta[name="theme-color"]');
-      if (meta) meta.setAttribute("content", next ? "#000000" : "#F2F2F7");
+      // NOTE: Do NOT mutate <meta name="theme-color"> here.
+      // On iOS Safari in standalone PWA mode, changing theme-color
+      // triggers a full page reload, which destroys the Supabase
+      // auth session and redirects to login. The media-query-based
+      // theme-color tags in layout.tsx handle this safely.
+
       // Release phase — thumb snaps to new position
       setTimeout(() => {
         setStretching(false);

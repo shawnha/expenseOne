@@ -244,7 +244,7 @@ export function BottomTabBar({ userId, isAdmin, unreadCount }: BottomTabBarProps
                   >
                     <Icon className="size-5 stroke-[2.5]" />
                   </div>
-                  <span className="text-[10px] font-medium mt-0.5 text-[var(--apple-blue)]">
+                  <span className="text-[11px] font-medium mt-0.5 text-[var(--apple-blue)]">
                     {tab.label}
                   </span>
                 </Link>
@@ -288,14 +288,14 @@ export function BottomTabBar({ userId, isAdmin, unreadCount }: BottomTabBarProps
                     )}
                   />
                   {tab.badge != null && tab.badge > 0 && (
-                    <span className="absolute -top-1.5 -right-2 flex items-center justify-center min-w-[16px] h-[16px] rounded-full bg-[var(--apple-red)] text-white text-[9px] font-bold px-1 shadow-[0_1px_4px_rgba(255,59,48,0.3)]">
+                    <span className="absolute -top-1.5 -right-2 flex items-center justify-center min-w-[16px] h-[16px] rounded-full bg-[var(--apple-red)] text-white text-[10px] font-bold px-1 shadow-[0_1px_4px_rgba(255,59,48,0.3)]">
                       {tab.badge > 99 ? "99+" : tab.badge}
                     </span>
                   )}
                 </div>
                 <span
                   className={cn(
-                    "text-[10px] font-medium transition-colors duration-200",
+                    "text-[11px] font-medium transition-colors duration-200",
                     active
                       ? "text-[var(--apple-blue)]"
                       : "text-[var(--apple-secondary-label)]"
