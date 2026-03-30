@@ -52,7 +52,7 @@ export default async function AdminPendingPage() {
   const expenses = await getPendingExpenses();
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4 sm:gap-5 lg:gap-6">
       {/* Header */}
       <div className="animate-fade-up">
         <h1 className="text-lg sm:text-xl font-semibold text-[var(--apple-label)]">승인 대기</h1>

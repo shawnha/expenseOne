@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { formatAmount } from "@/lib/validations/expense-form";
 import { SwipeableGroup, SwipeableRow, type SwipeAction } from "@/components/ui/swipeable-row";
-import { CreditCard, Banknote, ArrowRight, Pencil, Trash2 } from "lucide-react";
+import { CreditCard, Banknote, ArrowRight, Pencil, Trash2, Receipt } from "lucide-react";
 import { toast } from "sonner";
 import type { ExpenseStatus } from "@/types";
 
@@ -49,14 +49,24 @@ export function ExpenseTabList({ expenses }: { expenses: Expense[] }) {
           aria-selected={activeTab === "CORPORATE_CARD"}
           onClick={() => setActiveTab("CORPORATE_CARD")}
           className={cn(
-            "inline-flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 text-[13px] sm:text-sm font-medium rounded-full sm:rounded-full apple-press transition-all duration-200",
+            "inline-flex flex-col items-start gap-0.5 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-full sm:rounded-full apple-press transition-all duration-200",
             activeTab === "CORPORATE_CARD"
               ? "bg-[var(--apple-blue)] text-white shadow-[0_2px_8px_rgba(0,122,255,0.25)]"
               : "glass-button text-[var(--apple-label)]"
           )}
         >
-          <CreditCard className="size-3.5 sm:size-4" />
-          법카사용 내역
+          <span className="inline-flex items-center gap-1.5 sm:gap-2 text-[13px] sm:text-sm font-medium">
+            <CreditCard className="size-3.5 sm:size-4" />
+            법카사용 내역
+          </span>
+          <span className={cn(
+            "text-[11px] pl-5 sm:pl-6 leading-tight",
+            activeTab === "CORPORATE_CARD"
+              ? "text-white/70"
+              : "text-[var(--apple-secondary-label)]"
+          )}>
+            법인카드 사용내역을 제출합니다
+          </span>
         </button>
         <button
           type="button"
@@ -64,14 +74,24 @@ export function ExpenseTabList({ expenses }: { expenses: Expense[] }) {
           aria-selected={activeTab === "DEPOSIT_REQUEST"}
           onClick={() => setActiveTab("DEPOSIT_REQUEST")}
           className={cn(
-            "inline-flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 text-[13px] sm:text-sm font-medium rounded-full sm:rounded-full apple-press transition-all duration-200",
+            "inline-flex flex-col items-start gap-0.5 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-full sm:rounded-full apple-press transition-all duration-200",
             activeTab === "DEPOSIT_REQUEST"
               ? "bg-[var(--apple-blue)] text-white shadow-[0_2px_8px_rgba(0,122,255,0.25)]"
               : "glass-button text-[var(--apple-label)]"
           )}
         >
-          <Banknote className="size-3.5 sm:size-4" />
-          입금요청
+          <span className="inline-flex items-center gap-1.5 sm:gap-2 text-[13px] sm:text-sm font-medium">
+            <Banknote className="size-3.5 sm:size-4" />
+            입금요청
+          </span>
+          <span className={cn(
+            "text-[11px] pl-5 sm:pl-6 leading-tight",
+            activeTab === "DEPOSIT_REQUEST"
+              ? "text-white/70"
+              : "text-[var(--apple-secondary-label)]"
+          )}>
+            입금을 요청합니다. 승인 필수
+          </span>
         </button>
       </div>
 
@@ -89,10 +109,20 @@ export function ExpenseTabList({ expenses }: { expenses: Expense[] }) {
         </div>
 
         {filtered.length === 0 ? (
-          <div className="py-8 sm:py-10 text-center">
+          <div className="flex flex-col items-center py-10 sm:py-12 text-center gap-3">
+            <div className="size-10 sm:size-12 rounded-2xl bg-[var(--apple-secondary-system-background)] flex items-center justify-center">
+              <Receipt className="size-5 sm:size-6 text-[var(--apple-secondary-label)]" />
+            </div>
             <p className="text-[13px] sm:text-sm text-[var(--apple-secondary-label)]">
               {activeTab === "CORPORATE_CARD" ? "법카사용 내역이 없습니다." : "입금요청 내역이 없습니다."}
             </p>
+            <Link
+              href="/expenses/new"
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-[13px] sm:text-sm font-medium text-[var(--apple-blue)] glass-button rounded-full apple-press"
+            >
+              비용 제출하기
+              <ArrowRight className="size-3 sm:size-3.5" />
+            </Link>
           </div>
         ) : (
           <SwipeableGroup>

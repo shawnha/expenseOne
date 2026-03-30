@@ -137,7 +137,7 @@ export default function NotificationList({
   }, []);
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4 sm:gap-5 lg:gap-6">
       {/* Header */}
       <div className="flex items-center justify-between animate-fade-up">
         <div>
@@ -170,8 +170,8 @@ export default function NotificationList({
       </div>
 
       {/* Notification List */}
-      <div className="glass p-3 sm:p-4 lg:p-5 animate-fade-up-1">
-        <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-4">
+      <div className="glass p-2.5 sm:p-3 lg:p-4 animate-fade-up-1">
+        <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-2 sm:mb-3">
           알림 목록
         </h2>
 
@@ -188,7 +188,7 @@ export default function NotificationList({
                 key={notification.id}
                 type="button"
                 onClick={() => handleClick(notification)}
-                className={`flex w-full items-start gap-3 px-3 py-3.5 text-left transition-colors rounded-xl hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)] apple-press animate-row-enter stagger-${Math.min(index + 1, 8)} ${
+                className={`flex w-full items-start gap-2.5 px-2.5 py-2.5 text-left transition-colors rounded-xl hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)] apple-press animate-row-enter stagger-${Math.min(index + 1, 8)} ${
                   !notification.isRead ? "bg-[rgba(0,122,255,0.04)]" : ""
                 }`}
                 aria-label={`${notification.title} - ${notification.isRead ? "읽음" : "읽지 않음"}`}

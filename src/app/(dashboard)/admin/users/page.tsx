@@ -16,7 +16,7 @@ export default async function AdminUsersPage() {
     ];
 
     return (
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-4 sm:gap-5 lg:gap-6">
         <div>
           <h1 className="text-lg sm:text-xl font-semibold text-[var(--apple-label)]">사용자 관리</h1>
           <p className="text-sm text-[var(--apple-secondary-label)]">팀원 역할 및 계정을 관리하세요.</p>
@@ -59,7 +59,7 @@ export default async function AdminUsersPage() {
   }));
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4 sm:gap-5 lg:gap-6">
       <div>
         <h1 className="text-lg sm:text-xl font-semibold text-[var(--apple-label)]">사용자 관리</h1>
         <p className="text-sm text-[var(--apple-secondary-label)]">

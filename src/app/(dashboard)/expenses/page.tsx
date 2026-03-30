@@ -72,7 +72,7 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
   const isAdmin = userRole === "ADMIN";
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4 sm:gap-5 lg:gap-6">
       {/* Page header */}
       <div className="flex items-center justify-between animate-fade-up">
         <div>

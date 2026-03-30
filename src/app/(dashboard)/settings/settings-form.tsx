@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
-import { Loader2, Bell, BellRing } from "lucide-react";
+import { Loader2, Bell, BellRing, ShieldCheck, User2, Briefcase, CreditCard } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -79,7 +79,6 @@ export function SettingsForm({ user }: SettingsFormProps) {
       }
 
       toast.success("프로필이 저장되었습니다.");
-      // Update the "original" values so hasChanges resets
       user.name = name.trim();
       user.cardLastFour = cardLastFour || null;
       user.department = department || null;
@@ -92,40 +91,54 @@ export function SettingsForm({ user }: SettingsFormProps) {
     }
   };
 
+  const handleCancel = () => {
+    setName(user.name);
+    setCardLastFour(user.cardLastFour ?? "");
+    setDepartment(user.department ?? "");
+  };
+
   const selectedDeptLabel = department
     ? departments.find((d) => d.name === department)?.name ?? department
     : undefined;
 
   return (
-    <div className="grid gap-5 lg:grid-cols-2">
-      <div className="glass p-6 animate-card-enter stagger-1">
-        <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-5">
-          프로필 정보
-        </h2>
-
-        {/* Avatar */}
-        <div className="flex items-center gap-4 mb-6">
-          <div className="flex size-16 items-center justify-center rounded-2xl bg-[rgba(0,122,255,0.12)] text-[var(--apple-blue)] text-xl sm:text-2xl font-semibold">
+    <div className="max-w-2xl space-y-6">
+      {/* Profile Hero Section */}
+      <div className="glass p-6 sm:p-8 animate-card-enter stagger-1">
+        <div className="flex items-center gap-5">
+          <div className="flex size-16 sm:size-20 shrink-0 items-center justify-center rounded-2xl sm:rounded-3xl bg-[rgba(0,122,255,0.12)] text-[var(--apple-blue)] text-2xl sm:text-3xl font-semibold">
             {initial}
           </div>
-          <div>
-            <p className="text-base font-semibold text-[var(--apple-label)]">
+          <div className="min-w-0">
+            <h2 className="text-lg sm:text-xl font-semibold text-[var(--apple-label)] truncate">
               {name.trim() || user.name}
+            </h2>
+            <p className="text-sm text-[var(--apple-secondary-label)] truncate mt-0.5">
+              {user.email}
             </p>
             <span
-              className={
+              className={`inline-block mt-2 ${
                 user.role === "ADMIN"
                   ? "glass-badge glass-badge-blue animate-spring-pop"
                   : "glass-badge glass-badge-gray animate-spring-pop"
-              }
+              }`}
             >
               {user.role === "ADMIN" ? "관리자" : "크루"}
             </span>
           </div>
         </div>
+      </div>
+
+      {/* Personal Info Section */}
+      <div className="glass p-6 animate-card-enter stagger-2">
+        <div className="flex items-center gap-2 mb-5">
+          <User2 className="size-4 text-[var(--apple-blue)]" />
+          <h3 className="text-[15px] font-semibold text-[var(--apple-label)]">
+            개인 정보
+          </h3>
+        </div>
 
         <div className="space-y-4">
-          {/* Name -- editable */}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="settings-name" className="text-[13px] text-[var(--apple-secondary-label)]">
               이름
@@ -139,13 +152,23 @@ export function SettingsForm({ user }: SettingsFormProps) {
             />
           </div>
 
-          {/* Email -- read-only */}
           <div className="flex flex-col gap-1">
             <span className="text-[13px] text-[var(--apple-secondary-label)]">이메일</span>
             <span className="text-sm font-medium text-[var(--apple-label)]">{user.email}</span>
           </div>
+        </div>
+      </div>
 
-          {/* Department -- dropdown */}
+      {/* Work Info Section */}
+      <div className="glass p-6 animate-card-enter stagger-3">
+        <div className="flex items-center gap-2 mb-5">
+          <Briefcase className="size-4 text-[var(--apple-indigo)]" />
+          <h3 className="text-[15px] font-semibold text-[var(--apple-label)]">
+            업무 정보
+          </h3>
+        </div>
+
+        <div className="space-y-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="settings-department" className="text-[13px] text-[var(--apple-secondary-label)]">
               부서
@@ -175,60 +198,90 @@ export function SettingsForm({ user }: SettingsFormProps) {
             </Select>
           </div>
 
-          {/* Card last four -- editable */}
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="settings-card" className="text-[13px] text-[var(--apple-secondary-label)]">
-              법인카드 끝 4자리
-            </Label>
-            <Input
-              id="settings-card"
-              value={cardLastFour}
-              onChange={(e) => {
-                const val = e.target.value.replace(/[^\d]/g, "");
-                setCardLastFour(val);
-              }}
-              placeholder="0000"
-              maxLength={4}
-              inputMode="numeric"
-            />
-            <p className="text-[12px] text-[var(--apple-secondary-label)]">
-              법카사용 내역 제출 시 자동으로 입력됩니다.
-            </p>
-          </div>
-
-          {/* Save button */}
-          <div className="pt-2">
-            <Button
-              onClick={handleSave}
-              disabled={isSaving || !hasChanges || !isValid}
-              className="rounded-full h-10 px-8 bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] text-white"
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="size-4 animate-spin mr-1.5" />
-                  저장 중...
-                </>
-              ) : (
-                "저장"
-              )}
-            </Button>
+          <div className="flex flex-col gap-1">
+            <span className="text-[13px] text-[var(--apple-secondary-label)]">역할</span>
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="size-4 text-[var(--apple-secondary-label)]" />
+              <span
+                className={
+                  user.role === "ADMIN"
+                    ? "glass-badge glass-badge-blue"
+                    : "glass-badge glass-badge-gray"
+                }
+              >
+                {user.role === "ADMIN" ? "관리자" : "크루"}
+              </span>
+              <span className="text-[12px] text-[var(--apple-tertiary-label)]">
+                역할 변경은 관리자에게 문의해주세요
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="flex flex-col gap-5">
-        <div className="glass p-6 animate-card-enter stagger-2">
-          <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-5">
-            계정 정보
-          </h2>
-          <div className="space-y-3 text-sm text-[var(--apple-secondary-label)]">
-            <p>이름, 부서, 법인카드 끝 4자리를 수정할 수 있습니다.</p>
-            <p>역할 변경은 관리자에게 문의해주세요.</p>
-          </div>
+      {/* Card Info Section */}
+      <div className="glass p-6 animate-card-enter stagger-4">
+        <div className="flex items-center gap-2 mb-5">
+          <CreditCard className="size-4 text-[var(--apple-orange)]" />
+          <h3 className="text-[15px] font-semibold text-[var(--apple-label)]">
+            카드 정보
+          </h3>
         </div>
 
-        {user.role === "ADMIN" && <PushTestCard />}
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="settings-card" className="text-[13px] text-[var(--apple-secondary-label)]">
+            법인카드 끝 4자리
+          </Label>
+          <Input
+            id="settings-card"
+            value={cardLastFour}
+            onChange={(e) => {
+              const val = e.target.value.replace(/[^\d]/g, "");
+              setCardLastFour(val);
+            }}
+            placeholder="0000"
+            maxLength={4}
+            inputMode="numeric"
+          />
+          <p className="text-[12px] text-[var(--apple-secondary-label)]">
+            법카사용 내역 제출 시 자동으로 입력됩니다.
+          </p>
+        </div>
       </div>
+
+      {/* Save / Cancel buttons */}
+      <div className="flex items-center gap-3 pt-1 animate-card-enter stagger-4">
+        <Button
+          onClick={handleSave}
+          disabled={isSaving || !hasChanges || !isValid}
+          className="rounded-full h-10 px-8 bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] text-white"
+        >
+          {isSaving ? (
+            <>
+              <Loader2 className="size-4 animate-spin mr-1.5" />
+              저장 중...
+            </>
+          ) : (
+            "저장"
+          )}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={handleCancel}
+          disabled={isSaving || !hasChanges}
+          className="rounded-full h-10 px-6 text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)]"
+        >
+          취소
+        </Button>
+      </div>
+
+      {/* Push Test Card (admin only) */}
+      {user.role === "ADMIN" && (
+        <div className="animate-card-enter stagger-4">
+          <PushTestCard />
+        </div>
+      )}
     </div>
   );
 }
@@ -284,7 +337,7 @@ function PushTestCard() {
   }, []);
 
   return (
-    <div className="glass p-6 animate-card-enter stagger-3">
+    <div className="glass p-6">
       <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-4 flex items-center gap-2">
         <BellRing className="size-4" />
         Push 알림 테스트
