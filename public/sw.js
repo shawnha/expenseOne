@@ -1,5 +1,5 @@
 // ExpenseOne Service Worker v8 — Instant splash shell + NetworkFirst HTML + CacheFirst static + Web Push
-const CACHE_NAME = "expenseone-v9";
+const CACHE_NAME = "expenseone-v10";
 
 const APP_SHELL = ["/offline.html", "/splash-shell.html"];
 
