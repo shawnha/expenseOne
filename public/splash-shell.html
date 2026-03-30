@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover"/>
+<meta name="theme-color" content="#007AFF"/>
+<title>ExpenseOne</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--apple-bg:#f2f2f7;--apple-label:#000;--apple-secondary-label:#8e8e93}
+.dark,:root.dark{--apple-bg:#1c1c1e;--apple-label:#f5f5f7;--apple-secondary-label:#98989d}
+@media(prefers-color-scheme:dark){:root{--apple-bg:#1c1c1e;--apple-label:#f5f5f7;--apple-secondary-label:#98989d}}
+body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',system-ui,sans-serif;background:var(--apple-bg);-webkit-font-smoothing:antialiased}
+#app-splash{position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--apple-bg);transition:opacity .4s ease}
+#app-splash.hide{opacity:0;pointer-events:none}
+.sp-logo{width:80px;height:80px;border-radius:20px;background:linear-gradient(135deg,#007AFF,#5856D6);display:flex;align-items:center;justify-content:center;opacity:0;transform:scale(.6);animation:sp-pop .5s cubic-bezier(.34,1.56,.64,1) .1s forwards}
+.sp-l1{opacity:0;animation:sp-fade .3s ease .5s forwards}
+.sp-l2{opacity:0;animation:sp-fade-dim .3s ease .65s forwards}
+.sp-l3{opacity:0;animation:sp-fade .3s ease .8s forwards}
+.sp-name{margin-top:16px;font-size:22px;font-weight:700;letter-spacing:-.02em;color:var(--apple-label);opacity:0;animation:sp-fade .5s ease 1s forwards}
+.sp-plug{margin-top:12px;opacity:0;display:flex;justify-content:center;animation:sp-fade .4s ease 1.5s forwards}
+.sp-plug svg{color:#34C759;filter:drop-shadow(0 0 8px rgba(52,199,89,.3))}
+.sp-plug-slide{animation:sp-slide .6s cubic-bezier(.25,.46,.45,.94) 1.8s forwards}
+.sp-spark{opacity:0;animation:sp-spark .4s ease 2.2s forwards}
+.sp-status{position:absolute;bottom:max(60px,env(safe-area-inset-bottom,20px));display:flex;flex-direction:column;align-items:center;gap:8px;opacity:0;animation:sp-fade .3s ease 2.5s forwards}
+.sp-status span{font-size:13px;color:var(--apple-secondary-label)}
+.sp-bar{width:160px;height:3px;border-radius:2px;background:rgba(0,122,255,.15);overflow:hidden}
+.sp-bar-fill{width:30%;height:100%;border-radius:2px;background:#007AFF;animation:sp-progress 2s ease-in-out 2.5s infinite}
+#real-page{position:fixed;inset:0;z-index:1;border:none;width:100%;height:100%;opacity:0;transition:opacity .3s ease}
+#real-page.ready{opacity:1}
+@keyframes sp-pop{to{opacity:1;transform:scale(1)}}
+@keyframes sp-fade{to{opacity:1}}
+@keyframes sp-fade-dim{to{opacity:.3}}
+@keyframes sp-slide{from{transform:translateX(8px)}to{transform:translateX(0)}}
+@keyframes sp-spark{0%{opacity:0;transform:scale(0)}50%{opacity:1;transform:scale(1.5)}100%{opacity:0;transform:scale(0)}}
+@keyframes sp-progress{0%{width:30%;margin-left:0}50%{width:60%;margin-left:20%}100%{width:30%;margin-left:70%}}
+</style>
+<script>
+try{var t=localStorage.getItem('theme');if(t==='dark')document.documentElement.classList.add('dark')}catch(e){}
+// iframe 내 인라인 스플래시가 중복 표시되지 않도록 설정
+try{sessionStorage.setItem('splash-shown','1')}catch(e){}
+</script>
+</head>
+<body>
+<div id="app-splash">
+  <div class="sp-logo"><svg viewBox="0 0 32 32" fill="none" width="48" height="48">
+    <rect class="sp-l1" x="8" y="10" width="16" height="2.5" rx="1.25" fill="white"/>
+    <rect class="sp-l2" x="8" y="14.75" width="12" height="2.5" rx="1.25" fill="white" opacity="0.3"/>
+    <rect class="sp-l3" x="8" y="19.5" width="16" height="2.5" rx="1.25" fill="white"/>
+  </svg></div>
+  <div class="sp-name">Expense<span style="color:#007AFF">One</span></div>
+  <div class="sp-plug"><svg width="56" height="18" viewBox="-1 -1 20 14" fill="none">
+    <rect x="0" y="2" width="10" height="8" rx="1.5" stroke="currentColor" stroke-width="1.2" fill="none"/>
+    <rect x="3" y="4" width="1.5" height="4" rx=".5" fill="currentColor" opacity=".3"/>
+    <rect x="6" y="4" width="1.5" height="4" rx=".5" fill="currentColor" opacity=".3"/>
+    <g class="sp-plug-slide">
+      <rect x="3" y="4" width="1.5" height="4" rx=".5" fill="currentColor"/>
+      <rect x="6" y="4" width="1.5" height="4" rx=".5" fill="currentColor"/>
+      <rect x="10.5" y="3" width="4" height="6" rx="1" stroke="currentColor" stroke-width="1.2" fill="none"/>
+      <line x1="14.5" y1="6" x2="18" y2="6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+    </g>
+    <circle class="sp-spark" cx="5" cy="0" r="1.2" fill="currentColor"/>
+  </svg></div>
+  <div class="sp-status"><div class="sp-bar"><div class="sp-bar-fill"></div></div><span>정보를 가져오고 있습니다</span></div>
+</div>
+
+<!-- iframe으로 실제 페이지 로드 — splash 뒤에 숨겨둠 -->
+<iframe id="real-page"></iframe>
+
+<script>
+(function() {
+  var targetUrl = location.hash.slice(1) || '/';
+  var splashStart = Date.now();
+  var MIN_SPLASH_MS = 3500; // 스플래시 애니메이션 최소 표시 시간 (마지막 요소 2.8s에 완료)
+  var iframeReady = false;
+
+  var sep = targetUrl.includes('?') ? '&' : '?';
+  var iframe = document.getElementById('real-page');
+  iframe.src = targetUrl + sep + '_nosplash=1';
+
+  function showPage() {
+    var splash = document.getElementById('app-splash');
+    if (splash) splash.classList.add('hide');
+    iframe.classList.add('ready');
+    setTimeout(function() {
+      if (splash && splash.parentNode) splash.parentNode.removeChild(splash);
+    }, 500);
+  }
+
+  iframe.addEventListener('load', function() {
+    iframeReady = true;
+    var elapsed = Date.now() - splashStart;
+    var remaining = Math.max(0, MIN_SPLASH_MS - elapsed);
+    // 최소 시간이 지나면 전환, 아니면 남은 시간만큼 대기
+    setTimeout(showPage, remaining);
+  });
+
+  // 안전장치: 10초 후에도 안 되면 직접 이동
+  setTimeout(function() {
+    if (document.getElementById('app-splash')) {
+      window.location.replace(targetUrl);
+    }
+  }, 10000);
+})();
+</script>
+</body>
+</html>
