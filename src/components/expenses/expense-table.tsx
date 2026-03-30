@@ -328,7 +328,7 @@ function MobileExpenseCard({
       enabled={actions.length > 0}
     >
       <div
-        className="relative flex flex-col gap-2 p-4 text-left rounded-xl bg-[var(--apple-system-background)] border border-[var(--glass-border)] shadow-sm cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--apple-blue)] focus-visible:ring-offset-1 outline-none"
+        className="group relative flex flex-col gap-2 p-4 text-left rounded-xl bg-[var(--apple-system-background)] border border-[var(--glass-border)] shadow-sm cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--apple-blue)] focus-visible:ring-offset-1 outline-none"
         aria-label={`${expense.title} 상세 보기`}
       >
         <div className="flex items-center justify-between gap-2">
@@ -351,9 +351,27 @@ function MobileExpenseCard({
         </div>
         <div className="flex items-center justify-between text-xs text-[var(--apple-secondary-label)]">
           <span>{formatDateKR(expense.createdAt)}</span>
-          {showSubmitter && expense.submitter && (
-            <span>{expense.submitter.name}</span>
-          )}
+          <div className="flex items-center gap-2">
+            {/* Desktop action buttons */}
+            {actions.length > 0 && (
+              <div className="hidden sm:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                {actions.map((action) => (
+                  <button
+                    key={action.key}
+                    onClick={(e) => { e.stopPropagation(); action.onAction(); }}
+                    className="p-1 rounded-lg transition-colors hover:bg-[rgba(0,0,0,0.05)] dark:hover:bg-[rgba(255,255,255,0.08)]"
+                    style={{ color: action.color }}
+                    aria-label={action.label}
+                  >
+                    <span className="block size-3.5">{action.icon}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {showSubmitter && expense.submitter && (
+              <span>{expense.submitter.name}</span>
+            )}
+          </div>
         </div>
       </div>
     </SwipeableRow>

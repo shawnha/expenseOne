@@ -173,6 +173,22 @@ function DashboardExpenseRow({ expense, idx }: { expense: Expense; idx: number }
     return result;
   }, [expense.id, expense.status, canEdit, canDelete, router]);
 
+  const handleDelete = useCallback(async () => {
+    if (!confirm("정말 삭제하시겠습니까?")) return;
+    try {
+      const res = await fetch(`/api/expenses/${expense.id}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success("삭제되었습니다.");
+        router.refresh();
+      } else {
+        const json = await res.json().catch(() => null);
+        toast.error(json?.error?.message ?? "삭제에 실패했습니다.");
+      }
+    } catch {
+      toast.error("요청 중 오류가 발생했습니다.");
+    }
+  }, [expense.id, router]);
+
   const handleTap = useCallback(() => {
     router.push(`/expenses/${expense.id}`);
   }, [expense.id, router]);
@@ -187,7 +203,7 @@ function DashboardExpenseRow({ expense, idx }: { expense: Expense; idx: number }
     >
       <div
         className={cn(
-          "relative flex flex-col gap-2 p-3.5 sm:p-4 rounded-xl",
+          "group relative flex flex-col gap-2 p-3.5 sm:p-4 rounded-xl",
           "bg-[var(--apple-system-background)] border border-[var(--glass-border)] shadow-sm",
           "cursor-pointer apple-press transition-all duration-200",
           "animate-row-enter",
@@ -207,9 +223,34 @@ function DashboardExpenseRow({ expense, idx }: { expense: Expense; idx: number }
           <span className="text-[11px] sm:text-xs text-[var(--apple-secondary-label)]">
             {formatDateKR(expense.created_at)}
           </span>
-          <span className="text-[13px] sm:text-sm font-medium tabular-nums text-[var(--apple-label)]">
-            {formatAmount(expense.amount)}원
-          </span>
+          <div className="flex items-center gap-2">
+            {/* Desktop action buttons */}
+            {actions.length > 0 && (
+              <div className="hidden sm:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                {canEdit && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); router.push(`/expenses/${expense.id}/edit`); }}
+                    className="p-1 rounded-lg hover:bg-[rgba(255,149,0,0.1)] text-[var(--apple-orange,#FF9500)] transition-colors"
+                    aria-label="수정"
+                  >
+                    <Pencil className="size-3.5" />
+                  </button>
+                )}
+                {canDelete && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDelete(); }}
+                    className="p-1 rounded-lg hover:bg-[rgba(255,59,48,0.1)] text-[var(--apple-red,#FF3B30)] transition-colors"
+                    aria-label="삭제"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                )}
+              </div>
+            )}
+            <span className="text-[13px] sm:text-sm font-medium tabular-nums text-[var(--apple-label)]">
+              {formatAmount(expense.amount)}원
+            </span>
+          </div>
         </div>
       </div>
     </SwipeableRow>
