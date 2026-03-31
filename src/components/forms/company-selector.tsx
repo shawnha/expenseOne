@@ -77,6 +77,7 @@ export function CompanySelector({
       >
         {companies.map((company) => {
           const isSelected = value === company.id;
+          const isOtherCompany = isSelected && showHint;
           return (
             <button
               key={company.id}
@@ -87,7 +88,9 @@ export function CompanySelector({
               className={cn(
                 "relative px-4 py-1.5 text-[13px] font-medium rounded-full transition-all duration-200 whitespace-nowrap",
                 isSelected
-                  ? "bg-[var(--apple-blue)] text-white shadow-[0_2px_8px_rgba(0,122,255,0.25)]"
+                  ? isOtherCompany
+                    ? "bg-[var(--apple-orange)] text-white shadow-[0_2px_8px_rgba(255,149,0,0.3)]"
+                    : "bg-[var(--apple-blue)] text-white shadow-[0_2px_8px_rgba(0,122,255,0.25)]"
                   : "text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)]"
               )}
             >
@@ -97,7 +100,7 @@ export function CompanySelector({
         })}
       </div>
       {showHint && (
-        <p className="text-[12px] text-[var(--apple-secondary-label)] ml-1">
+        <p className="text-footnote text-[var(--apple-orange)] font-medium ml-1">
           소속 외 회사가 선택되었습니다
         </p>
       )}
