@@ -13,17 +13,22 @@ interface CompanySelectorProps {
   value: string;
   onChange: (companyId: string) => void;
   userCompanyId?: string | null;
+  initialCompanies?: Company[];
 }
 
 export function CompanySelector({
   value,
   onChange,
   userCompanyId,
+  initialCompanies,
 }: CompanySelectorProps) {
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [companies, setCompanies] = useState<Company[]>(initialCompanies ?? []);
+  const [loading, setLoading] = useState(!initialCompanies);
 
   useEffect(() => {
+    // 서버에서 이미 받아온 경우 fetch 불필요
+    if (initialCompanies) return;
+
     let cancelled = false;
 
     async function fetchCompanies() {
@@ -52,7 +57,7 @@ export function CompanySelector({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [initialCompanies]);
 
   // Render nothing while loading, or if 0–1 companies
   if (loading || companies.length <= 1) return null;
