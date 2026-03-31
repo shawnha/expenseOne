@@ -33,19 +33,26 @@ const deleteSchema = z.object({
 // GET /api/departments -- list all departments (any authenticated user)
 // ---------------------------------------------------------------------------
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     await requireAuth();
 
-    const result = await db
+    const companyId = request.nextUrl.searchParams.get("companyId");
+
+    let query = db
       .select({
         id: departments.id,
         name: departments.name,
         sortOrder: departments.sortOrder,
         createdAt: departments.createdAt,
       })
-      .from(departments)
-      .orderBy(asc(departments.sortOrder), asc(departments.name));
+      .from(departments);
+
+    if (companyId) {
+      query = query.where(eq(departments.companyId, companyId)) as typeof query;
+    }
+
+    const result = await query.orderBy(asc(departments.sortOrder), asc(departments.name));
 
     const serialized = result.map((d) => ({
       ...d,

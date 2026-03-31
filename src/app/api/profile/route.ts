@@ -29,6 +29,36 @@ const updateProfileSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
+// GET /api/profile -- get own profile (companyId, etc.)
+// ---------------------------------------------------------------------------
+
+export async function GET() {
+  try {
+    const user = await requireAuth();
+
+    const [profile] = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        role: users.role,
+        department: users.department,
+        companyId: users.companyId,
+      })
+      .from(users)
+      .where(eq(users.id, user.id));
+
+    if (!profile) {
+      return errorResponse("NOT_FOUND", "프로필을 찾을 수 없습니다.");
+    }
+
+    return NextResponse.json({ data: profile });
+  } catch (err) {
+    return handleError(err);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // PATCH /api/profile -- update own profile (name, cardLastFour)
 // ---------------------------------------------------------------------------
 

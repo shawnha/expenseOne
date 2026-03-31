@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 import { FileUpload } from "@/components/forms/file-upload";
+import { CompanySelector } from "@/components/forms/company-selector";
 import dynamic from "next/dynamic";
 const SubmitSuccessDialog = dynamic(() => import("@/components/forms/submit-success-dialog").then(m => m.SubmitSuccessDialog), { ssr: false });
 import {
@@ -38,6 +39,23 @@ export default function CorporateCardPage() {
   const [amountDisplay, setAmountDisplay] = useState("");
   const [showCustomCategory, setShowCustomCategory] = useState(false);
   const [showCustomMerchant, setShowCustomMerchant] = useState(false);
+
+  // Company selection
+  const [companyId, setCompanyId] = useState("");
+  const [userCompanyId, setUserCompanyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/profile")
+      .then((res) => res.ok ? res.json() : null)
+      .then((json) => {
+        const cid = json?.data?.companyId;
+        if (cid) {
+          setUserCompanyId(cid);
+          setCompanyId(cid);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // VAT / 프리랜서 원천징수
   const [vatIncluded, setVatIncluded] = useState(false);
@@ -156,6 +174,7 @@ export default function CorporateCardPage() {
           merchantName: data.merchantName || undefined,
           transactionDate: formatDateISO(new Date()),
           isUrgent: false,
+          companyId: companyId || undefined,
         }),
       });
 
@@ -240,6 +259,13 @@ export default function CorporateCardPage() {
           </p>
 
           <div className="space-y-5">
+            {/* 회사 선택 */}
+            <CompanySelector
+              value={companyId}
+              onChange={setCompanyId}
+              userCompanyId={userCompanyId}
+            />
+
             {/* 제목 */}
             <div className="space-y-1.5">
               <Label htmlFor="title">
