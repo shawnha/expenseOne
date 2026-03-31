@@ -67,7 +67,7 @@ export function useRealtimeNotifications(
         "postgres_changes",
         {
           event: "INSERT",
-          schema: "expenseone",
+          schema: "public",
           table: "notifications",
           filter: `recipient_id=eq.${userId}`,
         },

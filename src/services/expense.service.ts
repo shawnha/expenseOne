@@ -44,10 +44,11 @@ export async function createExpense(
   userCompanyId?: string | null,
 ) {
   const isCorporateCard = input.type === "CORPORATE_CARD";
-  const companyId = input.companyId || userCompanyId;
+  // SECURITY: 항상 유저 프로필의 회사 사용, 클라이언트 입력 무시
+  const companyId = userCompanyId;
 
   if (!companyId) {
-    throw new AppError("VALIDATION_ERROR", "회사를 선택해주세요.");
+    throw new AppError("VALIDATION_ERROR", "회사가 지정되지 않았습니다. 설정에서 회사를 선택해주세요.");
   }
 
   type NewExpense = typeof expenses.$inferInsert;

@@ -105,8 +105,16 @@ export async function PATCH(request: NextRequest) {
       updateData.department = department || null;
     }
 
-    // Only update companyId if it was provided in the request
+    // 회사 변경: 첫 설정(null→값)은 누구나 가능, 이후 변경은 ADMIN만
     if (companyId !== undefined) {
+      const [currentProfile] = await db
+        .select({ companyId: users.companyId })
+        .from(users)
+        .where(eq(users.id, user.id));
+
+      if (currentProfile?.companyId && user.role !== "ADMIN") {
+        return errorResponse("FORBIDDEN", "회사 변경은 관리자만 가능합니다.");
+      }
       updateData.companyId = companyId || null;
     }
 

@@ -3,7 +3,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { validateOrigin } from "@/lib/api-utils";
 import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema";
+import { users, companies } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
@@ -44,6 +44,20 @@ export async function POST(request: NextRequest) {
     }
 
     const { name, cardLastFour, profileImageUrl, companyId } = parsed.data;
+
+    // 회사 ID가 실제 존재하는지 검증
+    if (companyId) {
+      const [company] = await db
+        .select({ id: companies.id })
+        .from(companies)
+        .where(eq(companies.id, companyId));
+      if (!company) {
+        return NextResponse.json(
+          { error: { code: "VALIDATION_ERROR", message: "유효하지 않은 회사입니다." } },
+          { status: 400 },
+        );
+      }
+    }
 
     await db
       .update(users)
