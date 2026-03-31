@@ -85,30 +85,29 @@ export async function createExpense(
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
+  // Await notifications to prevent Vercel serverless from killing them
   if (isCorporateCard) {
-    // Slack notification for corporate card (fire-and-forget)
-    notifySlackCorporateCard({
-      submitterEmail: userEmail,
-      submitterName: userName,
-      title: expense.title,
-      amount: expense.amount,
-      category: expense.category,
-      expenseUrl: `${appUrl}/expenses/${expense.id}`,
-    }).catch((err) => {
-      console.error("Failed to send corporate card Slack notification:", err);
-    });
-
-    // Push notification to admins for corporate card (fire-and-forget)
-    sendPushToAdmins(
-      "새 법카사용",
-      `${expense.title} - ${expense.amount.toLocaleString()}원`,
-      `${appUrl}/expenses/${expense.id}`,
-    ).catch((err) => {
-      console.error("[Push] 법카사용 알림 실패:", err);
-    });
+    await Promise.allSettled([
+      notifySlackCorporateCard({
+        submitterEmail: userEmail,
+        submitterName: userName,
+        title: expense.title,
+        amount: expense.amount,
+        category: expense.category,
+        expenseUrl: `${appUrl}/expenses/${expense.id}`,
+      }).catch((err) => {
+        console.error("Failed to send corporate card Slack notification:", err);
+      }),
+      sendPushToAdmins(
+        "새 법카사용",
+        `${expense.title} - ${expense.amount.toLocaleString()}원`,
+        `${appUrl}/expenses/${expense.id}`,
+      ).catch((err) => {
+        console.error("[Push] 법카사용 알림 실패:", err);
+      }),
+    ]);
   } else {
-    // Notify all ADMINs for deposit requests (best-effort)
-    notifyNewDepositRequest(expense.id, expense.title, userName, {
+    await notifyNewDepositRequest(expense.id, expense.title, userName, {
       amount: expense.amount,
       category: expense.category,
       submitterEmail: userEmail,
