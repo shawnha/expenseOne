@@ -62,6 +62,10 @@ export function CompanySelector({
   // Render nothing while loading, or if 0–1 companies
   if (loading || companies.length <= 1) return null;
 
+  // 한아원코리아 소속만 회사 선택 가능 (리테일은 코리아 작업을 할 일이 없음)
+  const userCompany = companies.find((c) => c.id === userCompanyId);
+  if (userCompany && userCompany.slug !== "korea") return null;
+
   const showHint = value && userCompanyId && value !== userCompanyId;
 
   return (
