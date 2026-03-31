@@ -64,16 +64,41 @@ export const notificationTypeEnum = expenseSchema.enum("notification_type", [
 // ---------------------------------------------------------------------------
 
 /**
- * departments -- 부서 테이블
+ * companies -- 회사 테이블
  */
-export const departments = expenseSchema.table("departments", {
+export const companies = expenseSchema.table("companies", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: varchar("name", { length: 100 }).unique().notNull(),
+  slug: varchar("slug", { length: 50 }).unique().notNull(),
+  slackChannelId: varchar("slack_channel_id", { length: 50 }),
   sortOrder: integer("sort_order").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
+
+/**
+ * departments -- 부서 테이블
+ */
+export const departments = expenseSchema.table(
+  "departments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: varchar("name", { length: 100 }).notNull(),
+    companyId: uuid("company_id").references(() => companies.id),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("idx_departments_company").on(table.companyId),
+  ],
+);
 
 /**
  * users -- 사용자 테이블
@@ -84,6 +109,7 @@ export const users = expenseSchema.table("users", {
   name: varchar("name", { length: 100 }).notNull(),
   role: userRoleEnum("role").notNull().default("MEMBER"),
   department: varchar("department", { length: 100 }),
+  companyId: uuid("company_id").references(() => companies.id),
   profileImageUrl: text("profile_image_url"),
   cardLastFour: char("card_last_four", { length: 4 }),
   onboardingCompleted: boolean("onboarding_completed").notNull().default(false),
@@ -121,6 +147,7 @@ export const expenses = expenseSchema.table(
     remainingPaymentRequested: boolean("remaining_payment_requested").notNull().default(false),
     remainingPaymentApproved: boolean("remaining_payment_approved").notNull().default(false),
     rejectionReason: text("rejection_reason"),
+    companyId: uuid("company_id").references(() => companies.id),
     submittedById: uuid("submitted_by_id")
       .notNull()
       .references(() => users.id),
@@ -148,6 +175,12 @@ export const expenses = expenseSchema.table(
       table.createdAt,
     ),
     index("idx_expenses_transaction_date").on(table.transactionDate),
+    index("idx_expenses_company_type_status").on(
+      table.companyId,
+      table.type,
+      table.status,
+      table.createdAt,
+    ),
   ],
 );
 
@@ -240,6 +273,9 @@ export const pushSubscriptions = expenseSchema.table(
 // ---------------------------------------------------------------------------
 // TypeScript types (insert / select)
 // ---------------------------------------------------------------------------
+
+export type Company = typeof companies.$inferSelect;
+export type NewCompany = typeof companies.$inferInsert;
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
