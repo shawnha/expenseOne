@@ -89,7 +89,7 @@ export const departments = expenseSchema.table(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     name: varchar("name", { length: 100 }).notNull(),
-    companyId: uuid("company_id").references(() => companies.id),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -147,7 +147,7 @@ export const expenses = expenseSchema.table(
     remainingPaymentRequested: boolean("remaining_payment_requested").notNull().default(false),
     remainingPaymentApproved: boolean("remaining_payment_approved").notNull().default(false),
     rejectionReason: text("rejection_reason"),
-    companyId: uuid("company_id").references(() => companies.id),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
     submittedById: uuid("submitted_by_id")
       .notNull()
       .references(() => users.id),

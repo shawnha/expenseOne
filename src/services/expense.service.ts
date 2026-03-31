@@ -44,7 +44,11 @@ export async function createExpense(
   userCompanyId?: string | null,
 ) {
   const isCorporateCard = input.type === "CORPORATE_CARD";
-  const companyId = input.companyId || userCompanyId || null;
+  const companyId = input.companyId || userCompanyId;
+
+  if (!companyId) {
+    throw new AppError("VALIDATION_ERROR", "회사를 선택해주세요.");
+  }
 
   type NewExpense = typeof expenses.$inferInsert;
 
