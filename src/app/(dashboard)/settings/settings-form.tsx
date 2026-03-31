@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
-import { Loader2, Bell, BellRing, ShieldCheck, User2, Briefcase, CreditCard } from "lucide-react";
+import { Loader2, Bell, BellRing, ShieldCheck, User2, Briefcase, CreditCard, Sun, Moon, Monitor } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -276,6 +276,11 @@ export function SettingsForm({ user }: SettingsFormProps) {
         </Button>
       </div>
 
+      {/* Appearance Section */}
+      <div className="glass p-6 animate-card-enter stagger-4">
+        <AppearanceSection />
+      </div>
+
       {/* Push Test Card (admin only) */}
       {user.role === "ADMIN" && (
         <div className="animate-card-enter stagger-4">
@@ -283,6 +288,93 @@ export function SettingsForm({ user }: SettingsFormProps) {
         </div>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Appearance / Theme Section
+// ---------------------------------------------------------------------------
+type ThemeMode = "light" | "dark" | "system";
+
+const THEME_OPTIONS: { value: ThemeMode; label: string; icon: typeof Sun; desc: string }[] = [
+  { value: "light", label: "라이트", icon: Sun, desc: "항상 밝은 화면" },
+  { value: "dark", label: "다크", icon: Moon, desc: "항상 어두운 화면" },
+  { value: "system", label: "시스템", icon: Monitor, desc: "기기 설정에 따라" },
+];
+
+function AppearanceSection() {
+  const [mode, setMode] = useState<ThemeMode>("system");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    const saved = localStorage.getItem("theme") as ThemeMode | null;
+    if (saved === "light" || saved === "dark" || saved === "system") {
+      setMode(saved);
+    } else {
+      setMode("system");
+    }
+  }, []);
+
+  // Sync with header toggle
+  useEffect(() => {
+    const handler = (e: CustomEvent<ThemeMode>) => {
+      setMode(e.detail);
+    };
+    window.addEventListener("theme-change" as string, handler as EventListener);
+    return () => window.removeEventListener("theme-change" as string, handler as EventListener);
+  }, []);
+
+  const selectMode = (next: ThemeMode) => {
+    setMode(next);
+    localStorage.setItem("theme", next);
+
+    // Apply theme
+    const isDark =
+      next === "dark" ||
+      (next === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    if (isDark) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+
+    // Notify header toggle
+    window.dispatchEvent(new CustomEvent("theme-change", { detail: next }));
+  };
+
+  if (!mounted) return null;
+
+  return (
+    <>
+      <div className="flex items-center gap-2 mb-5">
+        <Sun className="size-4 text-[var(--apple-orange)]" />
+        <h3 className="text-[15px] font-semibold text-[var(--apple-label)]">
+          외관
+        </h3>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        {THEME_OPTIONS.map(({ value, label, icon: Icon, desc }) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => selectMode(value)}
+            className={`flex flex-col items-center gap-2 rounded-2xl p-3 sm:p-4 transition-all duration-200 ${
+              mode === value
+                ? "bg-[var(--apple-blue)] text-white shadow-[0_2px_12px_rgba(0,122,255,0.3)]"
+                : "bg-[rgba(0,0,0,0.03)] dark:bg-[rgba(255,255,255,0.06)] text-[var(--apple-secondary-label)] hover:bg-[rgba(0,0,0,0.06)] dark:hover:bg-[rgba(255,255,255,0.1)]"
+            }`}
+          >
+            <Icon className="size-5" />
+            <span className="text-[13px] font-medium">{label}</span>
+            <span className={`text-[11px] ${mode === value ? "text-white/70" : "text-[var(--apple-tertiary-label)]"}`}>
+              {desc}
+            </span>
+          </button>
+        ))}
+      </div>
+    </>
   );
 }
 

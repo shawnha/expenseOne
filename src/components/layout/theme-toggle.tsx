@@ -1,42 +1,79 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
 
+type ThemeMode = "light" | "dark" | "system";
+
+function getSystemDark() {
+  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
+function applyTheme(mode: ThemeMode) {
+  const isDark = mode === "dark" || (mode === "system" && getSystemDark());
+  if (isDark) {
+    document.documentElement.classList.add("dark");
+  } else {
+    document.documentElement.classList.remove("dark");
+  }
+  // NOTE: Do NOT mutate <meta name="theme-color"> here.
+  // On iOS Safari in standalone PWA mode, changing theme-color
+  // triggers a full page reload, which destroys the Supabase
+  // auth session and redirects to login. The media-query-based
+  // theme-color tags in layout.tsx handle this safely.
+}
+
+const CYCLE: ThemeMode[] = ["light", "dark", "system"];
+
 export function ThemeToggle() {
-  const [dark, setDark] = useState(false);
+  const [mode, setMode] = useState<ThemeMode>("system");
   const [mounted, setMounted] = useState(false);
   const [stretching, setStretching] = useState(false);
 
+  // Listen for system theme changes when in "system" mode
+  const handleSystemChange = useCallback(() => {
+    const saved = localStorage.getItem("theme") as ThemeMode | null;
+    if (!saved || saved === "system") {
+      applyTheme("system");
+    }
+  }, []);
+
   useEffect(() => {
     setMounted(true);
-    const saved = localStorage.getItem("theme");
-    if (saved === "dark") {
-      setDark(true);
-      document.documentElement.classList.add("dark");
-    }
+    const saved = localStorage.getItem("theme") as ThemeMode | null;
+    const initial = saved && CYCLE.includes(saved) ? saved : "system";
+    setMode(initial);
+    applyTheme(initial);
+
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    mq.addEventListener("change", handleSystemChange);
+    return () => mq.removeEventListener("change", handleSystemChange);
+  }, [handleSystemChange]);
+
+  // Expose for settings page sync
+  useEffect(() => {
+    const handler = (e: CustomEvent<ThemeMode>) => {
+      const next = e.detail;
+      setMode(next);
+      applyTheme(next);
+      localStorage.setItem("theme", next);
+    };
+    window.addEventListener("theme-change" as string, handler as EventListener);
+    return () => window.removeEventListener("theme-change" as string, handler as EventListener);
   }, []);
 
   const toggle = () => {
     setStretching(true);
-    // Stretch phase — thumb elongates
     setTimeout(() => {
-      const next = !dark;
-      setDark(next);
-      if (next) {
-        document.documentElement.classList.add("dark");
-        localStorage.setItem("theme", "dark");
-      } else {
-        document.documentElement.classList.remove("dark");
-        localStorage.setItem("theme", "light");
-      }
-      // NOTE: Do NOT mutate <meta name="theme-color"> here.
-      // On iOS Safari in standalone PWA mode, changing theme-color
-      // triggers a full page reload, which destroys the Supabase
-      // auth session and redirects to login. The media-query-based
-      // theme-color tags in layout.tsx handle this safely.
+      const idx = CYCLE.indexOf(mode);
+      const next = CYCLE[(idx + 1) % CYCLE.length];
+      setMode(next);
+      applyTheme(next);
+      localStorage.setItem("theme", next);
 
-      // Release phase — thumb snaps to new position
+      // Notify settings page
+      window.dispatchEvent(new CustomEvent("theme-change", { detail: next }));
+
       setTimeout(() => {
         setStretching(false);
       }, 150);
@@ -45,16 +82,22 @@ export function ThemeToggle() {
 
   if (!mounted) return null;
 
+  const effectiveDark = mode === "dark" || (mode === "system" && getSystemDark());
+
   return (
     <button
       type="button"
       onClick={toggle}
-      role="switch"
-      aria-checked={dark}
-      aria-label={dark ? "라이트 모드로 전환" : "다크 모드로 전환"}
+      aria-label={
+        mode === "light"
+          ? "다크 모드로 전환"
+          : mode === "dark"
+            ? "시스템 테마로 전환"
+            : "라이트 모드로 전환"
+      }
       className={cn(
         "relative flex items-center w-[52px] h-[28px] rounded-full p-[2px] transition-colors duration-300",
-        dark ? "bg-[#3A3A3C]" : "bg-[#E5E5EA]"
+        effectiveDark ? "bg-[#3A3A3C]" : "bg-[#E5E5EA]"
       )}
     >
       {/* Thumb with sticky stretch effect */}
@@ -62,7 +105,7 @@ export function ThemeToggle() {
         className="relative z-10 flex items-center justify-center h-[24px] rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.15)]"
         style={{
           width: stretching ? 32 : 24,
-          transform: dark
+          transform: effectiveDark
             ? stretching
               ? "translateX(16px)"
               : "translateX(24px)"
@@ -74,7 +117,13 @@ export function ThemeToggle() {
             : "width 200ms cubic-bezier(0.34, 1.56, 0.64, 1), transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1)",
         }}
       >
-        {dark ? (
+        {mode === "system" ? (
+          /* Auto/System icon — circle with half fill */
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="9" stroke="#8E8E93" />
+            <path d="M12 3a9 9 0 0 1 0 18z" fill="#8E8E93" />
+          </svg>
+        ) : mode === "dark" ? (
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFD60A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
           </svg>

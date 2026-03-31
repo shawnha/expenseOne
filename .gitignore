@@ -39,6 +39,9 @@ yarn-error.log*
 # claude local settings
 .claude/settings.local.json
 
+# generated service worker (built from sw-template.js)
+/public/sw.js
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
