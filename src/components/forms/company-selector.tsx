@@ -63,7 +63,7 @@ export function CompanySelector({
     <div className="flex flex-col gap-1.5">
       <div
         className={cn(
-          "inline-flex p-1 rounded-xl",
+          "inline-flex p-1 rounded-full",
           "bg-[var(--apple-system-grouped-background)]",
           "border border-[var(--glass-border)]"
         )}
@@ -80,7 +80,7 @@ export function CompanySelector({
               aria-checked={isSelected}
               onClick={() => onChange(company.id)}
               className={cn(
-                "relative px-4 py-1.5 text-[13px] font-medium rounded-[10px] transition-all duration-200 whitespace-nowrap",
+                "relative px-4 py-1.5 text-[13px] font-medium rounded-full transition-all duration-200 whitespace-nowrap",
                 isSelected
                   ? "bg-[var(--apple-blue)] text-white shadow-[0_2px_8px_rgba(0,122,255,0.25)]"
                   : "text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)]"

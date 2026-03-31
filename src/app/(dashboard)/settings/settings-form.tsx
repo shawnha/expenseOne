@@ -195,7 +195,7 @@ export function SettingsForm({ user }: SettingsFormProps) {
                 소속 회사
               </Label>
               <div
-                className="inline-flex p-1 rounded-xl bg-[var(--apple-system-grouped-background)] border border-[var(--glass-border)]"
+                className="inline-flex p-1 rounded-full bg-[var(--apple-system-grouped-background)] border border-[var(--glass-border)]"
                 role="radiogroup"
                 aria-label="소속 회사 선택"
               >
@@ -208,7 +208,7 @@ export function SettingsForm({ user }: SettingsFormProps) {
                       role="radio"
                       aria-checked={isSelected}
                       onClick={() => setCompanyId(c.id)}
-                      className={`relative px-4 py-1.5 text-[13px] font-medium rounded-[10px] transition-all duration-200 whitespace-nowrap ${
+                      className={`relative px-4 py-1.5 text-[13px] font-medium rounded-full transition-all duration-200 whitespace-nowrap ${
                         isSelected
                           ? "bg-[var(--apple-blue)] text-white shadow-[0_2px_8px_rgba(0,122,255,0.25)]"
                           : "text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)]"
