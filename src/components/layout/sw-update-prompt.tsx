@@ -30,12 +30,21 @@ export function SwUpdatePrompt() {
         if (!newSW) return;
 
         newSW.addEventListener("statechange", () => {
-          // When the new SW finishes installing and enters "waiting"
           if (newSW.state === "installed" && navigator.serviceWorker.controller) {
             setWaitingSW(newSW);
           }
         });
       });
+
+      // Force update check on page load
+      reg.update().catch(() => {});
+
+      // Periodic update check every 60s for PWA (stays open long)
+      const interval = setInterval(() => {
+        reg.update().catch(() => {});
+      }, 60_000);
+
+      return () => clearInterval(interval);
     }
 
     check();
