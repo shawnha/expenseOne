@@ -1,6 +1,8 @@
 import { getActiveCompanies } from "@/services/company.service";
 import DepositRequestForm from "./deposit-request-form";
 
+export const dynamic = "force-dynamic";
+
 export default async function DepositRequestPage() {
   const companies = await getActiveCompanies();
   const serialized = companies.map((c) => ({
