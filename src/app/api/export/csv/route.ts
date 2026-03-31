@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, errorResponse, handleError } from "@/lib/api-utils";
 import { csvExportQuerySchema } from "@/lib/validations/expense";
 import { db } from "@/lib/db";
-import { expenses, users } from "@/lib/db/schema";
+import { expenses, users, companies } from "@/lib/db/schema";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
 import Papa from "papaparse";
 import { getCategoryLabel } from "@/lib/utils/expense-utils";
@@ -46,6 +46,18 @@ export async function GET(request: NextRequest) {
 
     const query = parsed.data;
 
+    // Resolve company slug to ID
+    let companyId: string | null = null;
+    if (query.company) {
+      const [company] = await db
+        .select({ id: companies.id })
+        .from(companies)
+        .where(eq(companies.slug, query.company));
+      if (company) {
+        companyId = company.id;
+      }
+    }
+
     // Build WHERE conditions
     const conditions: ReturnType<typeof eq>[] = [];
 
@@ -64,6 +76,9 @@ export async function GET(request: NextRequest) {
     if (query.endDate) {
       conditions.push(lte(expenses.transactionDate, query.endDate));
     }
+    if (companyId) {
+      conditions.push(eq(expenses.companyId, companyId));
+    }
 
     const whereClause =
       conditions.length > 0 ? and(...conditions) : undefined;
@@ -74,9 +89,11 @@ export async function GET(request: NextRequest) {
         expense: expenses,
         submitterName: users.name,
         submitterEmail: users.email,
+        companyName: companies.name,
       })
       .from(expenses)
       .leftJoin(users, eq(expenses.submittedById, users.id))
+      .leftJoin(companies, eq(expenses.companyId, companies.id))
       .where(whereClause)
       .orderBy(desc(expenses.createdAt))
       // TODO: 데이터가 10,000건 이상으로 증가할 경우 스트리밍 응답(ReadableStream)으로
@@ -86,6 +103,7 @@ export async function GET(request: NextRequest) {
     // Transform to CSV-friendly rows
     const csvData = rows.map((row) => ({
       "제목": row.expense.title,
+      "회사": row.companyName ?? "",
       "비용유형": TYPE_LABELS[row.expense.type] ?? row.expense.type,
       "상태": STATUS_LABELS[row.expense.status] ?? row.expense.status,
       "금액(원)": row.expense.amount,

@@ -29,6 +29,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import type { UserRole } from "@/types";
 
 interface UserRow {
@@ -39,6 +40,22 @@ interface UserRow {
   isActive: boolean;
   createdAt: string;
   cardLastFour: string | null;
+  companyName: string | null;
+  companySlug: string | null;
+}
+
+const COMPANY_BADGE_STYLES: Record<string, string> = {
+  korea: "bg-[rgba(0,122,255,0.1)] text-[#007AFF] dark:bg-[rgba(0,122,255,0.2)]",
+  retail: "bg-[rgba(52,199,89,0.1)] text-[#34C759] dark:bg-[rgba(52,199,89,0.2)]",
+};
+
+function CompanyBadge({ name, slug }: { name: string; slug: string }) {
+  const style = COMPANY_BADGE_STYLES[slug] ?? "bg-[rgba(142,142,147,0.1)] text-[var(--apple-secondary-label)]";
+  return (
+    <span className={cn("inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium whitespace-nowrap", style)}>
+      {name}
+    </span>
+  );
 }
 
 interface UsersTableProps {
@@ -445,6 +462,9 @@ function MobileUserCard({
 
       <div className="flex flex-wrap items-center gap-2">
         <RoleLabel role={user.role} interactive={false} />
+        {user.companyName && user.companySlug && (
+          <CompanyBadge name={user.companyName} slug={user.companySlug} />
+        )}
         {user.cardLastFour && (
           <span className={SECONDARY}>카드 ****-{user.cardLastFour}</span>
         )}
@@ -550,6 +570,7 @@ export function UsersTable({ users: initialUsers, currentUserId }: UsersTablePro
             <TableRow>
               <TableHead className={SECONDARY}>이름</TableHead>
               <TableHead className={SECONDARY}>이메일</TableHead>
+              <TableHead className={SECONDARY}>회사</TableHead>
               <TableHead className={SECONDARY}>역할</TableHead>
               <TableHead className={SECONDARY}>카드번호</TableHead>
               <TableHead className={SECONDARY}>상태</TableHead>
@@ -569,6 +590,13 @@ export function UsersTable({ users: initialUsers, currentUserId }: UsersTablePro
                 >
                   <TableCell className={PRIMARY}>{user.name}</TableCell>
                   <TableCell className={SECONDARY}>{user.email}</TableCell>
+                  <TableCell>
+                    {user.companyName && user.companySlug ? (
+                      <CompanyBadge name={user.companyName} slug={user.companySlug} />
+                    ) : (
+                      <span className="text-xs text-[var(--apple-tertiary-label)]">-</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <RoleLabel
                       role={user.role}

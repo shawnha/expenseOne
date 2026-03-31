@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import {
   Plus,
@@ -20,19 +20,44 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 interface Department {
   id: string;
   name: string;
   sortOrder: number;
   createdAt: string;
+  companyId: string | null;
+  companyName: string | null;
+  companySlug: string | null;
+}
+
+const COMPANY_BADGE_STYLES: Record<string, string> = {
+  korea: "bg-[rgba(0,122,255,0.1)] text-[#007AFF] dark:bg-[rgba(0,122,255,0.2)]",
+  retail: "bg-[rgba(52,199,89,0.1)] text-[#34C759] dark:bg-[rgba(52,199,89,0.2)]",
+};
+
+function CompanyBadge({ name, slug }: { name: string; slug: string }) {
+  const style = COMPANY_BADGE_STYLES[slug] ?? "bg-[rgba(142,142,147,0.1)] text-[var(--apple-secondary-label)]";
+  return (
+    <span className={cn("inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium whitespace-nowrap", style)}>
+      {name}
+    </span>
+  );
 }
 
 interface DepartmentManagerProps {
   initialDepartments: Department[];
+  companyId: string | null;
 }
 
-export function DepartmentManager({ initialDepartments }: DepartmentManagerProps) {
+interface CompanyOption {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export function DepartmentManager({ initialDepartments, companyId }: DepartmentManagerProps) {
   const [departments, setDepartments] = useState<Department[]>(initialDepartments);
   const [newName, setNewName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -41,26 +66,63 @@ export function DepartmentManager({ initialDepartments }: DepartmentManagerProps
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
 
+  // Companies for "전체" mode - need to pick one when adding
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
+
+  useEffect(() => {
+    if (!companyId) {
+      // Fetch companies so user can select when adding in "전체" mode
+      fetch("/api/companies")
+        .then((r) => r.json())
+        .then((json) => {
+          const data: CompanyOption[] = (json.data ?? []).map(
+            (c: { id: string; name: string; slug: string }) => ({
+              id: c.id,
+              name: c.name,
+              slug: c.slug,
+            }),
+          );
+          setCompanies(data);
+          if (data.length > 0) setSelectedCompanyId(data[0].id);
+        })
+        .catch(() => {});
+    }
+  }, [companyId]);
+
   const refreshDepartments = useCallback(async () => {
     try {
-      const res = await fetch("/api/departments");
+      const apiParams = companyId ? `?companyId=${companyId}` : "";
+      const res = await fetch(`/api/departments${apiParams}`);
       const data = await res.json();
       if (data.data) setDepartments(data.data);
     } catch {
       // silent
     }
-  }, []);
+  }, [companyId]);
+
+  const getEffectiveCompanyId = (): string | null => {
+    if (companyId) return companyId;
+    if (selectedCompanyId) return selectedCompanyId;
+    return null;
+  };
 
   const handleAdd = async () => {
     const trimmed = newName.trim();
     if (!trimmed) return;
+
+    const effectiveCompanyId = getEffectiveCompanyId();
+    if (!effectiveCompanyId) {
+      toast.error("회사를 선택해주세요.");
+      return;
+    }
 
     setIsAdding(true);
     try {
       const res = await fetch("/api/departments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmed }),
+        body: JSON.stringify({ name: trimmed, companyId: effectiveCompanyId }),
       });
 
       if (!res.ok) {
@@ -218,10 +280,26 @@ export function DepartmentManager({ initialDepartments }: DepartmentManagerProps
     },
   ];
 
+  // Show company selector when in "전체" mode (no specific company filter)
+  const showCompanySelect = !companyId && companies.length > 0;
+
   return (
     <div className="glass p-6 animate-card-enter stagger-1">
       {/* Add new department */}
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex items-center gap-3 mb-6 flex-wrap">
+        {showCompanySelect && (
+          <select
+            value={selectedCompanyId}
+            onChange={(e) => setSelectedCompanyId(e.target.value)}
+            className="h-9 px-3 rounded-xl border border-[var(--glass-border)] bg-[var(--apple-system-background)] text-[13px] text-[var(--apple-label)] outline-none"
+          >
+            {companies.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        )}
         <Input
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
@@ -286,10 +364,13 @@ export function DepartmentManager({ initialDepartments }: DepartmentManagerProps
                   </div>
 
                   {/* Department name */}
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 flex items-center gap-2">
                     <span className="text-sm font-medium text-[var(--apple-label)]">
                       {dept.name}
                     </span>
+                    {!companyId && dept.companyName && dept.companySlug && (
+                      <CompanyBadge name={dept.companyName} slug={dept.companySlug} />
+                    )}
                   </div>
 
                   {/* Desktop edit/delete buttons (hidden on mobile where swipe is used) */}

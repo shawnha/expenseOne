@@ -14,6 +14,7 @@ const createSchema = z.object({
     .string()
     .min(1, "부서명을 입력해주세요")
     .max(100, "부서명은 100자 이내로 입력해주세요"),
+  companyId: z.string().uuid("올바른 회사 ID를 입력해주세요"),
 });
 
 const updateSchema = z.object({
@@ -99,6 +100,7 @@ export async function POST(request: NextRequest) {
       .insert(departments)
       .values({
         name: parsed.data.name.trim(),
+        companyId: parsed.data.companyId,
         sortOrder: maxSortOrder + 1,
       })
       .returning();
