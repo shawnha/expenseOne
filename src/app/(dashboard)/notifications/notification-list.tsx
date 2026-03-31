@@ -93,6 +93,7 @@ export default function NotificationList({
                 : n,
             ),
           );
+          window.dispatchEvent(new CustomEvent("notification-read-one"));
         } catch {
           // Silently fail
         }
@@ -120,6 +121,7 @@ export default function NotificationList({
           })),
         );
         toast.success("모든 알림을 읽음 처리했습니다.");
+        window.dispatchEvent(new Event("notifications-read-all"));
       } else {
         setNotifications((prev) =>
           prev.map((n) => ({

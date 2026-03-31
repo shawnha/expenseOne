@@ -30,8 +30,30 @@ export function useRealtimeNotifications(
   const onNewNotificationRef = useRef(onNewNotification);
   onNewNotificationRef.current = onNewNotification;
 
+  // When mark-all-read fires, ignore the stale server-side unreadCount
+  const [readAllTriggered, setReadAllTriggered] = useState(false);
+
   const resetDelta = useCallback(() => {
     setRealtimeUnreadDelta(0);
+  }, []);
+
+  // Listen for read events from notification list
+  useEffect(() => {
+    const handleReadAll = () => {
+      setRealtimeUnreadDelta(0);
+      setReadAllTriggered(true);
+    };
+    const handleReadOne = () => {
+      // If readAllTriggered, delta is already 0 so just keep it
+      // If not, decrement the delta (but don't go below negative of server count)
+      setRealtimeUnreadDelta((prev) => prev - 1);
+    };
+    window.addEventListener("notifications-read-all", handleReadAll);
+    window.addEventListener("notification-read-one", handleReadOne);
+    return () => {
+      window.removeEventListener("notifications-read-all", handleReadAll);
+      window.removeEventListener("notification-read-one", handleReadOne);
+    };
   }, []);
 
   useEffect(() => {
@@ -74,5 +96,5 @@ export function useRealtimeNotifications(
     };
   }, [userId]);
 
-  return { realtimeUnreadDelta, resetDelta };
+  return { realtimeUnreadDelta, resetDelta, readAllTriggered };
 }
