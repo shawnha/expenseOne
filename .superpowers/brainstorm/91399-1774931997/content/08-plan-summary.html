@@ -1,0 +1,68 @@
+<h2>구현 플랜 완료 — 6 Phase, 12 Tasks</h2>
+<p class="subtitle">docs/superpowers/plans/2026-03-31-multi-company.md</p>
+
+<div style="display:flex; flex-direction:column; gap:16px;">
+
+  <div style="background:white; border-radius:12px; padding:16px; border-left:4px solid #007AFF;">
+    <div style="font-size:14px; font-weight:700; color:#007AFF;">Phase 1: DB Schema + Companies Service</div>
+    <div style="font-size:13px; margin-top:6px; color:#3c3c43;">
+      <strong>Task 1.</strong> companies 테이블 + company_id 컬럼 추가 + 시드<br/>
+      <strong>Task 2.</strong> Company Service + Validation + API (CRUD)
+    </div>
+  </div>
+
+  <div style="background:white; border-radius:12px; padding:16px; border-left:4px solid #5856D6;">
+    <div style="font-size:14px; font-weight:700; color:#5856D6;">Phase 2: Slack Routing + Expense Service</div>
+    <div style="font-size:13px; margin-top:6px; color:#3c3c43;">
+      <strong>Task 3.</strong> Slack 서비스 회사별 라우팅 (sendSlackMessage + 전체 함수)<br/>
+      <strong>Task 4.</strong> Expense + Notification 서비스에 companyId 전파
+    </div>
+  </div>
+
+  <div style="background:white; border-radius:12px; padding:16px; border-left:4px solid #FF9500;">
+    <div style="font-size:14px; font-weight:700; color:#FF9500;">Phase 3: Frontend 제출 폼</div>
+    <div style="font-size:13px; margin-top:6px; color:#3c3c43;">
+      <strong>Task 5.</strong> CompanySelector 공용 컴포넌트<br/>
+      <strong>Task 6.</strong> 법카사용 + 입금요청 폼에 회사 선택 추가
+    </div>
+  </div>
+
+  <div style="background:white; border-radius:12px; padding:16px; border-left:4px solid #34C759;">
+    <div style="font-size:14px; font-weight:700; color:#34C759;">Phase 4: Admin 페이지</div>
+    <div style="font-size:13px; margin-top:6px; color:#3c3c43;">
+      <strong>Task 7.</strong> Admin 대시보드/비용/승인대기에 회사 필터 탭<br/>
+      <strong>Task 8.</strong> 부서 관리 + 사용자 관리 + CSV에 회사 반영
+    </div>
+  </div>
+
+  <div style="background:white; border-radius:12px; padding:16px; border-left:4px solid #FF2D55;">
+    <div style="font-size:14px; font-weight:700; color:#FF2D55;">Phase 5: 설정 + 온보딩</div>
+    <div style="font-size:13px; margin-top:6px; color:#3c3c43;">
+      <strong>Task 9.</strong> 설정 페이지에 소속 회사 선택<br/>
+      <strong>Task 10.</strong> 온보딩 회사 선택 + 기존 유저 마이그레이션 모달
+    </div>
+  </div>
+
+  <div style="background:white; border-radius:12px; padding:16px; border-left:4px solid #8E8E93;">
+    <div style="font-size:14px; font-weight:700; color:#8E8E93;">Phase 6: Finalize</div>
+    <div style="font-size:13px; margin-top:6px; color:#3c3c43;">
+      <strong>Task 11.</strong> 기존 데이터 backfill + NOT NULL 적용<br/>
+      <strong>Task 12.</strong> 최종 배포 + 검증
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top:24px; padding:16px; background:rgba(0,122,255,0.08); border-radius:12px;">
+  <h3 style="margin:0 0 8px;">실행 방식 선택</h3>
+  <div style="display:flex; gap:12px; flex-wrap:wrap;">
+    <div style="flex:1; min-width:200px; background:white; border-radius:10px; padding:14px; border:2px solid #007AFF;">
+      <div style="font-size:14px; font-weight:700; color:#007AFF;">1. Subagent-Driven (추천)</div>
+      <div style="font-size:12px; color:#8e8e93; margin-top:4px;">Task별 독립 에이전트 → 리뷰 → 다음 Task</div>
+    </div>
+    <div style="flex:1; min-width:200px; background:white; border-radius:10px; padding:14px; border:1px solid #e5e5ea;">
+      <div style="font-size:14px; font-weight:700;">2. Inline Execution</div>
+      <div style="font-size:12px; color:#8e8e93; margin-top:4px;">현재 세션에서 순차 실행 + 체크포인트</div>
+    </div>
+  </div>
+</div>

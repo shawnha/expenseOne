@@ -1,0 +1,77 @@
+<h2>CEO Review 결과 — 종합 7.2/10</h2>
+<p class="subtitle">6개 항목 평가 + 핵심 피드백 7건</p>
+
+<!-- Score Table -->
+<div style="margin-bottom:24px;">
+  <h3>평가 점수</h3>
+  <div style="background:white; border-radius:12px; overflow:hidden; border:1px solid rgba(0,0,0,0.06);">
+    <div style="display:grid; grid-template-columns:1fr 60px 1fr; font-size:13px; font-weight:600; padding:10px 16px; background:#f8f8f8; border-bottom:1px solid #e5e5ea;">
+      <span>항목</span><span style="text-align:center;">점수</span><span>10점이 되려면</span>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 60px 1fr; font-size:13px; padding:10px 16px; border-bottom:1px solid #f2f2f7;">
+      <span>비즈니스 문제 해결</span>
+      <span style="text-align:center; font-weight:700; color:#FF9500;">8</span>
+      <span style="color:#8e8e93;">법인카드 company_id 모델에 누락</span>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 60px 1fr; font-size:13px; padding:10px 16px; border-bottom:1px solid #f2f2f7;">
+      <span>사용자 경험</span>
+      <span style="text-align:center; font-weight:700; color:#FF9500;">7</span>
+      <span style="color:#8e8e93;">마지막 사용 회사 기억 등 편의기능</span>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 60px 1fr; font-size:13px; padding:10px 16px; border-bottom:1px solid #f2f2f7;">
+      <span>비즈니스 관점 누락</span>
+      <span style="text-align:center; font-weight:700; color:#FF3B30;">6</span>
+      <span style="color:#8e8e93;">회사별 리포트/합계/엑셀 내보내기</span>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 60px 1fr; font-size:13px; padding:10px 16px; border-bottom:1px solid #f2f2f7;">
+      <span>스코프 적정성</span>
+      <span style="text-align:center; font-weight:700; color:#FF9500;">8</span>
+      <span style="color:#8e8e93;">회사 CRUD는 과도, 시드+편집으로 충분</span>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 60px 1fr; font-size:13px; padding:10px 16px; border-bottom:1px solid #f2f2f7;">
+      <span>마이그레이션 리스크</span>
+      <span style="text-align:center; font-weight:700; color:#FF9500;">7</span>
+      <span style="color:#8e8e93;">벌크 재분류 + 롤백 계획 필요</span>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 60px 1fr; font-size:13px; padding:10px 16px;">
+      <span>소규모 팀 관리자 경험</span>
+      <span style="text-align:center; font-weight:700; color:#FF9500;">7</span>
+      <span style="color:#8e8e93;">기존 유저 마이그레이션 UX 부재</span>
+    </div>
+  </div>
+</div>
+
+<!-- Key Feedback -->
+<div style="margin-bottom:24px;">
+  <h3>핵심 피드백</h3>
+  <div style="display:flex; flex-direction:column; gap:10px;">
+    <div style="background:#FFF3E0; border-radius:12px; padding:14px 16px; border-left:4px solid #FF9500;">
+      <div style="font-size:14px; font-weight:600; color:#E65100;">1. 법인카드 테이블 누락</div>
+      <div style="font-size:13px; color:#5D4037; margin-top:4px;">Design Decisions에 "법인카드 분리"를 명시했으나 실제 모델에 빠짐</div>
+    </div>
+    <div style="background:#FFEBEE; border-radius:12px; padding:14px 16px; border-left:4px solid #FF3B30;">
+      <div style="font-size:14px; font-weight:600; color:#B71C1C;">2. 리포트/대시보드 회사별 집계 누락</div>
+      <div style="font-size:13px; color:#5D4037; margin-top:4px;">"코리아 이번 달 얼마 썼어?" — CEO가 가장 많이 볼 화면인데 스펙에 없음</div>
+    </div>
+    <div style="background:#FFF3E0; border-radius:12px; padding:14px 16px; border-left:4px solid #FF9500;">
+      <div style="font-size:14px; font-weight:600; color:#E65100;">3. 기존 사용자 마이그레이션 UX 부재</div>
+      <div style="font-size:13px; color:#5D4037; margin-top:4px;">기존 20~30명이 로그인했을 때 소속 회사 선택 플로우 필요</div>
+    </div>
+    <div style="background:#E8F5E9; border-radius:12px; padding:14px 16px; border-left:4px solid #34C759;">
+      <div style="font-size:14px; font-weight:600; color:#1B5E20;">4. 다른 회사 경고 → 부드러운 라벨로</div>
+      <div style="font-size:13px; color:#5D4037; margin-top:4px;">주황색 경고 대신 회사명 배지 + "(소속 외)" 텍스트만</div>
+    </div>
+    <div style="background:#E8F5E9; border-radius:12px; padding:14px 16px; border-left:4px solid #34C759;">
+      <div style="font-size:14px; font-weight:600; color:#1B5E20;">5. 회사 관리 스코프 축소</div>
+      <div style="font-size:13px; color:#5D4037; margin-top:4px;">CRUD 페이지 → /admin/settings 내 편집 섹션으로 통합</div>
+    </div>
+    <div style="background:#FFF3E0; border-radius:12px; padding:14px 16px; border-left:4px solid #FF9500;">
+      <div style="font-size:14px; font-weight:600; color:#E65100;">6. 벌크 재분류 기능</div>
+      <div style="font-size:13px; color:#5D4037; margin-top:4px;">기존 비용 중 리테일 건을 일괄 회사 변경할 수 있는 도구</div>
+    </div>
+    <div style="background:#E3F2FD; border-radius:12px; padding:14px 16px; border-left:4px solid #007AFF;">
+      <div style="font-size:14px; font-weight:600; color:#0D47A1;">7. 롤백 계획 명시</div>
+      <div style="font-size:13px; color:#5D4037; margin-top:4px;">마이그레이션 스크립트에 롤백 SQL 포함</div>
+    </div>
+  </div>
+</div>

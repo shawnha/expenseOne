@@ -1,0 +1,158 @@
+<h2>멀티 회사 지원 — 전체 설계 요약</h2>
+<p class="subtitle">지금까지 결정된 사항을 바탕으로 한 아키텍처 개요</p>
+
+<!-- Data Model -->
+<div style="margin-bottom:32px;">
+  <h3>1. 데이터 모델</h3>
+  <div class="mockup">
+    <div class="mockup-header">DB Schema 변경</div>
+    <div class="mockup-body" style="padding:20px; font-family:'SF Mono',monospace; font-size:13px; line-height:1.8;">
+      <div style="margin-bottom:16px;">
+        <div style="color:#007AFF; font-weight:600;">+ companies (새 테이블)</div>
+        <div style="padding-left:20px; color:#3c3c43;">
+          id, name, slug,<br/>
+          slack_channel_id, slack_bot_token,<br/>
+          sort_order, is_active,<br/>
+          created_at
+        </div>
+      </div>
+      <div style="margin-bottom:16px;">
+        <div style="color:#FF9500; font-weight:600;">~ users (수정)</div>
+        <div style="padding-left:20px; color:#3c3c43;">
+          + <strong>company_id</strong> (FK → companies) — 소속 회사
+        </div>
+      </div>
+      <div style="margin-bottom:16px;">
+        <div style="color:#FF9500; font-weight:600;">~ expenses (수정)</div>
+        <div style="padding-left:20px; color:#3c3c43;">
+          + <strong>company_id</strong> (FK → companies) — 비용이 속한 회사
+        </div>
+      </div>
+      <div style="margin-bottom:16px;">
+        <div style="color:#FF9500; font-weight:600;">~ departments (수정)</div>
+        <div style="padding-left:20px; color:#3c3c43;">
+          + <strong>company_id</strong> (FK → companies) — 회사별 부서
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Flow -->
+<div style="margin-bottom:32px;">
+  <h3>2. 비용 제출 흐름</h3>
+  <div style="display:flex; gap:12px; flex-wrap:wrap;">
+    <div style="flex:1; min-width:200px; background:rgba(0,122,255,0.06); border-radius:12px; padding:16px; text-align:center;">
+      <div style="font-size:28px; margin-bottom:8px;">1</div>
+      <div style="font-size:14px; font-weight:600; margin-bottom:4px;">폼 열기</div>
+      <div style="font-size:12px; color:#8e8e93;">사용자 소속 회사가<br/>자동 선택됨</div>
+    </div>
+    <div style="flex:1; min-width:200px; background:rgba(255,149,0,0.06); border-radius:12px; padding:16px; text-align:center;">
+      <div style="font-size:28px; margin-bottom:8px;">2</div>
+      <div style="font-size:14px; font-weight:600; margin-bottom:4px;">회사 변경 (선택)</div>
+      <div style="font-size:12px; color:#8e8e93;">다른 회사 비용이면<br/>탭으로 전환</div>
+    </div>
+    <div style="flex:1; min-width:200px; background:rgba(52,199,89,0.06); border-radius:12px; padding:16px; text-align:center;">
+      <div style="font-size:28px; margin-bottom:8px;">3</div>
+      <div style="font-size:14px; font-weight:600; margin-bottom:4px;">제출</div>
+      <div style="font-size:12px; color:#8e8e93;">선택된 회사 기준으로<br/>저장 + Slack 라우팅</div>
+    </div>
+  </div>
+</div>
+
+<!-- Slack -->
+<div style="margin-bottom:32px;">
+  <h3>3. Slack 라우팅</h3>
+  <div style="background:white; border-radius:12px; padding:20px; border:1px solid rgba(0,0,0,0.06);">
+    <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
+      <div style="flex:1; min-width:150px; text-align:center;">
+        <div style="background:#f2f2f7; border-radius:10px; padding:12px;">
+          <div style="font-size:13px; font-weight:600;">비용 제출</div>
+          <div style="font-size:12px; color:#8e8e93;">company_id 확인</div>
+        </div>
+      </div>
+      <div style="font-size:24px; color:#8e8e93;">→</div>
+      <div style="flex:1; min-width:150px; text-align:center;">
+        <div style="background:#f2f2f7; border-radius:10px; padding:12px;">
+          <div style="font-size:13px; font-weight:600;">companies 테이블</div>
+          <div style="font-size:12px; color:#8e8e93;">slack_channel_id 조회</div>
+        </div>
+      </div>
+      <div style="font-size:24px; color:#8e8e93;">→</div>
+      <div style="flex:2; min-width:200px;">
+        <div style="background:#E3F2FD; border-radius:10px; padding:10px 12px; margin-bottom:6px;">
+          <span style="font-size:13px; color:#007AFF; font-weight:600;">#한아원코리아-expenses</span>
+        </div>
+        <div style="background:#FFF3E0; border-radius:10px; padding:10px 12px;">
+          <span style="font-size:13px; color:#FF9500; font-weight:600;">#한아원리테일-expenses</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Admin -->
+<div style="margin-bottom:32px;">
+  <h3>4. 관리자 대시보드</h3>
+  <div style="display:flex; gap:12px; flex-wrap:wrap;">
+    <div style="flex:1; min-width:200px; background:white; border-radius:12px; padding:16px; border:1px solid rgba(0,0,0,0.06);">
+      <div style="font-size:14px; font-weight:600; margin-bottom:8px;">비용 관리</div>
+      <div style="font-size:12px; color:#8e8e93; line-height:1.6;">
+        • 회사 필터 탭 추가<br/>
+        • 전체 / 코리아 / 리테일<br/>
+        • 비용 목록에 회사 라벨 표시
+      </div>
+    </div>
+    <div style="flex:1; min-width:200px; background:white; border-radius:12px; padding:16px; border:1px solid rgba(0,0,0,0.06);">
+      <div style="font-size:14px; font-weight:600; margin-bottom:8px;">부서 관리</div>
+      <div style="font-size:12px; color:#8e8e93; line-height:1.6;">
+        • 부서가 회사에 종속<br/>
+        • 회사별 부서 목록 분리<br/>
+        • 부서 추가 시 회사 선택
+      </div>
+    </div>
+    <div style="flex:1; min-width:200px; background:white; border-radius:12px; padding:16px; border:1px solid rgba(0,0,0,0.06);">
+      <div style="font-size:14px; font-weight:600; margin-bottom:8px;">회사 관리 (새 페이지)</div>
+      <div style="font-size:12px; color:#8e8e93; line-height:1.6;">
+        • 회사 추가/편집/비활성화<br/>
+        • Slack 채널 ID 설정<br/>
+        • 회사별 법인카드 관리 (향후)
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Scope -->
+<div style="padding:20px; background:rgba(0,122,255,0.08); border-radius:12px; border-left:4px solid #007AFF;">
+  <h3 style="margin:0 0 12px;">변경 범위 요약</h3>
+  <table style="width:100%; font-size:13px; border-collapse:collapse;">
+    <tr style="border-bottom:1px solid rgba(0,0,0,0.1);">
+      <td style="padding:8px 4px; font-weight:600;">영역</td>
+      <td style="padding:8px 4px; font-weight:600;">변경 내용</td>
+    </tr>
+    <tr style="border-bottom:1px solid rgba(0,0,0,0.05);">
+      <td style="padding:8px 4px;">DB</td>
+      <td style="padding:8px 4px;">companies 테이블 신규 + users/expenses/departments에 company_id 추가</td>
+    </tr>
+    <tr style="border-bottom:1px solid rgba(0,0,0,0.05);">
+      <td style="padding:8px 4px;">제출 폼</td>
+      <td style="padding:8px 4px;">법카사용 + 입금요청 폼에 회사 세그먼트 컨트롤 추가</td>
+    </tr>
+    <tr style="border-bottom:1px solid rgba(0,0,0,0.05);">
+      <td style="padding:8px 4px;">Slack</td>
+      <td style="padding:8px 4px;">단일 채널 → 회사별 채널 라우팅 (companies.slack_channel_id)</td>
+    </tr>
+    <tr style="border-bottom:1px solid rgba(0,0,0,0.05);">
+      <td style="padding:8px 4px;">관리 페이지</td>
+      <td style="padding:8px 4px;">회사 관리 페이지 신규 + 기존 페이지에 회사 필터 추가</td>
+    </tr>
+    <tr style="border-bottom:1px solid rgba(0,0,0,0.05);">
+      <td style="padding:8px 4px;">설정</td>
+      <td style="padding:8px 4px;">프로필에 소속 회사 선택 추가</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 4px;">온보딩</td>
+      <td style="padding:8px 4px;">최초 가입 시 소속 회사 선택 단계 추가</td>
+    </tr>
+  </table>
+</div>

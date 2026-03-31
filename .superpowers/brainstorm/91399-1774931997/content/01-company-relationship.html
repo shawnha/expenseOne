@@ -1,0 +1,28 @@
+<h2>두 회사의 관계는 어떤 구조인가요?</h2>
+<p class="subtitle">한아원코리아와 한아원리테일이 ExpenseOne을 함께 사용할 때, 데이터 접근 범위를 결정합니다.</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>완전 분리</h3>
+      <p>각 회사는 자기 비용만 보고, 관리자도 별도.<br/>한아원코리아 관리자는 한아원리테일 비용을 볼 수 없음.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>데이터 분리 + 슈퍼어드민</h3>
+      <p>비용 데이터는 회사별 분리하지만, 슈퍼어드민(예: 대표)은 전체를 볼 수 있음.<br/>회사별 관리자는 자기 회사만 관리.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>라벨링 + Slack만 분리</h3>
+      <p>사용자에게 소속 회사 태그만 붙이고, 관리자는 전체를 볼 수 있되 회사별 필터링 가능.<br/>Slack 채널만 회사별로 다르게 전송.</p>
+    </div>
+  </div>
+</div>

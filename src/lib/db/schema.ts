@@ -1,5 +1,6 @@
 import {
   pgTable,
+  pgSchema,
   uuid,
   varchar,
   text,
@@ -15,17 +16,23 @@ import {
 import { sql } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
-// Enums (public schema)
+// Schema — 프로덕션 DB는 expenseone 스키마 사용
 // ---------------------------------------------------------------------------
 
-export const userRoleEnum = pgEnum("user_role", ["MEMBER", "ADMIN"]);
+export const expenseSchema = pgSchema("expenseone");
 
-export const expenseTypeEnum = pgEnum("expense_type", [
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+export const userRoleEnum = expenseSchema.enum("user_role", ["MEMBER", "ADMIN"]);
+
+export const expenseTypeEnum = expenseSchema.enum("expense_type", [
   "CORPORATE_CARD",
   "DEPOSIT_REQUEST",
 ]);
 
-export const expenseStatusEnum = pgEnum("expense_status", [
+export const expenseStatusEnum = expenseSchema.enum("expense_status", [
   "SUBMITTED",
   "APPROVED",
   "REJECTED",
@@ -34,7 +41,7 @@ export const expenseStatusEnum = pgEnum("expense_status", [
 
 // expense_category: replaced with varchar to allow user-defined categories
 
-export const documentTypeEnum = pgEnum("document_type", [
+export const documentTypeEnum = expenseSchema.enum("document_type", [
   "ESTIMATE",
   "BANK_COPY",
   "ID_CARD",
@@ -43,7 +50,7 @@ export const documentTypeEnum = pgEnum("document_type", [
   "OTHER",
 ]);
 
-export const notificationTypeEnum = pgEnum("notification_type", [
+export const notificationTypeEnum = expenseSchema.enum("notification_type", [
   "DEPOSIT_APPROVED",
   "DEPOSIT_REJECTED",
   "NEW_DEPOSIT_REQUEST",
@@ -59,7 +66,7 @@ export const notificationTypeEnum = pgEnum("notification_type", [
 /**
  * companies -- 회사 테이블
  */
-export const companies = pgTable("companies", {
+export const companies = expenseSchema.table("companies", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: varchar("name", { length: 100 }).unique().notNull(),
   slug: varchar("slug", { length: 50 }).unique().notNull(),
@@ -77,7 +84,7 @@ export const companies = pgTable("companies", {
 /**
  * departments -- 부서 테이블
  */
-export const departments = pgTable(
+export const departments = expenseSchema.table(
   "departments",
   {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -96,7 +103,7 @@ export const departments = pgTable(
 /**
  * users -- 사용자 테이블
  */
-export const users = pgTable("users", {
+export const users = expenseSchema.table("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: varchar("email", { length: 255 }).unique().notNull(),
   name: varchar("name", { length: 100 }).notNull(),
@@ -118,7 +125,7 @@ export const users = pgTable("users", {
 /**
  * expenses -- 비용 테이블
  */
-export const expenses = pgTable(
+export const expenses = expenseSchema.table(
   "expenses",
   {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -180,7 +187,7 @@ export const expenses = pgTable(
 /**
  * attachments -- 첨부파일 테이블
  */
-export const attachments = pgTable(
+export const attachments = expenseSchema.table(
   "attachments",
   {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -209,7 +216,7 @@ export const attachments = pgTable(
 /**
  * notifications -- 알림 테이블
  */
-export const notifications = pgTable(
+export const notifications = expenseSchema.table(
   "notifications",
   {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -244,7 +251,7 @@ export const notifications = pgTable(
 /**
  * push_subscriptions -- Web Push 구독 테이블
  */
-export const pushSubscriptions = pgTable(
+export const pushSubscriptions = expenseSchema.table(
   "push_subscriptions",
   {
     id: uuid("id").primaryKey().defaultRandom(),
