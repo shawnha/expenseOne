@@ -33,6 +33,8 @@ interface ExpenseRow {
     email: string;
   } | null;
   isUrgent?: boolean;
+  companyName?: string | null;
+  companySlug?: string | null;
 }
 
 interface ExpenseTableProps {
@@ -71,7 +73,19 @@ const STATUS_LABELS: Record<ExpenseStatus, { label: string; className: string }>
   },
 };
 
+const COMPANY_BADGE_STYLES: Record<string, string> = {
+  korea: "bg-[rgba(0,122,255,0.1)] text-[#007AFF] dark:bg-[rgba(0,122,255,0.2)]",
+  retail: "bg-[rgba(52,199,89,0.1)] text-[#34C759] dark:bg-[rgba(52,199,89,0.2)]",
+};
 
+function CompanyBadge({ name, slug }: { name: string; slug: string }) {
+  const style = COMPANY_BADGE_STYLES[slug] ?? "bg-[rgba(142,142,147,0.1)] text-[var(--apple-secondary-label)]";
+  return (
+    <span className={cn("inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium whitespace-nowrap", style)}>
+      {name}
+    </span>
+  );
+}
 
 function formatDateKR(dateStr: string): string {
   const d = new Date(dateStr);
@@ -131,6 +145,7 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
               <TableHead className="w-[72px]">상태</TableHead>
               <TableHead className="w-[100px]">제출일</TableHead>
               {showSubmitter && <TableHead className="w-[80px]">제출자</TableHead>}
+              {showSubmitter && <TableHead className="w-[100px]">회사</TableHead>}
               {isAdmin && <TableHead className="text-center w-[100px]">작업</TableHead>}
             </TableRow>
           </TableHeader>
@@ -176,6 +191,15 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
                   </TableCell>
                   {showSubmitter && (
                     <TableCell className="text-[var(--apple-secondary-label)]">{expense.submitter?.name ?? "-"}</TableCell>
+                  )}
+                  {showSubmitter && (
+                    <TableCell>
+                      {expense.companyName && expense.companySlug ? (
+                        <CompanyBadge name={expense.companyName} slug={expense.companySlug} />
+                      ) : (
+                        <span className="text-xs text-[var(--apple-tertiary-label)]">-</span>
+                      )}
+                    </TableCell>
                   )}
                   {isAdmin && (
                     <TableCell className="text-center w-[100px]">
@@ -350,7 +374,12 @@ function MobileExpenseCard({
           </span>
         </div>
         <div className="flex items-center justify-between text-xs text-[var(--apple-secondary-label)]">
-          <span>{formatDateKR(expense.createdAt)}</span>
+          <span className="flex items-center gap-1.5">
+            {expense.companyName && expense.companySlug && (
+              <CompanyBadge name={expense.companyName} slug={expense.companySlug} />
+            )}
+            {formatDateKR(expense.createdAt)}
+          </span>
           <div className="flex items-center gap-2">
             {/* Desktop action buttons */}
             {actions.length > 0 && (

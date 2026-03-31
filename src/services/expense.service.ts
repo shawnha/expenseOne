@@ -3,6 +3,7 @@ import {
   expenses,
   attachments,
   users,
+  companies,
   type Expense,
 } from "@/lib/db/schema";
 import {
@@ -214,10 +215,13 @@ export async function getExpenses(
           email: users.email,
         },
         attachmentCount: attachmentCountSq.attachmentCount,
+        companyName: companies.name,
+        companySlug: companies.slug,
       })
       .from(expenses)
       .leftJoin(users, eq(expenses.submittedById, users.id))
       .leftJoin(attachmentCountSq, eq(expenses.id, attachmentCountSq.expenseId))
+      .leftJoin(companies, eq(expenses.companyId, companies.id))
       .where(whereClause)
       .orderBy(orderFn(orderColumn))
       .limit(limit)
@@ -234,6 +238,8 @@ export async function getExpenses(
       ...row.expense,
       submitter: row.submitter,
       attachmentCount: Number(row.attachmentCount ?? 0),
+      companyName: row.companyName ?? null,
+      companySlug: row.companySlug ?? null,
     })),
     meta: {
       page,

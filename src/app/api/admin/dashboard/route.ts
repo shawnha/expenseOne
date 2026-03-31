@@ -3,6 +3,7 @@ import { requireAdmin, handleError } from "@/lib/api-utils";
 import { db } from "@/lib/db";
 import { expenses, users } from "@/lib/db/schema";
 import { eq, and, gte, lte, sql, sum } from "drizzle-orm";
+import { getCompanyBySlug } from "@/services/company.service";
 
 // ---------------------------------------------------------------------------
 // GET /api/admin/dashboard?period=this_month|3_months|6_months|this_year
@@ -37,16 +38,30 @@ export async function GET(request: NextRequest) {
     await requireAdmin();
 
     const period = request.nextUrl.searchParams.get("period") ?? "this_month";
+    const companySlug = request.nextUrl.searchParams.get("company");
     const { start, end } = getPeriodRange(period);
 
     const startStr = start.toISOString();
     const endStr = end.toISOString();
 
+    // Resolve company slug to id
+    let companyId: string | null = null;
+    if (companySlug) {
+      const company = await getCompanyBySlug(companySlug);
+      if (company) {
+        companyId = company.id;
+      }
+    }
+
     // 1. Stats: total amount, pending, approved, rejected (single query)
-    const dateFilter = and(
+    const dateConditions = [
       gte(expenses.createdAt, new Date(startStr)),
       lte(expenses.createdAt, new Date(endStr)),
-    );
+    ];
+    if (companyId) {
+      dateConditions.push(eq(expenses.companyId, companyId) as ReturnType<typeof gte>);
+    }
+    const dateFilter = and(...dateConditions);
 
     const [statsResult] = await db
       .select({
@@ -75,18 +90,20 @@ export async function GET(request: NextRequest) {
       start.getMonth() - 5,
       1,
     );
+    const trendConditions = [
+      gte(expenses.createdAt, sixMonthsAgo),
+      lte(expenses.createdAt, new Date(endStr)),
+    ];
+    if (companyId) {
+      trendConditions.push(eq(expenses.companyId, companyId) as ReturnType<typeof gte>);
+    }
     const monthlyTrend = await db
       .select({
         month: sql<string>`to_char(${expenses.createdAt}, 'YYYY-MM')`,
         amount: sum(expenses.amount),
       })
       .from(expenses)
-      .where(
-        and(
-          gte(expenses.createdAt, sixMonthsAgo),
-          lte(expenses.createdAt, new Date(endStr)),
-        ),
-      )
+      .where(and(...trendConditions))
       .groupBy(sql`to_char(${expenses.createdAt}, 'YYYY-MM')`)
       .orderBy(sql`to_char(${expenses.createdAt}, 'YYYY-MM') asc`);
 

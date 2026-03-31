@@ -48,6 +48,22 @@ export interface PendingExpense {
   } | null;
   attachmentCount: number;
   isUrgent: boolean;
+  companyName?: string | null;
+  companySlug?: string | null;
+}
+
+const COMPANY_BADGE_STYLES: Record<string, string> = {
+  korea: "bg-[rgba(0,122,255,0.1)] text-[#007AFF] dark:bg-[rgba(0,122,255,0.2)]",
+  retail: "bg-[rgba(52,199,89,0.1)] text-[#34C759] dark:bg-[rgba(52,199,89,0.2)]",
+};
+
+function CompanyBadge({ name, slug }: { name: string; slug: string }) {
+  const style = COMPANY_BADGE_STYLES[slug] ?? "bg-[rgba(142,142,147,0.1)] text-[var(--apple-secondary-label)]";
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium whitespace-nowrap ${style}`}>
+      {name}
+    </span>
+  );
 }
 
 function formatDate(dateStr: string): string {
@@ -227,6 +243,7 @@ export function PendingTable({ expenses }: PendingTableProps) {
               </TableHead>
               <TableHead>제목</TableHead>
               <TableHead>제출자</TableHead>
+              <TableHead>회사</TableHead>
               <TableHead className="text-right">금액</TableHead>
               <TableHead>카테고리</TableHead>
               <TableHead>제출일</TableHead>
@@ -264,6 +281,13 @@ export function PendingTable({ expenses }: PendingTableProps) {
                   </span>
                 </TableCell>
                 <TableCell className="text-sm text-[var(--apple-label)]">{expense.submitter?.name ?? "알 수 없음"}</TableCell>
+                <TableCell>
+                  {expense.companyName && expense.companySlug ? (
+                    <CompanyBadge name={expense.companyName} slug={expense.companySlug} />
+                  ) : (
+                    <span className="text-xs text-[var(--apple-tertiary-label)]">-</span>
+                  )}
+                </TableCell>
                 <TableCell className="text-right text-sm tabular-nums font-medium text-[var(--apple-label)]">
                   {formatAmount(expense.amount)}원
                 </TableCell>
@@ -337,9 +361,14 @@ export function PendingTable({ expenses }: PendingTableProps) {
                     </p>
                     <p className="text-xs text-[var(--apple-secondary-label)]">{expense.submitter?.name ?? "알 수 없음"}</p>
                   </div>
-                  <span className="text-xs text-[var(--apple-secondary-label)]">
-                    {getCategoryLabel(expense.category)}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {expense.companyName && expense.companySlug && (
+                      <CompanyBadge name={expense.companyName} slug={expense.companySlug} />
+                    )}
+                    <span className="text-xs text-[var(--apple-secondary-label)]">
+                      {getCategoryLabel(expense.category)}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-xs text-[var(--apple-secondary-label)]">

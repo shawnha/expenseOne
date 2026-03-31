@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { getCachedCurrentUser } from "@/lib/supabase/cached";
 import { getExpenses } from "@/services/expense.service";
+import { AdminCompanyFilter } from "@/components/admin/company-filter";
 import { PendingTable } from "./pending-table";
 import type { PendingExpense } from "./pending-table";
 
@@ -8,7 +10,11 @@ import type { PendingExpense } from "./pending-table";
 // Server-side data fetching
 // ---------------------------------------------------------------------------
 
-async function getPendingExpenses(): Promise<PendingExpense[]> {
+interface PendingPageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+async function getPendingExpenses(company?: string): Promise<PendingExpense[]> {
   const user = await getCachedCurrentUser();
   if (!user) {
     redirect("/login");
@@ -24,6 +30,7 @@ async function getPendingExpenses(): Promise<PendingExpense[]> {
       limit: 100,
       type: "DEPOSIT_REQUEST",
       status: "SUBMITTED",
+      company,
     },
     user.id,
     user.role,
@@ -41,6 +48,8 @@ async function getPendingExpenses(): Promise<PendingExpense[]> {
       : null,
     attachmentCount: item.attachmentCount ?? 0,
     isUrgent: item.isUrgent ?? false,
+    companyName: item.companyName ?? null,
+    companySlug: item.companySlug ?? null,
   }));
 }
 
@@ -48,8 +57,10 @@ async function getPendingExpenses(): Promise<PendingExpense[]> {
 // Page (Server Component)
 // ---------------------------------------------------------------------------
 
-export default async function AdminPendingPage() {
-  const expenses = await getPendingExpenses();
+export default async function AdminPendingPage({ searchParams }: PendingPageProps) {
+  const resolvedParams = await searchParams;
+  const company = typeof resolvedParams.company === "string" ? resolvedParams.company : undefined;
+  const expenses = await getPendingExpenses(company);
 
   return (
     <div className="flex flex-col gap-4 sm:gap-5 lg:gap-6">
@@ -60,6 +71,13 @@ export default async function AdminPendingPage() {
           승인이 필요한 입금요청을 처리하세요.
         </p>
       </div>
+
+      {/* Company Filter */}
+      <Suspense fallback={null}>
+        <div className="animate-fade-up">
+          <AdminCompanyFilter paramName="company" />
+        </div>
+      </Suspense>
 
       <div className="glass p-3 sm:p-4 lg:p-5 animate-fade-up-1">
         <div className="flex items-center gap-2 mb-4">

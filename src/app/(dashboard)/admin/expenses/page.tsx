@@ -5,6 +5,7 @@ import { ExpenseTable } from "@/components/expenses/expense-table";
 import { Pagination } from "@/components/expenses/pagination";
 import { getCachedCurrentUser } from "@/lib/supabase/cached";
 import { getExpenses } from "@/services/expense.service";
+import { AdminCompanyFilter } from "@/components/admin/company-filter";
 
 interface AdminExpensesPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -29,6 +30,7 @@ async function getAdminExpensesData(searchParams: Record<string, string | string
   const startDate = typeof searchParams.startDate === "string" ? searchParams.startDate : undefined;
   const endDate = typeof searchParams.endDate === "string" ? searchParams.endDate : undefined;
   const search = typeof searchParams.search === "string" ? searchParams.search : undefined;
+  const company = typeof searchParams.company === "string" ? searchParams.company : undefined;
   const pageStr = typeof searchParams.page === "string" ? searchParams.page : "1";
   const page = Math.max(1, parseInt(pageStr, 10) || 1);
 
@@ -42,6 +44,7 @@ async function getAdminExpensesData(searchParams: Record<string, string | string
       startDate,
       endDate,
       search,
+      company,
     },
     user.id,
     user.role,
@@ -58,6 +61,8 @@ async function getAdminExpensesData(searchParams: Record<string, string | string
     createdAt: item.createdAt?.toISOString() ?? "",
     submitter: item.submitter ?? null,
     isUrgent: item.isUrgent ?? false,
+    companyName: item.companyName ?? null,
+    companySlug: item.companySlug ?? null,
   }));
 
   return {
@@ -81,6 +86,13 @@ export default async function AdminExpensesPage({ searchParams }: AdminExpensesP
           </p>
         </div>
       </div>
+
+      {/* Company Filter */}
+      <Suspense fallback={null}>
+        <div className="animate-fade-up">
+          <AdminCompanyFilter paramName="company" />
+        </div>
+      </Suspense>
 
       {/* Filters */}
       <Suspense fallback={<div className="h-10 animate-pulse rounded-xl glass-subtle" />}>
