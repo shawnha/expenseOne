@@ -100,6 +100,7 @@ export interface AuthUser {
   email: string;
   name: string;
   role: "MEMBER" | "ADMIN";
+  companyId: string | null;
 }
 
 export async function getCurrentUser(): Promise<AuthUser | null> {
@@ -127,6 +128,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
       email: devEmail,
       name: devName,
       role: "ADMIN",
+      companyId: null,
     };
   }
 
@@ -144,6 +146,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
       name: users.name,
       role: users.role,
       isActive: users.isActive,
+      companyId: users.companyId,
     })
     .from(users)
     .where(eq(users.id, authUser.id));
@@ -155,6 +158,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     email: dbUser.email,
     name: dbUser.name,
     role: dbUser.role,
+    companyId: dbUser.companyId ?? null,
   };
 }
 

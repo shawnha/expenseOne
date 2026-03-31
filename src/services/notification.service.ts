@@ -141,6 +141,7 @@ export async function notifyExpenseApproved(
     approverName: string;
     submitterName: string;
     submitterEmail: string;
+    companyId?: string | null;
   },
 ) {
   const notification = await createNotification({
@@ -163,6 +164,7 @@ export async function notifyExpenseApproved(
         title: expenseTitle,
         amount: extra.amount,
         expenseUrl: expenseUrl(expenseId),
+        companyId: extra.companyId ?? undefined,
       }).catch((err) => console.error("[Slack] 승인 알림 실패:", err)),
     );
   }
@@ -226,6 +228,7 @@ export async function notifyNewDepositRequest(
     amount: number;
     category: string;
     submitterEmail: string;
+    companyId?: string | null;
   },
 ) {
   // Find all active ADMINs

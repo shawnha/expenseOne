@@ -21,6 +21,7 @@ const baseExpenseFields = {
   amount: z.number().int("금액은 정수여야 합니다").positive("금액은 0보다 커야 합니다"),
   category: z.string().min(1, "카테고리를 선택해주세요").max(100, "카테고리는 100자 이내로 입력해주세요"),
   transactionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "날짜 형식은 YYYY-MM-DD여야 합니다"),
+  companyId: z.string().uuid("올바른 회사 ID를 입력해주세요").optional(),
 };
 
 // ---------------------------------------------------------------------------
@@ -139,6 +140,7 @@ export const expenseQuerySchema = z.object({
   page: z.coerce.number().int().positive().optional().default(1),
   limit: z.coerce.number().int().positive().max(100).optional().default(20),
   ownOnly: z.enum(["true", "false"]).optional(),
+  company: z.string().max(50).optional(),
 });
 
 export type ExpenseQueryInput = z.infer<typeof expenseQuerySchema>;
@@ -159,6 +161,7 @@ export const csvExportQuerySchema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
+  company: z.string().max(50).optional(),
 });
 
 export type CsvExportQueryInput = z.infer<typeof csvExportQuerySchema>;

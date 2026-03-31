@@ -3,6 +3,9 @@
 // ---------------------------------------------------------------------------
 
 import { formatKRW, getCategoryLabel } from "@/lib/utils/expense-utils";
+import { db } from "@/lib/db";
+import { companies } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
 // Slack user lookup cache (email → Slack user ID) with 1-hour TTL
@@ -53,14 +56,28 @@ async function mentionUser(email: string, fallbackName: string): Promise<string>
 }
 
 // ---------------------------------------------------------------------------
-// Send message to #99-expenses channel via chat.postMessage
+// Look up Slack channel by company (falls back to env var)
 // ---------------------------------------------------------------------------
-async function sendSlackMessage(text: string): Promise<void> {
+async function getSlackChannelForCompany(companyId?: string | null): Promise<string | null> {
+  if (companyId) {
+    const [company] = await db
+      .select({ slackChannelId: companies.slackChannelId })
+      .from(companies)
+      .where(eq(companies.id, companyId));
+    if (company?.slackChannelId) return company.slackChannelId;
+  }
+  return process.env.SLACK_CHANNEL_ID || null;
+}
+
+// ---------------------------------------------------------------------------
+// Send message to Slack channel via chat.postMessage
+// ---------------------------------------------------------------------------
+async function sendSlackMessage(text: string, companyId?: string | null): Promise<void> {
   const token = process.env.SLACK_BOT_TOKEN;
-  const channel = process.env.SLACK_CHANNEL_ID;
+  const channel = await getSlackChannelForCompany(companyId);
 
   if (!token || !channel) {
-    console.warn("[Slack] SLACK_BOT_TOKEN 또는 SLACK_CHANNEL_ID가 설정되지 않았습니다.");
+    console.warn(`[Slack] SLACK_BOT_TOKEN 또는 채널이 설정되지 않았습니다. (companyId: ${companyId ?? "none"})`);
     return;
   }
 
@@ -97,6 +114,7 @@ export async function notifySlackCorporateCard(params: {
   amount: number;
   category: string;
   expenseUrl: string;
+  companyId?: string;
 }): Promise<void> {
   const mention = await mentionUser(params.submitterEmail, params.submitterName);
 
@@ -108,7 +126,7 @@ export async function notifySlackCorporateCard(params: {
     `<${params.expenseUrl}|상세 보기>`,
   ].join("\n");
 
-  await sendSlackMessage(text);
+  await sendSlackMessage(text, params.companyId);
 }
 
 /**
@@ -121,6 +139,7 @@ export async function notifySlackApproved(params: {
   title: string;
   amount: number;
   expenseUrl: string;
+  companyId?: string;
 }): Promise<void> {
   const mention = await mentionUser(params.submitterEmail, params.submitterName);
 
@@ -131,5 +150,5 @@ export async function notifySlackApproved(params: {
     `<${params.expenseUrl}|상세 보기>`,
   ].join("\n");
 
-  await sendSlackMessage(text);
+  await sendSlackMessage(text, params.companyId);
 }

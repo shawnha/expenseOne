@@ -40,8 +40,10 @@ export async function createExpense(
   userId: string,
   userName: string,
   userEmail: string,
+  userCompanyId?: string | null,
 ) {
   const isCorporateCard = input.type === "CORPORATE_CARD";
+  const companyId = input.companyId || userCompanyId || null;
 
   type NewExpense = typeof expenses.$inferInsert;
 
@@ -54,6 +56,7 @@ export async function createExpense(
     category: input.category,
     transactionDate: input.transactionDate,
     submittedById: userId,
+    companyId,
   };
 
   if (isCorporateCard) {
@@ -95,6 +98,7 @@ export async function createExpense(
         amount: expense.amount,
         category: expense.category,
         expenseUrl: `${appUrl}/expenses/${expense.id}`,
+        companyId: companyId ?? undefined,
       }).catch((err) => {
         console.error("Failed to send corporate card Slack notification:", err);
       }),
@@ -111,6 +115,7 @@ export async function createExpense(
       amount: expense.amount,
       category: expense.category,
       submitterEmail: userEmail,
+      companyId: companyId,
     }).catch((err) => {
       console.error("Failed to send new deposit request notification:", err);
     });
@@ -163,6 +168,13 @@ export async function getExpenses(
         ilike(expenses.merchantName, searchTerm),
       )!,
     );
+  }
+  if (query.company) {
+    const { getCompanyBySlug } = await import("@/services/company.service");
+    const company = await getCompanyBySlug(query.company);
+    if (company) {
+      conditions.push(eq(expenses.companyId, company.id));
+    }
   }
 
   const whereClause =
@@ -541,6 +553,7 @@ export async function approveExpense(
       approverName: adminUser[0]?.name ?? "관리자",
       submitterName: submitterUser[0]?.name ?? "요청자",
       submitterEmail: submitterUser[0]?.email ?? "",
+      companyId: expense.companyId,
     },
   );
 

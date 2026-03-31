@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const expense = await createExpense(parsed.data, user.id, user.name, user.email);
+    const expense = await createExpense(parsed.data, user.id, user.name, user.email, user.companyId);
 
     revalidatePath("/");
     revalidatePath("/expenses");
