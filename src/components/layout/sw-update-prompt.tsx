@@ -76,7 +76,11 @@ export function SwUpdatePrompt() {
         </div>
         <button
           type="button"
-          onClick={() => waitingSW.postMessage("SKIP_WAITING")}
+          onClick={() => {
+            waitingSW.postMessage("SKIP_WAITING");
+            // Fallback: controllerchange가 안 오면 3초 후 강제 reload
+            setTimeout(() => window.location.reload(), 3000);
+          }}
           className="shrink-0 px-3 py-1.5 rounded-full bg-[var(--apple-blue)] text-white text-[12px] font-semibold apple-press transition-colors hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)]"
         >
           업데이트
