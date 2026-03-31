@@ -7,6 +7,7 @@ import { Loader2, Camera, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CompanySelector } from "@/components/forms/company-selector";
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -20,9 +21,34 @@ export default function OnboardingPage() {
 
   const [name, setName] = useState("");
   const [cardLastFour, setCardLastFour] = useState("");
+  const [companyId, setCompanyId] = useState("");
+  const [companyCount, setCompanyCount] = useState<number | null>(null);
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch companies to auto-select if only one exists
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchCompanies() {
+      try {
+        const res = await fetch("/api/companies");
+        if (!res.ok) return;
+        const json = await res.json();
+        const data = json.data ?? [];
+        if (!cancelled) {
+          setCompanyCount(data.length);
+          if (data.length === 1) {
+            setCompanyId(data[0].id);
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+    fetchCompanies();
+    return () => { cancelled = true; };
+  }, []);
 
   const handleImageChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -86,6 +112,7 @@ export default function OnboardingPage() {
           name: name.trim(),
           cardLastFour: cardLastFour || "",
           profileImageUrl,
+          companyId: companyId || undefined,
         }),
       });
 
@@ -190,10 +217,28 @@ export default function OnboardingPage() {
             </p>
           </div>
 
+          {/* 소속 회사 — hidden when only 1 company (auto-selected) */}
+          {companyCount !== 1 && (
+            <div className="space-y-1.5">
+              <Label>
+                소속 회사 <span className="text-[var(--apple-red)]">*</span>
+              </Label>
+              <CompanySelector
+                value={companyId}
+                onChange={setCompanyId}
+              />
+              {!companyId && (
+                <p className="text-[12px] text-[var(--apple-secondary-label)]">
+                  소속 회사를 선택해주세요.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* 제출 */}
           <Button
             type="submit"
-            disabled={isSubmitting || !name.trim()}
+            disabled={isSubmitting || !name.trim() || (companyCount !== null && companyCount > 0 && !companyId)}
             className="w-full rounded-full h-11 bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)]"
           >
             {isSubmitting ? (

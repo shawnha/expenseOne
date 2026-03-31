@@ -14,7 +14,8 @@ const updateProfileSchema = z.object({
   name: z
     .string()
     .min(1, "이름을 입력해주세요")
-    .max(100, "이름은 100자 이내로 입력해주세요"),
+    .max(100, "이름은 100자 이내로 입력해주세요")
+    .optional(),
   cardLastFour: z
     .string()
     .regex(/^\d{4}$/, "카드 끝 4자리 숫자를 입력해주세요")
@@ -86,10 +87,18 @@ export async function PATCH(request: NextRequest) {
     const { name, cardLastFour, department, companyId } = parsed.data;
 
     const updateData: Record<string, any> = {
-      name,
-      cardLastFour: cardLastFour || null,
       updatedAt: new Date(),
     };
+
+    // Only update name if it was provided in the request
+    if (name !== undefined) {
+      updateData.name = name;
+    }
+
+    // Only update cardLastFour if it was provided in the request
+    if (cardLastFour !== undefined) {
+      updateData.cardLastFour = cardLastFour || null;
+    }
 
     // Only update department if it was provided in the request
     if (department !== undefined) {

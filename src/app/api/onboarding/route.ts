@@ -15,6 +15,7 @@ const onboardingSchema = z.object({
     .optional()
     .or(z.literal("")),
   profileImageUrl: z.string().url().optional().nullable(),
+  companyId: z.string().uuid("잘못된 회사 ID 형식입니다.").optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { name, cardLastFour, profileImageUrl } = parsed.data;
+    const { name, cardLastFour, profileImageUrl, companyId } = parsed.data;
 
     await db
       .update(users)
@@ -50,6 +51,7 @@ export async function POST(request: NextRequest) {
         name,
         cardLastFour: cardLastFour || null,
         profileImageUrl: profileImageUrl || null,
+        companyId: companyId || null,
         onboardingCompleted: true,
         updatedAt: new Date(),
       })

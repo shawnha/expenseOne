@@ -8,6 +8,7 @@ import { SplashDismiss } from "@/components/layout/splash-dismiss";
 import { PushPrompt } from "@/components/layout/push-prompt";
 import { Toaster } from "@/components/ui/sonner";
 import { SwUpdatePrompt } from "@/components/layout/sw-update-prompt";
+import { CompanySelectModal } from "@/components/layout/company-select-modal";
 import type { User } from "@/types";
 
 export default async function DashboardLayout({
@@ -118,12 +119,16 @@ export default async function DashboardLayout({
         updatedAt: new Date().toISOString(),
       };
 
+  // Show company selection modal for existing users without a company
+  const showCompanyModal = cachedUser != null && cachedUser.companyId == null;
+
   return (
     <>
       <PullToRefresh />
       <PushPrompt />
       <SwUpdatePrompt />
       <Toaster position="top-center" richColors />
+      {showCompanyModal && <CompanySelectModal />}
       <div className="flex h-dvh overflow-hidden">
         {/* Desktop Sidebar */}
         <Sidebar user={user} />
