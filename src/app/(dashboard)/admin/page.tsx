@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { DollarSign, Clock, CheckCircle2, XCircle } from "lucide-react";
 import {
   Select,
@@ -10,9 +11,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { AdminCompanyFilter } from "@/components/admin/company-filter";
 import { formatAmount } from "@/lib/validations/expense-form";
 import { getCategoryLabel } from "@/lib/utils/expense-utils";
-import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -58,89 +59,6 @@ const PERIOD_OPTIONS: { value: PeriodFilter; label: string }[] = [
   { value: "this_year", label: "올해" },
 ];
 
-// ---------------------------------------------------------------------------
-// Inline Company Filter (segmented control with "전체" option)
-// ---------------------------------------------------------------------------
-
-interface CompanyOption {
-  id: string;
-  name: string;
-  slug: string;
-}
-
-function CompanyFilter({
-  value,
-  onChange,
-}: {
-  value: string; // slug or "" for all
-  onChange: (slug: string) => void;
-}) {
-  const [companies, setCompanies] = useState<CompanyOption[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function fetchCompanies() {
-      try {
-        const res = await fetch("/api/companies");
-        if (!res.ok) throw new Error("Failed");
-        const json = await res.json();
-        const data: CompanyOption[] = (json.data ?? []).map(
-          (c: { id: string; name: string; slug: string }) => ({
-            id: c.id,
-            name: c.name,
-            slug: c.slug,
-          }),
-        );
-        if (!cancelled) setCompanies(data);
-      } catch {
-        // ignore
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    fetchCompanies();
-    return () => { cancelled = true; };
-  }, []);
-
-  if (loading || companies.length <= 1) return null;
-
-  const options = [{ slug: "", name: "전체" }, ...companies];
-
-  return (
-    <div
-      className={cn(
-        "inline-flex p-1 rounded-xl",
-        "bg-[var(--apple-system-grouped-background)]",
-        "border border-[var(--glass-border)]",
-      )}
-      role="radiogroup"
-      aria-label="회사 필터"
-    >
-      {options.map((opt) => {
-        const isSelected = value === opt.slug;
-        return (
-          <button
-            key={opt.slug}
-            type="button"
-            role="radio"
-            aria-checked={isSelected}
-            onClick={() => onChange(opt.slug)}
-            className={cn(
-              "relative px-4 py-1.5 text-[13px] font-medium rounded-[10px] transition-all duration-200 whitespace-nowrap",
-              isSelected
-                ? "bg-[var(--apple-blue)] text-white shadow-[0_2px_8px_rgba(0,122,255,0.25)]"
-                : "text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)]",
-            )}
-          >
-            {opt.name}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 const STAT_CONFIGS = [
   { icon: <DollarSign key="d" className="size-5 text-[var(--apple-blue)]" />, accent: "glass-card-accent glass-card-accent-blue", iconBg: "icon-container icon-container-blue" },
   { icon: <Clock key="c" className="size-5 text-[var(--apple-orange)]" />, accent: "glass-card-accent glass-card-accent-orange", iconBg: "icon-container icon-container-orange" },
@@ -153,8 +71,9 @@ const STAT_CONFIGS = [
 // ---------------------------------------------------------------------------
 
 export default function AdminDashboardPage() {
+  const searchParams = useSearchParams();
+  const company = searchParams.get("company") ?? "";
   const [period, setPeriod] = useState<PeriodFilter>("this_month");
-  const [company, setCompany] = useState<string>(""); // slug or "" for all
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -240,7 +159,7 @@ export default function AdminDashboardPage() {
 
       {/* Company Filter */}
       <div className="animate-fade-up">
-        <CompanyFilter value={company} onChange={setCompany} />
+        <AdminCompanyFilter />
       </div>
 
       {/* Error state */}
