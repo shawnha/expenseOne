@@ -26,6 +26,11 @@ const updateProfileSchema = z.object({
     .optional()
     .or(z.literal(""))
     .or(z.null()),
+  companyId: z
+    .string()
+    .uuid("잘못된 회사 ID 형식입니다.")
+    .optional()
+    .or(z.null()),
 });
 
 // ---------------------------------------------------------------------------
@@ -78,7 +83,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const { name, cardLastFour, department } = parsed.data;
+    const { name, cardLastFour, department, companyId } = parsed.data;
 
     const updateData: Record<string, any> = {
       name,
@@ -89,6 +94,11 @@ export async function PATCH(request: NextRequest) {
     // Only update department if it was provided in the request
     if (department !== undefined) {
       updateData.department = department || null;
+    }
+
+    // Only update companyId if it was provided in the request
+    if (companyId !== undefined) {
+      updateData.companyId = companyId || null;
     }
 
     const [updated] = await db

@@ -21,6 +21,12 @@ interface Department {
   sortOrder: number;
 }
 
+interface Company {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 interface SettingsFormProps {
   user: {
     name: string;
@@ -28,6 +34,7 @@ interface SettingsFormProps {
     role: UserRole;
     department: string | null;
     cardLastFour: string | null;
+    companyId: string | null;
   };
 }
 
@@ -37,7 +44,9 @@ export function SettingsForm({ user }: SettingsFormProps) {
   const [name, setName] = useState(user.name);
   const [cardLastFour, setCardLastFour] = useState(user.cardLastFour ?? "");
   const [department, setDepartment] = useState(user.department ?? "");
+  const [companyId, setCompanyId] = useState(user.companyId ?? "");
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -47,12 +56,19 @@ export function SettingsForm({ user }: SettingsFormProps) {
         if (data.data) setDepartments(data.data);
       })
       .catch(() => {});
+    fetch("/api/companies")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.data) setCompanies(data.data);
+      })
+      .catch(() => {});
   }, []);
 
   const hasChanges =
     name.trim() !== user.name ||
     (cardLastFour || "") !== (user.cardLastFour || "") ||
-    (department || "") !== (user.department || "");
+    (department || "") !== (user.department || "") ||
+    (companyId || "") !== (user.companyId || "");
 
   const isValid = name.trim().length > 0 && (cardLastFour === "" || /^\d{4}$/.test(cardLastFour));
 
@@ -70,6 +86,7 @@ export function SettingsForm({ user }: SettingsFormProps) {
           name: name.trim(),
           cardLastFour: cardLastFour || "",
           department: department || null,
+          companyId: companyId || null,
         }),
       });
 
@@ -82,6 +99,7 @@ export function SettingsForm({ user }: SettingsFormProps) {
       user.name = name.trim();
       user.cardLastFour = cardLastFour || null;
       user.department = department || null;
+      user.companyId = companyId || null;
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "프로필 저장에 실패했습니다.",
@@ -95,6 +113,7 @@ export function SettingsForm({ user }: SettingsFormProps) {
     setName(user.name);
     setCardLastFour(user.cardLastFour ?? "");
     setDepartment(user.department ?? "");
+    setCompanyId(user.companyId ?? "");
   };
 
   const selectedDeptLabel = department
@@ -169,6 +188,40 @@ export function SettingsForm({ user }: SettingsFormProps) {
         </div>
 
         <div className="space-y-4">
+          {/* Company selector */}
+          {companies.length > 1 && (
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-[13px] text-[var(--apple-secondary-label)]">
+                소속 회사
+              </Label>
+              <div
+                className="inline-flex p-1 rounded-xl bg-[var(--apple-system-grouped-background)] border border-[var(--glass-border)]"
+                role="radiogroup"
+                aria-label="소속 회사 선택"
+              >
+                {companies.map((c) => {
+                  const isSelected = companyId === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={isSelected}
+                      onClick={() => setCompanyId(c.id)}
+                      className={`relative px-4 py-1.5 text-[13px] font-medium rounded-[10px] transition-all duration-200 whitespace-nowrap ${
+                        isSelected
+                          ? "bg-[var(--apple-blue)] text-white shadow-[0_2px_8px_rgba(0,122,255,0.25)]"
+                          : "text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)]"
+                      }`}
+                    >
+                      {c.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="settings-department" className="text-[13px] text-[var(--apple-secondary-label)]">
               부서

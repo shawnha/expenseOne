@@ -11,6 +11,7 @@ export default async function SettingsPage() {
       role: "ADMIN" as const,
       department: "개발팀",
       cardLastFour: null as string | null,
+      companyId: null as string | null,
     };
 
     return (
@@ -42,6 +43,7 @@ export default async function SettingsPage() {
         role: userProfile.role as "MEMBER" | "ADMIN",
         department: userProfile.department as string | null,
         cardLastFour: (userProfile.card_last_four ?? null) as string | null,
+        companyId: (userProfile.company_id ?? null) as string | null,
       }
     : {
         name:
@@ -52,6 +54,7 @@ export default async function SettingsPage() {
         role: "MEMBER" as const,
         department: null,
         cardLastFour: null,
+        companyId: null,
       };
 
   return (
