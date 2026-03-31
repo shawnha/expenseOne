@@ -60,8 +60,8 @@ export default async function SettingsPage() {
   return (
     <div className="flex flex-col gap-4 sm:gap-5 lg:gap-6">
       <div className="animate-fade-up">
-        <h1 className="text-lg sm:text-xl font-semibold text-[var(--apple-label)]">설정</h1>
-        <p className="text-sm text-[var(--apple-secondary-label)]">계정 정보를 확인하고 수정하세요.</p>
+        <h1 className="text-title3 text-[var(--apple-label)]">설정</h1>
+        <p className="text-footnote text-[var(--apple-secondary-label)]">계정 정보를 확인하고 수정하세요.</p>
       </div>
       <SettingsForm user={user} />
     </div>

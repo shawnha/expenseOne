@@ -134,7 +134,7 @@ export function AdminQuickEditDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent showCloseButton={false} className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-[15px] font-semibold text-[var(--apple-label)]">
+          <DialogTitle className="text-subheadline font-semibold text-[var(--apple-label)]">
             비용 빠른 수정
           </DialogTitle>
           {expense.submitter && (

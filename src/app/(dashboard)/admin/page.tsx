@@ -138,8 +138,8 @@ export default function AdminDashboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between animate-fade-up">
         <div>
-          <h1 className="text-lg sm:text-xl font-semibold text-[var(--apple-label)]">관리자 대시보드</h1>
-          <p className="text-sm text-[var(--apple-secondary-label)] mt-0.5">전체 비용 현황</p>
+          <h1 className="text-title3 text-[var(--apple-label)]">관리자 대시보드</h1>
+          <p className="text-footnote text-[var(--apple-secondary-label)] mt-0.5">전체 비용 현황</p>
         </div>
         <Select value={period} onValueChange={(v) => setPeriod(v as PeriodFilter)}>
           <SelectTrigger className="w-32" aria-label="기간 필터">
@@ -221,7 +221,7 @@ function BarSection({
 
   return (
     <div className="glass-card p-4 sm:p-5 lg:p-6">
-      <h3 className="text-[15px] font-semibold text-[var(--apple-label)] mb-5">{title}</h3>
+      <h3 className="text-subheadline font-semibold text-[var(--apple-label)] mb-5">{title}</h3>
       {data.length === 0 ? (
         <p className="py-6 text-center text-sm text-[var(--apple-secondary-label)]">데이터가 없습니다</p>
       ) : (
@@ -284,7 +284,7 @@ function CategoryPieSection({
 
   return (
     <div className="glass-card p-4 sm:p-5 lg:p-6">
-      <h3 className="text-[15px] font-semibold text-[var(--apple-label)] mb-5">{title}</h3>
+      <h3 className="text-subheadline font-semibold text-[var(--apple-label)] mb-5">{title}</h3>
       {data.length === 0 ? (
         <p className="py-8 text-center text-sm text-[var(--apple-secondary-label)]">데이터가 없습니다</p>
       ) : (
@@ -355,7 +355,7 @@ function LineChartSection({
   if (data.length === 0) {
     return (
       <div className="glass-card p-4 sm:p-5 lg:p-6">
-        <h3 className="text-[15px] font-semibold text-[var(--apple-label)] mb-5">{title}</h3>
+        <h3 className="text-subheadline font-semibold text-[var(--apple-label)] mb-5">{title}</h3>
         <p className="py-8 text-center text-sm text-[var(--apple-secondary-label)]">데이터가 없습니다</p>
       </div>
     );
@@ -420,7 +420,7 @@ function LineChartSection({
       {/* Header with title, latest value, and change indicator */}
       <div className="flex items-start justify-between mb-5">
         <div>
-          <h3 className="text-[15px] font-semibold text-[var(--apple-label)]">{title}</h3>
+          <h3 className="text-subheadline font-semibold text-[var(--apple-label)]">{title}</h3>
           <div className="flex items-baseline gap-2 mt-1.5">
             <span className="text-[26px] font-bold tabular-nums tracking-tight text-[var(--apple-label)] leading-none">
               {formatAmount(latestValue)}

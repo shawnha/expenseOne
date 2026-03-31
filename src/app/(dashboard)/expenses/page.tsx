@@ -76,8 +76,8 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
       {/* Page header */}
       <div className="flex items-center justify-between animate-fade-up">
         <div>
-          <h1 className="text-lg sm:text-xl font-semibold text-[var(--apple-label)]">비용 목록</h1>
-          <p className="text-sm text-[var(--apple-secondary-label)] mt-0.5">
+          <h1 className="text-title3 text-[var(--apple-label)]">비용 목록</h1>
+          <p className="text-footnote text-[var(--apple-secondary-label)] mt-0.5">
             제출한 비용 내역을 관리하세요.
           </p>
         </div>

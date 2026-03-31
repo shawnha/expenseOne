@@ -152,7 +152,7 @@ export function SettingsForm({ user }: SettingsFormProps) {
       <div className="glass p-6 animate-card-enter stagger-2">
         <div className="flex items-center gap-2 mb-5">
           <User2 className="size-4 text-[var(--apple-blue)]" />
-          <h3 className="text-[15px] font-semibold text-[var(--apple-label)]">
+          <h3 className="text-subheadline font-semibold text-[var(--apple-label)]">
             개인 정보
           </h3>
         </div>
@@ -182,7 +182,7 @@ export function SettingsForm({ user }: SettingsFormProps) {
       <div className="glass p-6 animate-card-enter stagger-3">
         <div className="flex items-center gap-2 mb-5">
           <Briefcase className="size-4 text-[var(--apple-indigo)]" />
-          <h3 className="text-[15px] font-semibold text-[var(--apple-label)]">
+          <h3 className="text-subheadline font-semibold text-[var(--apple-label)]">
             업무 정보
           </h3>
         </div>
@@ -276,7 +276,7 @@ export function SettingsForm({ user }: SettingsFormProps) {
       <div className="glass p-6 animate-card-enter stagger-4">
         <div className="flex items-center gap-2 mb-5">
           <CreditCard className="size-4 text-[var(--apple-orange)]" />
-          <h3 className="text-[15px] font-semibold text-[var(--apple-label)]">
+          <h3 className="text-subheadline font-semibold text-[var(--apple-label)]">
             카드 정보
           </h3>
         </div>
@@ -402,7 +402,7 @@ function AppearanceSection() {
     <>
       <div className="flex items-center gap-2 mb-5">
         <Sun className="size-4 text-[var(--apple-orange)]" />
-        <h3 className="text-[15px] font-semibold text-[var(--apple-label)]">
+        <h3 className="text-subheadline font-semibold text-[var(--apple-label)]">
           외관
         </h3>
       </div>
@@ -483,7 +483,7 @@ function PushTestCard() {
 
   return (
     <div className="glass p-6">
-      <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-4 flex items-center gap-2">
+      <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-4 flex items-center gap-2">
         <BellRing className="size-4" />
         Push 알림 테스트
       </h2>

@@ -5,7 +5,7 @@ export default function NotificationsLoading() {
         <div className="h-6 w-16 rounded-lg bg-[var(--apple-tertiary-system-fill)]" />
         <div className="h-4 w-36 rounded-lg bg-[var(--apple-tertiary-system-fill)] mt-1.5" />
       </div>
-      <div className="glass p-4">
+      <div className="glass p-2.5 sm:p-3 lg:p-4">
         {[1, 2, 3, 4, 5].map((i) => (
           <div key={i} className="flex items-start gap-3 py-3 border-b border-[var(--apple-separator)]">
             <div className="size-8 rounded-full bg-[var(--apple-tertiary-system-fill)] shrink-0" />

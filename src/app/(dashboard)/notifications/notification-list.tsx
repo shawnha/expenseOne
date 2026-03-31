@@ -143,7 +143,7 @@ export default function NotificationList({
       {/* Header */}
       <div className="flex items-center justify-between animate-fade-up">
         <div>
-          <h1 className="text-lg sm:text-xl font-semibold text-[var(--apple-label)]">
+          <h1 className="text-title3 text-[var(--apple-label)]">
             알림
           </h1>
           <p className="text-sm text-[var(--apple-secondary-label)] mt-0.5">
@@ -173,7 +173,7 @@ export default function NotificationList({
 
       {/* Notification List */}
       <div className="glass p-2.5 sm:p-3 lg:p-4 animate-fade-up-1">
-        <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-2 sm:mb-3">
+        <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-2 sm:mb-3">
           알림 목록
         </h2>
 

@@ -308,7 +308,7 @@ function CorporateCardEditForm({
           <ArrowLeft className="size-4" />
         </Link>
         <div>
-          <h1 className="text-lg sm:text-xl font-semibold text-[var(--apple-label)]">법카사용 내역 수정</h1>
+          <h1 className="text-title3 text-[var(--apple-label)]">법카사용 내역 수정</h1>
           <p className="text-sm text-[var(--apple-secondary-label)] mt-0.5">
             법인카드 사용내역을 수정합니다.
           </p>
@@ -317,7 +317,7 @@ function CorporateCardEditForm({
 
       <form onSubmit={handleSubmit(onSubmit)} noValidate>
         <div className="glass p-6">
-          <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-1">기본 정보</h2>
+          <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-1">기본 정보</h2>
           <p className="text-[13px] text-[var(--apple-secondary-label)] mb-5">
             <span className="text-[var(--apple-red)]">*</span> 필수 항목
           </p>
@@ -405,7 +405,7 @@ function CorporateCardEditForm({
 
         {(keptAttachments.length > 0 || newFiles.length > 0) && (
           <div className="glass p-6 mt-4">
-            <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-1">기존 첨부파일</h2>
+            <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-1">기존 첨부파일</h2>
             <p className="text-[13px] text-[var(--apple-secondary-label)] mb-4">삭제 버튼을 눌러 기존 파일을 제거할 수 있습니다.</p>
             {keptAttachments.length > 0 ? (
               <div className="space-y-2">{keptAttachments.map((attachment) => (<ExistingAttachmentItem key={attachment.id} attachment={attachment} onRemove={() => removeExistingAttachment(attachment.id)} />))}</div>
@@ -416,7 +416,7 @@ function CorporateCardEditForm({
         )}
 
         <div className="glass p-6 mt-4">
-          <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-1">새 파일 첨부</h2>
+          <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-1">새 파일 첨부</h2>
           <p className="text-[13px] text-[var(--apple-secondary-label)] mb-4">영수증 등 증빙자료를 추가로 첨부해주세요. (선택사항)</p>
           <FileUpload files={newFiles} onFilesChange={setNewFiles} />
         </div>
@@ -606,14 +606,14 @@ function DepositRequestEditForm({
           <ArrowLeft className="size-4" />
         </Link>
         <div>
-          <h1 className="text-lg sm:text-xl font-semibold text-[var(--apple-label)]">입금요청 수정</h1>
+          <h1 className="text-title3 text-[var(--apple-label)]">입금요청 수정</h1>
           <p className="text-sm text-[var(--apple-secondary-label)] mt-0.5">입금요청서를 수정합니다.</p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} noValidate>
         <div className="glass p-6">
-          <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-1">기본 정보</h2>
+          <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-1">기본 정보</h2>
           <p className="text-[13px] text-[var(--apple-secondary-label)] mb-5"><span className="text-[var(--apple-red)]">*</span> 필수 항목</p>
           <div className="space-y-5">
             <div className="space-y-1.5">
@@ -695,7 +695,7 @@ function DepositRequestEditForm({
         </div>
 
         <div className="glass p-6 mt-4">
-          <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-5">입금 정보</h2>
+          <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-5">입금 정보</h2>
           <div className="space-y-5">
             <div className="space-y-1.5">
               <Label htmlFor="bankName">은행명 <span className="text-[var(--apple-red)]">*</span></Label>
@@ -717,7 +717,7 @@ function DepositRequestEditForm({
 
         {existingAttachments.length > 0 && (
           <div className="glass p-6 mt-4">
-            <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-1">기존 첨부파일 ({keptAttachments.length})</h2>
+            <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-1">기존 첨부파일 ({keptAttachments.length})</h2>
             <p className="text-[13px] text-[var(--apple-secondary-label)] mb-4">삭제 버튼을 눌러 기존 파일을 제거할 수 있습니다.</p>
             {keptAttachments.length > 0 ? (
               <div className="space-y-2">{keptAttachments.map((attachment) => (<ExistingAttachmentItem key={attachment.id} attachment={attachment} onRemove={() => removeExistingAttachment(attachment.id)} />))}</div>
@@ -728,7 +728,7 @@ function DepositRequestEditForm({
         )}
 
         <div className="glass p-6 mt-4">
-          <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-1">새 파일 첨부</h2>
+          <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-1">새 파일 첨부</h2>
           <p className="text-[13px] text-[var(--apple-secondary-label)] mb-4">증빙서류를 추가로 첨부해주세요.{keptAttachments.length === 0 && " 최소 1개의 파일이 필요합니다."}</p>
           <FileUploadWithDocType files={newFiles} onFilesChange={(files) => { setNewFiles(files); if (files.length > 0 || keptAttachments.length > 0) setFileError(null); }} onDocumentTypeChange={handleDocumentTypeChange} documentTypeErrors={docTypeErrors} error={fileError ?? undefined} />
         </div>

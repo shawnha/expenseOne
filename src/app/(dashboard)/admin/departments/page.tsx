@@ -38,7 +38,7 @@ export default async function AdminDepartmentsPage({ searchParams }: PageProps) 
       <div className="flex flex-col gap-4 sm:gap-5 lg:gap-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-lg sm:text-xl font-semibold text-[var(--apple-label)]">부서 관리</h1>
+            <h1 className="text-title3 text-[var(--apple-label)]">부서 관리</h1>
             <p className="text-sm text-[var(--apple-secondary-label)]">부서를 추가, 수정, 삭제하세요.</p>
           </div>
           <AdminCompanyFilter />
@@ -76,7 +76,7 @@ export default async function AdminDepartmentsPage({ searchParams }: PageProps) 
     <div className="flex flex-col gap-4 sm:gap-5 lg:gap-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-lg sm:text-xl font-semibold text-[var(--apple-label)]">부서 관리</h1>
+          <h1 className="text-title3 text-[var(--apple-label)]">부서 관리</h1>
           <p className="text-sm text-[var(--apple-secondary-label)]">부서를 추가, 수정, 삭제하세요.</p>
         </div>
         <AdminCompanyFilter />

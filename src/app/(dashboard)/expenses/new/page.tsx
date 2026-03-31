@@ -22,8 +22,8 @@ export default function NewExpensePage() {
   return (
     <div className="mx-auto max-w-lg space-y-5">
       <div className="animate-fade-up">
-        <h1 className="text-lg sm:text-xl font-semibold text-[var(--apple-label)]">비용 제출</h1>
-        <p className="mt-1 text-sm text-[var(--apple-secondary-label)]">
+        <h1 className="text-title3 text-[var(--apple-label)]">비용 제출</h1>
+        <p className="mt-1 text-footnote text-[var(--apple-secondary-label)]">
           제출할 비용 유형을 선택해주세요.
         </p>
       </div>
@@ -39,11 +39,11 @@ export default function NewExpensePage() {
               {type.icon}
             </div>
             <div>
-              <span className="text-[15px] font-semibold text-[var(--apple-label)] flex items-center gap-1">
+              <span className="text-subheadline font-semibold text-[var(--apple-label)] flex items-center gap-1">
                 {type.title}
                 <ArrowRight className="size-3.5 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 text-[var(--apple-blue)]" />
               </span>
-              <p className="text-[13px] text-[var(--apple-secondary-label)] leading-relaxed mt-1">
+              <p className="text-footnote text-[var(--apple-secondary-label)] leading-relaxed mt-1">
                 {type.description}
               </p>
             </div>

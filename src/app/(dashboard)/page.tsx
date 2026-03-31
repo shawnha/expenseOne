@@ -258,8 +258,8 @@ export default function DashboardHomePage() {
     <div className="flex flex-col gap-4 sm:gap-5 lg:gap-6 pb-20 lg:pb-0">
       {/* Page header — renders immediately */}
       <div className="animate-fade-up">
-        <h1 className="text-lg sm:text-xl lg:text-[22px] font-bold tracking-[-0.01em] text-[var(--apple-label)]">대시보드</h1>
-        <p className="text-[13px] sm:text-sm text-[var(--apple-secondary-label)] mt-0.5">
+        <h1 className="text-title3 lg:text-title2 text-[var(--apple-label)]">대시보드</h1>
+        <p className="text-footnote sm:text-callout text-[var(--apple-secondary-label)] mt-0.5">
           이번 달 비용 현황을 확인하세요.
         </p>
       </div>

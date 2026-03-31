@@ -66,7 +66,7 @@ export default async function AdminPendingPage({ searchParams }: PendingPageProp
     <div className="flex flex-col gap-4 sm:gap-5 lg:gap-6">
       {/* Header */}
       <div className="animate-fade-up">
-        <h1 className="text-lg sm:text-xl font-semibold text-[var(--apple-label)]">승인 대기</h1>
+        <h1 className="text-title3 text-[var(--apple-label)]">승인 대기</h1>
         <p className="text-sm text-[var(--apple-secondary-label)] mt-0.5">
           승인이 필요한 입금요청을 처리하세요.
         </p>
@@ -81,7 +81,7 @@ export default async function AdminPendingPage({ searchParams }: PendingPageProp
 
       <div className="glass p-3 sm:p-4 lg:p-5 animate-fade-up-1">
         <div className="flex items-center gap-2 mb-4">
-          <h2 className="text-[15px] font-semibold text-[var(--apple-label)]">대기 중인 요청</h2>
+          <h2 className="text-subheadline font-semibold text-[var(--apple-label)]">대기 중인 요청</h2>
           {expenses.length > 0 && (
             <span className="glass-badge glass-badge-orange animate-spring-pop">{expenses.length}건</span>
           )}

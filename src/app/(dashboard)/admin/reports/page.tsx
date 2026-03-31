@@ -162,7 +162,7 @@ export default function AdminReportsPage() {
     <div className="flex flex-col gap-4 sm:gap-5 lg:gap-6">
       {/* Header */}
       <div className="animate-fade-up">
-        <h1 className="text-lg sm:text-xl font-semibold text-[var(--apple-label)]">리포트</h1>
+        <h1 className="text-title3 text-[var(--apple-label)]">리포트</h1>
         <p className="text-sm text-[var(--apple-secondary-label)] mt-0.5">
           비용 데이터를 필터링하고 CSV로 내보내세요.
         </p>
@@ -170,7 +170,7 @@ export default function AdminReportsPage() {
 
       {/* Filters */}
       <div className="glass p-6 animate-fade-up-1">
-        <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-4">필터</h2>
+        <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-4">필터</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div className="space-y-1.5">
             <Label htmlFor="start-date" className="text-[13px]">시작일</Label>
@@ -272,7 +272,7 @@ export default function AdminReportsPage() {
       <div className="glass p-4 sm:p-5 lg:p-6 animate-fade-up-1">
         <div className="flex items-center gap-2 mb-5">
           <Building2 className="size-4 text-[var(--apple-blue)]" />
-          <h2 className="text-[15px] font-semibold text-[var(--apple-label)]">부서별 비용</h2>
+          <h2 className="text-subheadline font-semibold text-[var(--apple-label)]">부서별 비용</h2>
         </div>
         {deptLoading ? (
           <div className="flex justify-center py-8">

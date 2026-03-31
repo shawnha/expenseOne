@@ -43,6 +43,7 @@ import {
 import type { DocumentType } from "@/types";
 import { cn } from "@/lib/utils";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
+import { Breadcrumb } from "@/components/layout/breadcrumb";
 
 // ============================================================
 // 은행 목록 (시중은행 + 인터넷은행 + 특수은행)
@@ -390,14 +391,21 @@ export default function DepositRequestPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
+      {/* Breadcrumb (desktop) */}
+      <Breadcrumb items={[
+        { label: "비용 관리", href: "/expenses" },
+        { label: "새 비용", href: "/expenses/new" },
+        { label: "입금요청 작성" },
+      ]} />
+
       {/* Header */}
       <div className="flex items-center gap-3">
         <Link href="/expenses/new" className="flex items-center justify-center size-11 rounded-full glass-subtle text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)] transition-colors">
           <ArrowLeft className="size-4" />
         </Link>
         <div>
-          <h1 className="text-lg sm:text-xl font-semibold text-[var(--apple-label)]">입금요청 작성</h1>
-          <p className="text-sm text-[var(--apple-secondary-label)] mt-0.5">
+          <h1 className="text-title3 text-[var(--apple-label)]">입금요청 작성</h1>
+          <p className="text-footnote text-[var(--apple-secondary-label)] mt-0.5">
             입금요청서를 작성해주세요. 관리자 승인 후 처리됩니다.
           </p>
         </div>
@@ -406,10 +414,10 @@ export default function DepositRequestPage() {
       <form onSubmit={handleSubmit(onSubmit, onValidationError)} noValidate>
         {/* 기본 정보 */}
         <div className="glass p-6">
-          <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-1">
+          <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-1">
             기본 정보
           </h2>
-          <p className="text-[13px] text-[var(--apple-secondary-label)] mb-5">
+          <p className="text-footnote text-[var(--apple-secondary-label)] mb-5">
             <span className="text-[var(--apple-red)]">*</span> 필수 항목
           </p>
 
@@ -733,7 +741,7 @@ export default function DepositRequestPage() {
 
         {/* 입금 정보 */}
         <div className="glass p-6 mt-4">
-          <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-5">입금 정보</h2>
+          <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-5">입금 정보</h2>
 
           <div className="space-y-5">
             {/* 최근 계좌 */}
@@ -865,10 +873,10 @@ export default function DepositRequestPage() {
 
         {/* 파일 첨부 (필수) */}
         <div className="glass p-6 mt-4">
-          <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-1">
+          <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-1">
             파일 첨부 <span className="text-[var(--apple-red)]">*</span>
           </h2>
-          <p className="text-[13px] text-[var(--apple-secondary-label)] mb-4">
+          <p className="text-footnote text-[var(--apple-secondary-label)] mb-4">
             증빙서류를 첨부해주세요. 최소 1개의 파일과 문서 유형 선택이 필요합니다.
           </p>
           <FileUploadWithDocType
@@ -895,7 +903,7 @@ export default function DepositRequestPage() {
           <Button
             type="submit"
             disabled={isSubmitting}
-            className="w-full sm:w-auto rounded-full h-11 bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)]"
+            className="w-full sm:w-auto rounded-full h-12 px-8 text-[15px] font-semibold bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] shadow-[0_4px_14px_rgba(0,122,255,0.4)] hover:shadow-[0_6px_20px_rgba(0,122,255,0.5)] transition-all"
           >
             {isSubmitting ? (
               <>

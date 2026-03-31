@@ -80,7 +80,7 @@ export default async function AdminExpensesPage({ searchParams }: AdminExpensesP
       {/* Page header */}
       <div className="flex items-center justify-between animate-fade-up">
         <div>
-          <h1 className="text-lg sm:text-xl font-semibold text-[var(--apple-label)]">전체 비용</h1>
+          <h1 className="text-title3 text-[var(--apple-label)]">전체 비용</h1>
           <p className="text-sm text-[var(--apple-secondary-label)] mt-0.5">
             모든 팀원의 비용 내역을 조회하세요.
           </p>

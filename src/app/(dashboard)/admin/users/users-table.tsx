@@ -293,7 +293,7 @@ function MobileContextMenu({
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-6">
           <div className="w-full max-w-[300px] rounded-2xl backdrop-blur-xl bg-white/90 dark:bg-black/90 shadow-2xl border border-[var(--glass-border)] overflow-hidden">
             <div className="p-5 text-center">
-              <p className="text-[15px] font-semibold text-[var(--apple-label)] mb-1">사용자 삭제</p>
+              <p className="text-subheadline font-semibold text-[var(--apple-label)] mb-1">사용자 삭제</p>
               <p className="text-[13px] text-[var(--apple-secondary-label)] leading-relaxed">
                 <strong>{user.name}</strong> ({user.email})을(를) 삭제하시겠습니까?
                 모든 경비 내역과 알림이 함께 삭제됩니다.
@@ -559,7 +559,7 @@ export function UsersTable({ users: initialUsers, currentUserId }: UsersTablePro
   return (
     <div className="glass p-3 sm:p-4 lg:p-5">
       <div className="flex items-center gap-2 mb-4">
-        <h2 className="text-[15px] font-semibold text-[var(--apple-label)]">전체 사용자</h2>
+        <h2 className="text-subheadline font-semibold text-[var(--apple-label)]">전체 사용자</h2>
         <span className="glass-badge glass-badge-gray">{userList.length}명</span>
       </div>
 

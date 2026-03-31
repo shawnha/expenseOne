@@ -14,6 +14,7 @@ import {
 import { getCategoryLabel } from "@/lib/utils/expense-utils";
 
 import { BackToListButton } from "@/components/expenses/back-to-list-button";
+import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { CancelExpenseButton } from "@/components/expenses/cancel-expense-button";
 import { RequestRemainingButton } from "@/components/expenses/request-remaining-button";
 import { ApproveRemainingButton } from "@/components/expenses/approve-remaining-button";
@@ -183,9 +184,15 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
 
   return (
     <div className="flex flex-col gap-5 max-w-3xl">
-      {/* Back */}
+      {/* Breadcrumb (desktop) */}
       <div className="animate-fade-up">
-        <BackToListButton />
+        <Breadcrumb items={[
+          { label: "비용 관리", href: "/expenses" },
+          { label: expense.title },
+        ]} />
+        <div className="mt-2 sm:mt-0">
+          <BackToListButton />
+        </div>
       </div>
 
       {/* Header */}
@@ -195,7 +202,7 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
             <span className={cn(typeInfo.className, "animate-spring-pop")}>{typeInfo.label}</span>
             <span className={cn(statusInfo.className, "animate-spring-pop")}>{statusInfo.label}</span>
           </div>
-          <h1 className="text-lg sm:text-xl font-semibold text-[var(--apple-label)]">{expense.title}</h1>
+          <h1 className="text-title3 text-[var(--apple-label)]">{expense.title}</h1>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {isAdmin && (
@@ -234,14 +241,14 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
       {/* Rejection reason */}
       {expense.status === "REJECTED" && expense.rejectionReason && (
         <div className="glass p-4 border-l-4 border-l-[#FF3B30] animate-fade-up-2">
-          <p className="text-[13px] font-semibold text-[var(--apple-red)] mb-1">반려 사유</p>
+          <p className="text-footnote font-semibold text-[var(--apple-red)] mb-1">반려 사유</p>
           <p className="text-sm text-[var(--apple-label)]">{expense.rejectionReason}</p>
         </div>
       )}
 
       {/* Expense info */}
       <div className="glass p-6 animate-card-enter stagger-1">
-        <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-4">비용 정보</h2>
+        <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-4">비용 정보</h2>
 
         {/* Amount */}
         <div className="mb-5 p-4 rounded-xl bg-[rgba(0,0,0,0.04)] dark:bg-[rgba(255,255,255,0.06)]">
@@ -296,7 +303,7 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
           const remainingAmount = expense.amount - prePaidAmount;
           return (
             <div className="mt-4 pt-4 border-t border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)]">
-              <h3 className="text-[13px] font-semibold text-[var(--apple-label)] mb-3">선지급 내역</h3>
+              <h3 className="text-footnote font-semibold text-[var(--apple-label)] mb-3">선지급 내역</h3>
               <div className="px-3 py-2.5 text-[13px] text-[var(--apple-secondary-label)] space-y-1 border border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)] rounded-xl">
                 <div className="flex justify-between">
                   <span>총 금액</span>
@@ -338,7 +345,7 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
 
       {/* Status timeline */}
       <div className="glass p-6 animate-card-enter stagger-2">
-        <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-4">상태</h2>
+        <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-4">상태</h2>
         <div className="flex flex-col gap-0">
           <TimelineItem
             label="제출"
@@ -392,7 +399,7 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
       {/* Attachments */}
       {attachments.length > 0 && (
         <div className="glass p-6 animate-card-enter stagger-3">
-          <h2 className="text-[15px] font-semibold text-[var(--apple-label)] mb-4">
+          <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-4">
             첨부파일 ({attachments.length})
           </h2>
           <div className="space-y-3">
