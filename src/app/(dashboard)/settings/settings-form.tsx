@@ -189,7 +189,7 @@ export function SettingsForm({ user }: SettingsFormProps) {
 
         <div className="space-y-4">
           {/* Company selector */}
-          {companies.length > 1 && (
+          {companies.length > 1 && user.role === "ADMIN" && (
             <div className="flex flex-col gap-1.5">
               <Label className="text-[13px] text-[var(--apple-secondary-label)]">
                 소속 회사
