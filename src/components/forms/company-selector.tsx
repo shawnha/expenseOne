@@ -63,7 +63,7 @@ export function CompanySelector({
     <div className="flex flex-col gap-1.5">
       <div
         className={cn(
-          "inline-flex p-1 rounded-full",
+          "inline-flex self-start p-1 rounded-full",
           "bg-[var(--apple-system-grouped-background)]",
           "border border-[var(--glass-border)]"
         )}
