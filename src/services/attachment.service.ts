@@ -103,7 +103,7 @@ export async function uploadAttachment(params: {
 
   // 4. Verify expense exists AND the uploader owns the expense
   const [expense] = await db
-    .select({ id: expenses.id, submittedById: expenses.submittedById, status: expenses.status })
+    .select({ id: expenses.id, submittedById: expenses.submittedById, status: expenses.status, type: expenses.type })
     .from(expenses)
     .where(eq(expenses.id, expenseId));
 
@@ -115,8 +115,13 @@ export async function uploadAttachment(params: {
     throw new AppError("FORBIDDEN", "본인이 제출한 비용에만 파일을 첨부할 수 있습니다.");
   }
 
-  // Block uploads to finalized expenses
-  if (expense.status === "APPROVED" || expense.status === "REJECTED" || expense.status === "CANCELLED") {
+  // Block uploads to finalized expenses (but allow for auto-approved corporate cards)
+  // Corporate card expenses are created with APPROVED status immediately,
+  // so we must check the type to allow initial file attachment.
+  if (
+    (expense.status === "REJECTED" || expense.status === "CANCELLED") ||
+    (expense.status === "APPROVED" && expense.type !== "CORPORATE_CARD")
+  ) {
     throw new AppError("FORBIDDEN", "완료된 비용에는 파일을 첨부할 수 없습니다.");
   }
 
