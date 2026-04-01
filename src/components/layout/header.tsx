@@ -60,7 +60,7 @@ export function Header({ user, title, unreadCount = 0 }: HeaderProps) {
     {isLoggingOut && (
       <PlugSplash mode="disconnecting" onComplete={completeSignOut} />
     )}
-    <header className="sticky top-0 z-40 flex h-14 items-center gap-2 sm:gap-4 glass-header px-3 sm:px-4 lg:px-6 overflow-hidden max-w-full">
+    <header className="sticky top-0 z-40 flex h-14 items-center gap-2 sm:gap-4 glass-header border-b border-[var(--glass-border)] px-3 sm:px-4 lg:px-6 overflow-hidden max-w-full">
       {/* Mobile: logo (sidebar is replaced by bottom tab bar) */}
       <MobileLogo />
 

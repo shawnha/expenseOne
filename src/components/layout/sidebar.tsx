@@ -33,22 +33,22 @@ interface NavItem {
 }
 
 const mainNavItems: NavItem[] = [
-  { label: "홈", href: "/", icon: <Home className="size-[18px]" /> },
-  { label: "비용 관리", href: "/expenses", icon: <Receipt className="size-[18px]" /> },
+  { label: "홈", href: "/", icon: <Home className="size-[18px] [stroke-width:1.8]" /> },
+  { label: "비용 관리", href: "/expenses", icon: <Receipt className="size-[18px] [stroke-width:1.8]" /> },
 ];
 
 const adminNavItems: NavItem[] = [
-  { label: "대시보드", href: "/admin", icon: <LayoutDashboard className="size-[18px]" /> },
-  { label: "전체 비용", href: "/admin/expenses", icon: <Receipt className="size-[18px]" /> },
-  { label: "승인 대기", href: "/admin/pending", icon: <Clock className="size-[18px]" /> },
-  { label: "리포트", href: "/admin/reports", icon: <BarChart3 className="size-[18px]" /> },
-  { label: "사용자 관리", href: "/admin/users", icon: <Users className="size-[18px]" /> },
-  { label: "부서 관리", href: "/admin/departments", icon: <Building2 className="size-[18px]" /> },
+  { label: "대시보드", href: "/admin", icon: <LayoutDashboard className="size-[18px] [stroke-width:1.8]" /> },
+  { label: "전체 비용", href: "/admin/expenses", icon: <Receipt className="size-[18px] [stroke-width:1.8]" /> },
+  { label: "승인 대기", href: "/admin/pending", icon: <Clock className="size-[18px] [stroke-width:1.8]" /> },
+  { label: "리포트", href: "/admin/reports", icon: <BarChart3 className="size-[18px] [stroke-width:1.8]" /> },
+  { label: "사용자 관리", href: "/admin/users", icon: <Users className="size-[18px] [stroke-width:1.8]" /> },
+  { label: "부서 관리", href: "/admin/departments", icon: <Building2 className="size-[18px] [stroke-width:1.8]" /> },
 ];
 
 const bottomNavItems: NavItem[] = [
-  { label: "알림", href: "/notifications", icon: <Bell className="size-[18px]" /> },
-  { label: "설정", href: "/settings", icon: <Settings className="size-[18px]" /> },
+  { label: "알림", href: "/notifications", icon: <Bell className="size-[18px] [stroke-width:1.8]" /> },
+  { label: "설정", href: "/settings", icon: <Settings className="size-[18px] [stroke-width:1.8]" /> },
 ];
 
 interface SidebarProps {
@@ -87,16 +87,16 @@ function NavLink({
       onClick={handleClick}
       className={cn(
         "flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl apple-press",
-        "transition-all duration-200",
+        "transition-all duration-[350ms] ease-[cubic-bezier(0.25,1,0.5,1)]",
         isActive
-          ? "nav-link-active text-[var(--apple-blue)] font-medium"
+          ? "text-[var(--apple-blue)] font-medium bg-[rgba(0,122,255,0.1)] dark:bg-[rgba(10,132,255,0.15)]"
           : "text-[var(--apple-secondary-label)] hover:bg-[rgba(0,0,0,0.04)] dark:hover:bg-[rgba(255,255,255,0.06)] hover:text-[var(--apple-label)]"
       )}
     >
       <span
         ref={iconRef}
         className={cn(
-          "transition-colors duration-200",
+          "transition-colors duration-[350ms]",
           isActive ? "text-[var(--apple-blue)]" : "text-[var(--apple-secondary-label)]"
         )}
       >
@@ -134,16 +134,16 @@ function RailNavLink({
       title={item.label}
       className={cn(
         "group relative flex items-center justify-center size-9 rounded-xl apple-press",
-        "transition-all duration-200",
+        "transition-all duration-[350ms] ease-[cubic-bezier(0.25,1,0.5,1)]",
         isActive
-          ? "nav-link-active text-[var(--apple-blue)]"
+          ? "text-[var(--apple-blue)] bg-[rgba(0,122,255,0.1)] dark:bg-[rgba(10,132,255,0.15)]"
           : "text-[var(--apple-secondary-label)] hover:bg-[rgba(0,0,0,0.04)] dark:hover:bg-[rgba(255,255,255,0.06)] hover:text-[var(--apple-label)]"
       )}
     >
       <span
         ref={iconRef}
         className={cn(
-          "transition-colors duration-200",
+          "transition-colors duration-[350ms]",
           isActive ? "text-[var(--apple-blue)]" : "text-[var(--apple-secondary-label)]"
         )}
       >
@@ -228,7 +228,7 @@ function RailContent({ user }: { user: User }) {
 
         {isAdmin && (
           <div className="mt-4 flex flex-col items-center gap-1.5 w-full">
-            <div className="w-6 h-px bg-[var(--apple-separator)] mb-1" />
+            <div className="w-6 h-px bg-[var(--apple-separator)] opacity-50 mb-1" />
             {adminNavItems.map((item) => (
               <RailNavLink key={item.href} item={item} isActive={isActive(item.href)} />
             ))}
@@ -259,7 +259,6 @@ export function MobileSidebar({ user }: SidebarProps) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
-  // Close sidebar whenever page changes (back gesture, link tap, etc.)
   React.useEffect(() => {
     setOpen(false);
   }, [pathname]);

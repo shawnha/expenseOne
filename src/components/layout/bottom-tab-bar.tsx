@@ -114,15 +114,16 @@ function QuickActionsPopover({
       <div
         ref={popoverRef}
         className={cn(
-          "fixed z-[61] right-3 w-52",
+          "fixed z-[61] right-4 w-52",
           "rounded-2xl overflow-hidden",
-          "bg-white/95 dark:bg-[#2c2c2e]/95 backdrop-blur-xl",
-          "shadow-[0_8px_32px_rgba(0,0,0,0.18)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.5)]",
-          "border border-[var(--apple-separator)]",
+          "bg-white/90 dark:bg-[#2c2c2e]/90",
+          "backdrop-blur-xl",
+          "shadow-[0_12px_48px_rgba(0,0,0,0.2)] dark:shadow-[0_12px_48px_rgba(0,0,0,0.6)]",
+          "border border-white/40 dark:border-white/10",
           "animate-[scale-up_0.2s_cubic-bezier(0.34,1.56,0.64,1)]"
         )}
         style={{
-          bottom: "calc(62px + env(safe-area-inset-bottom, 0px))",
+          bottom: "calc(80px + env(safe-area-inset-bottom, 0px))",
           transformOrigin: "bottom right",
         }}
       >
@@ -140,7 +141,7 @@ function QuickActionsPopover({
               className={cn(
                 "flex items-center gap-3 w-full px-4 py-2.5 text-left",
                 "transition-colors duration-100",
-                "active:bg-[var(--apple-fill)]",
+                "active:bg-[var(--apple-fill,rgba(0,0,0,0.05))]",
                 active
                   ? "text-[var(--apple-blue)]"
                   : "text-[var(--apple-label)]",
@@ -166,7 +167,7 @@ function QuickActionsPopover({
 }
 
 // ---------------------------------------------------------------------------
-// BottomTabBar
+// BottomTabBar — iOS 26 Liquid Glass Floating Pill
 // ---------------------------------------------------------------------------
 
 export function BottomTabBar({ userId, isAdmin, unreadCount }: BottomTabBarProps) {
@@ -185,7 +186,6 @@ export function BottomTabBar({ userId, isAdmin, unreadCount }: BottomTabBarProps
     longPressTriggered.current = false;
     longPressTimer.current = setTimeout(() => {
       longPressTriggered.current = true;
-      // Haptic feedback (Android only — iOS doesn't support navigator.vibrate)
       if (navigator.vibrate) navigator.vibrate(50);
       setQuickActionsOpen(true);
     }, 400);
@@ -210,42 +210,55 @@ export function BottomTabBar({ userId, isAdmin, unreadCount }: BottomTabBarProps
           pathname={pathname}
         />
       )}
-      <nav
+
+      {/* Floating tab bar container */}
+      <div
         className={cn(
           "fixed bottom-0 left-0 right-0 z-50 lg:hidden",
-          "glass-header border-t border-[var(--apple-separator)]",
-          "pb-[env(safe-area-inset-bottom,0px)]",
-          "select-none [-webkit-touch-callout:none]"
+          "flex justify-center",
+          "pb-[max(8px,env(safe-area-inset-bottom,8px))]",
+          "px-3",
+          "select-none [-webkit-touch-callout:none]",
+          "pointer-events-none"
         )}
       >
-        <div className="flex items-end justify-around h-[50px]">
+        <nav
+          className={cn(
+            "glass-tab-bar",
+            "flex items-center justify-around",
+            "w-full max-w-[400px]",
+            "h-[60px] px-2",
+            "pointer-events-auto"
+          )}
+        >
           {tabs.map((tab) => {
             const active = isActivePath(pathname, tab.href);
             const Icon = tab.icon;
 
+            // Center FAB button
             if (tab.isAction) {
               return (
                 <Link
                   key={tab.href}
                   href={tab.href}
-                  className={cn(
-                    "flex flex-col items-center justify-center -mt-3",
-                    "apple-press"
-                  )}
+                  className="flex flex-col items-center justify-center -mt-4 apple-press"
                   aria-label={tab.label}
                 >
                   <div
                     className={cn(
-                      "flex items-center justify-center size-11 rounded-full",
-                      "bg-[var(--apple-blue)] text-white",
-                      "shadow-[0_2px_12px_rgba(0,122,255,0.4)]",
-                      "transition-transform duration-200",
-                      "active:scale-90"
+                      "flex items-center justify-center size-[44px] rounded-full",
+                      "bg-gradient-to-br from-[var(--apple-blue)] to-[#0A6FFF]",
+                      "dark:from-[#0A84FF] dark:to-[#006AFF]",
+                      "text-white",
+                      "shadow-[0_4px_16px_rgba(0,122,255,0.4),0_1px_4px_rgba(0,122,255,0.2)]",
+                      "dark:shadow-[0_4px_16px_rgba(10,132,255,0.45),0_1px_4px_rgba(10,132,255,0.25)]",
+                      "transition-transform duration-200 ease-[cubic-bezier(0.25,1,0.5,1)]",
+                      "active:scale-[0.88]"
                     )}
                   >
-                    <Icon className="size-5 stroke-[2.5]" />
+                    <Icon className="size-[22px] stroke-[2.2]" />
                   </div>
-                  <span className="text-[11px] font-medium mt-0.5 text-[var(--apple-blue)]">
+                  <span className="text-[10px] font-semibold mt-0.5 text-[var(--apple-blue)]">
                     {tab.label}
                   </span>
                 </Link>
@@ -272,31 +285,37 @@ export function BottomTabBar({ userId, isAdmin, unreadCount }: BottomTabBarProps
                 onTouchCancel={hasQuickActions ? handleLongPressCancel : undefined}
                 onContextMenu={hasQuickActions ? (e) => e.preventDefault() : undefined}
                 className={cn(
-                  "flex flex-col items-center justify-center gap-0.5 pt-1.5 min-w-[56px]",
-                  "transition-colors duration-200",
+                  "relative flex flex-col items-center justify-center gap-[2px] min-w-[52px] py-1.5",
+                  "transition-all duration-[350ms] ease-[cubic-bezier(0.25,1,0.5,1)]",
                   "apple-press",
-                  hasQuickActions && "[&]:[-webkit-touch-callout:none] [&]:[-webkit-user-select:none] select-none"
+                  hasQuickActions && "[-webkit-touch-callout:none] [-webkit-user-select:none] select-none"
                 )}
                 aria-label={tab.label}
               >
-                <div className="relative">
+                {/* Active pill background */}
+                {active && (
+                  <div className="absolute inset-x-1 inset-y-0.5 tab-active-pill" />
+                )}
+
+                <div className="relative z-[1]">
                   <Icon
                     className={cn(
-                      "size-[22px] transition-colors duration-200",
+                      "size-[22px] transition-colors duration-[350ms] ease-[cubic-bezier(0.25,1,0.5,1)]",
                       active
                         ? "text-[var(--apple-blue)]"
-                        : "text-[var(--apple-secondary-label)]"
+                        : "text-[var(--apple-secondary-label)]",
+                      "[stroke-width:1.8]"
                     )}
                   />
                   {tab.badge != null && tab.badge > 0 && (
-                    <span className="absolute -top-1.5 -right-2 flex items-center justify-center min-w-[16px] h-[16px] rounded-full bg-[var(--apple-red)] text-white text-[10px] font-bold px-1 shadow-[0_1px_4px_rgba(255,59,48,0.3)]">
+                    <span className="absolute -top-1.5 -right-2.5 flex items-center justify-center min-w-[16px] h-[16px] rounded-full bg-[var(--apple-red)] text-white text-[10px] font-bold px-1 shadow-[0_2px_8px_rgba(255,59,48,0.35)]">
                       {tab.badge > 99 ? "99+" : tab.badge}
                     </span>
                   )}
                 </div>
                 <span
                   className={cn(
-                    "text-[11px] font-medium transition-colors duration-200",
+                    "relative z-[1] text-[10px] font-medium transition-colors duration-[350ms] ease-[cubic-bezier(0.25,1,0.5,1)]",
                     active
                       ? "text-[var(--apple-blue)]"
                       : "text-[var(--apple-secondary-label)]"
@@ -307,8 +326,8 @@ export function BottomTabBar({ userId, isAdmin, unreadCount }: BottomTabBarProps
               </Link>
             );
           })}
-        </div>
-      </nav>
+        </nav>
+      </div>
     </>
   );
 }

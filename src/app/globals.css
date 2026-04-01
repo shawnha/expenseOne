@@ -109,25 +109,26 @@
   --apple-separator: rgba(60, 60, 67, 0.29);
   --apple-opaque-separator: #C6C6C8;
 
-  /* Glass material tokens — Light (on light bg) */
-  --glass-bg: rgba(255, 255, 255, 0.78);
-  --glass-bg-strong: rgba(255, 255, 255, 0.92);
-  --glass-bg-subtle: rgba(255, 255, 255, 0.55);
-  --glass-border: rgba(60, 60, 67, 0.1);
-  --glass-border-strong: rgba(60, 60, 67, 0.15);
-  --glass-border-top: rgba(255, 255, 255, 0.8);
+  /* Glass material tokens — iOS 26 Liquid Glass — Light */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-bg-strong: rgba(255, 255, 255, 0.88);
+  --glass-bg-subtle: rgba(255, 255, 255, 0.50);
+  --glass-border: rgba(255, 255, 255, 0.45);
+  --glass-border-strong: rgba(255, 255, 255, 0.6);
+  --glass-border-top: rgba(255, 255, 255, 0.85);
   --glass-specular: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.6) 0%,
-    rgba(255, 255, 255, 0.1) 40%,
+    rgba(255, 255, 255, 0.7) 0%,
+    rgba(255, 255, 255, 0.15) 35%,
     rgba(255, 255, 255, 0) 100%
   );
-  --glass-shadow-ambient: 0 4px 24px rgba(0, 0, 0, 0.06);
-  --glass-shadow-direct: 0 1px 4px rgba(0, 0, 0, 0.04);
-  --glass-shadow-inner: inset 0 0.5px 0 rgba(255, 255, 255, 0.5);
-  --glass-blur: 20px;
-  --glass-blur-strong: 40px;
-  --glass-blur-subtle: 12px;
+  --glass-shadow-ambient: 0 8px 32px rgba(0, 0, 0, 0.08);
+  --glass-shadow-direct: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --glass-shadow-inner: inset 0 0.5px 0 rgba(255, 255, 255, 0.6);
+  --glass-blur: 40px;
+  --glass-blur-strong: 60px;
+  --glass-blur-subtle: 20px;
+  --glass-saturate: 180%;
 }
 
 .dark {
@@ -187,25 +188,26 @@
   --apple-separator: rgba(84, 84, 88, 0.6);
   --apple-opaque-separator: #38383A;
 
-  /* Glass material tokens — Dark */
-  --glass-bg: rgba(58, 58, 60, 0.65);
-  --glass-bg-strong: rgba(58, 58, 60, 0.85);
-  --glass-bg-subtle: rgba(58, 58, 60, 0.4);
-  --glass-border: rgba(120, 120, 128, 0.3);
-  --glass-border-strong: rgba(120, 120, 128, 0.45);
-  --glass-border-top: rgba(255, 255, 255, 0.12);
+  /* Glass material tokens — iOS 26 Liquid Glass — Dark */
+  --glass-bg: rgba(44, 44, 46, 0.55);
+  --glass-bg-strong: rgba(44, 44, 46, 0.78);
+  --glass-bg-subtle: rgba(44, 44, 46, 0.35);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-border-strong: rgba(255, 255, 255, 0.18);
+  --glass-border-top: rgba(255, 255, 255, 0.15);
   --glass-specular: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.08) 0%,
-    rgba(255, 255, 255, 0.02) 40%,
+    rgba(255, 255, 255, 0.1) 0%,
+    rgba(255, 255, 255, 0.03) 35%,
     rgba(255, 255, 255, 0) 100%
   );
-  --glass-shadow-ambient: 0 4px 24px rgba(0, 0, 0, 0.25);
-  --glass-shadow-direct: 0 1px 4px rgba(0, 0, 0, 0.15);
-  --glass-shadow-inner: inset 0 0.5px 0 rgba(255, 255, 255, 0.06);
-  --glass-blur: 20px;
-  --glass-blur-strong: 40px;
-  --glass-blur-subtle: 12px;
+  --glass-shadow-ambient: 0 8px 32px rgba(0, 0, 0, 0.35);
+  --glass-shadow-direct: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --glass-shadow-inner: inset 0 0.5px 0 rgba(255, 255, 255, 0.08);
+  --glass-blur: 40px;
+  --glass-blur-strong: 60px;
+  --glass-blur-subtle: 20px;
+  --glass-saturate: 180%;
 }
 
 /* ------------------------------------------------------------------ */
@@ -251,8 +253,8 @@
 .glass {
   position: relative;
   background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   border: 1px solid var(--glass-border);
   border-top-color: var(--glass-border-top);
   box-shadow:
@@ -285,8 +287,8 @@
 .glass-strong {
   position: relative;
   background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur-strong));
-  -webkit-backdrop-filter: blur(var(--glass-blur-strong));
+  backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
   border: 1px solid var(--glass-border-strong);
   border-top-color: var(--glass-border-top);
   box-shadow:
@@ -319,8 +321,8 @@
 .glass-subtle {
   position: relative;
   background: var(--glass-bg-subtle);
-  backdrop-filter: blur(var(--glass-blur-subtle));
-  -webkit-backdrop-filter: blur(var(--glass-blur-subtle));
+  backdrop-filter: blur(var(--glass-blur-subtle)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur-subtle)) saturate(var(--glass-saturate));
   border: 1px solid var(--glass-border);
   border-top-color: var(--glass-border-top);
   box-shadow:
@@ -355,11 +357,63 @@
 /* Glass — Specialized Components                                      */
 /* ------------------------------------------------------------------ */
 
+/* iOS 26 Floating Tab Bar */
+.glass-tab-bar {
+  position: relative;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, 0.12),
+    0 2px 12px rgba(0, 0, 0, 0.06),
+    var(--glass-shadow-inner);
+  border-radius: 22px;
+  overflow: hidden;
+}
+
+.glass-tab-bar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--glass-specular);
+  pointer-events: none;
+  z-index: 0;
+  mask-image: linear-gradient(to bottom, black 0%, transparent 50%);
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 50%);
+}
+
+.glass-tab-bar > * {
+  position: relative;
+  z-index: 1;
+}
+
+.dark .glass-tab-bar {
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, 0.4),
+    0 2px 12px rgba(0, 0, 0, 0.25),
+    var(--glass-shadow-inner);
+}
+
+/* Tab bar active pill indicator */
+.tab-active-pill {
+  background: rgba(0, 122, 255, 0.12);
+  border: 1px solid rgba(0, 122, 255, 0.2);
+  border-radius: 14px;
+  transition: all 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.dark .tab-active-pill {
+  background: rgba(10, 132, 255, 0.18);
+  border-color: rgba(10, 132, 255, 0.3);
+}
+
 .glass-card {
   position: relative;
   background: var(--glass-bg);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   border: 1px solid var(--glass-border);
   border-top-color: var(--glass-border-top);
   box-shadow:
@@ -400,8 +454,8 @@
 .glass-nav {
   position: relative;
   background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur-strong));
-  -webkit-backdrop-filter: blur(var(--glass-blur-strong));
+  backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
   border: 1px solid var(--glass-border);
   border-top-color: var(--glass-border-top);
   box-shadow:
@@ -452,8 +506,8 @@
 .glass-dialog {
   position: relative;
   background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur-strong));
-  -webkit-backdrop-filter: blur(var(--glass-blur-strong));
+  backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
   border: 1px solid var(--glass-border-strong);
   border-top-color: var(--glass-border-top);
   box-shadow:
@@ -498,8 +552,8 @@
 .glass-sidebar {
   position: relative;
   background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur-strong));
-  -webkit-backdrop-filter: blur(var(--glass-blur-strong));
+  backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
   border-right: 1px solid var(--glass-border);
 }
 
@@ -522,8 +576,8 @@
 .glass-header {
   position: relative;
   background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   box-shadow: 0 1px 8px rgba(0, 0, 0, 0.04);
 }
 
