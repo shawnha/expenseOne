@@ -13,6 +13,17 @@ function getPeriodRange(period: string): { start: Date; end: Date } {
   const now = new Date();
   const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 
+  // Support specific month: "2026-03" format
+  const monthMatch = period.match(/^(\d{4})-(\d{2})$/);
+  if (monthMatch) {
+    const year = parseInt(monthMatch[1]);
+    const month = parseInt(monthMatch[2]) - 1; // 0-indexed
+    const start = new Date(year, month, 1);
+    const monthEnd = new Date(year, month + 1, 0, 23, 59, 59, 999);
+    // Don't go past today
+    return { start, end: monthEnd > end ? end : monthEnd };
+  }
+
   let start: Date;
   switch (period) {
     case "3_months":
