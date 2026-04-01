@@ -48,7 +48,7 @@ export function ReportLineChart({ data }: Props) {
       `${path} L ${xs[xs.length - 1]} ${H - PADDING.bottom} L ${xs[0]} ${H - PADDING.bottom} Z`;
 
     return { xs, ys, path, fillPath, max };
-  }, [data]);
+  }, [data, W, H]);
 
   if (!data || data.length === 0) {
     return (
