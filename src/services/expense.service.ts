@@ -122,6 +122,7 @@ export async function createExpense(
       category: expense.category,
       submitterEmail: userEmail,
       companyId: companyId,
+      isUrgent: expense.isUrgent ?? false,
     }).catch((err) => {
       console.error("Failed to send new deposit request notification:", err);
     });

@@ -295,6 +295,7 @@ export async function notifyNewDepositRequest(
     category: string;
     submitterEmail: string;
     companyId?: string | null;
+    isUrgent?: boolean;
   },
 ) {
   // Find all active ADMINs
@@ -305,10 +306,12 @@ export async function notifyNewDepositRequest(
 
   if (admins.length === 0) return [];
 
+  const urgentPrefix = extra?.isUrgent ? "🚨 [긴급] " : "";
+
   const notificationValues = admins.map((admin) => ({
     recipientId: admin.id,
     type: "NEW_DEPOSIT_REQUEST" as const,
-    title: "새 입금요청이 등록되었습니다",
+    title: `${urgentPrefix}새 입금요청이 등록되었습니다`,
     message: `${submitterName}님이 "${expenseTitle}" 입금요청을 제출했습니다.`,
     relatedExpenseId: expenseId,
   }));
@@ -323,7 +326,7 @@ export async function notifyNewDepositRequest(
     ? `${extra.amount.toLocaleString()}원`
     : "";
   await sendPushToAdmins(
-    "새 입금요청",
+    `${urgentPrefix}새 입금요청`,
     `${submitterName} - "${expenseTitle}" ${pushAmount}`,
     expenseUrl(expenseId),
   ).catch((err) => console.error("[Push] 새 입금요청 알림 실패:", err));
