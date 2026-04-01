@@ -130,12 +130,14 @@ export default function AdminDashboardPage() {
   return (
     <div className="flex flex-col gap-4 sm:gap-5 lg:gap-6">
       {/* Header */}
-      <div className="flex items-center justify-between animate-fade-up">
-        <div>
-          <h1 className="text-title3 text-[var(--apple-label)]">관리자 대시보드</h1>
-          <p className="text-footnote text-[var(--apple-secondary-label)] mt-0.5">전체 비용 현황</p>
+      <div className="flex flex-col gap-3 animate-fade-up">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-title3 text-[var(--apple-label)]">관리자 대시보드</h1>
+            <p className="text-footnote text-[var(--apple-secondary-label)] mt-0.5">전체 비용 현황</p>
+          </div>
         </div>
-        <div className="flex items-center gap-2" role="group" aria-label="기간 선택">
+        <div className="flex items-center gap-2 flex-wrap" role="group" aria-label="기간 선택">
           <MonthNavigator
             value={isMonthKey(period) ? period : getCurrentMonthKey()}
             onChange={(m) => setPeriod(m)}
@@ -154,7 +156,7 @@ export default function AdminDashboardPage() {
               key={opt.value}
               type="button"
               onClick={() => setPeriod(opt.value)}
-              className={`px-3 py-1 rounded-full text-[12px] font-medium transition-colors apple-press ${
+              className={`px-3 py-1 rounded-full text-[12px] font-medium whitespace-nowrap transition-colors apple-press ${
                 period === opt.value
                   ? "bg-[var(--apple-blue)] text-white"
                   : "bg-[var(--apple-fill)] text-[var(--apple-secondary-label)] hover:bg-[var(--apple-secondary-fill)]"
