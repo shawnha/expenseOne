@@ -63,6 +63,10 @@ function isCurrentMonth(key: string): boolean {
   return key === getCurrentMonthKey();
 }
 
+function isMonthKey(key: string): boolean {
+  return /^\d{4}-\d{2}$/.test(key);
+}
+
 const STAT_CONFIGS = [
   { icon: <DollarSign key="d" className="size-5 text-[var(--apple-blue)]" />, accent: "glass-card-accent glass-card-accent-blue", iconBg: "icon-container icon-container-blue" },
   { icon: <Clock key="c" className="size-5 text-[var(--apple-orange)]" />, accent: "glass-card-accent glass-card-accent-orange", iconBg: "icon-container icon-container-orange" },
@@ -145,27 +149,62 @@ export default function AdminDashboardPage() {
           <h1 className="text-title3 text-[var(--apple-label)]">관리자 대시보드</h1>
           <p className="text-footnote text-[var(--apple-secondary-label)] mt-0.5">전체 비용 현황</p>
         </div>
-        <div className="flex items-center gap-1" role="group" aria-label="월 선택">
+        <div className="flex items-center gap-2" role="group" aria-label="기간 선택">
+          {/* Month navigator */}
           <button
             type="button"
-            onClick={() => setPeriod(shiftMonth(period, -1))}
+            onClick={() => setPeriod(shiftMonth(isMonthKey(period) ? period : getCurrentMonthKey(), -1))}
             className="size-8 flex items-center justify-center rounded-full text-[var(--apple-secondary-label)] hover:bg-[var(--apple-fill)] transition-colors apple-press"
             aria-label="이전 달"
           >
             <ChevronLeft className="size-4" />
           </button>
-          <span className="px-3 py-1 rounded-full bg-[var(--apple-blue)] text-white text-[13px] font-semibold min-w-[100px] text-center">
-            {formatMonthLabel(period)}
-          </span>
           <button
             type="button"
-            onClick={() => !isCurrentMonth(period) && setPeriod(shiftMonth(period, 1))}
-            disabled={isCurrentMonth(period)}
+            onClick={() => setPeriod(isMonthKey(period) ? period : getCurrentMonthKey())}
+            className={`px-3 py-1 rounded-full text-[13px] font-semibold min-w-[100px] text-center transition-colors ${
+              isMonthKey(period)
+                ? "bg-[var(--apple-blue)] text-white"
+                : "bg-[var(--apple-fill)] text-[var(--apple-label)] hover:bg-[var(--apple-secondary-fill)]"
+            }`}
+          >
+            {isMonthKey(period) ? formatMonthLabel(period) : formatMonthLabel(getCurrentMonthKey())}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const base = isMonthKey(period) ? period : getCurrentMonthKey();
+              if (!isCurrentMonth(base)) setPeriod(shiftMonth(base, 1));
+            }}
+            disabled={isMonthKey(period) && isCurrentMonth(period)}
             className="size-8 flex items-center justify-center rounded-full text-[var(--apple-secondary-label)] hover:bg-[var(--apple-fill)] transition-colors apple-press disabled:opacity-30 disabled:pointer-events-none"
             aria-label="다음 달"
           >
             <ChevronRight className="size-4" />
           </button>
+
+          {/* Divider */}
+          <div className="w-px h-5 bg-[var(--apple-separator)] mx-0.5" />
+
+          {/* Aggregate period pills */}
+          {[
+            { value: "3_months", label: "3개월" },
+            { value: "6_months", label: "6개월" },
+            { value: "this_year", label: "올해" },
+          ].map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setPeriod(opt.value)}
+              className={`px-3 py-1 rounded-full text-[12px] font-medium transition-colors apple-press ${
+                period === opt.value
+                  ? "bg-[var(--apple-blue)] text-white"
+                  : "bg-[var(--apple-fill)] text-[var(--apple-secondary-label)] hover:bg-[var(--apple-secondary-fill)]"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
       </div>
 
