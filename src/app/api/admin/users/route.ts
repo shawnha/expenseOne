@@ -17,6 +17,8 @@ const updateUserSchema = z.object({
   isActive: z.boolean({
     message: "isActive는 boolean이어야 합니다.",
   }).optional(),
+  companyId: z.string().uuid("올바른 회사 ID를 입력해주세요").nullable().optional(),
+  department: z.string().max(100).nullable().optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -40,7 +42,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const { userId, role, isActive } = parsed.data;
+    const { userId, role, isActive, companyId, department } = parsed.data;
 
     // Cannot modify self
     if (userId === admin.id) {
@@ -58,6 +60,14 @@ export async function PATCH(request: NextRequest) {
 
     if (isActive !== undefined) {
       updateData.isActive = isActive;
+    }
+
+    if (companyId !== undefined) {
+      updateData.companyId = companyId;
+    }
+
+    if (department !== undefined) {
+      updateData.department = department;
     }
 
     // Check user exists

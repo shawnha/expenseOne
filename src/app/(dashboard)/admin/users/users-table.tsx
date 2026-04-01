@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { Loader2, Trash2, ChevronDown, Check, Shield, ShieldOff, UserX, UserCheck } from "lucide-react";
+import { Loader2, Trash2, ChevronDown, Check, Shield, ShieldOff, UserX, UserCheck, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -32,6 +32,12 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/types";
 
+interface CompanyOption {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 interface UserRow {
   id: string;
   name: string;
@@ -40,6 +46,7 @@ interface UserRow {
   isActive: boolean;
   createdAt: string;
   cardLastFour: string | null;
+  companyId: string | null;
   companyName: string | null;
   companySlug: string | null;
 }
@@ -58,9 +65,66 @@ function CompanyBadge({ name, slug }: { name: string; slug: string }) {
   );
 }
 
+function CompanyLabel({
+  companyId,
+  companyName,
+  companySlug,
+  companies,
+  disabled,
+  onChange,
+}: {
+  companyId: string | null;
+  companyName: string | null;
+  companySlug: string | null;
+  companies: CompanyOption[];
+  disabled?: boolean;
+  onChange?: (companyId: string | null) => void;
+}) {
+  if (!onChange || companies.length === 0) {
+    return companyName && companySlug ? (
+      <CompanyBadge name={companyName} slug={companySlug} />
+    ) : (
+      <span className="text-xs text-[var(--apple-tertiary-label)]">미지정</span>
+    );
+  }
+
+  return (
+    <DropdownMenu modal={true}>
+      <DropdownMenuTrigger
+        disabled={disabled}
+        render={<button type="button" />}
+        className={cn(
+          "inline-flex items-center gap-0.5 cursor-pointer hover:opacity-70 transition-opacity disabled:opacity-40 outline-none",
+          companySlug
+            ? cn("px-2 py-0.5 rounded-md text-[11px] font-medium whitespace-nowrap", COMPANY_BADGE_STYLES[companySlug] ?? "bg-[rgba(142,142,147,0.1)] text-[var(--apple-secondary-label)]")
+            : "text-xs text-[var(--apple-orange)] font-medium"
+        )}
+      >
+        {companyName ?? "미지정"}
+        <ChevronDown className="size-3 opacity-60" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" sideOffset={4}>
+        {companies.map((c) => (
+          <DropdownMenuItem
+            key={c.id}
+            onClick={() => {
+              if (c.id !== companyId) onChange(c.id);
+            }}
+            className="flex items-center justify-between gap-4"
+          >
+            {c.name}
+            {c.id === companyId && <Check className="size-3.5 text-[var(--apple-blue)]" />}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 interface UsersTableProps {
   users: UserRow[];
   currentUserId: string;
+  companies?: CompanyOption[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -198,7 +262,9 @@ function MobileContextMenu({
   currentUserId,
   updatingId,
   deletingId,
+  companies,
   onRoleChange,
+  onCompanyChange,
   onToggleActive,
   onDelete,
   onClose,
@@ -207,7 +273,9 @@ function MobileContextMenu({
   currentUserId: string;
   updatingId: string | null;
   deletingId: string | null;
+  companies: CompanyOption[];
   onRoleChange: (userId: string, newRole: UserRole) => void;
+  onCompanyChange: (userId: string, companyId: string | null) => void;
   onToggleActive: (userId: string, isActive: boolean) => void;
   onDelete: (userId: string) => void;
   onClose: () => void;
@@ -226,39 +294,42 @@ function MobileContextMenu({
   const isUpdating = updatingId === user.id;
   const isDeleting = deletingId === user.id;
 
-  // Position the menu centered horizontally, above the touch point
+  // Position the menu centered horizontally, near the touch point
   useEffect(() => {
     const el = menuRef.current;
     if (!el) return;
 
-    const menuW = el.offsetWidth;
-    const menuH = el.offsetHeight;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
+    // Wait a frame for the menu to render its full height
+    requestAnimationFrame(() => {
+      const menuW = el.offsetWidth;
+      const menuH = el.offsetHeight;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
 
-    // Center horizontally on screen
-    let left = (vw - menuW) / 2;
+      // Center horizontally on screen
+      let left = (vw - menuW) / 2;
 
-    // Position above the touch point
-    let top = menu.y - menuH - 12;
+      // Position above the touch point
+      let top = menu.y - menuH - 16;
 
-    // If no room above, show below
-    if (top < 12) {
-      top = menu.y + 12;
-    }
+      // If no room above, show below
+      if (top < 60) {
+        top = menu.y + 16;
+      }
 
-    // Clamp to viewport
-    if (top + menuH > vh - 12) top = vh - 12 - menuH;
-    if (top < 12) top = 12;
-    if (left < 12) left = 12;
-    if (left + menuW > vw - 12) left = vw - 12 - menuW;
+      // Clamp to viewport
+      if (top + menuH > vh - 80) top = vh - 80 - menuH;
+      if (top < 60) top = 60;
+      if (left < 12) left = 12;
+      if (left + menuW > vw - 12) left = vw - 12 - menuW;
 
-    setMenuStyle({
-      position: "fixed",
-      left,
-      top,
-      opacity: 1,
-      transform: "scale(1)",
+      setMenuStyle({
+        position: "fixed",
+        left,
+        top,
+        opacity: 1,
+        transform: "scale(1)",
+      });
     });
   }, [menu.x, menu.y]);
 
@@ -375,6 +446,28 @@ function MobileContextMenu({
               </span>
             </button>
 
+            {/* Company change */}
+            {companies.length > 0 && (
+              <div className="border-b border-[var(--apple-separator)]">
+                <div className="px-4 pt-2.5 pb-1">
+                  <span className="text-[11px] font-medium text-[var(--apple-tertiary-label)] uppercase tracking-wider">소속 회사</span>
+                </div>
+                {companies.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    disabled={isUpdating}
+                    onClick={() => handleAction(() => onCompanyChange(user.id, c.id))}
+                    className="w-full px-4 py-2.5 flex items-center gap-3 active:bg-black/5 disabled:opacity-50"
+                  >
+                    <Building2 className="size-[18px] text-[var(--apple-secondary-label)]" />
+                    <span className="text-[14px] text-[var(--apple-label)] flex-1 text-left">{c.name}</span>
+                    {user.companyId === c.id && <Check className="size-4 text-[var(--apple-blue)]" />}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* Active toggle */}
             <button
               type="button"
@@ -480,11 +573,40 @@ function MobileUserCard({
   );
 }
 
-export function UsersTable({ users: initialUsers, currentUserId }: UsersTableProps) {
+export function UsersTable({ users: initialUsers, currentUserId, companies = [] }: UsersTableProps) {
   const [userList, setUserList] = useState(initialUsers);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+
+  const handleCompanyChange = async (userId: string, companyId: string | null) => {
+    setUpdatingId(userId);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, companyId }),
+      });
+      if (res.ok) {
+        const company = companies.find((c) => c.id === companyId);
+        setUserList((prev) =>
+          prev.map((u) =>
+            u.id === userId
+              ? { ...u, companyId: companyId, companyName: company?.name ?? null, companySlug: company?.slug ?? null }
+              : u
+          ),
+        );
+        toast.success("소속 회사가 변경되었습니다.");
+      } else {
+        const json = await res.json().catch(() => null);
+        toast.error(json?.error?.message ?? "회사 변경에 실패했습니다.");
+      }
+    } catch {
+      toast.error("요청 중 오류가 발생했습니다.");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
 
   const handleRoleChange = async (userId: string, newRole: UserRole) => {
     setUpdatingId(userId);
@@ -591,11 +713,14 @@ export function UsersTable({ users: initialUsers, currentUserId }: UsersTablePro
                   <TableCell className={PRIMARY}>{user.name}</TableCell>
                   <TableCell className={SECONDARY}>{user.email}</TableCell>
                   <TableCell>
-                    {user.companyName && user.companySlug ? (
-                      <CompanyBadge name={user.companyName} slug={user.companySlug} />
-                    ) : (
-                      <span className="text-xs text-[var(--apple-tertiary-label)]">-</span>
-                    )}
+                    <CompanyLabel
+                      companyId={user.companyId}
+                      companyName={user.companyName}
+                      companySlug={user.companySlug}
+                      companies={companies}
+                      disabled={isUpdating}
+                      onChange={isSelf ? undefined : (cid) => handleCompanyChange(user.id, cid)}
+                    />
                   </TableCell>
                   <TableCell>
                     <RoleLabel
@@ -691,7 +816,9 @@ export function UsersTable({ users: initialUsers, currentUserId }: UsersTablePro
           currentUserId={currentUserId}
           updatingId={updatingId}
           deletingId={deletingId}
+          companies={companies}
           onRoleChange={handleRoleChange}
+          onCompanyChange={handleCompanyChange}
           onToggleActive={handleToggleActive}
           onDelete={handleDelete}
           onClose={() => setContextMenu(null)}
