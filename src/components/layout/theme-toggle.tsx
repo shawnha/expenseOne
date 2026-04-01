@@ -66,7 +66,19 @@ export function ThemeToggle() {
     setStretching(true);
     setTimeout(() => {
       const idx = CYCLE.indexOf(mode);
-      const next = CYCLE[(idx + 1) % CYCLE.length];
+      let next = CYCLE[(idx + 1) % CYCLE.length];
+
+      // "system"이 현재와 같은 시각적 상태면 건너뛰기
+      // 예: dark → system(시스템도 다크) → 건너뛰고 light로
+      if (next === "system") {
+        const systemDark = getSystemDark();
+        const currentDark = mode === "dark";
+        if (systemDark === currentDark) {
+          const sysIdx = CYCLE.indexOf("system");
+          next = CYCLE[(sysIdx + 1) % CYCLE.length];
+        }
+      }
+
       setMode(next);
       applyTheme(next);
       localStorage.setItem("theme", next);
