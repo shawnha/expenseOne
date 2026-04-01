@@ -1,141 +1,208 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import {
-  Building2,
-  Download,
-  Loader2,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  formatAmount,
-  CATEGORY_OPTIONS,
-} from "@/lib/validations/expense-form";
-import type {
-  ExpenseType,
-  ExpenseStatus,
-} from "@/types";
+import { Loader2 } from "lucide-react";
+import { ReportFilters } from "@/components/reports/report-filters";
+import { ReportSummaryCards } from "@/components/reports/report-summary-cards";
+import { ReportLineChart } from "@/components/charts/report-line-chart";
+import { ReportDonutChart } from "@/components/charts/report-donut-chart";
+import { ReportStackBar } from "@/components/charts/report-stack-bar";
+import { ReportDeptBar } from "@/components/charts/report-dept-bar";
+import { ReportCompanyCompare } from "@/components/charts/report-company-compare";
+import { ReportTopSubmitters } from "@/components/charts/report-top-submitters";
+import { getPeriodDates } from "@/lib/utils/report-periods";
+import type { PeriodPreset } from "@/lib/utils/report-periods";
+import type { ExpenseType } from "@/types";
 
-const TYPE_OPTIONS: { value: ExpenseType | "ALL"; label: string }[] = [
-  { value: "ALL", label: "전체 유형" },
-  { value: "CORPORATE_CARD", label: "법카사용" },
-  { value: "DEPOSIT_REQUEST", label: "입금요청" },
-];
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
-const STATUS_OPTIONS: { value: ExpenseStatus | "ALL"; label: string }[] = [
-  { value: "ALL", label: "전체 상태" },
-  { value: "SUBMITTED", label: "제출됨" },
-  { value: "APPROVED", label: "승인" },
-  { value: "REJECTED", label: "반려" },
-  { value: "CANCELLED", label: "취소" },
-];
-
-const CATEGORY_ALL_OPTIONS: { value: string; label: string }[] = [
-  { value: "ALL", label: "전체 카테고리" },
-  ...CATEGORY_OPTIONS,
-];
-
-interface ReportSummary {
-  count: number;
-  totalAmount: number;
-}
-
-interface DepartmentBreakdown {
+interface FilterValues {
+  period: PeriodPreset;
+  customStart: string;
+  customEnd: string;
+  type: ExpenseType | "ALL";
+  companyId: string;
   department: string;
-  totalAmount: number;
-  count: number;
-  approvedAmount: number;
+  category: string;
 }
+
+interface Company {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+interface ReportData {
+  summary: {
+    totalAmount: number;
+    totalCount: number;
+    approvedCount: number;
+    averageAmount: number;
+    corporateCardRatio: number;
+    depositRequestRatio: number;
+  };
+  comparison: {
+    totalAmount: number;
+    approvedCount: number;
+    totalCount: number;
+    averageAmount: number;
+    corporateCardRatio: number;
+  };
+  monthlyTrend: { month: string; label: string; amount: number }[];
+  categoryBreakdown: {
+    category: string;
+    amount: number;
+    count: number;
+    percentage: number;
+  }[];
+  typeRatio: {
+    month: string;
+    label: string;
+    corporateCard: number;
+    depositRequest: number;
+    corporateCardAmount: number;
+    depositRequestAmount: number;
+  }[];
+  departmentBreakdown: { department: string; amount: number; count: number }[];
+  companyComparison: {
+    companyId: string;
+    name: string;
+    slug: string;
+    amount: number;
+    count: number;
+  }[];
+  topSubmitters: {
+    userId: string;
+    name: string;
+    profileImageUrl: string | null;
+    amount: number;
+    count: number;
+  }[];
+}
+
+// ---------------------------------------------------------------------------
+// Default filter state
+// ---------------------------------------------------------------------------
+
+const DEFAULT_FILTERS: FilterValues = {
+  period: "this_month",
+  customStart: "",
+  customEnd: "",
+  type: "ALL",
+  companyId: "ALL",
+  department: "ALL",
+  category: "ALL",
+};
+
+// ---------------------------------------------------------------------------
+// Page Component
+// ---------------------------------------------------------------------------
 
 export default function AdminReportsPage() {
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [type, setType] = useState<ExpenseType | "ALL">("ALL");
-  const [status, setStatus] = useState<ExpenseStatus | "ALL">("ALL");
-  const [category, setCategory] = useState<string>("ALL");
-  const [summary, setSummary] = useState<ReportSummary>({
-    count: 0,
-    totalAmount: 0,
-  });
+  const [filters, setFilters] = useState<FilterValues>(DEFAULT_FILTERS);
+  const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
-  const [deptData, setDeptData] = useState<DepartmentBreakdown[]>([]);
-  const [deptLoading, setDeptLoading] = useState(false);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [departments, setDepartments] = useState<string[]>([]);
 
-  const buildParams = useCallback(() => {
-    const params = new URLSearchParams();
-    if (startDate) params.set("startDate", startDate);
-    if (endDate) params.set("endDate", endDate);
-    if (type !== "ALL") params.set("type", type);
-    if (status !== "ALL") params.set("status", status);
-    if (category !== "ALL") params.set("category", category);
-    return params;
-  }, [startDate, endDate, type, status, category]);
+  // ── Fetch companies & departments on mount ──
+  useEffect(() => {
+    async function loadDropdownData() {
+      try {
+        const [compRes, deptRes] = await Promise.all([
+          fetch("/api/companies"),
+          fetch("/api/companies/departments"),
+        ]);
 
-  const fetchSummary = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = buildParams();
-      params.set("limit", "1");
-      const res = await fetch(`/api/expenses?${params.toString()}`);
-      if (res.ok) {
-        const json = await res.json();
-        const meta = json.meta ?? {};
-        setSummary({
-          count: meta.total ?? 0,
-          totalAmount: meta.totalAmount ?? 0,
-        });
-      } else {
-        setSummary({ count: 20, totalAmount: 2750000 });
+        if (compRes.ok) {
+          const json = await compRes.json();
+          setCompanies(json.data ?? []);
+        }
+
+        if (deptRes.ok) {
+          const json = await deptRes.json();
+          setDepartments(json.data ?? []);
+        }
+      } catch {
+        // silently fail – dropdowns will just be empty
       }
-    } catch {
-      setSummary({ count: 20, totalAmount: 2750000 });
+    }
+
+    loadDropdownData();
+  }, []);
+
+  // ── Fetch report data on filter change ──
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const periodInfo = getPeriodDates(
+        filters.period,
+        filters.customStart || undefined,
+        filters.customEnd || undefined,
+      );
+
+      const params = new URLSearchParams();
+      params.set("startDate", periodInfo.current.startDate);
+      params.set("endDate", periodInfo.current.endDate);
+      params.set("prevStartDate", periodInfo.previous.startDate);
+      params.set("prevEndDate", periodInfo.previous.endDate);
+      if (filters.type !== "ALL") params.set("type", filters.type);
+      if (filters.companyId !== "ALL") params.set("companyId", filters.companyId);
+      if (filters.department !== "ALL") params.set("department", filters.department);
+      if (filters.category !== "ALL") params.set("category", filters.category);
+
+      const res = await fetch(`/api/admin/reports/data?${params.toString()}`);
+
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        throw new Error(json?.error?.message ?? "데이터를 불러오지 못했습니다.");
+      }
+
+      const json = await res.json();
+      setData(json.data ?? json);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "데이터를 불러오지 못했습니다.";
+      setError(message);
+      setData(null);
     } finally {
       setLoading(false);
     }
-  }, [buildParams]);
-
-  const fetchDeptBreakdown = useCallback(async () => {
-    setDeptLoading(true);
-    try {
-      const params = buildParams();
-      const res = await fetch(`/api/admin/reports/department?${params.toString()}`);
-      if (res.ok) {
-        const json = await res.json();
-        setDeptData(json.data ?? []);
-      } else {
-        setDeptData([]);
-      }
-    } catch {
-      setDeptData([]);
-    } finally {
-      setDeptLoading(false);
-    }
-  }, [buildParams]);
+  }, [filters]);
 
   useEffect(() => {
-    fetchSummary();
-    fetchDeptBreakdown();
-  }, [fetchSummary, fetchDeptBreakdown]);
+    fetchData();
+  }, [fetchData]);
 
-  const handleDownload = async () => {
+  // ── CSV download ──
+  const handleDownloadCsv = async () => {
     setDownloading(true);
     try {
-      const params = buildParams();
+      const periodInfo = getPeriodDates(
+        filters.period,
+        filters.customStart || undefined,
+        filters.customEnd || undefined,
+      );
+
+      const params = new URLSearchParams();
+      params.set("startDate", periodInfo.current.startDate);
+      params.set("endDate", periodInfo.current.endDate);
+      if (filters.type !== "ALL") params.set("type", filters.type);
+      if (filters.category !== "ALL") params.set("category", filters.category);
+
       const res = await fetch(`/api/export/csv?${params.toString()}`);
+
       if (!res.ok) {
         const json = await res.json().catch(() => null);
         throw new Error(json?.error?.message ?? "다운로드 실패");
       }
+
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -158,170 +225,84 @@ export default function AdminReportsPage() {
     }
   };
 
+  // ── Comparison label from period ──
+  const periodInfo = getPeriodDates(
+    filters.period,
+    filters.customStart || undefined,
+    filters.customEnd || undefined,
+  );
+
   return (
     <div className="flex flex-col gap-4 sm:gap-5 lg:gap-6">
       {/* Header */}
       <div className="animate-fade-up">
         <h1 className="text-title3 text-[var(--apple-label)]">리포트</h1>
         <p className="text-sm text-[var(--apple-secondary-label)] mt-0.5">
-          비용 데이터를 필터링하고 CSV로 내보내세요.
+          비용 분석 대시보드
         </p>
       </div>
 
       {/* Filters */}
-      <div className="glass p-6 animate-fade-up-1">
-        <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-4">필터</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="start-date" className="text-[13px]">시작일</Label>
-            <Input
-              id="start-date"
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+      <ReportFilters
+        values={filters}
+        onChange={setFilters}
+        companies={companies}
+        departments={departments}
+        onDownloadCsv={handleDownloadCsv}
+        downloading={downloading}
+      />
+
+      {/* Content */}
+      {loading ? (
+        <div className="flex justify-center py-16">
+          <Loader2 className="size-6 animate-spin text-[var(--apple-blue)]" />
+        </div>
+      ) : error ? (
+        <div className="flex justify-center py-16">
+          <p className="text-sm text-[var(--apple-secondary-label)]">{error}</p>
+        </div>
+      ) : data ? (
+        <>
+          {/* Summary Cards */}
+          <div className="animate-fade-up-1">
+            <ReportSummaryCards
+              current={data.summary}
+              previous={data.comparison}
+              comparisonLabel={periodInfo.label}
             />
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="end-date" className="text-[13px]">종료일</Label>
-            <Input
-              id="end-date"
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-[13px]">비용 유형</Label>
-            <Select value={type} onValueChange={(v) => setType(v as ExpenseType | "ALL")}>
-              <SelectTrigger className="w-full" aria-label="비용 유형">
-                <SelectValue>
-                  {TYPE_OPTIONS.find((o) => o.value === type)?.label}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {TYPE_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-[13px]">상태</Label>
-            <Select value={status} onValueChange={(v) => setStatus(v as ExpenseStatus | "ALL")}>
-              <SelectTrigger className="w-full" aria-label="상태">
-                <SelectValue>
-                  {STATUS_OPTIONS.find((o) => o.value === status)?.label}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {STATUS_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-[13px]">카테고리</Label>
-            <Select value={category} onValueChange={(v) => setCategory(v ?? "ALL")}>
-              <SelectTrigger className="w-full" aria-label="카테고리">
-                <SelectValue>
-                  {CATEGORY_ALL_OPTIONS.find((o) => o.value === category)?.label}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {CATEGORY_ALL_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </div>
 
-      {/* Summary + Download */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div className="glass p-3 sm:p-4 lg:p-5 animate-card-enter stagger-1">
-          <p className="text-[13px] font-medium text-[var(--apple-secondary-label)]">조회 건수</p>
-          <p className="mt-2 text-xl sm:text-2xl font-semibold tabular-nums text-[var(--apple-label)]">
-            {loading ? <Loader2 className="size-5 animate-spin text-[var(--apple-blue)]" /> : <>{summary.count}건</>}
-          </p>
-        </div>
-        <div className="glass p-3 sm:p-4 lg:p-5 animate-card-enter stagger-2">
-          <p className="text-[13px] font-medium text-[var(--apple-secondary-label)]">총 금액</p>
-          <p className="mt-2 text-xl sm:text-2xl font-semibold tabular-nums text-[var(--apple-label)]">
-            {loading ? <Loader2 className="size-5 animate-spin text-[var(--apple-blue)]" /> : <>{formatAmount(summary.totalAmount)}원</>}
-          </p>
-        </div>
-        <div className="flex items-end glass p-3 sm:p-4 lg:p-5 animate-card-enter stagger-3">
-          <Button
-            onClick={handleDownload}
-            disabled={downloading || summary.count === 0}
-            className="w-full rounded-full h-11 bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] apple-press"
-          >
-            {downloading ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Download className="size-4" />
-            )}
-            CSV 다운로드
-          </Button>
-        </div>
-      </div>
-
-      {/* Department Breakdown */}
-      <div className="glass p-4 sm:p-5 lg:p-6 animate-fade-up-1">
-        <div className="flex items-center gap-2 mb-5">
-          <Building2 className="size-4 text-[var(--apple-blue)]" />
-          <h2 className="text-subheadline font-semibold text-[var(--apple-label)]">부서별 비용</h2>
-        </div>
-        {deptLoading ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="size-5 animate-spin text-[var(--apple-blue)]" />
+          {/* Monthly Trend (full width) */}
+          <div className="animate-fade-up-1">
+            <ReportLineChart data={data.monthlyTrend} />
           </div>
-        ) : deptData.length === 0 ? (
-          <p className="py-6 text-center text-sm text-[var(--apple-secondary-label)]">데이터가 없습니다</p>
-        ) : (
-          <DepartmentBarChart data={deptData} />
-        )}
-      </div>
-    </div>
-  );
-}
 
-// ---------------------------------------------------------------------------
-// Department horizontal bar chart
-// ---------------------------------------------------------------------------
-
-function DepartmentBarChart({ data }: { data: DepartmentBreakdown[] }) {
-  const maxValue = Math.max(...data.map((d) => d.totalAmount), 1);
-
-  return (
-    <div className="space-y-4">
-      {data.map((item, idx) => {
-        const pct = (item.totalAmount / maxValue) * 100;
-        return (
-          <div key={item.department} className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="flex items-center justify-center size-6 rounded-full bg-[rgba(0,122,255,0.08)] text-[11px] font-bold text-[var(--apple-blue)] tabular-nums">
-                  {idx + 1}
-                </span>
-                <span className="text-[13px] font-medium text-[var(--apple-label)]">{item.department}</span>
-                <span className="text-[11px] text-[var(--apple-secondary-label)] tabular-nums">{item.count}건</span>
-              </div>
-              <span className="shrink-0 text-[13px] font-semibold tabular-nums text-[var(--apple-label)]">
-                {formatAmount(item.totalAmount)}원
-              </span>
+          {/* Donut + Stack Bar (2-col grid) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="animate-fade-up-1">
+              <ReportDonutChart data={data.categoryBreakdown} />
             </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-[rgba(0,0,0,0.04)] dark:bg-[rgba(255,255,255,0.06)]">
-              <div
-                className="h-full rounded-full progress-bar-gradient-blue transition-all duration-700 ease-out"
-                style={{ width: `${pct}%` }}
-              />
+            <div className="animate-fade-up-1">
+              <ReportStackBar data={data.typeRatio} />
             </div>
           </div>
-        );
-      })}
+
+          {/* Dept Bar + Company Compare (2-col grid) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="animate-fade-up-1">
+              <ReportDeptBar data={data.departmentBreakdown} />
+            </div>
+            <div className="animate-fade-up-1">
+              <ReportCompanyCompare data={data.companyComparison} />
+            </div>
+          </div>
+
+          {/* Top Submitters (full width) */}
+          <div className="animate-fade-up-1">
+            <ReportTopSubmitters data={data.topSubmitters} />
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }
