@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -46,7 +47,6 @@ export function MonthNavigator({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // URL mode or controlled mode
   const isControlled = value !== undefined && onChange !== undefined;
   const month = isControlled ? value : (searchParams.get("month") ?? getCurrentMonthKey());
   const currentMonthKey = getCurrentMonthKey();
@@ -54,8 +54,19 @@ export function MonthNavigator({
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerYear, setPickerYear] = useState(getYearFromKey(month));
+  const [popoverPos, setPopoverPos] = useState<{ top: number; right: number } | null>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+
+  // Calculate popover position from trigger button
+  const updatePosition = useCallback(() => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    setPopoverPos({
+      top: rect.bottom + 8,
+      right: window.innerWidth - rect.right,
+    });
+  }, []);
 
   // Close popover on outside click
   useEffect(() => {
@@ -74,7 +85,18 @@ export function MonthNavigator({
     return () => document.removeEventListener("mousedown", handleClick);
   }, [pickerOpen]);
 
-  // Sync picker year when month changes
+  // Recalculate on scroll/resize
+  useEffect(() => {
+    if (!pickerOpen) return;
+    updatePosition();
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [pickerOpen, updatePosition]);
+
   useEffect(() => {
     setPickerYear(getYearFromKey(month));
   }, [month]);
@@ -103,7 +125,7 @@ export function MonthNavigator({
   const MONTHS = ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"];
 
   return (
-    <div className="relative flex items-center gap-1" role="group" aria-label="월 선택">
+    <div className="flex items-center gap-1" role="group" aria-label="월 선택">
       <button
         type="button"
         onClick={() => navigate(shiftMonth(month, -1))}
@@ -113,12 +135,12 @@ export function MonthNavigator({
         <ChevronLeft className="size-4" />
       </button>
 
-      {/* Month pill — click to open picker */}
       <button
         ref={triggerRef}
         type="button"
         onClick={() => {
           setPickerYear(getYearFromKey(month));
+          updatePosition();
           setPickerOpen(!pickerOpen);
         }}
         className="px-3 py-1 rounded-full bg-[var(--apple-blue)] text-white text-[13px] font-semibold min-w-[100px] text-center transition-colors hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] apple-press"
@@ -136,65 +158,73 @@ export function MonthNavigator({
         <ChevronRight className="size-4" />
       </button>
 
-      {/* Month picker popover */}
-      {pickerOpen && (
-        <div
-          ref={popoverRef}
-          className="absolute top-full mt-2 right-0 z-[999] w-[240px] rounded-2xl border border-[var(--glass-border)] shadow-xl p-3 animate-fade-up bg-[var(--apple-system-background)]"
-        >
-          {/* Year navigation */}
-          <div className="flex items-center justify-between mb-3">
-            <button
-              type="button"
-              onClick={() => setPickerYear((y) => y - 1)}
-              className="size-7 flex items-center justify-center rounded-full text-[var(--apple-secondary-label)] hover:bg-[var(--apple-fill)] transition-colors"
-              aria-label="이전 년도"
-            >
-              <ChevronLeft className="size-3.5" />
-            </button>
-            <span className="text-[14px] font-semibold text-[var(--apple-label)]">
-              {pickerYear}년
-            </span>
-            <button
-              type="button"
-              onClick={() => pickerYear < currentYear && setPickerYear((y) => y + 1)}
-              disabled={pickerYear >= currentYear}
-              className="size-7 flex items-center justify-center rounded-full text-[var(--apple-secondary-label)] hover:bg-[var(--apple-fill)] transition-colors disabled:opacity-30 disabled:pointer-events-none"
-              aria-label="다음 년도"
-            >
-              <ChevronRight className="size-3.5" />
-            </button>
-          </div>
+      {/* Month picker — portaled to body to escape stacking contexts */}
+      {pickerOpen && popoverPos && typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={popoverRef}
+            style={{
+              position: "fixed",
+              top: popoverPos.top,
+              right: popoverPos.right,
+              zIndex: 99999,
+            }}
+            className="w-[240px] rounded-2xl border border-[var(--glass-border)] shadow-xl p-3 bg-[var(--apple-system-background)]"
+          >
+            {/* Year navigation */}
+            <div className="flex items-center justify-between mb-3">
+              <button
+                type="button"
+                onClick={() => setPickerYear((y) => y - 1)}
+                className="size-7 flex items-center justify-center rounded-full text-[var(--apple-secondary-label)] hover:bg-[var(--apple-fill)] transition-colors"
+                aria-label="이전 년도"
+              >
+                <ChevronLeft className="size-3.5" />
+              </button>
+              <span className="text-[14px] font-semibold text-[var(--apple-label)]">
+                {pickerYear}년
+              </span>
+              <button
+                type="button"
+                onClick={() => pickerYear < currentYear && setPickerYear((y) => y + 1)}
+                disabled={pickerYear >= currentYear}
+                className="size-7 flex items-center justify-center rounded-full text-[var(--apple-secondary-label)] hover:bg-[var(--apple-fill)] transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                aria-label="다음 년도"
+              >
+                <ChevronRight className="size-3.5" />
+              </button>
+            </div>
 
-          {/* Month grid */}
-          <div className="grid grid-cols-4 gap-1.5">
-            {MONTHS.map((label, idx) => {
-              const m = idx + 1;
-              const key = `${pickerYear}-${String(m).padStart(2, "0")}`;
-              const isFuture = pickerYear > currentYear || (pickerYear === currentYear && m > currentMonthNum);
-              const isSelected = pickerYear === selectedYear && m === selectedMonthNum;
+            {/* Month grid */}
+            <div className="grid grid-cols-4 gap-1.5">
+              {MONTHS.map((label, idx) => {
+                const m = idx + 1;
+                const key = `${pickerYear}-${String(m).padStart(2, "0")}`;
+                const isFuture = pickerYear > currentYear || (pickerYear === currentYear && m > currentMonthNum);
+                const isSelected = pickerYear === selectedYear && m === selectedMonthNum;
 
-              return (
-                <button
-                  key={m}
-                  type="button"
-                  disabled={isFuture}
-                  onClick={() => navigate(key)}
-                  className={`py-1.5 rounded-lg text-[12px] font-medium transition-colors ${
-                    isSelected
-                      ? "bg-[var(--apple-blue)] text-white"
-                      : isFuture
-                        ? "text-[var(--apple-tertiary-label)] cursor-not-allowed"
-                        : "text-[var(--apple-label)] hover:bg-[var(--apple-fill)]"
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    disabled={isFuture}
+                    onClick={() => navigate(key)}
+                    className={`py-1.5 rounded-lg text-[12px] font-medium transition-colors ${
+                      isSelected
+                        ? "bg-[var(--apple-blue)] text-white"
+                        : isFuture
+                          ? "text-[var(--apple-tertiary-label)] cursor-not-allowed"
+                          : "text-[var(--apple-label)] hover:bg-[var(--apple-fill)]"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
