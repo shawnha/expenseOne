@@ -44,8 +44,20 @@ export async function createExpense(
   userCompanyId?: string | null,
 ) {
   const isCorporateCard = input.type === "CORPORATE_CARD";
-  // SECURITY: 항상 유저 프로필의 회사 사용, 클라이언트 입력 무시
-  const companyId = userCompanyId;
+  // 코리아 소속은 다른 회사(리테일, HOI) 비용 제출 가능
+  // 그 외 소속은 자기 회사만 허용
+  let companyId = userCompanyId;
+  if (input.companyId && input.companyId !== userCompanyId) {
+    // 코리아 소속만 다른 회사 선택 허용 — slug 조회 없이 DB에서 확인
+    const [userCompany] = await db
+      .select({ slug: companies.slug })
+      .from(companies)
+      .where(eq(companies.id, userCompanyId ?? ""));
+    if (userCompany?.slug === "korea") {
+      companyId = input.companyId;
+    }
+    // 코리아 아니면 무시하고 유저 프로필 회사 사용
+  }
 
   if (!companyId) {
     throw new AppError("VALIDATION_ERROR", "회사가 지정되지 않았습니다. 설정에서 회사를 선택해주세요.");
