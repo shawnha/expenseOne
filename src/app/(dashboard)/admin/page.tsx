@@ -3,14 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { DollarSign, Clock, CheckCircle2, XCircle } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { DollarSign, Clock, CheckCircle2, XCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { AdminCompanyFilter } from "@/components/admin/company-filter";
 import { formatAmount } from "@/lib/validations/expense-form";
 import { getCategoryLabel } from "@/lib/utils/expense-utils";
@@ -50,27 +43,25 @@ interface DashboardData {
   topSubmitters: TopSubmitter[];
 }
 
-type PeriodFilter = string;
-
-function getMonthOptions(): { value: string; label: string }[] {
+function getCurrentMonthKey(): string {
   const now = new Date();
-  const months: { value: string; label: string }[] = [];
-  for (let i = 0; i < 12; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const label = `${d.getFullYear()}년 ${d.getMonth() + 1}월`;
-    months.push({ value, label });
-  }
-  return months;
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
-const PERIOD_OPTIONS: { value: PeriodFilter; label: string; group?: string }[] = [
-  { value: "this_month", label: "이번 달" },
-  { value: "3_months", label: "최근 3개월" },
-  { value: "6_months", label: "최근 6개월" },
-  { value: "this_year", label: "올해" },
-  ...getMonthOptions().slice(1).map((m) => ({ ...m, group: "월별" })),
-];
+function formatMonthLabel(key: string): string {
+  const [y, m] = key.split("-");
+  return `${y}년 ${parseInt(m)}월`;
+}
+
+function shiftMonth(key: string, delta: number): string {
+  const [y, m] = key.split("-").map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function isCurrentMonth(key: string): boolean {
+  return key === getCurrentMonthKey();
+}
 
 const STAT_CONFIGS = [
   { icon: <DollarSign key="d" className="size-5 text-[var(--apple-blue)]" />, accent: "glass-card-accent glass-card-accent-blue", iconBg: "icon-container icon-container-blue" },
@@ -86,7 +77,7 @@ const STAT_CONFIGS = [
 export default function AdminDashboardPage() {
   const searchParams = useSearchParams();
   const company = searchParams.get("company") ?? "";
-  const [period, setPeriod] = useState<PeriodFilter>("this_month");
+  const [period, setPeriod] = useState(getCurrentMonthKey);
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -154,28 +145,28 @@ export default function AdminDashboardPage() {
           <h1 className="text-title3 text-[var(--apple-label)]">관리자 대시보드</h1>
           <p className="text-footnote text-[var(--apple-secondary-label)] mt-0.5">전체 비용 현황</p>
         </div>
-        <Select value={period} onValueChange={(v) => setPeriod(v as PeriodFilter)}>
-          <SelectTrigger className="w-36" aria-label="기간 필터">
-            <SelectValue placeholder="기간 선택">
-              {PERIOD_OPTIONS.find((o) => o.value === period)?.label}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {PERIOD_OPTIONS.filter((o) => !o.group).map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
-            <div className="px-2 py-1.5 text-[11px] font-medium text-[var(--apple-secondary-label)] border-t border-[var(--apple-separator)] mt-1 pt-2">
-              월별
-            </div>
-            {PERIOD_OPTIONS.filter((o) => o.group === "월별").map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-1" role="group" aria-label="월 선택">
+          <button
+            type="button"
+            onClick={() => setPeriod(shiftMonth(period, -1))}
+            className="size-8 flex items-center justify-center rounded-full text-[var(--apple-secondary-label)] hover:bg-[var(--apple-fill)] transition-colors apple-press"
+            aria-label="이전 달"
+          >
+            <ChevronLeft className="size-4" />
+          </button>
+          <span className="px-3 py-1 rounded-full bg-[var(--apple-blue)] text-white text-[13px] font-semibold min-w-[100px] text-center">
+            {formatMonthLabel(period)}
+          </span>
+          <button
+            type="button"
+            onClick={() => !isCurrentMonth(period) && setPeriod(shiftMonth(period, 1))}
+            disabled={isCurrentMonth(period)}
+            className="size-8 flex items-center justify-center rounded-full text-[var(--apple-secondary-label)] hover:bg-[var(--apple-fill)] transition-colors apple-press disabled:opacity-30 disabled:pointer-events-none"
+            aria-label="다음 달"
+          >
+            <ChevronRight className="size-4" />
+          </button>
+        </div>
       </div>
 
       {/* Company Filter */}
