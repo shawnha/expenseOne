@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { ExpenseTabList } from "@/components/dashboard/expense-tab-list";
+import { MonthNavigator } from "@/components/dashboard/month-navigator";
 
 // ---------------------------------------------------------------------------
 // Label maps
@@ -21,7 +22,7 @@ import { ExpenseTabList } from "@/components/dashboard/expense-tab-list";
 // Data fetching
 // ---------------------------------------------------------------------------
 
-async function getDashboardData() {
+async function getDashboardData(monthKey?: string) {
   // DEV ONLY: Return mock data when auth is bypassed
   if (process.env.BYPASS_AUTH === 'true') {
     return {
@@ -58,10 +59,17 @@ async function getDashboardData() {
   const cachedUser = await getCachedCurrentUser();
   const userRole = cachedUser?.role ?? "MEMBER";
 
-  // This month range
+  // Month range (from monthKey like "2026-03" or current month)
   const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+  let targetYear = now.getFullYear();
+  let targetMonth = now.getMonth();
+  if (monthKey && /^\d{4}-\d{2}$/.test(monthKey)) {
+    const [y, m] = monthKey.split("-").map(Number);
+    targetYear = y;
+    targetMonth = m - 1;
+  }
+  const startOfMonth = new Date(targetYear, targetMonth, 1).toISOString();
+  const endOfMonth = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59).toISOString();
 
   // Build all queries (will execute in parallel)
   // Use Supabase RPC-style sum via single-row select for approved amount
@@ -198,7 +206,7 @@ function DashboardSkeleton() {
 // Async dashboard content (streamed via Suspense)
 // ---------------------------------------------------------------------------
 
-async function DashboardContent() {
+async function DashboardContent({ month }: { month?: string }) {
   const {
     totalApproved,
     submittedCount,
@@ -206,11 +214,11 @@ async function DashboardContent() {
     approvedCount,
     recentExpenses,
     userRole,
-  } = await getDashboardData();
+  } = await getDashboardData(month);
 
   const isAdmin = userRole === "ADMIN";
   const summaryCards = [
-    { title: "이번 달 총 비용", value: `${formatAmount(totalApproved)}원`, href: "/expenses" },
+    { title: "총 비용", value: `${formatAmount(totalApproved)}원`, href: "/expenses" },
     { title: "제출 건수", value: `${submittedCount}건`, href: "/expenses" },
     { title: "승인 대기", value: `${pendingCount}건`, href: isAdmin ? "/admin/pending" : "/expenses?status=SUBMITTED" },
     { title: "승인 완료", value: `${approvedCount}건`, href: isAdmin ? "/admin/expenses?status=APPROVED" : "/expenses?status=APPROVED" },
@@ -253,20 +261,29 @@ async function DashboardContent() {
 // Page component
 // ---------------------------------------------------------------------------
 
-export default function DashboardHomePage() {
+export default async function DashboardHomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string }>;
+}) {
+  const { month } = await searchParams;
+
   return (
     <div className="flex flex-col gap-4 sm:gap-5 lg:gap-6 pb-20 lg:pb-0">
       {/* Page header — renders immediately */}
-      <div className="animate-fade-up">
-        <h1 className="text-title3 lg:text-title2 text-[var(--apple-label)]">대시보드</h1>
-        <p className="text-footnote sm:text-callout text-[var(--apple-secondary-label)] mt-0.5">
-          이번 달 비용 현황을 확인하세요.
-        </p>
+      <div className="flex items-center justify-between animate-fade-up">
+        <div>
+          <h1 className="text-title3 lg:text-title2 text-[var(--apple-label)]">대시보드</h1>
+          <p className="text-footnote sm:text-callout text-[var(--apple-secondary-label)] mt-0.5">
+            비용 현황을 확인하세요.
+          </p>
+        </div>
+        <MonthNavigator />
       </div>
 
       {/* Data-dependent content — streamed via Suspense */}
-      <Suspense fallback={<DashboardSkeleton />}>
-        <DashboardContent />
+      <Suspense key={month ?? "current"} fallback={<DashboardSkeleton />}>
+        <DashboardContent month={month} />
       </Suspense>
 
       {/* FAB — desktop only (mobile has bottom tab bar) */}
