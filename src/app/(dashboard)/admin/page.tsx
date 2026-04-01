@@ -97,8 +97,9 @@ export default function AdminDashboardPage() {
         const json = await res.json();
         setData(json.data);
       } else {
+        const errJson = await res.json().catch(() => null);
         setData(null);
-        setError("대시보드 데이터를 불러오지 못했습니다.");
+        setError(errJson?.error?.message ?? "대시보드 데이터를 불러오지 못했습니다.");
       }
     } catch {
       setData(null);
