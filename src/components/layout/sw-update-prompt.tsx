@@ -1,31 +1,45 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { usePathname } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 
-/**
- * Detects when a new Service Worker is waiting and shows an update toast.
- * When the user taps "업데이트", sends SKIP_WAITING to the new SW,
- * which activates it and triggers a page reload via controllerchange.
- */
 export function SwUpdatePrompt() {
   const [waitingSW, setWaitingSW] = useState<ServiceWorker | null>(null);
+  const pathname = usePathname();
+
+  const checkForUpdate = useCallback(async () => {
+    if (!("serviceWorker" in navigator)) return;
+
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) return;
+
+    // Already waiting → show toast
+    if (reg.waiting) {
+      setWaitingSW(reg.waiting);
+      return;
+    }
+
+    // Trigger update check
+    reg.update().catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
 
-    async function check() {
+    let intervalId: ReturnType<typeof setInterval>;
+
+    async function setup() {
       const reg = await navigator.serviceWorker.getRegistration();
       if (!reg) return;
 
-      // If there's already a waiting SW when the page loads
+      // Check immediately
       if (reg.waiting) {
         setWaitingSW(reg.waiting);
-        return;
       }
 
-      // Listen for new SW installations
-      reg.addEventListener("updatefound", () => {
+      // Listen for new SW
+      const onUpdateFound = () => {
         const newSW = reg.installing;
         if (!newSW) return;
 
@@ -34,29 +48,45 @@ export function SwUpdatePrompt() {
             setWaitingSW(newSW);
           }
         });
-      });
+      };
 
-      // Force update check on page load
+      reg.addEventListener("updatefound", onUpdateFound);
+
+      // Force check now
       reg.update().catch(() => {});
 
-      // Periodic update check every 60s for PWA (stays open long)
-      const interval = setInterval(() => {
+      // Periodic check every 30s
+      intervalId = setInterval(() => {
         reg.update().catch(() => {});
-      }, 60_000);
+      }, 30_000);
 
-      return () => clearInterval(interval);
+      return () => {
+        reg.removeEventListener("updatefound", onUpdateFound);
+      };
     }
 
-    check();
+    const cleanupPromise = setup();
 
-    // When the new SW takes over, reload the page
+    // Reload on controller change
     let refreshing = false;
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
+    const onControllerChange = () => {
       if (refreshing) return;
       refreshing = true;
       window.location.reload();
-    });
+    };
+    navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
+
+    return () => {
+      clearInterval(intervalId);
+      navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
+      cleanupPromise.then((cleanup) => cleanup?.());
+    };
   }, []);
+
+  // Re-check on every page navigation
+  useEffect(() => {
+    checkForUpdate();
+  }, [pathname, checkForUpdate]);
 
   if (!waitingSW) return null;
 
@@ -78,8 +108,7 @@ export function SwUpdatePrompt() {
           type="button"
           onClick={() => {
             waitingSW.postMessage("SKIP_WAITING");
-            // Fallback: controllerchange가 안 오면 3초 후 강제 reload
-            setTimeout(() => window.location.reload(), 3000);
+            setTimeout(() => window.location.reload(), 2000);
           }}
           className="shrink-0 px-3 py-1.5 rounded-full bg-[var(--apple-blue)] text-white text-[12px] font-semibold apple-press transition-colors hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)]"
         >
