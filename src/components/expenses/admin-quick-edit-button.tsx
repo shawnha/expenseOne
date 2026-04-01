@@ -13,6 +13,7 @@ interface QuickEditExpense {
   status: ExpenseStatus;
   type: ExpenseType;
   createdAt: string;
+  companyId?: string | null;
   submitter: { name: string } | null;
 }
 

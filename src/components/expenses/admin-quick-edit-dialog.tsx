@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -33,7 +33,14 @@ interface QuickEditExpense {
   status: ExpenseStatus;
   type: ExpenseType;
   createdAt: string;
+  companyId?: string | null;
   submitter: { name: string } | null;
+}
+
+interface Company {
+  id: string;
+  name: string;
+  slug: string;
 }
 
 interface AdminQuickEditDialogProps {
@@ -59,28 +66,36 @@ export function AdminQuickEditDialog({
   const [category, setCategory] = useState("");
   const [amount, setAmount] = useState("");
   const [status, setStatus] = useState<ExpenseStatus>("SUBMITTED");
+  const [companyId, setCompanyId] = useState("");
   const [transactionDate, setTransactionDate] = useState("");
   const [saving, setSaving] = useState(false);
+  const [companies, setCompanies] = useState<Company[]>([]);
 
-  // Reset form when expense changes
-  const handleOpenChange = useCallback(
-    (isOpen: boolean) => {
-      if (isOpen && expense) {
-        setTitle(expense.title);
-        setCategory(expense.category);
-        setAmount(String(expense.amount));
-        setStatus(expense.status);
-        // Parse createdAt to date string
-        const d = new Date(expense.createdAt);
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, "0");
-        const dd = String(d.getDate()).padStart(2, "0");
-        setTransactionDate(`${yyyy}-${mm}-${dd}`);
-      }
-      onOpenChange(isOpen);
-    },
-    [expense, onOpenChange],
-  );
+  // Populate form when dialog opens
+  useEffect(() => {
+    if (open && expense) {
+      setTitle(expense.title);
+      setCategory(expense.category);
+      setAmount(String(expense.amount));
+      setStatus(expense.status);
+      setCompanyId(expense.companyId ?? "");
+      const d = new Date(expense.createdAt);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      setTransactionDate(`${yyyy}-${mm}-${dd}`);
+    }
+  }, [open, expense]);
+
+  // Fetch companies once
+  useEffect(() => {
+    fetch("/api/companies")
+      .then((res) => res.ok ? res.json() : null)
+      .then((json) => {
+        if (json?.data) setCompanies(json.data);
+      })
+      .catch(() => {});
+  }, []);
 
   const handleSave = useCallback(async () => {
     if (!expense) return;
@@ -102,6 +117,9 @@ export function AdminQuickEditDialog({
       if (transactionDate) {
         body.transactionDate = transactionDate;
       }
+      if (companyId) {
+        body.companyId = companyId;
+      }
 
       const res = await fetch(`/api/expenses/${expense.id}`, {
         method: "PATCH",
@@ -122,16 +140,18 @@ export function AdminQuickEditDialog({
     } finally {
       setSaving(false);
     }
-  }, [expense, title, category, amount, status, transactionDate, onOpenChange, router]);
+  }, [expense, title, category, amount, status, companyId, transactionDate, onOpenChange, router]);
 
   if (!expense) return null;
 
   const selectedCategoryLabel = getCategoryLabel(category);
   const selectedStatusLabel =
     STATUS_OPTIONS.find((s) => s.value === status)?.label ?? status;
+  const selectedCompanyLabel =
+    companies.find((c) => c.id === companyId)?.name ?? "미지정";
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent showCloseButton={false} className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-subheadline font-semibold text-[var(--apple-label)]">
@@ -157,6 +177,29 @@ export function AdminQuickEditDialog({
               autoFocus
             />
           </div>
+
+          {/* Company */}
+          {companies.length > 1 && (
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-[13px] text-[var(--apple-secondary-label)]">
+                회사
+              </Label>
+              <Select value={companyId || "__none__"} onValueChange={(v) => setCompanyId(!v || v === "__none__" ? "" : v)}>
+                <SelectTrigger className="w-full h-9 text-sm" aria-label="회사 선택">
+                  <SelectValue placeholder="회사 선택">
+                    {selectedCompanyLabel}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {companies.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Category */}
           <div className="flex flex-col gap-1.5">

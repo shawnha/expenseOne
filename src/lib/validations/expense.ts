@@ -101,6 +101,7 @@ export const updateExpenseSchema = z.object({
   isPrePaid: z.boolean().optional(),
   prePaidPercentage: z.number().int().min(1).max(100).optional().nullable(),
   status: z.enum(["SUBMITTED", "APPROVED", "REJECTED", "CANCELLED"]).optional(),
+  companyId: z.string().uuid().optional(),
 });
 
 export type UpdateExpenseInput = z.infer<typeof updateExpenseSchema>;

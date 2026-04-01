@@ -125,6 +125,7 @@ async function getExpenseDetail(id: string) {
         approvedAt: result.approvedAt?.toISOString() ?? null,
         createdAt: result.createdAt?.toISOString() ?? null,
         updatedAt: result.updatedAt?.toISOString() ?? null,
+        companyId: result.companyId ?? null,
         submitter: result.submitter,
       },
       attachments: (result.attachments ?? []).map((a) => ({
@@ -215,6 +216,7 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
                 status: expense.status,
                 type: expense.type,
                 createdAt: expense.createdAt ?? "",
+                companyId: expense.companyId,
                 submitter: expense.submitter ? { name: expense.submitter.name } : null,
               }}
             />
