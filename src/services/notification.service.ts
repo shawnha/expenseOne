@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { notifications, users } from "@/lib/db/schema";
-import { eq, and, desc, count } from "drizzle-orm";
+import { eq, and, desc, count, lt, sql, inArray } from "drizzle-orm";
 import { notifySlackApproved } from "./slack.service";
 import { sendPushToUser, sendPushToAdmins } from "./push.service";
 
@@ -36,6 +36,11 @@ export async function getNotifications(
   page = 1,
   limit = 20,
 ) {
+  // 첫 페이지 조회 시 오래된 알림 정리 (비동기, 응답 차단 안 함)
+  if (page === 1) {
+    cleanupNotifications(userId).catch(() => {});
+  }
+
   const offset = (page - 1) * limit;
 
   const [items, totalResult] = await Promise.all([
@@ -119,6 +124,67 @@ export async function markAllAsRead(userId: string) {
         eq(notifications.isRead, false),
       ),
     );
+}
+
+// ---------------------------------------------------------------------------
+// cleanupNotifications -- 30일 지난 읽은 알림 삭제 + 최대 200건 유지
+// ---------------------------------------------------------------------------
+const MAX_NOTIFICATIONS = 200;
+const CLEANUP_DAYS = 30;
+
+export async function cleanupNotifications(userId: string) {
+  try {
+    // 1) 30일 지난 읽은 알림 삭제
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - CLEANUP_DAYS);
+
+    await db
+      .delete(notifications)
+      .where(
+        and(
+          eq(notifications.recipientId, userId),
+          eq(notifications.isRead, true),
+          lt(notifications.createdAt, cutoff),
+        ),
+      );
+
+    // 2) 200건 초과 시 오래된 읽은 알림부터 삭제
+    const totalResult = await db
+      .select({ count: count() })
+      .from(notifications)
+      .where(eq(notifications.recipientId, userId));
+
+    const total = totalResult[0]?.count ?? 0;
+
+    if (total > MAX_NOTIFICATIONS) {
+      const excess = total - MAX_NOTIFICATIONS;
+      // 읽은 알림 중 가장 오래된 것부터 삭제
+      const oldReadIds = await db
+        .select({ id: notifications.id })
+        .from(notifications)
+        .where(
+          and(
+            eq(notifications.recipientId, userId),
+            eq(notifications.isRead, true),
+          ),
+        )
+        .orderBy(notifications.createdAt)
+        .limit(excess);
+
+      if (oldReadIds.length > 0) {
+        await db
+          .delete(notifications)
+          .where(
+            inArray(
+              notifications.id,
+              oldReadIds.map((r) => r.id),
+            ),
+          );
+      }
+    }
+  } catch (err) {
+    console.error("[Notification Cleanup] 실패:", err);
+  }
 }
 
 // ---------------------------------------------------------------------------
