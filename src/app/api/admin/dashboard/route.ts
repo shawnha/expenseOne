@@ -161,14 +161,6 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (err) {
-    console.error("Dashboard API error:", err);
-    // Return detailed error in development for debugging
-    if (err instanceof Error) {
-      return NextResponse.json(
-        { error: { code: "INTERNAL_ERROR", message: err.message, stack: err.stack?.slice(0, 500) } },
-        { status: 500 },
-      );
-    }
     return handleError(err);
   }
 }
