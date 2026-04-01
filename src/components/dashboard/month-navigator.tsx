@@ -140,7 +140,7 @@ export function MonthNavigator({
       {pickerOpen && (
         <div
           ref={popoverRef}
-          className="absolute top-full mt-2 right-0 z-50 w-[240px] glass rounded-2xl border border-[var(--glass-border)] shadow-lg p-3 animate-fade-up"
+          className="absolute top-full mt-2 right-0 z-[999] w-[240px] rounded-2xl border border-[var(--glass-border)] shadow-xl p-3 animate-fade-up bg-[var(--apple-system-background)]"
         >
           {/* Year navigation */}
           <div className="flex items-center justify-between mb-3">
