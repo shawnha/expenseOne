@@ -4,23 +4,41 @@ import { useEffect, useState, useCallback } from "react";
 import { usePathname } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 
+const COOLDOWN_KEY = "sw-update-ts";
+const COOLDOWN_MS = 10_000; // 업데이트 후 10초간 토스트 억제
+
+function isInCooldown(): boolean {
+  try {
+    const ts = sessionStorage.getItem(COOLDOWN_KEY);
+    if (!ts) return false;
+    return Date.now() - parseInt(ts, 10) < COOLDOWN_MS;
+  } catch {
+    return false;
+  }
+}
+
+function setCooldown() {
+  try {
+    sessionStorage.setItem(COOLDOWN_KEY, String(Date.now()));
+  } catch {}
+}
+
 export function SwUpdatePrompt() {
   const [waitingSW, setWaitingSW] = useState<ServiceWorker | null>(null);
+  const [updating, setUpdating] = useState(false);
   const pathname = usePathname();
 
   const checkForUpdate = useCallback(async () => {
-    if (!("serviceWorker" in navigator)) return;
+    if (!("serviceWorker" in navigator) || isInCooldown()) return;
 
     const reg = await navigator.serviceWorker.getRegistration();
     if (!reg) return;
 
-    // Already waiting → show toast
     if (reg.waiting) {
       setWaitingSW(reg.waiting);
       return;
     }
 
-    // Trigger update check
     reg.update().catch(() => {});
   }, []);
 
@@ -33,18 +51,17 @@ export function SwUpdatePrompt() {
       const reg = await navigator.serviceWorker.getRegistration();
       if (!reg) return;
 
-      // Check immediately
-      if (reg.waiting) {
+      // Skip if in cooldown (just updated)
+      if (!isInCooldown() && reg.waiting) {
         setWaitingSW(reg.waiting);
       }
 
-      // Listen for new SW
       const onUpdateFound = () => {
         const newSW = reg.installing;
         if (!newSW) return;
 
         newSW.addEventListener("statechange", () => {
-          if (newSW.state === "installed" && navigator.serviceWorker.controller) {
+          if (newSW.state === "installed" && navigator.serviceWorker.controller && !isInCooldown()) {
             setWaitingSW(newSW);
           }
         });
@@ -52,12 +69,15 @@ export function SwUpdatePrompt() {
 
       reg.addEventListener("updatefound", onUpdateFound);
 
-      // Force check now
-      reg.update().catch(() => {});
-
-      // Periodic check every 30s
-      intervalId = setInterval(() => {
+      // Force check now (not during cooldown)
+      if (!isInCooldown()) {
         reg.update().catch(() => {});
+      }
+
+      intervalId = setInterval(() => {
+        if (!isInCooldown()) {
+          reg.update().catch(() => {});
+        }
       }, 30_000);
 
       return () => {
@@ -67,7 +87,6 @@ export function SwUpdatePrompt() {
 
     const cleanupPromise = setup();
 
-    // Reload on controller change
     let refreshing = false;
     const onControllerChange = () => {
       if (refreshing) return;
@@ -83,12 +102,20 @@ export function SwUpdatePrompt() {
     };
   }, []);
 
-  // Re-check on every page navigation
+  // Re-check on page navigation
   useEffect(() => {
     checkForUpdate();
   }, [pathname, checkForUpdate]);
 
-  if (!waitingSW) return null;
+  const handleUpdate = () => {
+    if (!waitingSW) return;
+    setUpdating(true);
+    setCooldown();
+    waitingSW.postMessage("SKIP_WAITING");
+    setTimeout(() => window.location.reload(), 2000);
+  };
+
+  if (!waitingSW || updating) return null;
 
   return (
     <div className="fixed top-[calc(3.75rem+0.5rem)] left-4 right-4 z-[100] sm:left-auto sm:right-4 sm:w-80 animate-[fade-up_0.3s_ease]">
@@ -106,10 +133,7 @@ export function SwUpdatePrompt() {
         </div>
         <button
           type="button"
-          onClick={() => {
-            waitingSW.postMessage("SKIP_WAITING");
-            setTimeout(() => window.location.reload(), 2000);
-          }}
+          onClick={handleUpdate}
           className="shrink-0 px-3 py-1.5 rounded-full bg-[var(--apple-blue)] text-white text-[12px] font-semibold apple-press transition-colors hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)]"
         >
           업데이트
