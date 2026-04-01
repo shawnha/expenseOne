@@ -101,6 +101,18 @@ async function sendSlackMessage(text: string, companyId?: string | null): Promis
 }
 
 // ---------------------------------------------------------------------------
+// Helper: look up company name by ID
+// ---------------------------------------------------------------------------
+async function getCompanyName(companyId?: string | null): Promise<string | null> {
+  if (!companyId) return null;
+  const [company] = await db
+    .select({ name: companies.name })
+    .from(companies)
+    .where(eq(companies.id, companyId));
+  return company?.name ?? null;
+}
+
+// ---------------------------------------------------------------------------
 // Public notification functions
 // ---------------------------------------------------------------------------
 
@@ -116,17 +128,23 @@ export async function notifySlackCorporateCard(params: {
   expenseUrl: string;
   companyId?: string;
 }): Promise<void> {
-  const mention = await mentionUser(params.submitterEmail, params.submitterName);
+  const [mention, companyName] = await Promise.all([
+    mentionUser(params.submitterEmail, params.submitterName),
+    getCompanyName(params.companyId),
+  ]);
 
-  const text = [
+  const lines = [
     `💳 ${mention} 법카사용이 등록되었습니다`,
+  ];
+  if (companyName) lines.push(`• 회사: ${companyName}`);
+  lines.push(
     `• 제목: ${params.title}`,
     `• 금액: ${formatKRW(params.amount)}`,
     `• 카테고리: ${getCategoryLabel(params.category)}`,
     `<${params.expenseUrl}|상세 보기>`,
-  ].join("\n");
+  );
 
-  await sendSlackMessage(text, params.companyId);
+  await sendSlackMessage(lines.join("\n"), params.companyId);
 }
 
 /**
@@ -141,14 +159,20 @@ export async function notifySlackApproved(params: {
   expenseUrl: string;
   companyId?: string;
 }): Promise<void> {
-  const mention = await mentionUser(params.submitterEmail, params.submitterName);
+  const [mention, companyName] = await Promise.all([
+    mentionUser(params.submitterEmail, params.submitterName),
+    getCompanyName(params.companyId),
+  ]);
 
-  const text = [
+  const lines = [
     `✅ ${mention} 입금요청이 완료되었습니다`,
+  ];
+  if (companyName) lines.push(`• 회사: ${companyName}`);
+  lines.push(
     `• 제목: ${params.title}`,
     `• 금액: ${formatKRW(params.amount)}`,
     `<${params.expenseUrl}|상세 보기>`,
-  ].join("\n");
+  );
 
-  await sendSlackMessage(text, params.companyId);
+  await sendSlackMessage(lines.join("\n"), params.companyId);
 }
