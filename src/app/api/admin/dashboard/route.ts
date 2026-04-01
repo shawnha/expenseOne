@@ -9,19 +9,23 @@ import { getCompanyBySlug } from "@/services/company.service";
 // GET /api/admin/dashboard?period=this_month|3_months|6_months|this_year
 // ---------------------------------------------------------------------------
 
-function getPeriodRange(period: string): { start: Date; end: Date } {
+// Returns YYYY-MM-DD date strings for filtering on transactionDate
+function getPeriodRange(period: string): { startDate: string; endDate: string } {
   const now = new Date();
-  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+  function fmt(d: Date): string {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
 
   // Support specific month: "2026-03" format
   const monthMatch = period.match(/^(\d{4})-(\d{2})$/);
   if (monthMatch) {
     const year = parseInt(monthMatch[1]);
-    const month = parseInt(monthMatch[2]) - 1; // 0-indexed
-    const start = new Date(year, month, 1);
-    const monthEnd = new Date(year, month + 1, 0, 23, 59, 59, 999);
-    // Don't go past today
-    return { start, end: monthEnd > end ? end : monthEnd };
+    const month = parseInt(monthMatch[2]) - 1;
+    const startDate = fmt(new Date(year, month, 1));
+    const lastDay = fmt(new Date(year, month + 1, 0));
+    return { startDate, endDate: lastDay < todayStr ? lastDay : todayStr };
   }
 
   let start: Date;
@@ -41,7 +45,7 @@ function getPeriodRange(period: string): { start: Date; end: Date } {
       break;
   }
 
-  return { start, end };
+  return { startDate: fmt(start), endDate: todayStr };
 }
 
 export async function GET(request: NextRequest) {
@@ -50,10 +54,7 @@ export async function GET(request: NextRequest) {
 
     const period = request.nextUrl.searchParams.get("period") ?? "this_month";
     const companySlug = request.nextUrl.searchParams.get("company");
-    const { start, end } = getPeriodRange(period);
-
-    const startStr = start.toISOString();
-    const endStr = end.toISOString();
+    const { startDate, endDate } = getPeriodRange(period);
 
     // Resolve company slug to id
     let companyId: string | null = null;
@@ -66,8 +67,8 @@ export async function GET(request: NextRequest) {
 
     // 1. Stats: total amount, pending, approved, rejected (single query)
     const dateConditions = [
-      gte(expenses.createdAt, new Date(startStr)),
-      lte(expenses.createdAt, new Date(endStr)),
+      gte(expenses.transactionDate, startDate),
+      lte(expenses.transactionDate, endDate),
     ];
     if (companyId) {
       dateConditions.push(eq(expenses.companyId, companyId) as ReturnType<typeof gte>);
@@ -95,28 +96,26 @@ export async function GET(request: NextRequest) {
       .groupBy(expenses.category)
       .orderBy(sql`${sum(expenses.amount)} desc`);
 
-    // 3. Monthly trend (last 6 months)
-    const sixMonthsAgo = new Date(
-      start.getFullYear(),
-      start.getMonth() - 5,
-      1,
-    );
+    // 3. Monthly trend (last 6 months from startDate)
+    const startD = new Date(startDate);
+    const sixMonthsAgo = new Date(startD.getFullYear(), startD.getMonth() - 5, 1);
+    const sixMonthsAgoStr = `${sixMonthsAgo.getFullYear()}-${String(sixMonthsAgo.getMonth() + 1).padStart(2, "0")}-01`;
     const trendConditions = [
-      gte(expenses.createdAt, sixMonthsAgo),
-      lte(expenses.createdAt, new Date(endStr)),
+      gte(expenses.transactionDate, sixMonthsAgoStr),
+      lte(expenses.transactionDate, endDate),
     ];
     if (companyId) {
       trendConditions.push(eq(expenses.companyId, companyId) as ReturnType<typeof gte>);
     }
     const monthlyTrend = await db
       .select({
-        month: sql<string>`to_char(${expenses.createdAt}, 'YYYY-MM')`,
+        month: sql<string>`to_char(${expenses.transactionDate}::date, 'YYYY-MM')`,
         amount: sum(expenses.amount),
       })
       .from(expenses)
       .where(and(...trendConditions))
-      .groupBy(sql`to_char(${expenses.createdAt}, 'YYYY-MM')`)
-      .orderBy(sql`to_char(${expenses.createdAt}, 'YYYY-MM') asc`);
+      .groupBy(sql`to_char(${expenses.transactionDate}::date, 'YYYY-MM')`)
+      .orderBy(sql`to_char(${expenses.transactionDate}::date, 'YYYY-MM') asc`);
 
     // 4. Top 5 submitters
     const topSubmitters = await db
