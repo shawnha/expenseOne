@@ -3,8 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { DollarSign, Clock, CheckCircle2, XCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { DollarSign, Clock, CheckCircle2, XCircle } from "lucide-react";
 import { AdminCompanyFilter } from "@/components/admin/company-filter";
+import { MonthNavigator } from "@/components/dashboard/month-navigator";
 import { formatAmount } from "@/lib/validations/expense-form";
 import { getCategoryLabel } from "@/lib/utils/expense-utils";
 
@@ -46,21 +47,6 @@ interface DashboardData {
 function getCurrentMonthKey(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function formatMonthLabel(key: string): string {
-  const [y, m] = key.split("-");
-  return `${y}년 ${parseInt(m)}월`;
-}
-
-function shiftMonth(key: string, delta: number): string {
-  const [y, m] = key.split("-").map(Number);
-  const d = new Date(y, m - 1 + delta, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function isCurrentMonth(key: string): boolean {
-  return key === getCurrentMonthKey();
 }
 
 function isMonthKey(key: string): boolean {
@@ -151,38 +137,10 @@ export default function AdminDashboardPage() {
           <p className="text-footnote text-[var(--apple-secondary-label)] mt-0.5">전체 비용 현황</p>
         </div>
         <div className="flex items-center gap-2" role="group" aria-label="기간 선택">
-          {/* Month navigator */}
-          <button
-            type="button"
-            onClick={() => setPeriod(shiftMonth(isMonthKey(period) ? period : getCurrentMonthKey(), -1))}
-            className="size-8 flex items-center justify-center rounded-full text-[var(--apple-secondary-label)] hover:bg-[var(--apple-fill)] transition-colors apple-press"
-            aria-label="이전 달"
-          >
-            <ChevronLeft className="size-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setPeriod(isMonthKey(period) ? period : getCurrentMonthKey())}
-            className={`px-3 py-1 rounded-full text-[13px] font-semibold min-w-[100px] text-center transition-colors ${
-              isMonthKey(period)
-                ? "bg-[var(--apple-blue)] text-white"
-                : "bg-[var(--apple-fill)] text-[var(--apple-label)] hover:bg-[var(--apple-secondary-fill)]"
-            }`}
-          >
-            {isMonthKey(period) ? formatMonthLabel(period) : formatMonthLabel(getCurrentMonthKey())}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              const base = isMonthKey(period) ? period : getCurrentMonthKey();
-              if (!isCurrentMonth(base)) setPeriod(shiftMonth(base, 1));
-            }}
-            disabled={isMonthKey(period) && isCurrentMonth(period)}
-            className="size-8 flex items-center justify-center rounded-full text-[var(--apple-secondary-label)] hover:bg-[var(--apple-fill)] transition-colors apple-press disabled:opacity-30 disabled:pointer-events-none"
-            aria-label="다음 달"
-          >
-            <ChevronRight className="size-4" />
-          </button>
+          <MonthNavigator
+            value={isMonthKey(period) ? period : getCurrentMonthKey()}
+            onChange={(m) => setPeriod(m)}
+          />
 
           {/* Divider */}
           <div className="w-px h-5 bg-[var(--apple-separator)] mx-0.5" />
