@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
-import { Loader2, Trash2, ChevronDown, Check, Shield, ShieldOff, UserX, UserCheck, Building2 } from "lucide-react";
+import { useState, useRef, useCallback, useEffect, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { Loader2, Trash2, ChevronDown, Check, Shield, ShieldOff, UserX, UserCheck, Building2, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -145,6 +145,74 @@ function formatDate(dateStr: string): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}.${m}.${day}`;
+}
+
+function EditableCell({
+  value,
+  placeholder,
+  disabled,
+  onSave,
+  inputProps,
+}: {
+  value: string;
+  placeholder?: string;
+  disabled?: boolean;
+  onSave: (newValue: string) => void;
+  inputProps?: React.InputHTMLAttributes<HTMLInputElement>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) {
+      setDraft(value);
+      setTimeout(() => inputRef.current?.focus(), 0);
+    }
+  }, [editing, value]);
+
+  function handleSave() {
+    const trimmed = draft.trim();
+    setEditing(false);
+    if (trimmed !== value && trimmed.length > 0) {
+      onSave(trimmed);
+    }
+  }
+
+  function handleKeyDown(e: ReactKeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") handleSave();
+    if (e.key === "Escape") setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={handleSave}
+        onKeyDown={handleKeyDown}
+        className="w-full bg-transparent border-b border-[var(--apple-blue)] text-[13px] font-medium text-[var(--apple-label)] outline-none py-0.5 px-0"
+        {...inputProps}
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={() => !disabled && setEditing(true)}
+      className="group flex items-center gap-1 text-left disabled:cursor-default"
+    >
+      <span className={value ? PRIMARY : `${SECONDARY} italic`}>
+        {value || placeholder || "-"}
+      </span>
+      {!disabled && (
+        <Pencil className="size-3 text-[var(--apple-tertiary-label)] opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+      )}
+    </button>
+  );
 }
 
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
@@ -579,6 +647,30 @@ export function UsersTable({ users: initialUsers, currentUserId, companies = [] 
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
+  const handleFieldChange = async (userId: string, field: "name" | "cardLastFour", value: string) => {
+    setUpdatingId(userId);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, [field]: value }),
+      });
+      if (res.ok) {
+        setUserList((prev) =>
+          prev.map((u) => (u.id === userId ? { ...u, [field]: value } : u)),
+        );
+        toast.success(field === "name" ? "이름이 변경되었습니다." : "카드번호가 변경되었습니다.");
+      } else {
+        const json = await res.json().catch(() => null);
+        toast.error(json?.error?.message ?? "변경에 실패했습니다.");
+      }
+    } catch {
+      toast.error("요청 중 오류가 발생했습니다.");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   const handleCompanyChange = async (userId: string, companyId: string | null) => {
     setUpdatingId(userId);
     try {
@@ -710,7 +802,13 @@ export function UsersTable({ users: initialUsers, currentUserId, companies = [] 
                   key={user.id}
                   className={`hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)] ${!user.isActive ? "opacity-50" : ""}`}
                 >
-                  <TableCell className={PRIMARY}>{user.name}</TableCell>
+                  <TableCell>
+                    <EditableCell
+                      value={user.name}
+                      disabled={isSelf || isUpdating}
+                      onSave={(v) => handleFieldChange(user.id, "name", v)}
+                    />
+                  </TableCell>
                   <TableCell className={SECONDARY}>{user.email}</TableCell>
                   <TableCell>
                     <CompanyLabel
@@ -730,8 +828,14 @@ export function UsersTable({ users: initialUsers, currentUserId, companies = [] 
                       onChange={(newRole) => handleRoleChange(user.id, newRole)}
                     />
                   </TableCell>
-                  <TableCell className={SECONDARY}>
-                    {user.cardLastFour ? `****-${user.cardLastFour}` : "-"}
+                  <TableCell>
+                    <EditableCell
+                      value={user.cardLastFour ?? ""}
+                      placeholder="미등록"
+                      disabled={isSelf || isUpdating}
+                      onSave={(v) => handleFieldChange(user.id, "cardLastFour", v)}
+                      inputProps={{ maxLength: 4, pattern: "\\d{4}", placeholder: "끝 4자리" }}
+                    />
                   </TableCell>
                   <TableCell>
                     <span className={user.isActive ? "glass-badge glass-badge-green" : "glass-badge glass-badge-red"}>

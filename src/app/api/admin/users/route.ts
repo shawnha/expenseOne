@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 // Zod schema for admin user update
 const updateUserSchema = z.object({
   userId: z.string().uuid("올바른 사용자 ID를 입력해주세요"),
+  name: z.string().min(1).max(100).optional(),
   role: z.enum(["MEMBER", "ADMIN"], {
     message: "역할은 MEMBER 또는 ADMIN이어야 합니다.",
   }).optional(),
@@ -19,6 +20,7 @@ const updateUserSchema = z.object({
   }).optional(),
   companyId: z.string().uuid("올바른 회사 ID를 입력해주세요").nullable().optional(),
   department: z.string().max(100).nullable().optional(),
+  cardLastFour: z.string().length(4, "카드 끝 4자리를 입력해주세요").regex(/^\d{4}$/, "숫자 4자리를 입력해주세요").nullable().optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -42,7 +44,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const { userId, role, isActive, companyId, department } = parsed.data;
+    const { userId, name, role, isActive, companyId, department, cardLastFour } = parsed.data;
 
     // Cannot modify self
     if (userId === admin.id) {
@@ -53,6 +55,10 @@ export async function PATCH(request: NextRequest) {
     const updateData: Partial<typeof users.$inferInsert> = {
       updatedAt: new Date(),
     };
+
+    if (name !== undefined) {
+      updateData.name = name;
+    }
 
     if (role !== undefined) {
       updateData.role = role;
@@ -68,6 +74,10 @@ export async function PATCH(request: NextRequest) {
 
     if (department !== undefined) {
       updateData.department = department;
+    }
+
+    if (cardLastFour !== undefined) {
+      updateData.cardLastFour = cardLastFour;
     }
 
     // Check user exists
