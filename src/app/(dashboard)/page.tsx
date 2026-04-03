@@ -7,7 +7,6 @@ import {
   FileText,
   Clock,
   CheckCircle2,
-  Plus,
 } from "lucide-react";
 import Link from "next/link";
 import { ExpenseTabList } from "@/components/dashboard/expense-tab-list";
@@ -286,14 +285,6 @@ export default async function DashboardHomePage({
         <DashboardContent month={month} />
       </Suspense>
 
-      {/* FAB — desktop only (mobile has bottom tab bar) */}
-      <Link
-        href="/expenses/new"
-        aria-label="새 비용 제출"
-        className="hidden lg:flex fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-6 z-50 items-center justify-center size-14 rounded-full bg-[var(--apple-blue)] text-white shadow-[0_4px_16px_rgba(0,122,255,0.4)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] hover:shadow-[0_6px_20px_rgba(0,122,255,0.5)] hover:scale-105 active:scale-95 transition-all duration-200"
-      >
-        <Plus className="size-6" aria-hidden="true" />
-      </Link>
     </div>
   );
 }

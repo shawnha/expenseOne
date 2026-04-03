@@ -51,20 +51,29 @@ export function SwUpdatePrompt() {
       const reg = await navigator.serviceWorker.getRegistration();
       if (!reg) return;
 
+      const watchInstalling = (sw: ServiceWorker) => {
+        sw.addEventListener("statechange", () => {
+          if (sw.state === "installed" && navigator.serviceWorker.controller && !isInCooldown()) {
+            setWaitingSW(sw);
+          }
+        });
+      };
+
       // Skip if in cooldown (just updated)
       if (!isInCooldown() && reg.waiting) {
         setWaitingSW(reg.waiting);
       }
 
+      // If there's already an installing SW (updatefound fired before React mount),
+      // attach the statechange listener to catch it transitioning to "installed"
+      if (!isInCooldown() && reg.installing) {
+        watchInstalling(reg.installing);
+      }
+
       const onUpdateFound = () => {
         const newSW = reg.installing;
         if (!newSW) return;
-
-        newSW.addEventListener("statechange", () => {
-          if (newSW.state === "installed" && navigator.serviceWorker.controller && !isInCooldown()) {
-            setWaitingSW(newSW);
-          }
-        });
+        watchInstalling(newSW);
       };
 
       reg.addEventListener("updatefound", onUpdateFound);

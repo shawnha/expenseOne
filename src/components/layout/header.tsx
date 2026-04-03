@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bell } from "lucide-react";
+import { Bell, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -71,6 +71,21 @@ export function Header({ user, title, unreadCount = 0 }: HeaderProps) {
 
       {/* Right section */}
       <div className="ml-auto flex items-center gap-1.5 sm:gap-3">
+        {/* New expense — desktop nav bar action (HIG: actions in top-right) */}
+        <Link
+          href="/expenses/new"
+          className={cn(
+            "hidden lg:flex items-center gap-1.5 h-9 px-3 rounded-full",
+            "bg-[var(--apple-blue)] text-white text-sm font-medium",
+            "hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)]",
+            "active:scale-[0.97] transition-all duration-200"
+          )}
+          aria-label="새 비용 제출"
+        >
+          <Plus className="size-4" />
+          <span>새 비용</span>
+        </Link>
+
         {/* Notifications */}
         <Link
           href="/notifications"
@@ -85,7 +100,7 @@ export function Header({ user, title, unreadCount = 0 }: HeaderProps) {
         >
           <Bell className="size-[18px] text-[var(--apple-secondary-label)]" />
           {totalUnread > 0 && (
-            <span aria-hidden="true" className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-[var(--apple-red)] text-white text-[10px] font-semibold px-1 shadow-[0_2px_6px_rgba(255,59,48,0.3)] animate-[scale-in_0.3s_cubic-bezier(0.34,1.56,0.64,1)]">
+            <span aria-hidden="true" className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-[var(--apple-red)] text-white text-[11px] font-semibold px-1 shadow-[0_2px_6px_rgba(255,59,48,0.3)] animate-[scale-in_0.3s_cubic-bezier(0.34,1.56,0.64,1)]">
               {totalUnread > 99 ? "99+" : totalUnread}
             </span>
           )}
