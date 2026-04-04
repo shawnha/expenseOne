@@ -19,13 +19,14 @@ if (!connectionString) {
 
 const client = postgres(connectionString, {
   prepare: false,
-  max: 1,
-  idle_timeout: 20,
+  max: 10,
+  idle_timeout: 10,
+  max_lifetime: 30,
   connect_timeout: 10,
   ssl: "prefer",
   connection: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    statement_timeout: "15000" as any,  // 15s max per query — prevents 300s hang
+    statement_timeout: "15000" as any,
   },
   onnotice: () => {},
 });
