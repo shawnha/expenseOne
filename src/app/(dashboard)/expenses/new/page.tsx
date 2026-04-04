@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { CreditCard, Banknote, ArrowRight } from "lucide-react";
+import { TiltCard } from "@/components/layout/tilt-card";
 
 const expenseTypes = [
   {
@@ -30,24 +31,25 @@ export default function NewExpensePage() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         {expenseTypes.map((type, index) => (
-          <Link
-            key={type.href}
-            href={type.href}
-            className={`glass p-5 flex flex-col gap-3 transition-all duration-200 hover:bg-[rgba(0,0,0,0.05)] dark:hover:bg-[rgba(255,255,255,0.08)] hover:shadow-lg hover:scale-[1.02] group apple-press animate-card-enter stagger-${index + 1}`}
-          >
-            <div className="flex items-center justify-center size-12 rounded-2xl bg-[var(--apple-secondary-system-background)]">
-              {type.icon}
-            </div>
-            <div>
-              <span className="text-subheadline font-semibold text-[var(--apple-label)] flex items-center gap-1">
-                {type.title}
-                <ArrowRight className="size-3.5 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 text-[var(--apple-blue)]" />
-              </span>
-              <p className="text-footnote text-[var(--apple-secondary-label)] leading-relaxed mt-1">
-                {type.description}
-              </p>
-            </div>
-          </Link>
+          <TiltCard key={type.href}>
+            <Link
+              href={type.href}
+              className={`glass p-5 flex flex-col gap-3 transition-all duration-200 hover:bg-[rgba(0,0,0,0.05)] dark:hover:bg-[rgba(255,255,255,0.08)] hover:shadow-lg hover:scale-[1.02] group apple-press animate-card-enter stagger-${index + 1}`}
+            >
+              <div className="flex items-center justify-center size-12 rounded-2xl bg-[var(--apple-secondary-system-background)]">
+                {type.icon}
+              </div>
+              <div>
+                <span className="text-subheadline font-semibold text-[var(--apple-label)] flex items-center gap-1">
+                  {type.title}
+                  <ArrowRight className="size-3.5 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 text-[var(--apple-blue)]" />
+                </span>
+                <p className="text-footnote text-[var(--apple-secondary-label)] leading-relaxed mt-1">
+                  {type.description}
+                </p>
+              </div>
+            </Link>
+          </TiltCard>
         ))}
       </div>
     </div>

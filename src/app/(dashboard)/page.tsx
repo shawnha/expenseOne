@@ -11,6 +11,7 @@ import {
 import Link from "next/link";
 import { ExpenseTabList } from "@/components/dashboard/expense-tab-list";
 import { MonthNavigator } from "@/components/dashboard/month-navigator";
+import { TiltCard } from "@/components/layout/tilt-card";
 
 // ---------------------------------------------------------------------------
 // Label maps
@@ -228,25 +229,26 @@ async function DashboardContent({ month }: { month?: string }) {
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {summaryCards.map((card, i) => (
-          <Link
-            key={card.title}
-            href={card.href}
-            aria-label={`${card.title}: ${card.value}`}
-            className={cn(
-              "glass-card p-3 sm:p-4 lg:p-5 group apple-press block",
-              STAT_CONFIGS[i].accent,
-              "animate-card-enter",
-              `stagger-${i + 1}`
-            )}
-          >
-            <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-              <div className={cn("size-8 sm:size-9 lg:size-10", STAT_CONFIGS[i].iconBg)} aria-hidden="true">
-                {STAT_CONFIGS[i].icon}
+          <TiltCard key={card.title}>
+            <Link
+              href={card.href}
+              aria-label={`${card.title}: ${card.value}`}
+              className={cn(
+                "glass-card p-3 sm:p-4 lg:p-5 group apple-press block",
+                STAT_CONFIGS[i].accent,
+                "animate-card-enter",
+                `stagger-${i + 1}`
+              )}
+            >
+              <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                <div className={cn("size-8 sm:size-9 lg:size-10", STAT_CONFIGS[i].iconBg)} aria-hidden="true">
+                  {STAT_CONFIGS[i].icon}
+                </div>
               </div>
-            </div>
-            <p className="text-xl sm:text-2xl lg:text-[28px] font-bold tracking-[-0.02em] tabular-nums text-[var(--apple-label)] leading-tight">{card.value}</p>
-            <p className="text-[11px] sm:text-xs lg:text-[13px] font-medium text-[var(--apple-secondary-label)] mt-1">{card.title}</p>
-          </Link>
+              <p className="text-xl sm:text-2xl lg:text-[28px] font-bold tracking-[-0.02em] tabular-nums text-[var(--apple-label)] leading-tight">{card.value}</p>
+              <p className="text-[11px] sm:text-xs lg:text-[13px] font-medium text-[var(--apple-secondary-label)] mt-1">{card.title}</p>
+            </Link>
+          </TiltCard>
         ))}
       </div>
 

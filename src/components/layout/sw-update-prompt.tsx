@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 
 const COOLDOWN_KEY = "sw-update-ts";
-const COOLDOWN_MS = 10_000; // 업데이트 후 10초간 토스트 억제
+const COOLDOWN_MS = 10_000;
 
 function isInCooldown(): boolean {
   try {
@@ -23,29 +23,36 @@ function setCooldown() {
   } catch {}
 }
 
+/** Reload the top-level window (handles splash-shell iframe context) */
+function reloadTopWindow() {
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.location.reload();
+    } else {
+      window.location.reload();
+    }
+  } catch {
+    window.location.reload();
+  }
+}
+
 export function SwUpdatePrompt() {
   const [waitingSW, setWaitingSW] = useState<ServiceWorker | null>(null);
   const [updating, setUpdating] = useState(false);
   const pathname = usePathname();
+  const foundRef = useRef(false);
 
-  const checkForUpdate = useCallback(async () => {
-    if (!("serviceWorker" in navigator) || isInCooldown()) return;
-
-    const reg = await navigator.serviceWorker.getRegistration();
-    if (!reg) return;
-
-    if (reg.waiting) {
-      setWaitingSW(reg.waiting);
-      return;
-    }
-
-    reg.update().catch(() => {});
+  const markFound = useCallback((sw: ServiceWorker) => {
+    if (foundRef.current) return;
+    foundRef.current = true;
+    setWaitingSW(sw);
   }, []);
 
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
 
-    let intervalId: ReturnType<typeof setInterval>;
+    let pollId: ReturnType<typeof setInterval>;
+    let updateId: ReturnType<typeof setInterval>;
 
     async function setup() {
       const reg = await navigator.serviceWorker.getRegistration();
@@ -54,36 +61,46 @@ export function SwUpdatePrompt() {
       const watchInstalling = (sw: ServiceWorker) => {
         sw.addEventListener("statechange", () => {
           if (sw.state === "installed" && navigator.serviceWorker.controller && !isInCooldown()) {
-            setWaitingSW(sw);
+            markFound(sw);
           }
         });
       };
 
-      // Skip if in cooldown (just updated)
+      // 1) Already waiting
       if (!isInCooldown() && reg.waiting) {
-        setWaitingSW(reg.waiting);
+        markFound(reg.waiting);
       }
 
-      // If there's already an installing SW (updatefound fired before React mount),
-      // attach the statechange listener to catch it transitioning to "installed"
+      // 2) Already installing (updatefound may have fired before React mount)
       if (!isInCooldown() && reg.installing) {
         watchInstalling(reg.installing);
       }
 
+      // 3) Listen for future updatefound
       const onUpdateFound = () => {
         const newSW = reg.installing;
-        if (!newSW) return;
-        watchInstalling(newSW);
+        if (newSW) watchInstalling(newSW);
       };
-
       reg.addEventListener("updatefound", onUpdateFound);
 
-      // Force check now (not during cooldown)
+      // 4) Force update check now
       if (!isInCooldown()) {
         reg.update().catch(() => {});
       }
 
-      intervalId = setInterval(() => {
+      // 5) Poll for reg.waiting every 3s as a fallback
+      //    (catches edge cases where events are missed in iframe/PWA contexts)
+      pollId = setInterval(async () => {
+        if (foundRef.current || isInCooldown()) return;
+        const r = await navigator.serviceWorker.getRegistration();
+        if (r?.waiting) {
+          markFound(r.waiting);
+          clearInterval(pollId);
+        }
+      }, 3_000);
+
+      // 6) Periodic update check every 30s
+      updateId = setInterval(() => {
         if (!isInCooldown()) {
           reg.update().catch(() => {});
         }
@@ -100,18 +117,30 @@ export function SwUpdatePrompt() {
     const onControllerChange = () => {
       if (refreshing) return;
       refreshing = true;
-      window.location.reload();
+      reloadTopWindow();
     };
     navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
 
     return () => {
-      clearInterval(intervalId);
+      clearInterval(pollId);
+      clearInterval(updateId);
       navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
       cleanupPromise.then((cleanup) => cleanup?.());
     };
-  }, []);
+  }, [markFound]);
 
   // Re-check on page navigation
+  const checkForUpdate = useCallback(async () => {
+    if (!("serviceWorker" in navigator) || isInCooldown() || foundRef.current) return;
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) return;
+    if (reg.waiting) {
+      markFound(reg.waiting);
+      return;
+    }
+    reg.update().catch(() => {});
+  }, [markFound]);
+
   useEffect(() => {
     checkForUpdate();
   }, [pathname, checkForUpdate]);
@@ -121,7 +150,8 @@ export function SwUpdatePrompt() {
     setUpdating(true);
     setCooldown();
     waitingSW.postMessage("SKIP_WAITING");
-    setTimeout(() => window.location.reload(), 2000);
+    // Fallback reload after 2s if controllerchange doesn't fire
+    setTimeout(reloadTopWindow, 2000);
   };
 
   if (!waitingSW || updating) return null;

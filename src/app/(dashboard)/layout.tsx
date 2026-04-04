@@ -9,6 +9,7 @@ import { PushPrompt } from "@/components/layout/push-prompt";
 import { Toaster } from "@/components/ui/sonner";
 import { SwUpdatePrompt } from "@/components/layout/sw-update-prompt";
 import { CompanySelectModal } from "@/components/layout/company-select-modal";
+import { ParallaxOrbs } from "@/components/layout/parallax-orbs";
 import type { User } from "@/types";
 
 export default async function DashboardLayout({
@@ -41,11 +42,9 @@ export default async function DashboardLayout({
           <Sidebar user={mockUser} />
           <div className="flex flex-1 flex-col overflow-hidden">
             <Header user={mockUser} unreadCount={3} />
-            <main className="relative flex-1 overflow-y-auto overflow-x-hidden p-4 pb-[calc(1rem+66px+env(safe-area-inset-bottom,0px))] lg:p-6 lg:pb-6">
+            <main className="relative flex-1 overflow-y-auto overflow-x-hidden p-4 pb-[calc(1rem+66px+env(safe-area-inset-bottom,0px))] lg:p-6 lg:pb-6" style={{ viewTransitionName: "main-content" }}>
               {/* Ambient gradient orbs for glass depth */}
-              <div className="ambient-orb ambient-orb-blue" aria-hidden="true" />
-              <div className="ambient-orb ambient-orb-purple" aria-hidden="true" />
-              <div className="ambient-orb ambient-orb-teal" aria-hidden="true" />
+              <ParallaxOrbs />
               <div className="relative z-[1]">
                 {children}
               </div>
@@ -137,11 +136,9 @@ export default async function DashboardLayout({
         <div className="flex flex-1 flex-col overflow-hidden">
           <Header user={user} unreadCount={unreadCount ?? 0} />
 
-          <main className="relative flex-1 overflow-y-auto overflow-x-hidden p-4 pb-[calc(1rem+66px+env(safe-area-inset-bottom,0px))] lg:p-6 lg:pb-6">
+          <main className="relative flex-1 overflow-y-auto overflow-x-hidden p-4 pb-[calc(1rem+66px+env(safe-area-inset-bottom,0px))] lg:p-6 lg:pb-6" style={{ viewTransitionName: "main-content" }}>
             {/* Ambient gradient orbs for glass depth */}
-            <div className="ambient-orb ambient-orb-blue" aria-hidden="true" />
-            <div className="ambient-orb ambient-orb-purple" aria-hidden="true" />
-            <div className="ambient-orb ambient-orb-teal" aria-hidden="true" />
+            <ParallaxOrbs />
             <div className="relative z-[1]">
               {children}
             </div>

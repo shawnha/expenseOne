@@ -117,10 +117,10 @@
   --glass-border-strong: rgba(255, 255, 255, 0.6);
   --glass-border-top: rgba(255, 255, 255, 0.85);
   --glass-specular: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.7) 0%,
-    rgba(255, 255, 255, 0.15) 35%,
-    rgba(255, 255, 255, 0) 100%
+    168deg,
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0.18) 25%,
+    rgba(255, 255, 255, 0) 50%
   );
   --glass-shadow-ambient: 0 8px 32px rgba(0, 0, 0, 0.08);
   --glass-shadow-direct: 0 2px 8px rgba(0, 0, 0, 0.04);
@@ -196,10 +196,10 @@
   --glass-border-strong: rgba(255, 255, 255, 0.18);
   --glass-border-top: rgba(255, 255, 255, 0.15);
   --glass-specular: linear-gradient(
-    180deg,
+    168deg,
     rgba(255, 255, 255, 0.1) 0%,
-    rgba(255, 255, 255, 0.03) 35%,
-    rgba(255, 255, 255, 0) 100%
+    rgba(255, 255, 255, 0.03) 25%,
+    rgba(255, 255, 255, 0) 50%
   );
   --glass-shadow-ambient: 0 8px 32px rgba(0, 0, 0, 0.35);
   --glass-shadow-direct: 0 2px 8px rgba(0, 0, 0, 0.2);
@@ -241,6 +241,24 @@
   html.dark body {
     background-color: #000000;
   }
+
+  /* Global noise texture overlay */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0.03;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 256px 256px;
+  }
+
+  html.dark body::after {
+    opacity: 0.025;
+  }
 }
 
 
@@ -260,7 +278,8 @@
   box-shadow:
     var(--glass-shadow-ambient),
     var(--glass-shadow-direct),
-    var(--glass-shadow-inner);
+    var(--glass-shadow-inner),
+    0 0 0 0.5px rgba(255, 255, 255, 0.3);
   border-radius: 16px;
   transition: transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94),
               box-shadow 0.25s ease,
@@ -282,6 +301,29 @@
 .glass > * {
   position: relative;
   z-index: 1;
+}
+
+/* Noise texture for all glass panels */
+.glass::after,
+.glass-strong::after,
+.glass-subtle::after,
+.glass-card::after,
+.glass-dialog::after,
+.glass-tab-bar::after,
+.glass-nav::after,
+.glass-sidebar::after,
+.glass-header::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0.04;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  z-index: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
 }
 
 .glass-strong {
@@ -457,7 +499,8 @@
   box-shadow:
     0 12px 40px rgba(0, 0, 0, 0.08),
     0 4px 12px rgba(0, 0, 0, 0.04),
-    var(--glass-shadow-inner);
+    var(--glass-shadow-inner),
+    0 0 0 0.5px rgba(255, 255, 255, 0.3);
   border-radius: 20px;
   overflow: hidden;
   transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94),
@@ -486,7 +529,34 @@
   box-shadow:
     0 16px 48px rgba(0, 0, 0, 0.1),
     0 6px 16px rgba(0, 0, 0, 0.06),
-    var(--glass-shadow-inner);
+    var(--glass-shadow-inner),
+    0 0 0 0.5px rgba(255, 255, 255, 0.3),
+    0 0 24px rgba(0, 122, 255, 0.08);
+}
+
+.dark .glass-card:hover {
+  box-shadow:
+    0 16px 48px rgba(0, 0, 0, 0.3),
+    0 6px 16px rgba(0, 0, 0, 0.2),
+    var(--glass-shadow-inner),
+    0 0 0 0.5px rgba(255, 255, 255, 0.08),
+    0 0 24px rgba(10, 132, 255, 0.12);
+}
+
+.dark .glass {
+  box-shadow:
+    var(--glass-shadow-ambient),
+    var(--glass-shadow-direct),
+    var(--glass-shadow-inner),
+    0 0 0 0.5px rgba(255, 255, 255, 0.08);
+}
+
+.dark .glass-card {
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.25),
+    0 4px 12px rgba(0, 0, 0, 0.15),
+    var(--glass-shadow-inner),
+    0 0 0 0.5px rgba(255, 255, 255, 0.08);
 }
 
 .glass-nav {
@@ -1180,6 +1250,15 @@
   animation: orb-drift-3 22s ease-in-out infinite;
 }
 
+.ambient-orb-pink {
+  background: radial-gradient(circle, rgba(255, 45, 85, 0.12) 0%, transparent 70%);
+  width: 200px;
+  height: 200px;
+  top: 60%;
+  left: 20%;
+  animation: orb-drift-4 25s ease-in-out infinite;
+}
+
 @media (min-width: 768px) {
   .ambient-orb-blue {
     width: 500px;
@@ -1196,6 +1275,10 @@
     width: 350px;
     height: 350px;
   }
+  .ambient-orb-pink {
+    width: 320px;
+    height: 320px;
+  }
 }
 
 .dark .ambient-orb-blue {
@@ -1208,6 +1291,10 @@
 
 .dark .ambient-orb-teal {
   background: radial-gradient(circle, rgba(100, 210, 255, 0.15) 0%, transparent 70%);
+}
+
+.dark .ambient-orb-pink {
+  background: radial-gradient(circle, rgba(255, 55, 95, 0.10) 0%, transparent 70%);
 }
 
 @keyframes orb-drift-1 {
@@ -1225,6 +1312,12 @@
 @keyframes orb-drift-3 {
   0%, 100% { transform: translate(0, 0) scale(1); }
   50% { transform: translate(-20px, 15px) scale(1.04); }
+}
+
+@keyframes orb-drift-4 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(20px, -15px) scale(1.06); }
+  66% { transform: translate(-25px, 10px) scale(0.97); }
 }
 
 /* ------------------------------------------------------------------ */
@@ -1541,4 +1634,36 @@
 
 .splash-glow-ring {
   animation: splash-glow 1.5s ease 0.8s both;
+}
+
+/* ------------------------------------------------------------------ */
+/* View Transition — Page Navigation Layer Separation                  */
+/* ------------------------------------------------------------------ */
+
+@view-transition {
+  navigation: auto;
+}
+
+::view-transition-old(header),
+::view-transition-new(header) {
+  animation-duration: 200ms;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+::view-transition-old(main-content) {
+  animation: vt-fade-out 350ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+::view-transition-new(main-content) {
+  animation: vt-fade-in 350ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes vt-fade-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-8px); }
+}
+
+@keyframes vt-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
