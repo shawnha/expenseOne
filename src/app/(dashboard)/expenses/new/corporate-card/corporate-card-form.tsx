@@ -16,14 +16,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-import { FileUpload } from "@/components/forms/file-upload";
 import { CompanySelector } from "@/components/forms/company-selector";
 import dynamic from "next/dynamic";
 const SubmitSuccessDialog = dynamic(() => import("@/components/forms/submit-success-dialog").then(m => m.SubmitSuccessDialog), { ssr: false });
 import {
   corporateCardFormSchema,
   type CorporateCardFormData,
-  type FileWithPreview,
   CATEGORY_OPTIONS,
   formatAmount,
   formatDateISO,
@@ -38,7 +36,6 @@ interface CorporateCardFormProps {
 
 export default function CorporateCardForm({ initialCompanies }: CorporateCardFormProps) {
   const router = useRouter();
-  const [files, setFiles] = useState<FileWithPreview[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [amountDisplay, setAmountDisplay] = useState("");
@@ -85,7 +82,7 @@ export default function CorporateCardForm({ initialCompanies }: CorporateCardFor
   });
 
   // Warn on unsaved changes (browser close / refresh)
-  useUnsavedChanges(isDirty || files.length > 0);
+  useUnsavedChanges(isDirty);
 
   // 금액 계산 로직
   const calcFinalAmount = useCallback(
@@ -190,31 +187,6 @@ export default function CorporateCardForm({ initialCompanies }: CorporateCardFor
         );
       }
 
-      const result = await response.json();
-      const expenseId = result.data?.id;
-
-      // Upload attachments in parallel
-      if (files.length > 0 && expenseId) {
-        const uploadResults = await Promise.allSettled(
-          files.map((fileItem) => {
-            const formData = new FormData();
-            formData.append("file", fileItem.file);
-            formData.append("expenseId", expenseId);
-            formData.append("documentType", fileItem.documentType || "OTHER");
-            return fetch("/api/attachments/upload", { method: "POST", body: formData })
-              .then((res) => { if (!res.ok) throw new Error(fileItem.file.name); return res; });
-          })
-        );
-        const failed = uploadResults.filter((r) => r.status === "rejected");
-        if (failed.length > 0) {
-          if (failed.length === files.length) {
-            toast.error("파일 업로드에 실패했습니다. 비용 상세에서 다시 첨부해주세요.");
-          } else {
-            toast.error(`${files.length}개 파일 중 ${failed.length}개 업로드 실패. 비용 상세에서 다시 첨부해주세요.`);
-          }
-        }
-      }
-
       setShowSuccess(true);
     } catch (error) {
       toast.error(
@@ -278,111 +250,6 @@ export default function CorporateCardForm({ initialCompanies }: CorporateCardFor
               userCompanyId={userCompanyId}
               initialCompanies={initialCompanies}
             />
-
-            {/* 제목 */}
-            <div className="space-y-1.5">
-              <Label htmlFor="title">
-                제목 <span className="text-[var(--apple-red)]">*</span>
-              </Label>
-              <Input
-                id="title"
-                placeholder="예: 3월 사무용품 구매"
-                aria-invalid={!!errors.title}
-                {...register("title")}
-              />
-              {errors.title && (
-                <p className="text-xs text-[var(--apple-red)]">
-                  {errors.title.message}
-                </p>
-              )}
-            </div>
-
-            {/* 금액 */}
-            <div className="space-y-1.5">
-              <Label htmlFor="amount">
-                금액 <span className="text-[var(--apple-red)]">*</span>
-              </Label>
-              <div className="relative">
-                <Input
-                  id="amount"
-                  placeholder="0"
-                  inputMode="numeric"
-                  value={amountDisplay}
-                  onChange={handleAmountChange}
-                  aria-invalid={!!errors.amount}
-                  className="pr-10"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--apple-secondary-label)] pointer-events-none">
-                  원
-                </span>
-              </div>
-
-              {/* VAT + 프리랜서 원천징수 체크박스 */}
-              <div className="flex flex-wrap gap-x-4 gap-y-1">
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={vatIncluded}
-                    onChange={(e) => handleVatToggle(e.target.checked)}
-                    className="size-4 rounded border-[rgba(0,0,0,0.15)] dark:border-[rgba(255,255,255,0.2)] text-[var(--apple-blue)] focus:ring-[var(--apple-blue)] cursor-pointer"
-                  />
-                  <span className="text-[13px] text-[var(--apple-secondary-label)]">
-                    VAT 포함 (+10%)
-                  </span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={freelancerDeduction}
-                    onChange={(e) => handleFreelancerToggle(e.target.checked)}
-                    className="size-4 rounded border-[rgba(0,0,0,0.15)] dark:border-[rgba(255,255,255,0.2)] text-[var(--apple-blue)] focus:ring-[var(--apple-blue)] cursor-pointer"
-                  />
-                  <span className="text-[13px] text-[var(--apple-secondary-label)]">
-                    프리랜서 원천징수 (-3.3%)
-                  </span>
-                </label>
-              </div>
-
-              {/* 금액 내역 */}
-              {supplyAmount > 0 && (vatIncluded || freelancerDeduction) && (
-                <div className="mt-2 p-3 rounded-lg bg-[rgba(0,122,255,0.06)] text-[13px] space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-[var(--apple-secondary-label)]">공급가액</span>
-                    <span>{formatAmount(supplyAmount)}원</span>
-                  </div>
-                  {vatIncluded && (
-                    <div className="flex justify-between">
-                      <span className="text-[var(--apple-secondary-label)]">
-                        VAT (+10%)
-                      </span>
-                      <span>+{formatAmount(vatAmount)}원</span>
-                    </div>
-                  )}
-                  {freelancerDeduction && (
-                    <div className="flex justify-between">
-                      <span className="text-[var(--apple-secondary-label)]">
-                        원천징수 (-3.3%)
-                      </span>
-                      <span className="text-[var(--apple-red)]">
-                        -{formatAmount(freelancerAmount)}원
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex justify-between font-semibold border-t border-[rgba(0,0,0,0.08)] dark:border-[rgba(255,255,255,0.1)] pt-1 mt-1">
-                    <span>실지급액</span>
-                    <span className="text-[var(--apple-blue)]">
-                      {formatAmount(finalAmount)}원
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {errors.amount && (
-                <p className="text-xs text-[var(--apple-red)]">
-                  {errors.amount.message}
-                </p>
-              )}
-            </div>
 
             {/* 카테고리 — 버튼 토글 + 직접 입력 */}
             <div className="space-y-1.5">
@@ -512,6 +379,93 @@ export default function CorporateCardForm({ initialCompanies }: CorporateCardFor
               )}
             </div>
 
+            {/* 금액 */}
+            <div className="space-y-1.5">
+              <Label htmlFor="amount">
+                금액 <span className="text-[var(--apple-red)]">*</span>
+              </Label>
+              <div className="relative">
+                <Input
+                  id="amount"
+                  placeholder="0"
+                  inputMode="numeric"
+                  value={amountDisplay}
+                  onChange={handleAmountChange}
+                  aria-invalid={!!errors.amount}
+                  className="pr-10"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--apple-secondary-label)] pointer-events-none">
+                  원
+                </span>
+              </div>
+
+              {/* VAT + 프리랜서 원천징수 체크박스 */}
+              <div className="flex flex-wrap gap-x-4 gap-y-1">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={vatIncluded}
+                    onChange={(e) => handleVatToggle(e.target.checked)}
+                    className="size-4 rounded border-[rgba(0,0,0,0.15)] dark:border-[rgba(255,255,255,0.2)] text-[var(--apple-blue)] focus:ring-[var(--apple-blue)] cursor-pointer"
+                  />
+                  <span className="text-[13px] text-[var(--apple-secondary-label)]">
+                    VAT 포함 (+10%)
+                  </span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={freelancerDeduction}
+                    onChange={(e) => handleFreelancerToggle(e.target.checked)}
+                    className="size-4 rounded border-[rgba(0,0,0,0.15)] dark:border-[rgba(255,255,255,0.2)] text-[var(--apple-blue)] focus:ring-[var(--apple-blue)] cursor-pointer"
+                  />
+                  <span className="text-[13px] text-[var(--apple-secondary-label)]">
+                    프리랜서 원천징수 (-3.3%)
+                  </span>
+                </label>
+              </div>
+
+              {/* 금액 내역 */}
+              {supplyAmount > 0 && (vatIncluded || freelancerDeduction) && (
+                <div className="mt-2 p-3 rounded-lg bg-[rgba(0,122,255,0.06)] text-[13px] space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-[var(--apple-secondary-label)]">공급가액</span>
+                    <span>{formatAmount(supplyAmount)}원</span>
+                  </div>
+                  {vatIncluded && (
+                    <div className="flex justify-between">
+                      <span className="text-[var(--apple-secondary-label)]">
+                        VAT (+10%)
+                      </span>
+                      <span>+{formatAmount(vatAmount)}원</span>
+                    </div>
+                  )}
+                  {freelancerDeduction && (
+                    <div className="flex justify-between">
+                      <span className="text-[var(--apple-secondary-label)]">
+                        원천징수 (-3.3%)
+                      </span>
+                      <span className="text-[var(--apple-red)]">
+                        -{formatAmount(freelancerAmount)}원
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-semibold border-t border-[rgba(0,0,0,0.08)] dark:border-[rgba(255,255,255,0.1)] pt-1 mt-1">
+                    <span>실지급액</span>
+                    <span className="text-[var(--apple-blue)]">
+                      {formatAmount(finalAmount)}원
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {errors.amount && (
+                <p className="text-xs text-[var(--apple-red)]">
+                  {errors.amount.message}
+                </p>
+              )}
+            </div>
+
             {/* 거래일 — onSubmit에서 new Date()로 직접 설정 */}
 
             {/* 설명 */}
@@ -530,17 +484,6 @@ export default function CorporateCardForm({ initialCompanies }: CorporateCardFor
               )}
             </div>
           </div>
-        </div>
-
-        {/* 파일 첨부 */}
-        <div className="glass p-6 mt-4">
-          <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-1">
-            파일 첨부
-          </h2>
-          <p className="text-footnote text-[var(--apple-secondary-label)] mb-4">
-            영수증 등 증빙자료를 첨부해주세요. (선택사항)
-          </p>
-          <FileUpload files={files} onFilesChange={setFiles} />
         </div>
 
         {/* 버튼 */}

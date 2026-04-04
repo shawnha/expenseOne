@@ -434,6 +434,69 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
               initialCompanies={initialCompanies}
             />
 
+            {/* 카테고리 */}
+            <div className="space-y-1.5">
+              <Label>
+                카테고리 <span className="text-[var(--apple-red)]">*</span>
+              </Label>
+              <Controller
+                name="category"
+                control={control}
+                render={({ field }) => (
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap gap-2">
+                      {CATEGORY_OPTIONS.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => {
+                            field.onChange(option.value);
+                            setShowCustomCategory(false);
+                          }}
+                          className={cn(
+                            "px-4 py-2 rounded-full text-sm font-medium transition-all",
+                            field.value === option.value && !showCustomCategory
+                              ? "bg-[var(--apple-blue)] text-white shadow-sm"
+                              : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]"
+                          )}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowCustomCategory(true);
+                          field.onChange("");
+                        }}
+                        className={cn(
+                          "px-4 py-2 rounded-full text-sm font-medium transition-all",
+                          showCustomCategory
+                            ? "bg-[var(--apple-blue)] text-white shadow-sm"
+                            : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]"
+                        )}
+                      >
+                        + 직접 입력
+                      </button>
+                    </div>
+                    {showCustomCategory && (
+                      <Input
+                        placeholder="카테고리를 직접 입력하세요"
+                        value={field.value ?? ""}
+                        onChange={(e) => field.onChange(e.target.value)}
+                        aria-invalid={!!errors.category}
+                      />
+                    )}
+                  </div>
+                )}
+              />
+              {errors.category && (
+                <p className="text-xs text-[var(--apple-red)]">
+                  {errors.category.message}
+                </p>
+              )}
+            </div>
+
             {/* 제목 */}
             <div className="space-y-1.5">
               <Label htmlFor="title">
@@ -661,69 +724,6 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
                   </div>
                 )}
               />
-            </div>
-
-            {/* 카테고리 */}
-            <div className="space-y-1.5">
-              <Label>
-                카테고리 <span className="text-[var(--apple-red)]">*</span>
-              </Label>
-              <Controller
-                name="category"
-                control={control}
-                render={({ field }) => (
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap gap-2">
-                      {CATEGORY_OPTIONS.map((option) => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => {
-                            field.onChange(option.value);
-                            setShowCustomCategory(false);
-                          }}
-                          className={cn(
-                            "px-4 py-2 rounded-full text-sm font-medium transition-all",
-                            field.value === option.value && !showCustomCategory
-                              ? "bg-[var(--apple-blue)] text-white shadow-sm"
-                              : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]"
-                          )}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowCustomCategory(true);
-                          field.onChange("");
-                        }}
-                        className={cn(
-                          "px-4 py-2 rounded-full text-sm font-medium transition-all",
-                          showCustomCategory
-                            ? "bg-[var(--apple-blue)] text-white shadow-sm"
-                            : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]"
-                        )}
-                      >
-                        + 직접 입력
-                      </button>
-                    </div>
-                    {showCustomCategory && (
-                      <Input
-                        placeholder="카테고리를 직접 입력하세요"
-                        value={field.value ?? ""}
-                        onChange={(e) => field.onChange(e.target.value)}
-                        aria-invalid={!!errors.category}
-                      />
-                    )}
-                  </div>
-                )}
-              />
-              {errors.category && (
-                <p className="text-xs text-[var(--apple-red)]">
-                  {errors.category.message}
-                </p>
-              )}
             </div>
 
             {/* 설명 */}
