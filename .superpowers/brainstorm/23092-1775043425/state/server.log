@@ -1,8 +1,0 @@
-{"type":"server-started","port":65152,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:65152","screen_dir":"/Users/admin/Desktop/claude/claude_1/expense-app/.superpowers/brainstorm/23092-1775043425/content","state_dir":"/Users/admin/Desktop/claude/claude_1/expense-app/.superpowers/brainstorm/23092-1775043425/state"}
-{"type":"screen-added","file":"/Users/admin/Desktop/claude/claude_1/expense-app/.superpowers/brainstorm/23092-1775043425/content/01-tab-bar-approaches.html"}
-{"source":"user-event","type":"click","text":"C\n    \n      하이브리드 (A+B)\n      Glass floating bar + 모든 탭 라벨. 접근성 + 미학 균형.","choice":"c","id":null,"timestamp":1775043540565}
-{"type":"screen-added","file":"/Users/admin/Desktop/claude/claude_1/expense-app/.superpowers/brainstorm/23092-1775043425/content/02-hybrid-refined.html"}
-{"type":"screen-added","file":"/Users/admin/Desktop/claude/claude_1/expense-app/.superpowers/brainstorm/23092-1775043425/content/03-slime-pill.html"}
-{"type":"screen-added","file":"/Users/admin/Desktop/claude/claude_1/expense-app/.superpowers/brainstorm/23092-1775043425/content/04-droplet-pill.html"}
-{"type":"screen-added","file":"/Users/admin/Desktop/claude/claude_1/expense-app/.superpowers/brainstorm/23092-1775043425/content/05-ios26-tabbar.html"}
-{"type":"server-stopped","reason":"idle timeout"}
