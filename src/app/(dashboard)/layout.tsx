@@ -8,6 +8,7 @@ import { SplashDismiss } from "@/components/layout/splash-dismiss";
 import { PushPrompt } from "@/components/layout/push-prompt";
 import { Toaster } from "@/components/ui/sonner";
 import { SwUpdatePrompt } from "@/components/layout/sw-update-prompt";
+import { BuildUpdateToast } from "@/components/layout/build-update-toast";
 import { CompanySelectModal } from "@/components/layout/company-select-modal";
 import { ParallaxOrbs } from "@/components/layout/parallax-orbs";
 import type { User } from "@/types";
@@ -126,6 +127,7 @@ export default async function DashboardLayout({
       <PullToRefresh />
       <PushPrompt />
       <SwUpdatePrompt />
+      <BuildUpdateToast />
       <Toaster position="top-center" richColors />
       {showCompanyModal && <CompanySelectModal />}
       <div className="flex h-dvh overflow-hidden">

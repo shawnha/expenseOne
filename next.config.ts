@@ -11,7 +11,12 @@ if (existsSync(swTemplatePath)) {
   writeFileSync(swOutputPath, template.replace(/__BUILD_TIMESTAMP__/g, buildTs));
 }
 
+const buildHash = Date.now().toString(36);
+
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_BUILD_HASH: buildHash,
+  },
   experimental: {
     optimizePackageImports: [
       "lucide-react",
