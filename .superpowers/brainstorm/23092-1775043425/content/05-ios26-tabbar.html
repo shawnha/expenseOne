@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iOS 26 Liquid Glass Tab Bar</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: -apple-system, 'Pretendard Variable', sans-serif;
+    background:#e8e8ed;
+    display:flex; flex-direction:column; align-items:center;
+    padding:32px 16px; min-height:100vh;
+  }
+  h2 { font-size:18px; color:#333; margin-bottom:6px; text-align:center; }
+  .subtitle { text-align:center; color:#888; font-size:13px; margin-bottom:28px; }
+
+  .phone {
+    width:390px; height:720px; background:#f2f2f7;
+    border-radius:44px; overflow:hidden; position:relative;
+    box-shadow:0 20px 60px rgba(0,0,0,0.15);
+  }
+
+  /* Fake content behind tab bar to show glass blur */
+  .content {
+    height:100%; padding:60px 20px 120px;
+    background: linear-gradient(180deg, #f2f2f7 0%, #e8eaf0 50%, #dfe3ea 100%);
+    overflow-y:auto;
+  }
+  .content-card {
+    background:white; border-radius:16px; padding:16px; margin-bottom:12px;
+    box-shadow:0 1px 3px rgba(0,0,0,0.06);
+  }
+  .content-card .title { font-size:14px; font-weight:600; color:#1c1c1e; margin-bottom:4px; }
+  .content-card .desc { font-size:12px; color:#8e8e93; }
+  .content-card .amount { font-size:16px; font-weight:700; color:#007AFF; margin-top:8px; }
+
+  /* ============================================ */
+  /* iOS 26 Liquid Glass Tab Bar                  */
+  /* ============================================ */
+  .tab-bar-container {
+    position:absolute; bottom:0; left:0; right:0;
+    padding:6px 16px;
+    padding-bottom: calc(6px + 24px); /* safe area */
+  }
+
+  .tab-bar {
+    display:flex; align-items:center; justify-content:center;
+    position:relative;
+    /* Liquid Glass material */
+    background: linear-gradient(
+      180deg,
+      rgba(255,255,255,0.72) 0%,
+      rgba(255,255,255,0.58) 100%
+    );
+    backdrop-filter: blur(40px) saturate(180%);
+    -webkit-backdrop-filter: blur(40px) saturate(180%);
+    border: 0.5px solid rgba(255,255,255,0.6);
+    border-top-color: rgba(255,255,255,0.8);
+    border-radius:22px;
+    padding:3px;
+    box-shadow:
+      0 8px 32px rgba(0,0,0,0.08),
+      0 1px 3px rgba(0,0,0,0.04),
+      inset 0 0.5px 0 rgba(255,255,255,0.7);
+    height:54px;
+    gap:2px;
+  }
+
+  /* Active pill — Liquid Glass accent */
+  .pill {
+    position:absolute;
+    height:calc(100% - 6px); top:3px;
+    border-radius:19px;
+    /* Glass pill with blue tint */
+    background: linear-gradient(
+      180deg,
+      rgba(0,122,255,0.15) 0%,
+      rgba(0,122,255,0.08) 100%
+    );
+    border: 0.5px solid rgba(0,122,255,0.2);
+    box-shadow:
+      inset 0 0.5px 0 rgba(255,255,255,0.5),
+      0 1px 4px rgba(0,122,255,0.08);
+    z-index:0;
+    transition:
+      left 0.35s cubic-bezier(0.25, 1, 0.5, 1),
+      width 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+  }
+
+  /* Tab button */
+  .tab {
+    flex:1; display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    gap:0px; cursor:pointer;
+    position:relative; z-index:1;
+    -webkit-tap-highlight-color:transparent;
+    height:100%; user-select:none;
+    border-radius:19px;
+    transition: transform 0.1s ease;
+  }
+  .tab:active { transform:scale(0.93); }
+
+  /* Icon */
+  .tab .icon {
+    width:22px; height:22px;
+    transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+    position:relative;
+  }
+  .tab .icon svg {
+    width:22px; height:22px;
+    transition: all 0.3s ease;
+  }
+
+  /* Label */
+  .tab .label {
+    font-size:10px; font-weight:500; letter-spacing:-0.01em;
+    transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+    line-height:1;
+    margin-top:1px;
+  }
+
+  /* Active state */
+  .tab.active .icon svg { stroke:#007AFF; fill:none; }
+  .tab.active .label { color:#007AFF; font-weight:600; }
+
+  /* Inactive state */
+  .tab.inactive .icon svg { stroke:#8e8e93; fill:none; }
+  .tab.inactive .label { color:#8e8e93; }
+
+  /* Center FAB */
+  .tab-fab {
+    flex:0 0 auto;
+    width:42px; height:42px; border-radius:50%;
+    /* Liquid Glass FAB */
+    background: linear-gradient(135deg, #007AFF 0%, #5AC8FA 100%);
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; position:relative; z-index:1;
+    box-shadow:
+      0 4px 16px rgba(0,122,255,0.3),
+      0 1px 4px rgba(0,122,255,0.2),
+      inset 0 1px 0 rgba(255,255,255,0.3);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    margin:0 2px;
+  }
+  .tab-fab:active {
+    transform:scale(0.9);
+    box-shadow: 0 2px 8px rgba(0,122,255,0.2);
+  }
+  .tab-fab svg { stroke:white; width:20px; height:20px; }
+
+  /* Notification badge */
+  .badge {
+    position:absolute; top:0px; right:-2px;
+    min-width:15px; height:15px; border-radius:8px;
+    background:#FF3B30; color:white;
+    font-size:9px; font-weight:700;
+    display:flex; align-items:center; justify-content:center;
+    padding:0 4px;
+    box-shadow:0 1px 3px rgba(255,59,48,0.3);
+    line-height:1;
+  }
+
+  /* Dark mode variant */
+  .dark .tab-bar {
+    background: linear-gradient(
+      180deg,
+      rgba(60,60,67,0.65) 0%,
+      rgba(50,50,55,0.55) 100%
+    );
+    border-color: rgba(255,255,255,0.12);
+    border-top-color: rgba(255,255,255,0.18);
+    box-shadow:
+      0 8px 32px rgba(0,0,0,0.25),
+      0 1px 3px rgba(0,0,0,0.15),
+      inset 0 0.5px 0 rgba(255,255,255,0.1);
+  }
+  .dark .pill {
+    background: linear-gradient(180deg, rgba(10,132,255,0.2) 0%, rgba(10,132,255,0.1) 100%);
+    border-color: rgba(10,132,255,0.3);
+  }
+  .dark .tab.active .icon svg { stroke:#0A84FF; }
+  .dark .tab.active .label { color:#0A84FF; }
+  .dark .tab.inactive .icon svg { stroke:#98989d; }
+  .dark .tab.inactive .label { color:#98989d; }
+
+  .mode-toggle {
+    margin-top:20px; padding:8px 20px; border-radius:12px;
+    background:#007AFF; color:white; border:none;
+    font-size:13px; font-weight:500; cursor:pointer;
+  }
+
+  .info {
+    max-width:390px; margin-top:20px; padding:16px;
+    font-size:12px; color:#666; line-height:1.8;
+  }
+  .info strong { color:#333; }
+</style>
+</head>
+<body>
+<h2>iOS 26 Liquid Glass Tab Bar</h2>
+<p class="subtitle">탭을 클릭해서 전환 확인 — 다크모드 토글도 가능</p>
+
+<div class="phone" id="phone">
+  <div class="content">
+    <div class="content-card">
+      <div class="title">노트북 구매 테스트</div>
+      <div class="desc">2026.03.27 · 법카사용 · 승인</div>
+      <div class="amount">3,300,000원</div>
+    </div>
+    <div class="content-card">
+      <div class="title">팀 점심 식대</div>
+      <div class="desc">2026.03.25 · 법카사용 · 승인</div>
+      <div class="amount">120,000원</div>
+    </div>
+    <div class="content-card">
+      <div class="title">사무용품 구매</div>
+      <div class="desc">2026.03.20 · 입금요청 · 대기</div>
+      <div class="amount">550,000원</div>
+    </div>
+    <div class="content-card">
+      <div class="title">교통비 정산</div>
+      <div class="desc">2026.03.18 · 법카사용 · 승인</div>
+      <div class="amount">45,000원</div>
+    </div>
+    <div class="content-card">
+      <div class="title">외부 미팅 식비</div>
+      <div class="desc">2026.03.15 · 법카사용 · 승인</div>
+      <div class="amount">85,000원</div>
+    </div>
+  </div>
+
+  <div class="tab-bar-container">
+    <div class="tab-bar" id="tabBar">
+      <div class="pill" id="pill"></div>
+
+      <div class="tab active" data-index="0" onclick="switchTab(0)">
+        <div class="icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        </div>
+        <span class="label">홈</span>
+      </div>
+
+      <div class="tab inactive" data-index="1" onclick="switchTab(1)">
+        <div class="icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        </div>
+        <span class="label">비용</span>
+      </div>
+
+      <div class="tab-fab" onclick="document.querySelector('.content-card .title').textContent='새 비용 제출'">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </div>
+
+      <div class="tab inactive" data-index="2" onclick="switchTab(2)">
+        <div class="icon" style="position:relative;">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span class="badge">3</span>
+        </div>
+        <span class="label">알림</span>
+      </div>
+
+      <div class="tab inactive" data-index="3" onclick="switchTab(3)">
+        <div class="icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>
+        </div>
+        <span class="label">관리</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<button class="mode-toggle" onclick="toggleDark()">🌙 다크모드 전환</button>
+
+<div class="info">
+  <strong>Liquid Glass Material:</strong> 다층 반투명 + blur(40px) + saturate(180%) + specular highlight (inset border-top)<br>
+  <strong>Active Pill:</strong> 파란 틴트 그래디언트 + 미세 blue border + 내부 specular<br>
+  <strong>Transition:</strong> cubic-bezier(0.25, 1, 0.5, 1) — Apple의 표준 deceleration curve. 늘어남 없이 부드럽게 슬라이드.<br>
+  <strong>Icon:</strong> stroke-width 1.8 (SF Symbols 스타일, outline)<br>
+  <strong>Dark mode:</strong> 어두운 glass material + 밝은 blue (#0A84FF)
+</div>
+
+<script>
+const tabs = document.querySelectorAll('.tab[data-index]');
+const pill = document.getElementById('pill');
+let currentIndex = 0;
+
+function getTabRect(index) {
+  const tab = tabs[index];
+  const bar = document.getElementById('tabBar');
+  const barRect = bar.getBoundingClientRect();
+  const tabRect = tab.getBoundingClientRect();
+  return { left: tabRect.left - barRect.left, width: tabRect.width };
+}
+
+function setPill(left, width) {
+  pill.style.left = left + 'px';
+  pill.style.width = width + 'px';
+}
+
+function switchTab(index) {
+  if (index === currentIndex) return;
+  currentIndex = index;
+  tabs.forEach((t, i) => {
+    t.classList.toggle('active', i === index);
+    t.classList.toggle('inactive', i !== index);
+  });
+  const r = getTabRect(index);
+  setPill(r.left, r.width);
+}
+
+function toggleDark() {
+  document.getElementById('phone').classList.toggle('dark');
+  const phone = document.getElementById('phone');
+  if (phone.classList.contains('dark')) {
+    phone.style.background = '#1c1c1e';
+    phone.querySelector('.content').style.background = 'linear-gradient(180deg, #1c1c1e 0%, #2c2c2e 100%)';
+    phone.querySelectorAll('.content-card').forEach(c => {
+      c.style.background = '#2c2c2e';
+      c.querySelector('.title').style.color = '#f2f2f7';
+      c.querySelector('.desc').style.color = '#98989d';
+    });
+  } else {
+    phone.style.background = '#f2f2f7';
+    phone.querySelector('.content').style.background = '';
+    phone.querySelectorAll('.content-card').forEach(c => {
+      c.style.background = 'white';
+      c.querySelector('.title').style.color = '#1c1c1e';
+      c.querySelector('.desc').style.color = '#8e8e93';
+    });
+  }
+}
+
+window.addEventListener('load', () => {
+  const r = getTabRect(0);
+  setPill(r.left, r.width);
+});
+window.addEventListener('resize', () => {
+  const r = getTabRect(currentIndex);
+  setPill(r.left, r.width);
+});
+</script>
+</body>
+</html>

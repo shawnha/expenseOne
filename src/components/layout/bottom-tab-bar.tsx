@@ -40,10 +40,19 @@ function getTabItems(isAdmin: boolean, badge: number): TabItem[] {
   ];
 }
 
-function isActivePath(pathname: string, href: string): boolean {
+function isActivePath(pathname: string, href: string, allHrefs: string[]): boolean {
   if (href === "/") return pathname === "/";
   if (href === "/admin") return pathname === "/admin";
-  return pathname === href || pathname.startsWith(href + "/");
+  // Exact match
+  if (pathname === href) return true;
+  // Prefix match — but not if a more specific tab also matches
+  if (pathname.startsWith(href + "/")) {
+    const hasMoreSpecific = allHrefs.some(
+      (other) => other !== href && other.startsWith(href + "/") && (pathname === other || pathname.startsWith(other + "/"))
+    );
+    return !hasMoreSpecific;
+  }
+  return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -56,6 +65,8 @@ export function BottomTabBar({ userId, isAdmin, unreadCount }: BottomTabBarProps
   const totalUnread = readAllTriggered ? realtimeUnreadDelta : unreadCount + realtimeUnreadDelta;
 
   const tabs = getTabItems(isAdmin, totalUnread);
+  const allHrefs = tabs.map((t) => t.href);
+  const isSubmitTab = (href: string) => href === "/expenses/new";
 
   return (
     <div
@@ -78,8 +89,38 @@ export function BottomTabBar({ userId, isAdmin, unreadCount }: BottomTabBarProps
         )}
       >
         {tabs.map((tab) => {
-          const active = isActivePath(pathname, tab.href);
+          const active = isActivePath(pathname, tab.href, allHrefs);
           const Icon = tab.icon;
+          const isSubmit = isSubmitTab(tab.href);
+
+          if (isSubmit) {
+            return (
+              <Link
+                key={tab.href}
+                href={tab.href}
+                prefetch={true}
+                className={cn(
+                  "relative flex flex-col items-center justify-center min-w-[56px] py-1",
+                  "transition-all duration-[400ms] ease-[cubic-bezier(0.25,1,0.5,1)]",
+                  "apple-press"
+                )}
+                aria-label={tab.label}
+              >
+                <div
+                  className={cn(
+                    "flex items-center justify-center",
+                    "size-[44px] rounded-full",
+                    "bg-gradient-to-b from-[#4A9FFF] to-[var(--apple-blue)]",
+                    "shadow-[0_4px_16px_rgba(0,122,255,0.35),0_2px_6px_rgba(0,122,255,0.2)]",
+                    "transition-all duration-[400ms] ease-[cubic-bezier(0.25,1,0.5,1)]",
+                    active && "scale-[1.08] shadow-[0_4px_20px_rgba(0,122,255,0.45),0_2px_8px_rgba(0,122,255,0.3)]"
+                  )}
+                >
+                  <Plus className="size-[22px] text-white [stroke-width:2.5]" />
+                </div>
+              </Link>
+            );
+          }
 
           return (
             <Link
@@ -90,7 +131,7 @@ export function BottomTabBar({ userId, isAdmin, unreadCount }: BottomTabBarProps
                 if (tab.badge) resetDelta();
               }}
               className={cn(
-                "relative flex flex-col items-center justify-center gap-[2px] min-w-[56px] py-1",
+                "relative flex flex-col items-center justify-center gap-[2px] min-w-[56px] py-1 overflow-hidden",
                 "transition-all duration-[400ms] ease-[cubic-bezier(0.25,1,0.5,1)]",
                 "apple-press"
               )}
@@ -98,7 +139,7 @@ export function BottomTabBar({ userId, isAdmin, unreadCount }: BottomTabBarProps
             >
               {/* Glass Lens — magnifier pill behind active tab */}
               {active && (
-                <div className="glass-lens absolute inset-x-0.5 inset-y-0" />
+                <div className="glass-lens absolute inset-x-1 inset-y-0" />
               )}
 
               <div className="relative z-[1]">

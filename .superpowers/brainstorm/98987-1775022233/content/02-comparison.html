@@ -1,0 +1,265 @@
+<h2>리포트 기능 — 3가지 접근법 비교</h2>
+<p class="subtitle">추천: <strong>Option A</strong> — 기존 리포트 페이지를 대폭 개선하는 것이 가장 효율적입니다</p>
+
+<div class="section">
+  <p style="background: rgba(0,122,255,0.08); border-left: 3px solid #007AFF; padding: 12px 16px; border-radius: 8px; margin-bottom: 24px;">
+    <strong>왜 A를 추천하나요?</strong><br>
+    현재 /admin/reports 페이지가 이미 필터 + 부서별 차트 + CSV 다운로드 구조를 갖고 있습니다.
+    여기에 차트를 추가하고 필터를 강화하면 페이지 분산 없이 하나의 강력한 리포트 허브가 됩니다.
+    별도 페이지를 만들면 "대시보드 vs 리포트 vs 분석" 3곳에 데이터가 흩어져 관리자가 혼란스러워집니다.
+  </p>
+</div>
+
+<!-- Option A: 추천 -->
+<div class="section">
+  <h3 style="display:flex;align-items:center;gap:8px;">
+    <span style="background:#007AFF;color:white;padding:2px 10px;border-radius:12px;font-size:13px;">추천</span>
+    Option A — 기존 리포트 대폭 개선
+  </h3>
+</div>
+
+<div class="mockup" style="border: 2px solid #007AFF;">
+  <div class="mockup-header">개선된 /admin/reports</div>
+  <div class="mockup-body" style="padding:0;">
+    <!-- Filter Bar -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;padding:16px;background:rgba(0,122,255,0.03);border-bottom:1px solid rgba(0,0,0,0.06);">
+      <div style="background:white;border:1px solid #ddd;border-radius:8px;padding:6px 12px;font-size:12px;color:#666;">2026.01 ~ 2026.03</div>
+      <div style="background:white;border:1px solid #ddd;border-radius:8px;padding:6px 12px;font-size:12px;color:#666;">전체 유형</div>
+      <div style="background:white;border:1px solid #ddd;border-radius:8px;padding:6px 12px;font-size:12px;color:#666;">전체 회사</div>
+      <div style="background:white;border:1px solid #ddd;border-radius:8px;padding:6px 12px;font-size:12px;color:#666;">전체 부서</div>
+      <div style="background:#007AFF;color:white;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;">CSV 다운로드</div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:16px;">
+      <div style="background:rgba(0,122,255,0.06);border-radius:12px;padding:14px;text-align:center;">
+        <div style="font-size:11px;color:#888;margin-bottom:4px;">총 비용</div>
+        <div style="font-size:18px;font-weight:700;color:#007AFF;">42,350,000원</div>
+        <div style="font-size:10px;color:#34C759;margin-top:2px;">▲ 12% vs 전분기</div>
+      </div>
+      <div style="background:rgba(52,199,89,0.06);border-radius:12px;padding:14px;text-align:center;">
+        <div style="font-size:11px;color:#888;margin-bottom:4px;">승인 건수</div>
+        <div style="font-size:18px;font-weight:700;color:#34C759;">128건</div>
+      </div>
+      <div style="background:rgba(255,149,0,0.06);border-radius:12px;padding:14px;text-align:center;">
+        <div style="font-size:11px;color:#888;margin-bottom:4px;">평균 금액</div>
+        <div style="font-size:18px;font-weight:700;color:#FF9500;">330,859원</div>
+      </div>
+      <div style="background:rgba(88,86,214,0.06);border-radius:12px;padding:14px;text-align:center;">
+        <div style="font-size:11px;color:#888;margin-bottom:4px;">법카 vs 입금</div>
+        <div style="font-size:18px;font-weight:700;color:#5856D6;">72:28</div>
+      </div>
+    </div>
+
+    <!-- Charts Row 1: Trend + Category -->
+    <div style="display:grid;grid-template-columns:3fr 2fr;gap:12px;padding:0 16px 12px;">
+      <!-- Monthly Trend -->
+      <div style="border:1px solid rgba(0,0,0,0.06);border-radius:12px;padding:16px;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:12px;">월별 비용 추이</div>
+        <svg viewBox="0 0 300 120" style="width:100%;">
+          <defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#007AFF" stop-opacity="0.2"/><stop offset="1" stop-color="#007AFF" stop-opacity="0"/></linearGradient></defs>
+          <line x1="0" y1="30" x2="300" y2="30" stroke="#f0f0f0" stroke-width="0.5"/>
+          <line x1="0" y1="60" x2="300" y2="60" stroke="#f0f0f0" stroke-width="0.5"/>
+          <line x1="0" y1="90" x2="300" y2="90" stroke="#f0f0f0" stroke-width="0.5"/>
+          <path d="M10,85 C50,80 80,65 110,55 C140,45 170,70 200,40 C230,20 260,30 290,15" fill="none" stroke="#007AFF" stroke-width="2"/>
+          <path d="M10,85 C50,80 80,65 110,55 C140,45 170,70 200,40 C230,20 260,30 290,15 L290,100 L10,100 Z" fill="url(#g1)"/>
+          <text x="10" y="115" font-size="8" fill="#999">1월</text>
+          <text x="65" y="115" font-size="8" fill="#999">2월</text>
+          <text x="120" y="115" font-size="8" fill="#999">3월</text>
+          <text x="175" y="115" font-size="8" fill="#999">4월</text>
+          <text x="230" y="115" font-size="8" fill="#999">5월</text>
+          <text x="280" y="115" font-size="8" fill="#999">6월</text>
+        </svg>
+      </div>
+      <!-- Category Donut -->
+      <div style="border:1px solid rgba(0,0,0,0.06);border-radius:12px;padding:16px;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:12px;">카테고리별 비중</div>
+        <div style="display:flex;align-items:center;gap:16px;">
+          <svg viewBox="0 0 100 100" width="90" height="90">
+            <circle cx="50" cy="50" r="38" fill="none" stroke="#007AFF" stroke-width="10" stroke-dasharray="80 159" stroke-dashoffset="-40"/>
+            <circle cx="50" cy="50" r="38" fill="none" stroke="#34C759" stroke-width="10" stroke-dasharray="50 189" stroke-dashoffset="-120"/>
+            <circle cx="50" cy="50" r="38" fill="none" stroke="#FF9500" stroke-width="10" stroke-dasharray="40 199" stroke-dashoffset="-170"/>
+            <circle cx="50" cy="50" r="38" fill="none" stroke="#5856D6" stroke-width="10" stroke-dasharray="30 209" stroke-dashoffset="-210"/>
+            <text x="50" y="53" text-anchor="middle" font-size="10" font-weight="700" fill="#333">4개</text>
+          </svg>
+          <div style="font-size:10px;line-height:2;">
+            <div><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#007AFF;margin-right:4px;"></span>식비 33%</div>
+            <div><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#34C759;margin-right:4px;"></span>교통 21%</div>
+            <div><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#FF9500;margin-right:4px;"></span>사무용품 17%</div>
+            <div><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#5856D6;margin-right:4px;"></span>기타 29%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts Row 2: Department + Company -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:0 16px 12px;">
+      <!-- Department -->
+      <div style="border:1px solid rgba(0,0,0,0.06);border-radius:12px;padding:16px;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:12px;">부서별 비용</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px;"><span>마케팅팀</span><span style="color:#888;">15,200,000원</span></div>
+            <div style="height:6px;background:#f0f0f0;border-radius:3px;"><div style="height:100%;width:85%;background:#007AFF;border-radius:3px;"></div></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px;"><span>개발팀</span><span style="color:#888;">12,800,000원</span></div>
+            <div style="height:6px;background:#f0f0f0;border-radius:3px;"><div style="height:100%;width:72%;background:#5856D6;border-radius:3px;"></div></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px;"><span>영업팀</span><span style="color:#888;">8,500,000원</span></div>
+            <div style="height:6px;background:#f0f0f0;border-radius:3px;"><div style="height:100%;width:48%;background:#34C759;border-radius:3px;"></div></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px;"><span>경영지원</span><span style="color:#888;">5,850,000원</span></div>
+            <div style="height:6px;background:#f0f0f0;border-radius:3px;"><div style="height:100%;width:33%;background:#FF9500;border-radius:3px;"></div></div>
+          </div>
+        </div>
+      </div>
+      <!-- Company Comparison -->
+      <div style="border:1px solid rgba(0,0,0,0.06);border-radius:12px;padding:16px;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:12px;">회사별 비교</div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div style="text-align:center;">
+            <div style="font-size:10px;color:#888;margin-bottom:4px;">한아원코리아</div>
+            <div style="font-size:16px;font-weight:700;color:#007AFF;">28,200,000원</div>
+            <div style="font-size:10px;color:#888;">89건</div>
+          </div>
+          <div style="height:1px;background:#f0f0f0;"></div>
+          <div style="text-align:center;">
+            <div style="font-size:10px;color:#888;margin-bottom:4px;">한아원리테일</div>
+            <div style="font-size:16px;font-weight:700;color:#5856D6;">14,150,000원</div>
+            <div style="font-size:10px;color:#888;">39건</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Top Submitters -->
+    <div style="padding:0 16px 16px;">
+      <div style="border:1px solid rgba(0,0,0,0.06);border-radius:12px;padding:16px;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:12px;">Top 5 제출자</div>
+        <div style="display:flex;gap:16px;overflow-x:auto;">
+          <div style="text-align:center;min-width:56px;">
+            <div style="width:40px;height:40px;border-radius:50%;background:#007AFF;margin:0 auto 4px;display:flex;align-items:center;justify-content:center;color:white;font-size:14px;font-weight:600;">김</div>
+            <div style="font-size:10px;font-weight:500;">김민수</div>
+            <div style="font-size:9px;color:#888;">5,200,000</div>
+          </div>
+          <div style="text-align:center;min-width:56px;">
+            <div style="width:40px;height:40px;border-radius:50%;background:#5856D6;margin:0 auto 4px;display:flex;align-items:center;justify-content:center;color:white;font-size:14px;font-weight:600;">이</div>
+            <div style="font-size:10px;font-weight:500;">이지은</div>
+            <div style="font-size:9px;color:#888;">4,800,000</div>
+          </div>
+          <div style="text-align:center;min-width:56px;">
+            <div style="width:40px;height:40px;border-radius:50%;background:#34C759;margin:0 auto 4px;display:flex;align-items:center;justify-content:center;color:white;font-size:14px;font-weight:600;">박</div>
+            <div style="font-size:10px;font-weight:500;">박서준</div>
+            <div style="font-size:9px;color:#888;">3,900,000</div>
+          </div>
+          <div style="text-align:center;min-width:56px;">
+            <div style="width:40px;height:40px;border-radius:50%;background:#FF9500;margin:0 auto 4px;display:flex;align-items:center;justify-content:center;color:white;font-size:14px;font-weight:600;">최</div>
+            <div style="font-size:10px;font-weight:500;">최유진</div>
+            <div style="font-size:9px;color:#888;">3,200,000</div>
+          </div>
+          <div style="text-align:center;min-width:56px;">
+            <div style="width:40px;height:40px;border-radius:50%;background:#FF3B30;margin:0 auto 4px;display:flex;align-items:center;justify-content:center;color:white;font-size:14px;font-weight:600;">정</div>
+            <div style="font-size:10px;font-weight:500;">정하늘</div>
+            <div style="font-size:9px;color:#888;">2,700,000</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="height:32px;"></div>
+
+<!-- Option B -->
+<div class="section">
+  <h3>Option B — 별도 분석 페이지</h3>
+  <p style="font-size:13px;color:#888;margin-bottom:8px;">기존 /admin/reports는 그대로 두고, 새 /admin/analytics 페이지 추가</p>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">새로운 /admin/analytics (기존 리포트와 분리)</div>
+  <div class="mockup-body" style="padding:16px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div style="border:1px solid rgba(0,0,0,0.06);border-radius:12px;padding:16px;grid-column:span 2;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">비용 트렌드 (12개월)</div>
+        <div style="height:80px;background:linear-gradient(135deg, rgba(0,122,255,0.05), rgba(88,86,214,0.05));border-radius:8px;display:flex;align-items:center;justify-content:center;color:#999;font-size:11px;">대형 라인차트 — 법카/입금 분리 표시</div>
+      </div>
+      <div style="border:1px solid rgba(0,0,0,0.06);border-radius:12px;padding:16px;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">회사 비교</div>
+        <div style="height:60px;background:rgba(0,0,0,0.02);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#999;font-size:11px;">코리아 vs 리테일</div>
+      </div>
+      <div style="border:1px solid rgba(0,0,0,0.06);border-radius:12px;padding:16px;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">카테고리 히트맵</div>
+        <div style="height:60px;background:rgba(0,0,0,0.02);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#999;font-size:11px;">월 × 카테고리 그리드</div>
+      </div>
+    </div>
+    <div class="pros-cons" style="margin-top:16px;">
+      <div class="pros"><h4>장점</h4><ul><li>기존 코드 건드리지 않음</li><li>분석 전용 공간</li></ul></div>
+      <div class="cons"><h4>단점</h4><ul><li>비슷한 데이터가 3곳에 분산</li><li>관리자 혼란 (대시보드 vs 리포트 vs 분석)</li><li>코드 중복</li></ul></div>
+    </div>
+  </div>
+</div>
+
+<div style="height:32px;"></div>
+
+<!-- Option C -->
+<div class="section">
+  <h3>Option C — 둘 다</h3>
+  <p style="font-size:13px;color:#888;margin-bottom:8px;">기존 리포트 개선 + 별도 심층 분석 페이지</p>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">기존 개선 + 새 페이지 2개 관리</div>
+  <div class="mockup-body" style="padding:16px;">
+    <div style="display:flex;gap:12px;">
+      <div style="flex:1;border:1px solid rgba(0,0,0,0.06);border-radius:12px;padding:12px;text-align:center;">
+        <div style="font-size:11px;font-weight:600;color:#007AFF;">대시보드</div>
+        <div style="font-size:9px;color:#888;margin-top:4px;">요약 카드 + 기본 차트</div>
+      </div>
+      <div style="display:flex;align-items:center;color:#ccc;">→</div>
+      <div style="flex:1;border:1px solid rgba(0,0,0,0.06);border-radius:12px;padding:12px;text-align:center;">
+        <div style="font-size:11px;font-weight:600;color:#5856D6;">리포트 (개선)</div>
+        <div style="font-size:9px;color:#888;margin-top:4px;">필터 + 부서/회사/카테고리</div>
+      </div>
+      <div style="display:flex;align-items:center;color:#ccc;">→</div>
+      <div style="flex:1;border:1px solid rgba(0,0,0,0.06);border-radius:12px;padding:12px;text-align:center;">
+        <div style="font-size:11px;font-weight:600;color:#FF9500;">분석 (신규)</div>
+        <div style="font-size:9px;color:#888;margin-top:4px;">트렌드 비교 + 예측</div>
+      </div>
+    </div>
+    <div class="pros-cons" style="margin-top:16px;">
+      <div class="pros"><h4>장점</h4><ul><li>각 페이지 역할 분명</li><li>심층 분석 가능</li></ul></div>
+      <div class="cons"><h4>단점</h4><ul><li>10~50명 팀에 과한 복잡성</li><li>개발/유지보수 비용 높음</li><li>데이터 흩어짐</li></ul></div>
+    </div>
+  </div>
+</div>
+
+<div style="height:32px;"></div>
+
+<!-- Final Recommendation -->
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)" style="border-color:#007AFF;">
+    <div class="letter" style="background:#007AFF;color:white;">A</div>
+    <div class="content">
+      <h3>기존 리포트 대폭 개선 <span style="font-size:11px;color:#007AFF;font-weight:500;">← 추천</span></h3>
+      <p>한 곳에서 모든 분석. 10~50명 팀에 적합한 규모. 개발 효율 최고.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>별도 분석 페이지 추가</h3>
+      <p>기존 코드 안 건드림. 하지만 데이터 분산 문제.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>둘 다</h3>
+      <p>완벽하지만 팀 규모 대비 과함.</p>
+    </div>
+  </div>
+</div>

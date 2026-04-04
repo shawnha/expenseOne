@@ -1,6 +1,6 @@
 // ExpenseOne Service Worker — Instant splash shell + NetworkFirst HTML + CacheFirst static + Web Push
-// mnekc50y is replaced at build time by next.config.ts
-const CACHE_NAME = "expenseone-mnekc50y";
+// mnk2t1q5 is replaced at build time by next.config.ts
+const CACHE_NAME = "expenseone-mnk2t1q5";
 
 const APP_SHELL = ["/offline.html", "/splash-shell.html"];
 
@@ -33,11 +33,12 @@ self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET, API calls, Supabase, and auth routes
+  // Skip non-GET, API calls, Supabase, auth routes, and build-info
   if (
     request.method !== "GET" ||
     url.pathname.startsWith("/api/") ||
     url.pathname.startsWith("/auth/") ||
+    url.pathname === "/build-info.json" ||
     url.hostname.includes("supabase")
   ) {
     return;

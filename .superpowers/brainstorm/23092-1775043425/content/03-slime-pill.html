@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tab Bar — Slime Pill</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: -apple-system, 'Pretendard Variable', sans-serif; background:#f2f2f7; display:flex; justify-content:center; padding:40px 16px; min-height:100vh; }
+  .phone { width:390px; height:680px; background:#fff; border-radius:40px; overflow:hidden; position:relative; box-shadow:0 20px 60px rgba(0,0,0,0.12); }
+  .content { height:100%; background:linear-gradient(180deg, #f8f8fc 0%, #fff 100%); display:flex; flex-direction:column; align-items:center; justify-content:center; color:#aaa; font-size:14px; padding-bottom:100px; }
+
+  .tab-bar-wrap { position:absolute; bottom:0; left:0; right:0; padding:8px 12px calc(8px + 20px); }
+  .tab-bar {
+    display:flex;
+    align-items:center;
+    justify-content:space-evenly;
+    position:relative;
+    background:rgba(255,255,255,0.75);
+    backdrop-filter:blur(40px);
+    -webkit-backdrop-filter:blur(40px);
+    border:1px solid rgba(255,255,255,0.6);
+    border-radius:24px;
+    padding:4px;
+    box-shadow:0 4px 24px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04);
+    height:58px;
+  }
+
+  /* Slime pill — stretches then snaps */
+  .pill {
+    position:absolute;
+    height:calc(100% - 8px);
+    top:4px;
+    border-radius:20px;
+    background:rgba(0,122,255,0.1);
+    z-index:0;
+    /* No CSS transition — driven by JS animation */
+  }
+
+  .tab {
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:1px;
+    padding:4px 0;
+    cursor:pointer;
+    position:relative;
+    z-index:1;
+    -webkit-tap-highlight-color:transparent;
+    height:100%;
+    user-select:none;
+  }
+  .tab:active { transform:scale(0.92); }
+  .tab svg { width:22px; height:22px; transition: stroke 0.25s ease; }
+  .tab .label { font-size:10px; font-weight:500; transition: color 0.25s ease; line-height:1.2; }
+  .tab.active svg { stroke:#007AFF; }
+  .tab.active .label { color:#007AFF; font-weight:600; }
+  .tab.inactive svg { stroke:#8e8e93; }
+  .tab.inactive .label { color:#8e8e93; }
+
+  .tab-action {
+    flex:0 0 auto;
+    display:flex; align-items:center; justify-content:center;
+    width:44px; height:44px; border-radius:50%;
+    background:#007AFF;
+    box-shadow:0 2px 12px rgba(0,122,255,0.35);
+    cursor:pointer; position:relative; z-index:1;
+    transition: transform 0.15s ease;
+  }
+  .tab-action:active { transform:scale(0.9); }
+  .tab-action svg { stroke:white; width:22px; height:22px; }
+
+  .badge {
+    position:absolute; top:-2px; right:-4px;
+    min-width:14px; height:14px; border-radius:7px;
+    background:#FF3B30; color:white; font-size:9px; font-weight:700;
+    display:flex; align-items:center; justify-content:center;
+    padding:0 3px; border:2px solid white; line-height:1;
+  }
+
+  .info { max-width:390px; margin-top:24px; padding:16px; font-size:12px; color:#666; line-height:1.8; }
+  .info strong { color:#333; }
+  h2 { text-align:center; margin-bottom:8px; font-size:18px; color:#333; }
+  .subtitle { text-align:center; color:#888; font-size:13px; margin-bottom:24px; }
+</style>
+</head>
+<body>
+<div>
+  <h2>슬라임 Pill 탭 바</h2>
+  <p class="subtitle">탭을 클릭하면 pill이 늘어났다가 줄어드는 슬라임 애니메이션</p>
+
+  <div class="phone">
+    <div class="content">
+      <span id="page-label">홈 페이지</span>
+    </div>
+    <div class="tab-bar-wrap">
+      <div class="tab-bar" id="tabBar">
+        <div class="pill" id="pill"></div>
+
+        <div class="tab active" data-index="0" onclick="switchTab(0)">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <span class="label">홈</span>
+        </div>
+
+        <div class="tab inactive" data-index="1" onclick="switchTab(1)">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          <span class="label">비용</span>
+        </div>
+
+        <div class="tab-action">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </div>
+
+        <div class="tab inactive" data-index="2" onclick="switchTab(2)">
+          <div style="position:relative;">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span class="badge">3</span>
+          </div>
+          <span class="label">알림</span>
+        </div>
+
+        <div class="tab inactive" data-index="3" onclick="switchTab(3)">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          <span class="label">관리</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="info">
+    <strong>슬라임 효과:</strong> pill이 이동 방향으로 먼저 쭉 늘어난 후 (stretch), 목적지에서 원래 크기로 줄어듦 (snap).<br>
+    <strong>Phase 1 (0→40%):</strong> 시작 위치 유지 + 목적지까지 너비 확장 (슬라임이 늘어남)<br>
+    <strong>Phase 2 (40→100%):</strong> 시작쪽 가장자리가 목적지로 수축 + 약간 오버슈트 후 정착<br>
+    <strong>결과:</strong> 마치 점성이 있는 액체가 이동하는 느낌.
+  </div>
+</div>
+
+<script>
+const tabs = document.querySelectorAll('.tab[data-index]');
+const pill = document.getElementById('pill');
+const pageLabel = document.getElementById('page-label');
+const labels = ['홈 페이지', '비용 목록', '알림 센터', '관리 메뉴'];
+let currentIndex = 0;
+let animating = false;
+
+function getTabRect(index) {
+  const tab = tabs[index];
+  const bar = document.getElementById('tabBar');
+  const barRect = bar.getBoundingClientRect();
+  const tabRect = tab.getBoundingClientRect();
+  return {
+    left: tabRect.left - barRect.left,
+    width: tabRect.width,
+  };
+}
+
+function setPill(left, width) {
+  pill.style.left = left + 'px';
+  pill.style.width = width + 'px';
+}
+
+// Slime animation using requestAnimationFrame
+function slimeAnimate(fromIndex, toIndex, callback) {
+  const from = getTabRect(fromIndex);
+  const to = getTabRect(toIndex);
+  const goingRight = to.left > from.left;
+
+  const duration = 400; // ms
+  const stretchPoint = 0.35; // when stretch peaks
+  let start = null;
+
+  function easeOutBack(t) {
+    const c1 = 1.70158;
+    const c3 = c1 + 1;
+    return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+  }
+
+  function easeInQuad(t) {
+    return t * t;
+  }
+
+  function frame(ts) {
+    if (!start) start = ts;
+    const elapsed = ts - start;
+    const progress = Math.min(elapsed / duration, 1);
+
+    let left, width;
+
+    if (progress <= stretchPoint) {
+      // Phase 1: stretch — leading edge moves to target, trailing stays
+      const p = easeInQuad(progress / stretchPoint);
+      if (goingRight) {
+        left = from.left;
+        const targetRight = to.left + to.width;
+        const currentRight = from.left + from.width;
+        width = currentRight + (targetRight - currentRight) * p - left;
+      } else {
+        const targetLeft = to.left;
+        left = from.left + (targetLeft - from.left) * p;
+        width = (from.left + from.width) - left;
+      }
+    } else {
+      // Phase 2: snap — trailing edge catches up with overshoot
+      const p = easeOutBack((progress - stretchPoint) / (1 - stretchPoint));
+      if (goingRight) {
+        const stretchedLeft = from.left;
+        left = stretchedLeft + (to.left - stretchedLeft) * p;
+        width = to.width + (to.left + to.width - from.left - from.width + to.width) * (1 - p) * 0.3;
+        // Clamp width
+        const maxRight = to.left + to.width;
+        if (left + width > maxRight + 4) width = maxRight + 4 - left;
+        if (width < to.width) width = to.width;
+      } else {
+        const stretchedRight = from.left + from.width;
+        const targetRight = to.left + to.width;
+        const right = stretchedRight + (targetRight - stretchedRight) * p;
+        left = to.left - (to.width) * (1 - p) * 0.3;
+        if (left < to.left - 4) left = to.left - 4;
+        width = right - left;
+        if (width < to.width) width = to.width;
+      }
+    }
+
+    // Final frame: snap exactly to target
+    if (progress >= 1) {
+      left = to.left;
+      width = to.width;
+    }
+
+    setPill(left, width);
+
+    if (progress < 1) {
+      requestAnimationFrame(frame);
+    } else {
+      callback && callback();
+    }
+  }
+
+  requestAnimationFrame(frame);
+}
+
+function switchTab(index) {
+  if (index === currentIndex || animating) return;
+  animating = true;
+  const prevIndex = currentIndex;
+  currentIndex = index;
+
+  tabs.forEach((t, i) => {
+    t.classList.toggle('active', i === index);
+    t.classList.toggle('inactive', i !== index);
+  });
+  pageLabel.textContent = labels[index];
+
+  slimeAnimate(prevIndex, index, () => { animating = false; });
+}
+
+// Initial
+window.addEventListener('load', () => {
+  const r = getTabRect(0);
+  setPill(r.left, r.width);
+});
+window.addEventListener('resize', () => {
+  const r = getTabRect(currentIndex);
+  setPill(r.left, r.width);
+});
+</script>
+</body>
+</html>
