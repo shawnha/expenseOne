@@ -33,11 +33,12 @@ self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET, API calls, Supabase, and auth routes
+  // Skip non-GET, API calls, Supabase, auth routes, and build-info
   if (
     request.method !== "GET" ||
     url.pathname.startsWith("/api/") ||
     url.pathname.startsWith("/auth/") ||
+    url.pathname === "/build-info.json" ||
     url.hostname.includes("supabase")
   ) {
     return;

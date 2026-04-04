@@ -38,6 +38,7 @@ export default async function DashboardLayout({
         <SplashDismiss />
         <PullToRefresh />
         <PushPrompt />
+        <BuildUpdateToast />
         <Toaster position="top-center" richColors />
         <div className="flex h-dvh overflow-hidden">
           <Sidebar user={mockUser} />
