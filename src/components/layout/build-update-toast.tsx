@@ -23,6 +23,16 @@ export function BuildUpdateToast() {
         if (storedHash && storedHash !== hash) {
           setShow(true);
           timer = setTimeout(() => setShow(false), 4000);
+
+          // Auto-activate any waiting SW and suppress SwUpdatePrompt
+          // (page already loaded new code, no need for manual SW update)
+          try {
+            sessionStorage.setItem("sw-update-ts", String(Date.now()));
+            const reg = await navigator.serviceWorker?.getRegistration();
+            if (reg?.waiting) {
+              reg.waiting.postMessage("SKIP_WAITING");
+            }
+          } catch {}
         }
 
         localStorage.setItem(STORAGE_KEY, hash);
