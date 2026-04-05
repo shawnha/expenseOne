@@ -686,7 +686,18 @@
   background: var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.04);
+  border-top-color: var(--glass-border-top);
+  box-shadow:
+    0 2px 12px rgba(0, 0, 0, 0.06),
+    0 1px 4px rgba(0, 0, 0, 0.03),
+    var(--glass-shadow-inner);
+}
+
+.dark .glass-header {
+  box-shadow:
+    0 2px 12px rgba(0, 0, 0, 0.2),
+    0 1px 4px rgba(0, 0, 0, 0.12),
+    var(--glass-shadow-inner);
 }
 
 .glass-header::before {

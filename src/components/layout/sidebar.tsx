@@ -73,17 +73,21 @@ function RailNavLink({
       onClick={handleClick}
       title={item.label}
       className={cn(
-        "group relative flex items-center justify-center size-9 rounded-xl apple-press",
+        "group relative flex items-center justify-center size-9 rounded-xl apple-press overflow-hidden",
         "transition-all duration-[350ms] ease-[cubic-bezier(0.25,1,0.5,1)]",
         isActive
-          ? "text-[var(--apple-blue)] bg-[rgba(0,122,255,0.1)] dark:bg-[rgba(10,132,255,0.15)]"
+          ? "text-[var(--apple-blue)]"
           : "text-[var(--apple-secondary-label)] hover:bg-[rgba(0,0,0,0.04)] dark:hover:bg-[rgba(255,255,255,0.06)] hover:text-[var(--apple-label)]"
       )}
     >
+      {/* Glass Lens — magnifier pill behind active icon (matches tab bar) */}
+      {isActive && (
+        <div className="glass-lens absolute inset-0 rounded-xl" />
+      )}
       <span
         ref={iconRef}
         className={cn(
-          "transition-colors duration-[350ms]",
+          "relative z-[1] transition-colors duration-[350ms]",
           isActive ? "text-[var(--apple-blue)]" : "text-[var(--apple-secondary-label)]"
         )}
       >
