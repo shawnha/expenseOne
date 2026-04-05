@@ -5,7 +5,7 @@ import { updateSession } from '@/lib/supabase/middleware';
 const PUBLIC_ROUTES = ['/login', '/auth'];
 
 // Route prefixes that should be completely skipped by middleware
-const SKIP_PREFIXES = ['/_next', '/api/auth', '/api/debug-db', '/favicon.ico', '/sw.js', '/manifest.json', '/splash-shell.html'];
+const SKIP_PREFIXES = ['/_next', '/api/auth', '/favicon.ico', '/sw.js', '/manifest.json', '/splash-shell.html'];
 
 // Supabase auth cookie prefix
 const SUPABASE_AUTH_COOKIE_PREFIX = 'sb-';
