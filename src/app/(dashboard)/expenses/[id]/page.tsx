@@ -109,6 +109,7 @@ async function getExpenseDetail(id: string) {
         amount: result.amount,
         currency: result.currency ?? null,
         amountOriginal: result.amountOriginal ?? null,
+        exchangeRate: result.exchangeRate ?? null,
         category: result.category,
         merchantName: result.merchantName,
         transactionDate: result.transactionDate,
@@ -260,6 +261,9 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
         <div className="mb-5 p-4 rounded-xl bg-[rgba(0,0,0,0.04)] dark:bg-[rgba(255,255,255,0.06)]">
           <span className="text-[13px] text-[var(--apple-secondary-label)]">금액</span>
           <p className="text-xl sm:text-2xl font-semibold tabular-nums text-[var(--apple-label)]">{formatExpenseAmount(expense.amount, expense.currency, expense.amountOriginal)}</p>
+          {expense.currency === "USD" && expense.exchangeRate && (
+            <p className="text-[12px] text-[var(--apple-tertiary-label)] mt-1">적용 환율: 1 USD = {Number(expense.exchangeRate).toLocaleString("ko-KR")}원</p>
+          )}
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
