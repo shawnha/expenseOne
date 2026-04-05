@@ -9,6 +9,7 @@ export default async function CorporateCardPage() {
     id: c.id,
     name: c.name,
     slug: c.slug,
+    currency: c.currency,
   }));
 
   return <CorporateCardForm initialCompanies={serialized} />;

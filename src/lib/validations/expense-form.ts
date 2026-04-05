@@ -121,6 +121,18 @@ export function parseAmount(value: string): number {
   return parseInt(value.replace(/[^\d]/g, ""), 10) || 0;
 }
 
+export function formatAmountUSD(value: number): string {
+  return new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+}
+
+export function parseAmountUSD(value: string): number {
+  return parseFloat(value.replace(/[^0-9.]/g, "")) || 0;
+}
+
+export function dollarsToCents(dollars: number): number {
+  return Math.round(dollars * 100);
+}
+
 export function formatDateKR(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");

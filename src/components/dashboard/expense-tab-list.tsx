@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { formatAmount } from "@/lib/validations/expense-form";
+import { formatExpenseAmount } from "@/lib/utils/expense-utils";
 import { SwipeableGroup, SwipeableRow, type SwipeAction } from "@/components/ui/swipeable-row";
 import { CreditCard, Banknote, ArrowRight, Pencil, Trash2, Receipt } from "lucide-react";
 import { toast } from "sonner";
@@ -26,6 +27,8 @@ interface Expense {
   id: string;
   title: string;
   amount: number;
+  currency?: string | null;
+  amountOriginal?: number | null;
   status: string;
   type: string;
   created_at: string;
@@ -248,7 +251,7 @@ function DashboardExpenseRow({ expense, idx }: { expense: Expense; idx: number }
               </div>
             )}
             <span className="text-[13px] sm:text-sm font-medium tabular-nums text-[var(--apple-label)]">
-              {formatAmount(expense.amount)}원
+              {formatExpenseAmount(expense.amount, expense.currency, expense.amountOriginal)}
             </span>
           </div>
         </div>

@@ -15,14 +15,17 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { formatAmount } from "@/lib/validations/expense-form";
+import { formatExpenseAmount } from "@/lib/utils/expense-utils";
 
 interface AdminApproveRejectProps {
   expenseId: string;
   expenseTitle: string;
   expenseAmount: number;
+  expenseCurrency?: string | null;
+  expenseAmountOriginal?: number | null;
 }
 
-export function AdminApproveReject({ expenseId, expenseTitle, expenseAmount }: AdminApproveRejectProps) {
+export function AdminApproveReject({ expenseId, expenseTitle, expenseAmount, expenseCurrency, expenseAmountOriginal }: AdminApproveRejectProps) {
   const router = useRouter();
   const [approveOpen, setApproveOpen] = useState(false);
   const [approving, setApproving] = useState(false);
@@ -102,7 +105,7 @@ export function AdminApproveReject({ expenseId, expenseTitle, expenseAmount }: A
             <DialogDescription>
               &quot;{expenseTitle}&quot; 요청을 승인하시겠습니까?
               <br />
-              금액: {formatAmount(expenseAmount)}원
+              금액: {formatExpenseAmount(expenseAmount, expenseCurrency, expenseAmountOriginal)}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

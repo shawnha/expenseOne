@@ -38,6 +38,9 @@ import {
   type FileWithPreview,
   CATEGORY_OPTIONS,
   formatAmount,
+  formatAmountUSD,
+  parseAmountUSD,
+  dollarsToCents,
   formatDateISO,
 } from "@/lib/validations/expense-form";
 import type { DocumentType } from "@/types";
@@ -120,7 +123,7 @@ function saveRecentAccount(account: Omit<RecentAccount, "usedAt">) {
 }
 
 interface DepositRequestFormProps {
-  initialCompanies?: { id: string; name: string; slug: string }[];
+  initialCompanies?: { id: string; name: string; slug: string; currency: string }[];
 }
 
 export default function DepositRequestForm({ initialCompanies }: DepositRequestFormProps) {
@@ -143,6 +146,11 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
   // Company selection
   const [companyId, setCompanyId] = useState("");
   const [userCompanyId, setUserCompanyId] = useState<string | null>(null);
+  const [currency, setCurrency] = useState("KRW");
+
+  // Exchange rate for USD
+  const [exchangeRate, setExchangeRate] = useState<{ rate: number; date: string } | null>(null);
+  const [exchangeRateLoading, setExchangeRateLoading] = useState(false);
 
   useEffect(() => {
     fetch("/api/profile")
@@ -156,6 +164,26 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
       })
       .catch(() => {});
   }, []);
+
+  // Fetch exchange rate when currency is USD
+  useEffect(() => {
+    if (currency !== "USD") {
+      setExchangeRate(null);
+      return;
+    }
+    let cancelled = false;
+    setExchangeRateLoading(true);
+    fetch("/api/exchange-rate?currency=USD")
+      .then((res) => res.ok ? res.json() : null)
+      .then((json) => {
+        if (!cancelled && json?.rate) {
+          setExchangeRate({ rate: json.rate, date: json.date ?? "" });
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setExchangeRateLoading(false); });
+    return () => { cancelled = true; };
+  }, [currency]);
 
   const {
     register,
@@ -178,6 +206,16 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
       prePaidPercentage: null,
     },
   });
+
+  // Handle company change — update companyId and currency
+  const handleCompanyChange = useCallback((newCompanyId: string, newCurrency: string) => {
+    setCompanyId(newCompanyId);
+    setCurrency(newCurrency);
+    // Reset amount when currency changes
+    setAmountDisplay("");
+    setSupplyAmount(0);
+    setValue("amount", 0, { shouldValidate: false });
+  }, [setValue]);
 
   // Warn on unsaved changes (browser close / refresh)
   useUnsavedChanges(isDirty || files.length > 0);
@@ -213,6 +251,29 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
 
   const handleAmountChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (currency === "USD") {
+        const raw = e.target.value.replace(/[^0-9.]/g, "");
+        // Prevent multiple decimal points
+        const parts = raw.split(".");
+        const sanitized = parts.length > 2 ? parts[0] + "." + parts.slice(1).join("") : raw;
+        // Limit to 2 decimal places
+        const [intPart, decPart] = sanitized.split(".");
+        const limited = decPart !== undefined ? intPart + "." + decPart.slice(0, 2) : sanitized;
+
+        if (limited === "" || limited === ".") {
+          setAmountDisplay("");
+          setSupplyAmount(0);
+          setValue("amount", 0, { shouldValidate: true });
+          return;
+        }
+        const num = parseAmountUSD(limited);
+        setSupplyAmount(num);
+        setAmountDisplay(limited);
+        setValue("amount", dollarsToCents(num), { shouldValidate: true });
+        return;
+      }
+
+      // KRW flow (unchanged)
       const raw = e.target.value.replace(/[^\d]/g, "");
       if (raw === "") {
         setAmountDisplay("");
@@ -225,7 +286,7 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
       setAmountDisplay(formatAmount(num));
       setValue("amount", calcFinalAmount(num, vatIncluded, freelancerDeduction), { shouldValidate: true });
     },
-    [setValue, vatIncluded, freelancerDeduction, calcFinalAmount]
+    [setValue, vatIncluded, freelancerDeduction, calcFinalAmount, currency]
   );
 
   const handleVatToggle = useCallback(
@@ -429,7 +490,7 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
             {/* 회사 선택 */}
             <CompanySelector
               value={companyId}
-              onChange={setCompanyId}
+              onChange={handleCompanyChange}
               userCompanyId={userCompanyId}
               initialCompanies={initialCompanies}
             />
@@ -521,17 +582,45 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
                 금액 <span className="text-[var(--apple-red)]">*</span>
               </Label>
               <div className="relative">
+                {currency === "USD" && (
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--apple-secondary-label)] pointer-events-none">
+                    $
+                  </span>
+                )}
                 <Input
                   id="amount"
                   placeholder="0"
-                  inputMode="numeric"
+                  inputMode={currency === "USD" ? "decimal" : "numeric"}
                   value={amountDisplay}
                   onChange={handleAmountChange}
                   aria-invalid={!!errors.amount}
-                  className="pr-10"
+                  className={currency === "USD" ? "pl-7 pr-4" : "pr-10"}
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--apple-secondary-label)] pointer-events-none">원</span>
+                {currency !== "USD" && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--apple-secondary-label)] pointer-events-none">원</span>
+                )}
               </div>
+
+              {/* USD exchange rate info */}
+              {currency === "USD" && (
+                <div className="mt-1.5 space-y-1 text-[13px]">
+                  {exchangeRateLoading ? (
+                    <p className="text-[var(--apple-secondary-label)]">환율 정보 불러오는 중...</p>
+                  ) : exchangeRate ? (
+                    <>
+                      <p className="text-[var(--apple-secondary-label)]">
+                        적용 환율: 1 USD = {formatAmount(exchangeRate.rate)}원
+                        {exchangeRate.date && ` (${exchangeRate.date} 기준)`}
+                      </p>
+                      {supplyAmount > 0 && (
+                        <p className="text-[var(--apple-blue)] font-medium">
+                          → ₩{formatAmount(Math.round(supplyAmount * exchangeRate.rate))}
+                        </p>
+                      )}
+                    </>
+                  ) : null}
+                </div>
+              )}
               <div className="flex flex-wrap gap-x-4 gap-y-1">
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
@@ -553,9 +642,11 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
                 </label>
               </div>
               {(vatIncluded || freelancerDeduction) && supplyAmount > 0 && (() => {
-                let afterVat = supplyAmount;
-                const vatAmount = vatIncluded ? Math.round(supplyAmount * 0.1) : 0;
-                if (vatIncluded) afterVat = supplyAmount + vatAmount;
+                // For USD, apply VAT/deduction to KRW-converted amount for display
+                const baseKRW = currency === "USD" && exchangeRate ? Math.round(supplyAmount * exchangeRate.rate) : supplyAmount;
+                let afterVat = baseKRW;
+                const vatAmount = vatIncluded ? Math.round(baseKRW * 0.1) : 0;
+                if (vatIncluded) afterVat = baseKRW + vatAmount;
                 const withholdingBase = afterVat;
                 const withholdingAmount = freelancerDeduction ? Math.round(withholdingBase * 0.033) : 0;
                 const finalAmount = withholdingBase - withholdingAmount;
@@ -563,8 +654,14 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
                   <div className="px-3 py-2 text-[13px] text-[var(--apple-secondary-label)] space-y-0.5 border border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)] rounded-xl">
                     <div className="flex justify-between">
                       <span>공급가액</span>
-                      <span>{formatAmount(supplyAmount)}원</span>
+                      <span>{currency === "USD" ? `$${formatAmountUSD(supplyAmount)}` : `${formatAmount(baseKRW)}원`}</span>
                     </div>
+                    {currency === "USD" && exchangeRate && (
+                      <div className="flex justify-between">
+                        <span>원화 환산</span>
+                        <span>{formatAmount(baseKRW)}원</span>
+                      </div>
+                    )}
                     {vatIncluded && (
                       <div className="flex justify-between">
                         <span>VAT (10%)</span>
@@ -692,7 +789,8 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
                         )}
 
                         {supplyAmount > 0 && watchedPrePaidPercentage != null && watchedPrePaidPercentage < 100 && (() => {
-                          const totalBeforeWithholding = vatIncluded ? Math.round(supplyAmount * 1.1) : supplyAmount;
+                          const baseKRW = currency === "USD" && exchangeRate ? Math.round(supplyAmount * exchangeRate.rate) : supplyAmount;
+                          const totalBeforeWithholding = vatIncluded ? Math.round(baseKRW * 1.1) : baseKRW;
                           const withholdingAmount = freelancerDeduction ? Math.round(totalBeforeWithholding * 0.033) : 0;
                           const prePaidAmount = Math.round(totalBeforeWithholding * watchedPrePaidPercentage / 100);
                           const postPaidAmount = totalBeforeWithholding - prePaidAmount - withholdingAmount;

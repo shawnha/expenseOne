@@ -11,7 +11,7 @@ import {
   formatFileSize,
   DOCUMENT_TYPE_OPTIONS,
 } from "@/lib/validations/expense-form";
-import { getCategoryLabel } from "@/lib/utils/expense-utils";
+import { getCategoryLabel, formatExpenseAmount } from "@/lib/utils/expense-utils";
 
 import { BackToListButton } from "@/components/expenses/back-to-list-button";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
@@ -107,6 +107,8 @@ async function getExpenseDetail(id: string) {
         title: result.title,
         description: result.description,
         amount: result.amount,
+        currency: result.currency ?? null,
+        amountOriginal: result.amountOriginal ?? null,
         category: result.category,
         merchantName: result.merchantName,
         transactionDate: result.transactionDate,
@@ -235,6 +237,8 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
               expenseId={id}
               expenseTitle={expense.title}
               expenseAmount={expense.amount}
+              expenseCurrency={expense.currency}
+              expenseAmountOriginal={expense.amountOriginal}
             />
           )}
         </div>
@@ -255,7 +259,7 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
         {/* Amount */}
         <div className="mb-5 p-4 rounded-xl bg-[rgba(0,0,0,0.04)] dark:bg-[rgba(255,255,255,0.06)]">
           <span className="text-[13px] text-[var(--apple-secondary-label)]">금액</span>
-          <p className="text-xl sm:text-2xl font-semibold tabular-nums text-[var(--apple-label)]">{formatAmount(expense.amount)}원</p>
+          <p className="text-xl sm:text-2xl font-semibold tabular-nums text-[var(--apple-label)]">{formatExpenseAmount(expense.amount, expense.currency, expense.amountOriginal)}</p>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">

@@ -30,7 +30,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { formatAmount } from "@/lib/validations/expense-form";
-import { getCategoryLabel } from "@/lib/utils/expense-utils";
+import { getCategoryLabel, formatExpenseAmount } from "@/lib/utils/expense-utils";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -40,6 +40,8 @@ export interface PendingExpense {
   id: string;
   title: string;
   amount: number;
+  currency?: string | null;
+  amountOriginal?: number | null;
   category: string;
   createdAt: string;
   submitter: {
@@ -289,7 +291,7 @@ export function PendingTable({ expenses }: PendingTableProps) {
                   )}
                 </TableCell>
                 <TableCell className="text-right text-sm tabular-nums font-medium text-[var(--apple-label)]">
-                  {formatAmount(expense.amount)}원
+                  {formatExpenseAmount(expense.amount, expense.currency, expense.amountOriginal)}
                 </TableCell>
                 <TableCell>
                   <span className="text-xs text-[var(--apple-secondary-label)]">
@@ -381,7 +383,7 @@ export function PendingTable({ expenses }: PendingTableProps) {
                     )}
                   </span>
                   <span className="text-sm font-semibold tabular-nums text-[var(--apple-label)]">
-                    {formatAmount(expense.amount)}원
+                    {formatExpenseAmount(expense.amount, expense.currency, expense.amountOriginal)}
                   </span>
                 </div>
               </button>
@@ -448,7 +450,7 @@ export function PendingTable({ expenses }: PendingTableProps) {
             <DialogDescription>
               &quot;{approveTarget?.title}&quot; 요청을 승인하시겠습니까?
               <br />
-              금액: {formatAmount(approveTarget?.amount ?? 0)}원
+              금액: {approveTarget ? formatExpenseAmount(approveTarget.amount, approveTarget.currency, approveTarget.amountOriginal) : formatAmount(0) + "원"}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

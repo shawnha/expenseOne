@@ -24,6 +24,9 @@ import {
   type CorporateCardFormData,
   CATEGORY_OPTIONS,
   formatAmount,
+  formatAmountUSD,
+  parseAmountUSD,
+  dollarsToCents,
   formatDateISO,
 } from "@/lib/validations/expense-form";
 import { cn } from "@/lib/utils";
@@ -31,7 +34,7 @@ import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 
 interface CorporateCardFormProps {
-  initialCompanies?: { id: string; name: string; slug: string }[];
+  initialCompanies?: { id: string; name: string; slug: string; currency: string }[];
 }
 
 export default function CorporateCardForm({ initialCompanies }: CorporateCardFormProps) {
@@ -45,6 +48,11 @@ export default function CorporateCardForm({ initialCompanies }: CorporateCardFor
   // Company selection
   const [companyId, setCompanyId] = useState("");
   const [userCompanyId, setUserCompanyId] = useState<string | null>(null);
+  const [currency, setCurrency] = useState("KRW");
+
+  // Exchange rate for USD
+  const [exchangeRate, setExchangeRate] = useState<{ rate: number; date: string } | null>(null);
+  const [exchangeRateLoading, setExchangeRateLoading] = useState(false);
 
   useEffect(() => {
     fetch("/api/profile")
@@ -58,6 +66,26 @@ export default function CorporateCardForm({ initialCompanies }: CorporateCardFor
       })
       .catch(() => {});
   }, []);
+
+  // Fetch exchange rate when currency is USD
+  useEffect(() => {
+    if (currency !== "USD") {
+      setExchangeRate(null);
+      return;
+    }
+    let cancelled = false;
+    setExchangeRateLoading(true);
+    fetch("/api/exchange-rate?currency=USD")
+      .then((res) => res.ok ? res.json() : null)
+      .then((json) => {
+        if (!cancelled && json?.rate) {
+          setExchangeRate({ rate: json.rate, date: json.date ?? "" });
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setExchangeRateLoading(false); });
+    return () => { cancelled = true; };
+  }, [currency]);
 
   // VAT / 프리랜서 원천징수
   const [vatIncluded, setVatIncluded] = useState(false);
@@ -84,6 +112,16 @@ export default function CorporateCardForm({ initialCompanies }: CorporateCardFor
   // Warn on unsaved changes (browser close / refresh)
   useUnsavedChanges(isDirty);
 
+  // Handle company change — update companyId and currency
+  const handleCompanyChange = useCallback((newCompanyId: string, newCurrency: string) => {
+    setCompanyId(newCompanyId);
+    setCurrency(newCurrency);
+    // Reset amount when currency changes
+    setAmountDisplay("");
+    setSupplyAmount(0);
+    setValue("amount", 0, { shouldValidate: false });
+  }, [setValue]);
+
   // 금액 계산 로직
   const calcFinalAmount = useCallback(
     (base: number, vat: boolean, freelancer: boolean) => {
@@ -97,6 +135,29 @@ export default function CorporateCardForm({ initialCompanies }: CorporateCardFor
 
   const handleAmountChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (currency === "USD") {
+        const raw = e.target.value.replace(/[^0-9.]/g, "");
+        // Prevent multiple decimal points
+        const parts = raw.split(".");
+        const sanitized = parts.length > 2 ? parts[0] + "." + parts.slice(1).join("") : raw;
+        // Limit to 2 decimal places
+        const [intPart, decPart] = sanitized.split(".");
+        const limited = decPart !== undefined ? intPart + "." + decPart.slice(0, 2) : sanitized;
+
+        if (limited === "" || limited === ".") {
+          setAmountDisplay("");
+          setSupplyAmount(0);
+          setValue("amount", 0, { shouldValidate: true });
+          return;
+        }
+        const num = parseAmountUSD(limited);
+        setSupplyAmount(num);
+        setAmountDisplay(limited);
+        setValue("amount", dollarsToCents(num), { shouldValidate: true });
+        return;
+      }
+
+      // KRW flow (unchanged)
       const raw = e.target.value.replace(/[^\d]/g, "");
       if (raw === "") {
         setAmountDisplay("");
@@ -111,35 +172,35 @@ export default function CorporateCardForm({ initialCompanies }: CorporateCardFor
         shouldValidate: true,
       });
     },
-    [setValue, vatIncluded, freelancerDeduction, calcFinalAmount]
+    [setValue, vatIncluded, freelancerDeduction, calcFinalAmount, currency]
   );
 
   const handleVatToggle = useCallback(
     (checked: boolean) => {
       setVatIncluded(checked);
-      if (supplyAmount > 0) {
-        setValue(
-          "amount",
-          calcFinalAmount(supplyAmount, checked, freelancerDeduction),
-          { shouldValidate: true }
-        );
-      }
+      // For USD, form amount stays as cents — VAT/deduction are KRW display only
+      if (currency === "USD" || supplyAmount <= 0) return;
+      setValue(
+        "amount",
+        calcFinalAmount(supplyAmount, checked, freelancerDeduction),
+        { shouldValidate: true }
+      );
     },
-    [setValue, supplyAmount, freelancerDeduction, calcFinalAmount]
+    [setValue, supplyAmount, freelancerDeduction, calcFinalAmount, currency]
   );
 
   const handleFreelancerToggle = useCallback(
     (checked: boolean) => {
       setFreelancerDeduction(checked);
-      if (supplyAmount > 0) {
-        setValue(
-          "amount",
-          calcFinalAmount(supplyAmount, vatIncluded, checked),
-          { shouldValidate: true }
-        );
-      }
+      // For USD, form amount stays as cents — VAT/deduction are KRW display only
+      if (currency === "USD" || supplyAmount <= 0) return;
+      setValue(
+        "amount",
+        calcFinalAmount(supplyAmount, vatIncluded, checked),
+        { shouldValidate: true }
+      );
     },
-    [setValue, supplyAmount, vatIncluded, calcFinalAmount]
+    [setValue, supplyAmount, vatIncluded, calcFinalAmount, currency]
   );
 
   const onValidationError = (fieldErrors: Record<string, unknown>) => {
@@ -172,6 +233,7 @@ export default function CorporateCardForm({ initialCompanies }: CorporateCardFor
           title: data.title,
           description: data.description || null,
           amount: data.amount,
+          currency: currency,
           category: data.category,
           merchantName: data.merchantName || undefined,
           transactionDate: formatDateISO(new Date()),
@@ -198,12 +260,16 @@ export default function CorporateCardForm({ initialCompanies }: CorporateCardFor
   };
 
   // 최종 금액 계산
-  const finalAmount = supplyAmount > 0
-    ? calcFinalAmount(supplyAmount, vatIncluded, freelancerDeduction)
+  // For USD, VAT/deduction are applied to the KRW-converted amount (display only)
+  const krwBase = currency === "USD" && exchangeRate
+    ? Math.round(supplyAmount * exchangeRate.rate)
+    : supplyAmount;
+  const finalAmount = krwBase > 0
+    ? calcFinalAmount(krwBase, vatIncluded, freelancerDeduction)
     : 0;
-  const vatAmount = vatIncluded ? Math.round(supplyAmount * 0.1) : 0;
+  const vatAmount = vatIncluded ? Math.round(krwBase * 0.1) : 0;
   const freelancerAmount = freelancerDeduction
-    ? Math.round((supplyAmount + vatAmount) * 0.033)
+    ? Math.round((krwBase + vatAmount) * 0.033)
     : 0;
 
   return (
@@ -246,7 +312,7 @@ export default function CorporateCardForm({ initialCompanies }: CorporateCardFor
             {/* 회사 선택 */}
             <CompanySelector
               value={companyId}
-              onChange={setCompanyId}
+              onChange={handleCompanyChange}
               userCompanyId={userCompanyId}
               initialCompanies={initialCompanies}
             />
@@ -385,19 +451,47 @@ export default function CorporateCardForm({ initialCompanies }: CorporateCardFor
                 금액 <span className="text-[var(--apple-red)]">*</span>
               </Label>
               <div className="relative">
+                {currency === "USD" && (
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--apple-secondary-label)] pointer-events-none">
+                    $
+                  </span>
+                )}
                 <Input
                   id="amount"
                   placeholder="0"
-                  inputMode="numeric"
+                  inputMode={currency === "USD" ? "decimal" : "numeric"}
                   value={amountDisplay}
                   onChange={handleAmountChange}
                   aria-invalid={!!errors.amount}
-                  className="pr-10"
+                  className={currency === "USD" ? "pl-7 pr-4" : "pr-10"}
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--apple-secondary-label)] pointer-events-none">
-                  원
-                </span>
+                {currency !== "USD" && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--apple-secondary-label)] pointer-events-none">
+                    원
+                  </span>
+                )}
               </div>
+
+              {/* USD exchange rate info */}
+              {currency === "USD" && (
+                <div className="mt-1.5 space-y-1 text-[13px]">
+                  {exchangeRateLoading ? (
+                    <p className="text-[var(--apple-secondary-label)]">환율 정보 불러오는 중...</p>
+                  ) : exchangeRate ? (
+                    <>
+                      <p className="text-[var(--apple-secondary-label)]">
+                        적용 환율: 1 USD = {formatAmount(exchangeRate.rate)}원
+                        {exchangeRate.date && ` (${exchangeRate.date} 기준)`}
+                      </p>
+                      {supplyAmount > 0 && (
+                        <p className="text-[var(--apple-blue)] font-medium">
+                          → ₩{formatAmount(Math.round(supplyAmount * exchangeRate.rate))}
+                        </p>
+                      )}
+                    </>
+                  ) : null}
+                </div>
+              )}
 
               {/* VAT + 프리랜서 원천징수 체크박스 */}
               <div className="flex flex-wrap gap-x-4 gap-y-1">
@@ -430,7 +524,18 @@ export default function CorporateCardForm({ initialCompanies }: CorporateCardFor
                 <div className="mt-2 p-3 rounded-lg bg-[rgba(0,122,255,0.06)] text-[13px] space-y-1">
                   <div className="flex justify-between">
                     <span className="text-[var(--apple-secondary-label)]">공급가액</span>
-                    <span>{formatAmount(supplyAmount)}원</span>
+                    <span>
+                      {currency === "USD" ? (
+                        <>
+                          ${formatAmountUSD(supplyAmount)}
+                          {exchangeRate && (
+                            <span className="text-[var(--apple-secondary-label)]"> (₩{formatAmount(krwBase)})</span>
+                          )}
+                        </>
+                      ) : (
+                        <>{formatAmount(supplyAmount)}원</>
+                      )}
+                    </span>
                   </div>
                   {vatIncluded && (
                     <div className="flex justify-between">

@@ -296,6 +296,8 @@ export async function notifyNewDepositRequest(
     submitterEmail: string;
     companyId?: string | null;
     isUrgent?: boolean;
+    currency?: string | null;
+    amountOriginal?: number | null;
   },
 ) {
   // Find all active ADMINs

@@ -7,11 +7,12 @@ interface Company {
   id: string;
   name: string;
   slug: string;
+  currency: string;
 }
 
 interface CompanySelectorProps {
   value: string;
-  onChange: (companyId: string) => void;
+  onChange: (companyId: string, currency: string) => void;
   userCompanyId?: string | null;
   initialCompanies?: Company[];
 }
@@ -37,10 +38,11 @@ export function CompanySelector({
         if (!res.ok) throw new Error("Failed to fetch companies");
         const json = await res.json();
         const data: Company[] = (json.data ?? []).map(
-          (c: { id: string; name: string; slug: string }) => ({
+          (c: { id: string; name: string; slug: string; currency?: string }) => ({
             id: c.id,
             name: c.name,
             slug: c.slug,
+            currency: c.currency ?? "KRW",
           })
         );
         if (!cancelled) {
@@ -88,7 +90,7 @@ export function CompanySelector({
               type="button"
               role="radio"
               aria-checked={isSelected}
-              onClick={() => onChange(company.id)}
+              onClick={() => onChange(company.id, company.currency)}
               className={cn(
                 "relative px-4 py-1.5 text-[13px] font-medium rounded-full transition-all duration-200 whitespace-nowrap",
                 isSelected

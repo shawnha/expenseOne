@@ -2,7 +2,7 @@
 // Slack Bot API Service — #99-expenses 채널 멘션 알림
 // ---------------------------------------------------------------------------
 
-import { formatKRW, getCategoryLabel } from "@/lib/utils/expense-utils";
+import { formatKRW, getCategoryLabel, formatExpenseAmount } from "@/lib/utils/expense-utils";
 import { db } from "@/lib/db";
 import { companies } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -127,6 +127,8 @@ export async function notifySlackCorporateCard(params: {
   category: string;
   expenseUrl: string;
   companyId?: string;
+  currency?: string | null;
+  amountOriginal?: number | null;
 }): Promise<void> {
   const [mention, companyName] = await Promise.all([
     mentionUser(params.submitterEmail, params.submitterName),
@@ -139,7 +141,7 @@ export async function notifySlackCorporateCard(params: {
   if (companyName) lines.push(`• 회사: ${companyName}`);
   lines.push(
     `• 제목: ${params.title}`,
-    `• 금액: ${formatKRW(params.amount)}`,
+    `• 금액: ${formatExpenseAmount(params.amount, params.currency, params.amountOriginal)}`,
     `• 카테고리: ${getCategoryLabel(params.category)}`,
     `<${params.expenseUrl}|상세 보기>`,
   );
@@ -158,6 +160,8 @@ export async function notifySlackApproved(params: {
   amount: number;
   expenseUrl: string;
   companyId?: string;
+  currency?: string | null;
+  amountOriginal?: number | null;
 }): Promise<void> {
   const [mention, companyName] = await Promise.all([
     mentionUser(params.submitterEmail, params.submitterName),
@@ -170,7 +174,7 @@ export async function notifySlackApproved(params: {
   if (companyName) lines.push(`• 회사: ${companyName}`);
   lines.push(
     `• 제목: ${params.title}`,
-    `• 금액: ${formatKRW(params.amount)}`,
+    `• 금액: ${formatExpenseAmount(params.amount, params.currency, params.amountOriginal)}`,
     `<${params.expenseUrl}|상세 보기>`,
   );
 

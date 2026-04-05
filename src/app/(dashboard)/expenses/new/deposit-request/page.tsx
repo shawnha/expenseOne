@@ -9,6 +9,7 @@ export default async function DepositRequestPage() {
     id: c.id,
     name: c.name,
     slug: c.slug,
+    currency: c.currency ?? "KRW",
   }));
 
   return <DepositRequestForm initialCompanies={serialized} />;

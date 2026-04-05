@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import { SwipeableGroup, SwipeableRow, type SwipeAction } from "@/components/ui/swipeable-row";
 import { formatAmount } from "@/lib/validations/expense-form";
-import { getCategoryLabel } from "@/lib/utils/expense-utils";
+import { getCategoryLabel, formatExpenseAmount } from "@/lib/utils/expense-utils";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Pencil, Trash2 } from "lucide-react";
@@ -25,6 +25,8 @@ interface ExpenseRow {
   status: ExpenseStatus;
   title: string;
   amount: number;
+  currency?: string | null;
+  amountOriginal?: number | null;
   category: string;
   createdAt: string;
   submitter: {
@@ -178,7 +180,7 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
                     <span className={typeInfo.className}>{typeInfo.label}</span>
                   </TableCell>
                   <TableCell className="text-right tabular-nums font-medium text-[var(--apple-label)] pr-6">
-                    {formatAmount(expense.amount)}원
+                    {formatExpenseAmount(expense.amount, expense.currency, expense.amountOriginal)}
                   </TableCell>
                   <TableCell className="text-[var(--apple-secondary-label)]">
                     {getCategoryLabel(expense.category)}
@@ -370,7 +372,7 @@ function MobileExpenseCard({
             </span>
           </div>
           <span className="text-sm font-medium tabular-nums text-[var(--apple-label)]">
-            {formatAmount(expense.amount)}원
+            {formatExpenseAmount(expense.amount, expense.currency, expense.amountOriginal)}
           </span>
         </div>
         <div className="flex items-center justify-between text-xs text-[var(--apple-secondary-label)]">

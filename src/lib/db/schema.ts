@@ -12,6 +12,7 @@ import {
   pgEnum,
   index,
   check,
+  numeric,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -70,6 +71,7 @@ export const companies = expenseSchema.table("companies", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: varchar("name", { length: 100 }).unique().notNull(),
   slug: varchar("slug", { length: 50 }).unique().notNull(),
+  currency: varchar("currency", { length: 3 }).notNull().default("KRW"),
   slackChannelId: varchar("slack_channel_id", { length: 50 }),
   sortOrder: integer("sort_order").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
@@ -134,6 +136,9 @@ export const expenses = expenseSchema.table(
     title: varchar("title", { length: 200 }).notNull(),
     description: text("description"),
     amount: integer("amount").notNull(),
+    currency: varchar("currency", { length: 3 }).notNull().default("KRW"),
+    amountOriginal: integer("amount_original"),
+    exchangeRate: numeric("exchange_rate", { precision: 10, scale: 2 }),
     category: varchar("category", { length: 100 }).notNull(),
     merchantName: varchar("merchant_name", { length: 200 }),
     transactionDate: date("transaction_date", { mode: "string" }).notNull(),

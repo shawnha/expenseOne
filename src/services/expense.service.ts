@@ -32,6 +32,8 @@ import {
 import { notifySlackCorporateCard } from "./slack.service";
 import { sendPushToAdmins } from "./push.service";
 import { AppError } from "./attachment.service";
+import { getExchangeRate, convertToKRW } from "./exchange-rate.service";
+import { formatExpenseAmount } from "@/lib/utils/expense-utils";
 
 // ---------------------------------------------------------------------------
 // createExpense
@@ -63,6 +65,30 @@ export async function createExpense(
     throw new AppError("VALIDATION_ERROR", "회사가 지정되지 않았습니다. 설정에서 회사를 선택해주세요.");
   }
 
+  // Look up the company's currency for USD conversion
+  const [companyRow] = await db
+    .select({ currency: companies.currency })
+    .from(companies)
+    .where(eq(companies.id, companyId));
+
+  const companyCurrency = companyRow?.currency ?? "KRW";
+
+  let finalAmount = input.amount;
+  let amountOriginal: number | null = null;
+  let exchangeRate: string | null = null;
+  let currency = "KRW";
+
+  if (companyCurrency === "USD") {
+    const rateResult = await getExchangeRate("USD");
+    if (!rateResult) {
+      throw new AppError("VALIDATION_ERROR", "환율 정보를 조회할 수 없습니다. 잠시 후 다시 시도해주세요.");
+    }
+    finalAmount = convertToKRW(input.amount, rateResult.rate);
+    amountOriginal = input.amount; // cents from the form
+    exchangeRate = String(rateResult.rate);
+    currency = "USD";
+  }
+
   type NewExpense = typeof expenses.$inferInsert;
 
   const baseData: Partial<NewExpense> = {
@@ -70,7 +96,10 @@ export async function createExpense(
     status: isCorporateCard ? "APPROVED" : "SUBMITTED",
     title: input.title,
     description: input.description ?? null,
-    amount: input.amount,
+    amount: finalAmount,
+    currency,
+    amountOriginal,
+    exchangeRate,
     category: input.category,
     transactionDate: input.transactionDate,
     submittedById: userId,
@@ -117,12 +146,14 @@ export async function createExpense(
         category: expense.category,
         expenseUrl: `${appUrl}/expenses/${expense.id}`,
         companyId: companyId ?? undefined,
+        currency: expense.currency,
+        amountOriginal: expense.amountOriginal,
       }).catch((err) => {
         console.error("Failed to send corporate card Slack notification:", err);
       }),
       sendPushToAdmins(
         "새 법카사용",
-        `${expense.title} - ${expense.amount.toLocaleString()}원`,
+        `${expense.title} - ${formatExpenseAmount(expense.amount, expense.currency, expense.amountOriginal)}`,
         `${appUrl}/expenses/${expense.id}`,
       ).catch((err) => {
         console.error("[Push] 법카사용 알림 실패:", err);
@@ -135,6 +166,8 @@ export async function createExpense(
       submitterEmail: userEmail,
       companyId: companyId,
       isUrgent: expense.isUrgent ?? false,
+      currency: expense.currency,
+      amountOriginal: expense.amountOriginal,
     }).catch((err) => {
       console.error("Failed to send new deposit request notification:", err);
     });
