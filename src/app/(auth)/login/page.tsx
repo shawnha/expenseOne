@@ -57,6 +57,13 @@ function LoginContent() {
       await supabase.auth.signOut();
     } catch {}
 
+    // Detect if we're inside the splash-shell iframe wrapper.
+    // If so, navigate the TOP window so Google OAuth (which blocks iframe embedding) works.
+    const navTarget: Window =
+      typeof window !== 'undefined' && window.top && window.top !== window
+        ? (window.top as Window)
+        : window;
+
     // Direct Google OAuth for all devices (avoids PKCE cookie issues with SSR)
     const callbackUrl = `${window.location.origin}/auth/callback`;
     const stateValue = `google_direct_${crypto.randomUUID()}`;
@@ -69,7 +76,12 @@ function LoginContent() {
       prompt: 'select_account',
       state: stateValue,
     });
-    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+    try {
+      navTarget.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+    } catch {
+      // Fallback: same window (cross-origin top access blocked)
+      window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+    }
   };
 
   return (
