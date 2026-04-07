@@ -45,9 +45,17 @@ function LoginContent() {
     }
   }, []);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (loading) return;
     setLoading(true);
+
+    // Clear any stale Supabase session before starting fresh login
+    // (prevents stuck sessions from previous failed domain-mismatch attempts)
+    try {
+      const { createClient } = await import('@/lib/supabase/client');
+      const supabase = createClient();
+      await supabase.auth.signOut();
+    } catch {}
 
     // Direct Google OAuth for all devices (avoids PKCE cookie issues with SSR)
     const callbackUrl = `${window.location.origin}/auth/callback`;

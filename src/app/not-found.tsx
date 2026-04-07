@@ -18,12 +18,20 @@ export default function NotFound() {
         <p className="mb-6 text-sm leading-relaxed text-[var(--apple-secondary-label,#8e8e93)]">
           요청하신 페이지가 존재하지 않거나 이동되었습니다.
         </p>
-        <Link
-          href="/"
-          className="inline-flex h-11 items-center justify-center rounded-full bg-[var(--apple-blue,#007AFF)] px-6 text-[15px] font-semibold text-white transition-colors hover:bg-[color-mix(in_srgb,var(--apple-blue,#007AFF)_85%,black)]"
-        >
-          홈으로 돌아가기
-        </Link>
+        <div className="flex flex-col gap-2">
+          <Link
+            href="/"
+            className="inline-flex h-11 items-center justify-center rounded-full bg-[var(--apple-blue,#007AFF)] px-6 text-[15px] font-semibold text-white transition-colors hover:bg-[color-mix(in_srgb,var(--apple-blue,#007AFF)_85%,black)]"
+          >
+            홈으로 돌아가기
+          </Link>
+          <Link
+            href="/login"
+            className="inline-flex h-11 items-center justify-center rounded-full px-6 text-[14px] font-medium text-[var(--apple-secondary-label,#636366)] hover:text-[var(--apple-label,#1c1c1e)] transition-colors"
+          >
+            로그인 페이지로 가기
+          </Link>
+        </div>
       </div>
     </div>
   );
