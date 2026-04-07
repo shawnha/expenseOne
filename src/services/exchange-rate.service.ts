@@ -87,18 +87,29 @@ async function fetchRateFromAPI(
 
 /**
  * USD→KRW 매매기준율을 조회 (캐시 적용).
+ * @param currency 통화 코드 (기본: USD)
+ * @param targetDate 환율 기준 날짜 (거래일). 미지정 시 오늘.
  */
 export async function getExchangeRate(
   currency: string = "USD",
+  targetDate?: Date | string,
 ): Promise<{ rate: number; date: string } | null> {
-  const cached = rateCache.get(currency);
+  const searchDate = targetDate
+    ? typeof targetDate === "string" ? new Date(targetDate + "T12:00:00") : targetDate
+    : new Date();
+
+  // Cache key includes date for date-specific lookups
+  const dateKey = formatDate(searchDate);
+  const cacheKey = `${currency}:${dateKey}`;
+
+  const cached = rateCache.get(cacheKey);
   if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
     return { rate: cached.rate, date: cached.date };
   }
 
-  const result = await fetchRateFromAPI(currency, new Date());
+  const result = await fetchRateFromAPI(currency, searchDate);
   if (result) {
-    rateCache.set(currency, {
+    rateCache.set(cacheKey, {
       rate: result.rate,
       date: result.date,
       fetchedAt: Date.now(),

@@ -317,6 +317,24 @@ export default function CorporateCardForm({ initialCompanies }: CorporateCardFor
               initialCompanies={initialCompanies}
             />
 
+            {/* 제목 */}
+            <div className="space-y-1.5">
+              <Label htmlFor="title">
+                제목 <span className="text-[var(--apple-red)]">*</span>
+              </Label>
+              <Input
+                id="title"
+                placeholder="예: 사무용품 구매, 회의 다과 등"
+                {...register("title")}
+                aria-invalid={!!errors.title}
+              />
+              {errors.title && (
+                <p className="text-xs text-[var(--apple-red)]">
+                  {errors.title.message}
+                </p>
+              )}
+            </div>
+
             {/* 카테고리 — 버튼 토글 + 직접 입력 */}
             <div className="space-y-1.5">
               <Label>

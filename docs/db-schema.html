@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ExpenseOne — 데이터 구조</title>
+<style>
+  :root {
+    --bg: #f2f2f7;
+    --card-bg: rgba(255, 255, 255, 0.85);
+    --label: #1c1c1e;
+    --secondary: #636366;
+    --tertiary: #8e8e93;
+    --blue: #007aff;
+    --green: #34c759;
+    --orange: #ff9500;
+    --red: #ff3b30;
+    --indigo: #5856d6;
+    --purple: #af52de;
+    --teal: #5ac8fa;
+    --separator: rgba(60, 60, 67, 0.18);
+    --border: rgba(255, 255, 255, 0.5);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000;
+      --card-bg: rgba(28, 28, 30, 0.85);
+      --label: #fff;
+      --secondary: rgba(235, 235, 245, 0.6);
+      --tertiary: rgba(235, 235, 245, 0.3);
+      --separator: rgba(84, 84, 88, 0.6);
+      --border: rgba(255, 255, 255, 0.1);
+    }
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+    background: var(--bg);
+    color: var(--label);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+    padding: 24px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(circle at 20% 20%, rgba(0, 122, 255, 0.12) 0%, transparent 50%),
+      radial-gradient(circle at 80% 60%, rgba(88, 86, 214, 0.10) 0%, transparent 50%),
+      radial-gradient(circle at 50% 90%, rgba(90, 200, 250, 0.08) 0%, transparent 50%);
+    z-index: -1;
+    pointer-events: none;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 40px;
+    padding: 32px 0;
+  }
+
+  h1 {
+    font-size: 34px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0 0 8px 0;
+  }
+
+  .subtitle {
+    font-size: 17px;
+    color: var(--secondary);
+    margin: 0;
+  }
+
+  .meta {
+    font-size: 13px;
+    color: var(--tertiary);
+    margin-top: 12px;
+  }
+
+  section {
+    margin-bottom: 48px;
+  }
+
+  h2 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0 0 16px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  h2::before {
+    content: '';
+    width: 4px;
+    height: 22px;
+    background: var(--blue);
+    border-radius: 2px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 16px;
+  }
+
+  .table-card {
+    background: var(--card-bg);
+    backdrop-filter: blur(40px) saturate(180%);
+    -webkit-backdrop-filter: blur(40px) saturate(180%);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 20px;
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.06),
+      0 2px 8px rgba(0, 0, 0, 0.03),
+      inset 0 0.5px 0 rgba(255, 255, 255, 0.6);
+  }
+
+  .table-card h3 {
+    font-size: 17px;
+    font-weight: 600;
+    margin: 0 0 4px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .table-card h3 .icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: rgba(0, 122, 255, 0.12);
+    color: var(--blue);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+  }
+
+  .table-card .desc {
+    font-size: 13px;
+    color: var(--secondary);
+    margin: 0 0 16px 0;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  th {
+    text-align: left;
+    font-weight: 500;
+    color: var(--tertiary);
+    padding: 6px 0;
+    border-bottom: 1px solid var(--separator);
+  }
+
+  td {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--separator);
+    vertical-align: top;
+  }
+
+  td:first-child {
+    font-weight: 500;
+    color: var(--label);
+    width: 38%;
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 12px;
+  }
+
+  td:nth-child(2) {
+    color: var(--secondary);
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 11px;
+    width: 32%;
+  }
+
+  td:last-child {
+    color: var(--tertiary);
+    font-size: 12px;
+  }
+
+  tr:last-child td {
+    border-bottom: none;
+  }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 8px;
+    border-radius: 9999px;
+    font-size: 10px;
+    font-weight: 600;
+    margin-left: 4px;
+  }
+
+  .pill.pk { background: rgba(0, 122, 255, 0.12); color: var(--blue); }
+  .pill.fk { background: rgba(88, 86, 214, 0.12); color: var(--indigo); }
+  .pill.req { background: rgba(255, 59, 48, 0.10); color: var(--red); }
+  .pill.idx { background: rgba(52, 199, 89, 0.12); color: var(--green); }
+  .pill.new { background: rgba(255, 149, 0, 0.15); color: var(--orange); }
+  .pill.uniq { background: rgba(90, 200, 250, 0.15); color: var(--teal); }
+
+  .relations {
+    background: var(--card-bg);
+    backdrop-filter: blur(40px) saturate(180%);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 24px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06), inset 0 0.5px 0 rgba(255, 255, 255, 0.6);
+  }
+
+  .relation-item {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--separator);
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .relation-item:last-child { border-bottom: none; }
+
+  .arrow {
+    color: var(--blue);
+    font-weight: 600;
+  }
+
+  .table-name {
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 13px;
+    background: rgba(0, 122, 255, 0.08);
+    color: var(--blue);
+    padding: 2px 8px;
+    border-radius: 6px;
+  }
+
+  .data-flow {
+    background: var(--card-bg);
+    backdrop-filter: blur(40px) saturate(180%);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 24px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06), inset 0 0.5px 0 rgba(255, 255, 255, 0.6);
+  }
+
+  .flow-step {
+    display: flex;
+    gap: 16px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--separator);
+  }
+
+  .flow-step:last-child { border-bottom: none; }
+
+  .flow-num {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--blue), var(--indigo));
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  .flow-content h4 {
+    margin: 0 0 4px 0;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .flow-content p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--secondary);
+  }
+
+  .flow-content code {
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 11px;
+    background: rgba(0, 122, 255, 0.08);
+    color: var(--blue);
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+
+  .companies-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-top: 8px;
+  }
+
+  .company-card {
+    padding: 14px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid var(--separator);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .company-card {
+      background: rgba(255, 255, 255, 0.05);
+    }
+  }
+
+  .company-card .name {
+    font-weight: 600;
+    font-size: 15px;
+    margin: 0 0 4px 0;
+  }
+
+  .company-card .slug {
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 11px;
+    color: var(--tertiary);
+  }
+
+  .company-card .currency {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 2px 10px;
+    border-radius: 9999px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .currency.krw { background: rgba(52, 199, 89, 0.15); color: #1a7a34; }
+  .currency.usd { background: rgba(0, 122, 255, 0.15); color: var(--blue); }
+
+  .footer {
+    text-align: center;
+    padding: 32px 0;
+    color: var(--tertiary);
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>ExpenseOne 데이터 구조</h1>
+  <p class="subtitle">PostgreSQL · Drizzle ORM · Supabase</p>
+  <p class="meta">스키마: <code>expenseone</code> · 2026.04.07 기준</p>
+</header>
+
+<section>
+  <h2>회사 (Companies)</h2>
+  <div class="data-flow">
+    <p style="margin: 0 0 12px 0; font-size: 14px; color: var(--secondary);">
+      현재 등록된 3개 회사. 회사별 통화(currency) 설정에 따라 입력 모드가 달라집니다.
+    </p>
+    <div class="companies-row">
+      <div class="company-card">
+        <p class="name">한아원코리아</p>
+        <p class="slug">korea</p>
+        <span class="currency krw">KRW</span>
+      </div>
+      <div class="company-card">
+        <p class="name">한아원리테일</p>
+        <p class="slug">retail</p>
+        <span class="currency krw">KRW</span>
+      </div>
+      <div class="company-card">
+        <p class="name">HOI</p>
+        <p class="slug">hoi</p>
+        <span class="currency usd">USD</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>테이블 구조</h2>
+  <div class="grid">
+
+    <!-- companies -->
+    <div class="table-card">
+      <h3><span class="icon">🏢</span> companies</h3>
+      <p class="desc">회사 정보 · 회사별 통화 설정</p>
+      <table>
+        <thead><tr><th>컬럼</th><th>타입</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td>id<span class="pill pk">PK</span></td><td>uuid</td><td>고유 ID</td></tr>
+          <tr><td>name<span class="pill uniq">UNIQ</span></td><td>varchar(100)</td><td>회사명</td></tr>
+          <tr><td>slug<span class="pill uniq">UNIQ</span></td><td>varchar(50)</td><td>URL용 식별자</td></tr>
+          <tr><td>currency<span class="pill new">NEW</span></td><td>varchar(3)</td><td>KRW / USD</td></tr>
+          <tr><td>slack_channel_id</td><td>varchar(50)</td><td>회사별 Slack 채널</td></tr>
+          <tr><td>sort_order</td><td>integer</td><td>정렬 순서</td></tr>
+          <tr><td>is_active</td><td>boolean</td><td>활성 여부</td></tr>
+          <tr><td>created_at</td><td>timestamptz</td><td>생성일</td></tr>
+          <tr><td>updated_at</td><td>timestamptz</td><td>수정일</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- users -->
+    <div class="table-card">
+      <h3><span class="icon">👤</span> users</h3>
+      <p class="desc">사용자 · Supabase Auth 연동</p>
+      <table>
+        <thead><tr><th>컬럼</th><th>타입</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td>id<span class="pill pk">PK</span></td><td>uuid</td><td>고유 ID</td></tr>
+          <tr><td>email<span class="pill uniq">UNIQ</span></td><td>varchar(255)</td><td>이메일</td></tr>
+          <tr><td>name</td><td>varchar(100)</td><td>이름</td></tr>
+          <tr><td>role</td><td>enum</td><td>MEMBER / ADMIN</td></tr>
+          <tr><td>department</td><td>varchar(100)</td><td>부서명</td></tr>
+          <tr><td>company_id<span class="pill fk">FK</span></td><td>uuid</td><td>→ companies</td></tr>
+          <tr><td>profile_image_url</td><td>text</td><td>프로필 이미지</td></tr>
+          <tr><td>card_last_four</td><td>char(4)</td><td>법카 끝 4자리</td></tr>
+          <tr><td>onboarding_completed</td><td>boolean</td><td>온보딩 완료</td></tr>
+          <tr><td>is_active</td><td>boolean</td><td>활성 여부</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- departments -->
+    <div class="table-card">
+      <h3><span class="icon">🗂️</span> departments</h3>
+      <p class="desc">부서 · 회사별 부서 목록</p>
+      <table>
+        <thead><tr><th>컬럼</th><th>타입</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td>id<span class="pill pk">PK</span></td><td>uuid</td><td>고유 ID</td></tr>
+          <tr><td>name</td><td>varchar(100)</td><td>부서명</td></tr>
+          <tr><td>company_id<span class="pill fk">FK</span></td><td>uuid</td><td>→ companies</td></tr>
+          <tr><td>sort_order</td><td>integer</td><td>정렬 순서</td></tr>
+          <tr><td>created_at</td><td>timestamptz</td><td>생성일</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- expenses -->
+    <div class="table-card" style="grid-column: 1 / -1;">
+      <h3><span class="icon">💳</span> expenses</h3>
+      <p class="desc">비용 (법카사용 + 입금요청 통합) · 통화별 환산 저장</p>
+      <table>
+        <thead><tr><th>컬럼</th><th>타입</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td>id<span class="pill pk">PK</span></td><td>uuid</td><td>고유 ID</td></tr>
+          <tr><td>type</td><td>enum</td><td>CORPORATE_CARD / DEPOSIT_REQUEST</td></tr>
+          <tr><td>status</td><td>enum</td><td>SUBMITTED / APPROVED / REJECTED / CANCELLED</td></tr>
+          <tr><td>title</td><td>varchar(200)</td><td>제목</td></tr>
+          <tr><td>description</td><td>text</td><td>설명</td></tr>
+          <tr><td>amount</td><td>integer</td><td>KRW 환산 금액 (집계 기준)</td></tr>
+          <tr><td>currency<span class="pill new">NEW</span></td><td>varchar(3)</td><td>KRW / USD</td></tr>
+          <tr><td>amount_original<span class="pill new">NEW</span></td><td>integer</td><td>원래 통화 금액 (USD: 센트 단위)</td></tr>
+          <tr><td>exchange_rate<span class="pill new">NEW</span></td><td>numeric(10,2)</td><td>적용 환율 (USD→KRW)</td></tr>
+          <tr><td>category</td><td>varchar(100)</td><td>카테고리</td></tr>
+          <tr><td>merchant_name</td><td>varchar(200)</td><td>가맹점명 (법카)</td></tr>
+          <tr><td>transaction_date</td><td>date</td><td>거래일</td></tr>
+          <tr><td>card_last_four</td><td>char(4)</td><td>법카 끝 4자리</td></tr>
+          <tr><td>bank_name</td><td>varchar(50)</td><td>은행명 (입금요청)</td></tr>
+          <tr><td>account_holder</td><td>varchar(100)</td><td>예금주</td></tr>
+          <tr><td>account_number</td><td>varchar(50)</td><td>계좌번호</td></tr>
+          <tr><td>is_urgent</td><td>boolean</td><td>긴급 여부</td></tr>
+          <tr><td>is_pre_paid</td><td>boolean</td><td>선지급 여부</td></tr>
+          <tr><td>pre_paid_percentage</td><td>integer</td><td>선지급 비율</td></tr>
+          <tr><td>remaining_payment_requested</td><td>boolean</td><td>잔금 요청 여부</td></tr>
+          <tr><td>remaining_payment_approved</td><td>boolean</td><td>잔금 승인 여부</td></tr>
+          <tr><td>rejection_reason</td><td>text</td><td>반려 사유</td></tr>
+          <tr><td>company_id<span class="pill fk">FK</span></td><td>uuid</td><td>→ companies</td></tr>
+          <tr><td>submitted_by_id<span class="pill fk">FK</span></td><td>uuid</td><td>→ users (제출자)</td></tr>
+          <tr><td>approved_by_id<span class="pill fk">FK</span></td><td>uuid</td><td>→ users (승인자)</td></tr>
+          <tr><td>approved_at</td><td>timestamptz</td><td>승인 시점</td></tr>
+          <tr><td>created_at</td><td>timestamptz</td><td>생성일</td></tr>
+          <tr><td>updated_at</td><td>timestamptz</td><td>수정일</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- attachments -->
+    <div class="table-card">
+      <h3><span class="icon">📎</span> attachments</h3>
+      <p class="desc">첨부파일 · Supabase Storage</p>
+      <table>
+        <thead><tr><th>컬럼</th><th>타입</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td>id<span class="pill pk">PK</span></td><td>uuid</td><td>고유 ID</td></tr>
+          <tr><td>expense_id<span class="pill fk">FK</span></td><td>uuid</td><td>→ expenses (CASCADE)</td></tr>
+          <tr><td>document_type</td><td>varchar(100)</td><td>견적서/통장/신분증/사업자/영수증</td></tr>
+          <tr><td>file_name</td><td>varchar(255)</td><td>파일명</td></tr>
+          <tr><td>file_key</td><td>varchar(500)</td><td>Storage key</td></tr>
+          <tr><td>file_url</td><td>text</td><td>접근 URL</td></tr>
+          <tr><td>file_size</td><td>integer</td><td>파일 크기 (byte)</td></tr>
+          <tr><td>mime_type</td><td>varchar(100)</td><td>MIME 타입</td></tr>
+          <tr><td>uploaded_by_id<span class="pill fk">FK</span></td><td>uuid</td><td>→ users</td></tr>
+          <tr><td>created_at</td><td>timestamptz</td><td>업로드일</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- notifications -->
+    <div class="table-card">
+      <h3><span class="icon">🔔</span> notifications</h3>
+      <p class="desc">인앱 알림 · Realtime 푸시</p>
+      <table>
+        <thead><tr><th>컬럼</th><th>타입</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td>id<span class="pill pk">PK</span></td><td>uuid</td><td>고유 ID</td></tr>
+          <tr><td>recipient_id<span class="pill fk">FK</span></td><td>uuid</td><td>→ users (수신자)</td></tr>
+          <tr><td>type</td><td>enum</td><td>알림 종류</td></tr>
+          <tr><td>title</td><td>varchar(200)</td><td>제목</td></tr>
+          <tr><td>message</td><td>text</td><td>본문</td></tr>
+          <tr><td>related_expense_id<span class="pill fk">FK</span></td><td>uuid</td><td>→ expenses</td></tr>
+          <tr><td>is_read</td><td>boolean</td><td>읽음 여부</td></tr>
+          <tr><td>read_at</td><td>timestamptz</td><td>읽은 시점</td></tr>
+          <tr><td>created_at</td><td>timestamptz</td><td>생성일</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- push_subscriptions -->
+    <div class="table-card">
+      <h3><span class="icon">📲</span> push_subscriptions</h3>
+      <p class="desc">Web Push 구독 정보</p>
+      <table>
+        <thead><tr><th>컬럼</th><th>타입</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td>id<span class="pill pk">PK</span></td><td>uuid</td><td>고유 ID</td></tr>
+          <tr><td>user_id<span class="pill fk">FK</span></td><td>uuid</td><td>→ users (CASCADE)</td></tr>
+          <tr><td>endpoint</td><td>text</td><td>Push endpoint URL</td></tr>
+          <tr><td>p256dh</td><td>text</td><td>공개 키</td></tr>
+          <tr><td>auth</td><td>text</td><td>인증 토큰</td></tr>
+          <tr><td>created_at</td><td>timestamptz</td><td>구독일</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</section>
+
+<section>
+  <h2>관계도</h2>
+  <div class="relations">
+    <div class="relation-item">
+      <span class="table-name">users</span>
+      <span class="arrow">→</span>
+      <span class="table-name">companies</span>
+      <span style="color: var(--secondary); font-size: 13px;">사용자가 속한 회사</span>
+    </div>
+    <div class="relation-item">
+      <span class="table-name">departments</span>
+      <span class="arrow">→</span>
+      <span class="table-name">companies</span>
+      <span style="color: var(--secondary); font-size: 13px;">부서가 속한 회사</span>
+    </div>
+    <div class="relation-item">
+      <span class="table-name">expenses</span>
+      <span class="arrow">→</span>
+      <span class="table-name">companies</span>
+      <span style="color: var(--secondary); font-size: 13px;">비용이 속한 회사 (통화 결정)</span>
+    </div>
+    <div class="relation-item">
+      <span class="table-name">expenses</span>
+      <span class="arrow">→</span>
+      <span class="table-name">users</span>
+      <span style="color: var(--secondary); font-size: 13px;">제출자 / 승인자</span>
+    </div>
+    <div class="relation-item">
+      <span class="table-name">attachments</span>
+      <span class="arrow">→</span>
+      <span class="table-name">expenses</span>
+      <span style="color: var(--secondary); font-size: 13px;">첨부 파일 (CASCADE 삭제)</span>
+    </div>
+    <div class="relation-item">
+      <span class="table-name">notifications</span>
+      <span class="arrow">→</span>
+      <span class="table-name">users + expenses</span>
+      <span style="color: var(--secondary); font-size: 13px;">알림 수신자 + 관련 비용</span>
+    </div>
+    <div class="relation-item">
+      <span class="table-name">push_subscriptions</span>
+      <span class="arrow">→</span>
+      <span class="table-name">users</span>
+      <span style="color: var(--secondary); font-size: 13px;">웹 푸시 구독</span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>USD 비용 처리 흐름</h2>
+  <div class="data-flow">
+    <div class="flow-step">
+      <div class="flow-num">1</div>
+      <div class="flow-content">
+        <h4>회사 선택 (HOI)</h4>
+        <p><code>companies.currency = "USD"</code> 감지 → 폼이 USD 입력 모드로 전환</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">2</div>
+      <div class="flow-content">
+        <h4>환율 조회</h4>
+        <p><code>GET /api/exchange-rate?currency=USD</code> → 한국수출입은행 API 호출 (4시간 캐시)</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">3</div>
+      <div class="flow-content">
+        <h4>금액 입력</h4>
+        <p>$ 입력 → 실시간으로 KRW 환산 표시 ("적용 환율: 1 USD = 1,385.50원")</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">4</div>
+      <div class="flow-content">
+        <h4>제출 → DB 저장</h4>
+        <p><code>amount</code> = KRW 환산값 · <code>amount_original</code> = USD 센트 · <code>exchange_rate</code> = 환율 · <code>currency</code> = "USD"</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">5</div>
+      <div class="flow-content">
+        <h4>표시</h4>
+        <p>리스트/상세/관리자 페이지: <code>$1,500.00 (₩2,078,250)</code> 형식</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">6</div>
+      <div class="flow-content">
+        <h4>Slack 알림</h4>
+        <p>회사별 채널로 전송 · <code>$1,500.00 (₩2,078,250)</code> 병기</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">7</div>
+      <div class="flow-content">
+        <h4>리포트 집계</h4>
+        <p><code>amount</code>(KRW) 기준으로 통합 집계 → 통화 무관 동일 단위 비교 가능</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>핵심 비즈니스 룰</h2>
+  <div class="data-flow">
+    <ul style="margin: 0; padding-left: 20px; line-height: 1.8; font-size: 14px;">
+      <li><strong>법카사용</strong>: 제출 즉시 <code>APPROVED</code>, 첨부 선택, 승인 불필요</li>
+      <li><strong>입금요청</strong>: 제출 시 <code>SUBMITTED</code>, 첨부 필수, ADMIN 승인 필요</li>
+      <li><strong>회사 권한</strong>: 코리아 소속 → 다른 회사(리테일/HOI) 비용 제출 가능 / 그 외 → 자기 회사만</li>
+      <li><strong>통화 결정</strong>: 회사의 <code>currency</code> 컬럼이 결정 (HOI=USD, 나머지=KRW)</li>
+      <li><strong>환율 저장</strong>: USD 비용 제출 시점의 환율을 <code>exchange_rate</code>에 고정 저장</li>
+      <li><strong>리포트</strong>: 모든 통화는 <code>amount</code>(KRW) 컬럼 기준으로 집계</li>
+      <li><strong>RBAC</strong>: MEMBER / ADMIN 2단계, Supabase RLS + middleware</li>
+    </ul>
+  </div>
+</section>
+
+<div class="footer">
+  ExpenseOne · PostgreSQL @ Supabase (kxsofwbwzoovnwgxiwgi) · 스키마 expenseone
+</div>
+
+</body>
+</html>
