@@ -111,8 +111,14 @@ export default function OnboardingPage() {
     : "?";
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-[var(--apple-system-background)]">
-      <div className="w-full max-w-md space-y-6">
+    <div
+      className="h-dvh overflow-y-auto flex items-start sm:items-center justify-center px-4 bg-[var(--apple-system-background)]"
+      style={{
+        paddingTop: "max(1rem, env(safe-area-inset-top))",
+        paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))",
+      }}
+    >
+      <div className="w-full max-w-md space-y-6 my-auto">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-[var(--apple-label)]">
             프로필 설정
