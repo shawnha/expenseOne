@@ -149,6 +149,8 @@ export async function createExpense(
         companyId: companyId ?? undefined,
         currency: expense.currency,
         amountOriginal: expense.amountOriginal,
+        merchantName: expense.merchantName,
+        description: expense.description,
       }).catch((err) => {
         console.error("Failed to send corporate card Slack notification:", err);
       }),

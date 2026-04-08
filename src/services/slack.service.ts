@@ -129,6 +129,8 @@ export async function notifySlackCorporateCard(params: {
   companyId?: string;
   currency?: string | null;
   amountOriginal?: number | null;
+  merchantName?: string | null;
+  description?: string | null;
 }): Promise<void> {
   const [mention, companyName] = await Promise.all([
     mentionUser(params.submitterEmail, params.submitterName),
@@ -143,8 +145,13 @@ export async function notifySlackCorporateCard(params: {
     `• 제목: ${params.title}`,
     `• 금액: ${formatExpenseAmount(params.amount, params.currency, params.amountOriginal)}`,
     `• 카테고리: ${getCategoryLabel(params.category)}`,
-    `<${params.expenseUrl}|상세 보기>`,
+    `• 가맹점명: ${params.merchantName ?? "-"}`,
   );
+  if (params.description && params.description.trim()) {
+    const memo = params.description.trim();
+    lines.push(`• 설명: ${memo.length > 500 ? memo.slice(0, 500) + "..." : memo}`);
+  }
+  lines.push(`<${params.expenseUrl}|상세 보기>`);
 
   await sendSlackMessage(lines.join("\n"), params.companyId);
 }
