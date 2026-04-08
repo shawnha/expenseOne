@@ -233,6 +233,19 @@ function CorporateCardEditForm({
     setRemovedAttachmentIds((prev) => [...prev, id]);
   }, []);
 
+  const onValidationError = (fieldErrors: Record<string, unknown>) => {
+    const fieldNames: Record<string, string> = {
+      title: "제목",
+      amount: "금액",
+      category: "카테고리",
+      merchantName: "가맹점명",
+      description: "설명",
+    };
+    const firstKey = Object.keys(fieldErrors)[0];
+    const err = fieldErrors[firstKey] as { message?: string } | undefined;
+    toast.error(`${fieldNames[firstKey] || firstKey}: ${err?.message || "입력 오류"}`);
+  };
+
   const onSubmit = async (data: CorporateCardFormData) => {
     setIsSubmitting(true);
 
@@ -245,7 +258,7 @@ function CorporateCardEditForm({
           description: data.description || null,
           amount: data.amount,
           category: data.category,
-          merchantName: data.merchantName || null,
+          merchantName: data.merchantName || undefined,
           transactionDate: formatDateISO(data.transactionDate ?? new Date()),
         }),
       });
@@ -315,7 +328,7 @@ function CorporateCardEditForm({
         </div>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} noValidate>
+      <form onSubmit={handleSubmit(onSubmit, onValidationError)} noValidate>
         <div className="glass p-6">
           <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-1">기본 정보</h2>
           <p className="text-[13px] text-[var(--apple-secondary-label)] mb-5">
@@ -537,6 +550,21 @@ function DepositRequestEditForm({
     return isValid;
   }, [keptAttachments, newFiles]);
 
+  const onValidationErrorDeposit = (fieldErrors: Record<string, unknown>) => {
+    const fieldNames: Record<string, string> = {
+      title: "제목",
+      amount: "금액",
+      category: "카테고리",
+      bankName: "은행명",
+      accountHolder: "예금주",
+      accountNumber: "계좌번호",
+      description: "설명",
+    };
+    const firstKey = Object.keys(fieldErrors)[0];
+    const err = fieldErrors[firstKey] as { message?: string } | undefined;
+    toast.error(`${fieldNames[firstKey] || firstKey}: ${err?.message || "입력 오류"}`);
+  };
+
   const onSubmit = async (data: DepositRequestFormData) => {
     if (!validateFiles()) return;
     setIsSubmitting(true);
@@ -611,7 +639,7 @@ function DepositRequestEditForm({
         </div>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} noValidate>
+      <form onSubmit={handleSubmit(onSubmit, onValidationErrorDeposit)} noValidate>
         <div className="glass p-6">
           <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-1">기본 정보</h2>
           <p className="text-[13px] text-[var(--apple-secondary-label)] mb-5"><span className="text-[var(--apple-red)]">*</span> 필수 항목</p>
