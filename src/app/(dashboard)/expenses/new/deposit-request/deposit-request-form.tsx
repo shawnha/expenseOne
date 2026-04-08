@@ -11,7 +11,10 @@ import {
   ChevronsUpDown,
   Check,
   Clock,
+  CalendarIcon,
 } from "lucide-react";
+import { format } from "date-fns";
+import { ko } from "date-fns/locale";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -19,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Command,
   CommandEmpty,
@@ -136,6 +140,7 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
   const [freelancerDeduction, setFreelancerDeduction] = useState(false);
   const [supplyAmount, setSupplyAmount] = useState(0);
   const [bankOpen, setBankOpen] = useState(false);
+  const [dueDateOpen, setDueDateOpen] = useState(false);
   const [recentAccounts, setRecentAccounts] = useState<RecentAccount[]>([]);
   const [showSuccess, setShowSuccess] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -204,6 +209,7 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
       isUrgent: false,
       isPrePaid: false,
       prePaidPercentage: null,
+      dueDate: null,
     },
   });
 
@@ -405,6 +411,7 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
           isUrgent: data.isUrgent || false,
           isPrePaid: data.isPrePaid || false,
           prePaidPercentage: data.prePaidPercentage ?? null,
+          dueDate: data.dueDate ? formatDateISO(data.dueDate) : null,
           companyId: companyId || undefined,
         }),
       });
@@ -1007,6 +1014,60 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
                   {errors.accountNumber.message}
                 </p>
               )}
+            </div>
+
+            {/* 납입 기일 (선택) */}
+            <div className="space-y-1.5">
+              <Label>
+                납입 기일 <span className="text-[11px] text-[var(--apple-secondary-label)] font-normal">(선택)</span>
+              </Label>
+              <Controller
+                name="dueDate"
+                control={control}
+                render={({ field }) => (
+                  <div className="flex items-center gap-2">
+                    <Popover open={dueDateOpen} onOpenChange={setDueDateOpen}>
+                      <PopoverTrigger
+                        className={cn(
+                          "flex h-10 flex-1 items-center justify-start gap-2 rounded-xl border border-[var(--apple-separator)] bg-[var(--apple-secondary-system-background)] px-3 text-sm transition-colors hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]",
+                          !field.value && "text-[var(--apple-secondary-label)]"
+                        )}
+                      >
+                        <CalendarIcon className="size-4 text-[var(--apple-secondary-label)]" />
+                        {field.value ? format(field.value, "yyyy.MM.dd", { locale: ko }) : "날짜 선택"}
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value ?? undefined}
+                          onSelect={(date) => {
+                            field.onChange(date ?? null);
+                            setDueDateOpen(false);
+                          }}
+                          disabled={(date) => {
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            return date < today;
+                          }}
+                          locale={ko}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    {field.value && (
+                      <button
+                        type="button"
+                        onClick={() => field.onChange(null)}
+                        className="text-xs text-[var(--apple-secondary-label)] hover:text-[var(--apple-red)] px-2 py-1"
+                      >
+                        해제
+                      </button>
+                    )}
+                  </div>
+                )}
+              />
+              <p className="text-[11px] text-[var(--apple-secondary-label)]">
+                납입 기일 지정 시 7일/3일/1일 전, 당일에 관리자에게 알림이 전송됩니다.
+              </p>
             </div>
 
           </div>

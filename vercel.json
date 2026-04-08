@@ -1,5 +1,11 @@
 {
   "regions": ["hnd1"],
+  "crons": [
+    {
+      "path": "/api/cron/due-date-check",
+      "schedule": "0 0 * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/sw.js",

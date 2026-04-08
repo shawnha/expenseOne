@@ -120,6 +120,7 @@ async function getExpenseDetail(id: string) {
         isUrgent: result.isUrgent ?? false,
         isPrePaid: result.isPrePaid ?? false,
         prePaidPercentage: result.prePaidPercentage ?? null,
+        dueDate: result.dueDate ?? null,
         remainingPaymentRequested: result.remainingPaymentRequested ?? false,
         remainingPaymentApproved: result.remainingPaymentApproved ?? false,
         rejectionReason: result.rejectionReason,
@@ -298,6 +299,9 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
             {expense.bankName && <InfoRow label="은행명" value={expense.bankName} />}
             {expense.accountHolder && <InfoRow label="예금주" value={expense.accountHolder} />}
             {expense.accountNumber && <InfoRow label="계좌번호" value={expense.accountNumber} />}
+            {expense.dueDate && (
+              <InfoRow label="납입 기일" value={formatDateKR(expense.dueDate)} />
+            )}
             {expense.isUrgent && (
               <InfoRow label="긴급" value="Y" />
             )}

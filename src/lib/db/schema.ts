@@ -58,6 +58,7 @@ export const notificationTypeEnum = expenseSchema.enum("notification_type", [
   "REMAINING_PAYMENT_REQUEST",
   "REMAINING_PAYMENT_APPROVED",
   "NEW_USER_JOINED",
+  "DUE_DATE_REMINDER",
 ]);
 
 // ---------------------------------------------------------------------------
@@ -142,6 +143,7 @@ export const expenses = expenseSchema.table(
     category: varchar("category", { length: 100 }).notNull(),
     merchantName: varchar("merchant_name", { length: 200 }),
     transactionDate: date("transaction_date", { mode: "string" }).notNull(),
+    dueDate: date("due_date", { mode: "string" }),
     cardLastFour: char("card_last_four", { length: 4 }),
     bankName: varchar("bank_name", { length: 50 }),
     accountHolder: varchar("account_holder", { length: 100 }),

@@ -469,6 +469,7 @@ function DepositRequestEditForm({
   const [showCustomCategory, setShowCustomCategory] = useState(
     !CATEGORY_OPTIONS.some((opt) => opt.value === expense.category)
   );
+  const [dueDateOpen, setDueDateOpen] = useState(false);
 
   const {
     register,
@@ -488,6 +489,8 @@ function DepositRequestEditForm({
       accountNumber: expense.accountNumber ?? "",
       isUrgent: expense.isUrgent ?? false,
       isPrePaid: expense.isPrePaid ?? false,
+      prePaidPercentage: expense.prePaidPercentage ?? null,
+      dueDate: expense.dueDate ? new Date(expense.dueDate + "T00:00:00") : null,
       description: expense.description ?? "",
     },
   });
@@ -582,6 +585,8 @@ function DepositRequestEditForm({
           accountNumber: data.accountNumber,
           isUrgent: data.isUrgent,
           isPrePaid: data.isPrePaid,
+          prePaidPercentage: data.prePaidPercentage ?? null,
+          dueDate: data.dueDate ? formatDateISO(data.dueDate) : null,
         }),
       });
       if (!response.ok) {
@@ -739,6 +744,60 @@ function DepositRequestEditForm({
               <Label htmlFor="accountNumber">계좌번호 <span className="text-[var(--apple-red)]">*</span></Label>
               <Input id="accountNumber" placeholder="예: 123-456-789012" aria-invalid={!!errors.accountNumber} {...register("accountNumber")} />
               {errors.accountNumber && <p className="text-xs text-[var(--apple-red)]">{errors.accountNumber.message}</p>}
+            </div>
+
+            {/* 납입 기일 (선택) */}
+            <div className="space-y-1.5">
+              <Label>
+                납입 기일 <span className="text-[11px] text-[var(--apple-secondary-label)] font-normal">(선택)</span>
+              </Label>
+              <Controller
+                name="dueDate"
+                control={control}
+                render={({ field }) => (
+                  <div className="flex items-center gap-2">
+                    <Popover open={dueDateOpen} onOpenChange={setDueDateOpen}>
+                      <PopoverTrigger
+                        className={cn(
+                          "flex h-10 flex-1 items-center justify-start gap-2 rounded-xl border border-[var(--apple-separator)] bg-[var(--apple-secondary-system-background)] px-3 text-sm transition-colors hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]",
+                          !field.value && "text-[var(--apple-secondary-label)]"
+                        )}
+                      >
+                        <CalendarIcon className="size-4 text-[var(--apple-secondary-label)]" />
+                        {field.value ? format(field.value, "yyyy.MM.dd", { locale: ko }) : "날짜 선택"}
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value ?? undefined}
+                          onSelect={(date) => {
+                            field.onChange(date ?? null);
+                            setDueDateOpen(false);
+                          }}
+                          disabled={(date) => {
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            return date < today;
+                          }}
+                          locale={ko}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    {field.value && (
+                      <button
+                        type="button"
+                        onClick={() => field.onChange(null)}
+                        className="text-xs text-[var(--apple-secondary-label)] hover:text-[var(--apple-red)] px-2 py-1"
+                      >
+                        해제
+                      </button>
+                    )}
+                  </div>
+                )}
+              />
+              <p className="text-[11px] text-[var(--apple-secondary-label)]">
+                납입 기일 지정 시 7일/3일/1일 전, 당일에 관리자에게 알림이 전송됩니다.
+              </p>
             </div>
           </div>
         </div>

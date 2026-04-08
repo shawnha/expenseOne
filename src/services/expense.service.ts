@@ -126,6 +126,7 @@ export async function createExpense(
     baseData.isUrgent = input.isUrgent ?? false;
     baseData.isPrePaid = input.isPrePaid ?? false;
     baseData.prePaidPercentage = input.prePaidPercentage ?? null;
+    baseData.dueDate = input.dueDate ?? null;
   }
 
   const [expense] = await db

@@ -91,7 +91,8 @@ export const depositRequestFormSchema = z.object({
     .max(50, "계좌번호는 50자 이내로 입력해주세요"),
   isUrgent: z.boolean(),
   isPrePaid: z.boolean(),
-  prePaidPercentage: z.number().int().min(1).max(100).nullable(),
+  prePaidPercentage: z.number().int().min(1).max(100).nullish(),
+  dueDate: z.date({ message: "납입 기일을 선택해주세요" }).nullish(),
   description: z.string().max(2000, "설명은 2000자 이내로 입력해주세요").optional().or(z.literal("")),
 });
 

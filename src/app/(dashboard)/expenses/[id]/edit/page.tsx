@@ -36,6 +36,8 @@ export interface ExpenseEditData {
   accountNumber: string | null;
   isUrgent: boolean;
   isPrePaid: boolean;
+  prePaidPercentage: number | null;
+  dueDate: string | null;
   createdAt: string;
 }
 
@@ -112,6 +114,8 @@ async function getExpenseForEdit(id: string): Promise<{
       accountNumber: expense.account_number,
       isUrgent: expense.is_urgent ?? false,
       isPrePaid: expense.is_pre_paid ?? false,
+      prePaidPercentage: expense.pre_paid_percentage ?? null,
+      dueDate: expense.due_date ?? null,
       createdAt: expense.created_at,
     },
     attachments: (attachmentRows ?? []).map(

@@ -63,6 +63,11 @@ export const depositRequestSubmitSchema = z.object({
   isUrgent: z.boolean().optional().default(false),
   isPrePaid: z.boolean().optional().default(false),
   prePaidPercentage: z.number().int().min(1).max(100).optional().nullable(),
+  dueDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "날짜 형식은 YYYY-MM-DD여야 합니다")
+    .optional()
+    .nullable(),
 });
 
 export type DepositRequestSubmitInput = z.infer<typeof depositRequestSubmitSchema>;
@@ -100,6 +105,11 @@ export const updateExpenseSchema = z.object({
   isUrgent: z.boolean().optional(),
   isPrePaid: z.boolean().optional(),
   prePaidPercentage: z.number().int().min(1).max(100).optional().nullable(),
+  dueDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .nullable(),
   status: z.enum(["SUBMITTED", "APPROVED", "REJECTED", "CANCELLED"]).optional(),
   companyId: z.string().uuid().optional(),
 });
