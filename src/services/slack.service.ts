@@ -150,6 +150,57 @@ export async function notifySlackCorporateCard(params: {
 }
 
 /**
+ * 입금요청 제출 → 제출자 멘션 + 상세 정보
+ */
+export async function notifySlackDepositRequest(params: {
+  submitterEmail: string;
+  submitterName: string;
+  title: string;
+  amount: number;
+  category: string;
+  expenseUrl: string;
+  companyId?: string;
+  currency?: string | null;
+  amountOriginal?: number | null;
+  dueDate?: string | null;
+  isUrgent?: boolean;
+  description?: string | null;
+}): Promise<void> {
+  const [mention, companyName] = await Promise.all([
+    mentionUser(params.submitterEmail, params.submitterName),
+    getCompanyName(params.companyId),
+  ]);
+
+  const urgentPrefix = params.isUrgent ? "🚨 " : "";
+  const lines = [
+    `${urgentPrefix}💸 ${mention} 새 입금요청이 등록되었습니다`,
+  ];
+  if (companyName) lines.push(`• 회사: ${companyName}`);
+  lines.push(
+    `• 제목: ${params.title}`,
+    `• 금액: ${formatExpenseAmount(params.amount, params.currency, params.amountOriginal)}`,
+    `• 카테고리: ${getCategoryLabel(params.category)}`,
+  );
+  if (params.dueDate) {
+    // Format YYYY-MM-DD → YYYY.MM.DD
+    const formatted = params.dueDate.replace(/-/g, ".");
+    lines.push(`• 납입 기일: ${formatted}`);
+  }
+  if (params.isUrgent) {
+    lines.push(`• 긴급: 예`);
+  }
+  if (params.description && params.description.trim()) {
+    // Truncate description to 500 chars for Slack readability
+    const memo = params.description.trim();
+    const truncated = memo.length > 500 ? memo.slice(0, 500) + "..." : memo;
+    lines.push(`• 메모: ${truncated}`);
+  }
+  lines.push(`<${params.expenseUrl}|상세 보기>`);
+
+  await sendSlackMessage(lines.join("\n"), params.companyId);
+}
+
+/**
  * 입금요청 승인 → 요청자 멘션
  */
 export async function notifySlackApproved(params: {

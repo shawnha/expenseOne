@@ -29,7 +29,7 @@ import {
   notifyExpenseRejected,
   notifyNewDepositRequest,
 } from "./notification.service";
-import { notifySlackCorporateCard } from "./slack.service";
+import { notifySlackCorporateCard, notifySlackDepositRequest } from "./slack.service";
 import { sendPushToAdmins } from "./push.service";
 import { AppError } from "./attachment.service";
 import { getExchangeRate, convertToKRW } from "./exchange-rate.service";
@@ -161,17 +161,35 @@ export async function createExpense(
       }),
     ]);
   } else {
-    await notifyNewDepositRequest(expense.id, expense.title, userName, {
-      amount: expense.amount,
-      category: expense.category,
-      submitterEmail: userEmail,
-      companyId: companyId,
-      isUrgent: expense.isUrgent ?? false,
-      currency: expense.currency,
-      amountOriginal: expense.amountOriginal,
-    }).catch((err) => {
-      console.error("Failed to send new deposit request notification:", err);
-    });
+    await Promise.allSettled([
+      notifyNewDepositRequest(expense.id, expense.title, userName, {
+        amount: expense.amount,
+        category: expense.category,
+        submitterEmail: userEmail,
+        companyId: companyId,
+        isUrgent: expense.isUrgent ?? false,
+        currency: expense.currency,
+        amountOriginal: expense.amountOriginal,
+      }).catch((err) => {
+        console.error("Failed to send new deposit request notification:", err);
+      }),
+      notifySlackDepositRequest({
+        submitterEmail: userEmail,
+        submitterName: userName,
+        title: expense.title,
+        amount: expense.amount,
+        category: expense.category,
+        expenseUrl: `${appUrl}/expenses/${expense.id}`,
+        companyId: companyId ?? undefined,
+        currency: expense.currency,
+        amountOriginal: expense.amountOriginal,
+        dueDate: expense.dueDate,
+        isUrgent: expense.isUrgent ?? false,
+        description: expense.description,
+      }).catch((err) => {
+        console.error("Failed to send deposit request Slack notification:", err);
+      }),
+    ]);
   }
 
   return expense;
