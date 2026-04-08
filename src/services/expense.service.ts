@@ -630,6 +630,9 @@ export async function approveExpense(
       submitterName: submitterUser[0]?.name ?? "요청자",
       submitterEmail: submitterUser[0]?.email ?? "",
       companyId: expense.companyId,
+      bankName: expense.bankName,
+      accountHolder: expense.accountHolder,
+      accountNumber: expense.accountNumber,
     },
   );
 

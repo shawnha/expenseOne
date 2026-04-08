@@ -213,6 +213,9 @@ export async function notifySlackApproved(params: {
   companyId?: string;
   currency?: string | null;
   amountOriginal?: number | null;
+  bankName?: string | null;
+  accountHolder?: string | null;
+  accountNumber?: string | null;
 }): Promise<void> {
   const [mention, companyName] = await Promise.all([
     mentionUser(params.submitterEmail, params.submitterName),
@@ -226,8 +229,11 @@ export async function notifySlackApproved(params: {
   lines.push(
     `• 제목: ${params.title}`,
     `• 금액: ${formatExpenseAmount(params.amount, params.currency, params.amountOriginal)}`,
-    `<${params.expenseUrl}|상세 보기>`,
   );
+  if (params.bankName) lines.push(`• 은행: ${params.bankName}`);
+  if (params.accountHolder) lines.push(`• 예금주: ${params.accountHolder}`);
+  if (params.accountNumber) lines.push(`• 계좌번호: ${params.accountNumber}`);
+  lines.push(`<${params.expenseUrl}|상세 보기>`);
 
   await sendSlackMessage(lines.join("\n"), params.companyId);
 }
