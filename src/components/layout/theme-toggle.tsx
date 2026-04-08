@@ -65,19 +65,10 @@ export function ThemeToggle() {
   const toggle = () => {
     setStretching(true);
     setTimeout(() => {
-      const idx = CYCLE.indexOf(mode);
-      let next = CYCLE[(idx + 1) % CYCLE.length];
-
-      // "system"이 현재와 같은 시각적 상태면 건너뛰기
-      // 예: dark → system(시스템도 다크) → 건너뛰고 light로
-      if (next === "system") {
-        const systemDark = getSystemDark();
-        const currentDark = mode === "dark";
-        if (systemDark === currentDark) {
-          const sysIdx = CYCLE.indexOf("system");
-          next = CYCLE[(sysIdx + 1) % CYCLE.length];
-        }
-      }
+      // Always toggle based on CURRENT VISUAL STATE, not the mode value.
+      // This avoids the bug where system(light) → light is a visual no-op.
+      const currentlyDark = mode === "dark" || (mode === "system" && getSystemDark());
+      const next: ThemeMode = currentlyDark ? "light" : "dark";
 
       setMode(next);
       applyTheme(next);
