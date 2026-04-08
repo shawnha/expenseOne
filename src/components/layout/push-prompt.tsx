@@ -17,26 +17,33 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return outputArray;
 }
 
-async function subscribeToPush() {
-  const registration = await navigator.serviceWorker.ready;
-  const existingSub = await registration.pushManager.getSubscription();
+async function subscribeToPush(): Promise<"granted" | "denied" | "default" | "error"> {
+  try {
+    // Request permission FIRST (must be synchronous with user gesture on iOS)
+    // If already granted, this returns "granted" immediately.
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") return permission as "denied" | "default";
 
-  if (existingSub) {
-    await sendSubscriptionToServer(existingSub);
-    return true;
+    const registration = await navigator.serviceWorker.ready;
+    const existingSub = await registration.pushManager.getSubscription();
+
+    const subscription =
+      existingSub ||
+      (await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
+      }));
+
+    // Fire-and-forget server save — don't block the UI on network
+    sendSubscriptionToServer(subscription).catch((err) => {
+      console.error("[PushPrompt] Server save failed (non-blocking):", err);
+    });
+
+    return "granted";
+  } catch (err) {
+    console.error("[PushPrompt] subscribeToPush error:", err);
+    return "error";
   }
-
-  // Must be called from user gesture on iOS
-  const permission = await Notification.requestPermission();
-  if (permission !== "granted") return false;
-
-  const subscription = await registration.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
-  });
-
-  await sendSubscriptionToServer(subscription);
-  return true;
 }
 
 const STORAGE_KEY = "push-prompt-dismissed";
@@ -60,6 +67,7 @@ export function PushPrompt() {
     // Already granted — silently re-subscribe (ensure server has token)
     if (Notification.permission === "granted") {
       subscribeToPush().catch(() => {});
+      setShowBanner(false);
       return;
     }
 
@@ -76,12 +84,15 @@ export function PushPrompt() {
   const handleEnable = useCallback(async () => {
     setSubscribing(true);
     try {
-      const success = await subscribeToPush();
-      if (success) {
+      const result = await subscribeToPush();
+      // Hide banner on granted OR error (retrying will likely fail again)
+      // Also hide on denied to respect user's choice
+      if (result === "granted" || result === "denied") {
         setShowBanner(false);
+        // Mark dismissed so we don't re-prompt after page reload
+        localStorage.setItem(STORAGE_KEY, "1");
       }
-    } catch (err) {
-      console.error("[PushPrompt] Error:", err);
+      // "default" means user dismissed the system prompt — keep banner
     } finally {
       setSubscribing(false);
     }
