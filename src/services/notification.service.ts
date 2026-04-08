@@ -208,9 +208,7 @@ export async function notifyExpenseApproved(
     submitterName: string;
     submitterEmail: string;
     companyId?: string | null;
-    bankName?: string | null;
     accountHolder?: string | null;
-    accountNumber?: string | null;
   },
 ) {
   const notification = await createNotification({
@@ -234,9 +232,7 @@ export async function notifyExpenseApproved(
         amount: extra.amount,
         expenseUrl: expenseUrl(expenseId),
         companyId: extra.companyId ?? undefined,
-        bankName: extra.bankName,
         accountHolder: extra.accountHolder,
-        accountNumber: extra.accountNumber,
       }).catch((err) => console.error("[Slack] 승인 알림 실패:", err)),
     );
   }
