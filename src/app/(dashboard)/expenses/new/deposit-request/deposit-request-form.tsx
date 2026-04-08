@@ -207,15 +207,20 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
     },
   });
 
-  // Handle company change — update companyId and currency
-  const handleCompanyChange = useCallback((newCompanyId: string, newCurrency: string) => {
+  // Handle company change — only update companyId (currency is independent)
+  const handleCompanyChange = useCallback((newCompanyId: string, _newCurrency?: string) => {
+    void _newCurrency;
     setCompanyId(newCompanyId);
+  }, []);
+
+  // Handle currency toggle — reset amount when currency changes
+  const handleCurrencyChange = useCallback((newCurrency: string) => {
+    if (newCurrency === currency) return;
     setCurrency(newCurrency);
-    // Reset amount when currency changes
     setAmountDisplay("");
     setSupplyAmount(0);
     setValue("amount", 0, { shouldValidate: false });
-  }, [setValue]);
+  }, [currency, setValue]);
 
   // Warn on unsaved changes (browser close / refresh)
   useUnsavedChanges(isDirty || files.length > 0);
@@ -578,9 +583,42 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
 
             {/* 금액 */}
             <div className="space-y-1.5">
-              <Label htmlFor="amount">
-                금액 <span className="text-[var(--apple-red)]">*</span>
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="amount">
+                  금액 <span className="text-[var(--apple-red)]">*</span>
+                </Label>
+                {/* Currency toggle — KRW/USD */}
+                <div
+                  className={cn(
+                    "inline-flex p-0.5 rounded-full",
+                    "bg-[var(--apple-system-grouped-background)]",
+                    "border border-[var(--glass-border)]"
+                  )}
+                  role="radiogroup"
+                  aria-label="통화 선택"
+                >
+                  {[
+                    { value: "KRW", label: "원화 ₩" },
+                    { value: "USD", label: "달러 $" },
+                  ].map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={currency === opt.value}
+                      onClick={() => handleCurrencyChange(opt.value)}
+                      className={cn(
+                        "px-3 py-1 text-[12px] font-medium rounded-full transition-all duration-200 whitespace-nowrap",
+                        currency === opt.value
+                          ? "bg-[var(--apple-blue)] text-white shadow-[0_1px_4px_rgba(0,122,255,0.25)]"
+                          : "text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)]"
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="relative">
                 {currency === "USD" && (
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--apple-secondary-label)] pointer-events-none">

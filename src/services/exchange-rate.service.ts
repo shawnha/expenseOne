@@ -33,6 +33,61 @@ interface KoreaEximResponse {
 }
 
 /**
+ * 한국수출입은행 API 단일 요청.
+ * 서버가 첫 요청에 302 + Set-Cookie로 응답하는 세션 검증 방식이라
+ * manual redirect + 쿠키 재사용이 필요함.
+ */
+async function fetchSingleDate(
+  apiKey: string,
+  dateStr: string,
+): Promise<KoreaEximResponse[] | null> {
+  const url = `https://www.koreaexim.go.kr/site/program/financial/exchangeJSON?authkey=${encodeURIComponent(apiKey)}&searchdate=${dateStr}&data=AP01`;
+  const headers: Record<string, string> = {
+    "User-Agent": "Mozilla/5.0 (compatible; ExpenseOne/1.0)",
+    Accept: "application/json,text/plain,*/*",
+  };
+
+  // 1st request — follow redirects, let fetch handle cookies if possible
+  let res = await fetch(url, { headers, redirect: "follow", cache: "no-store" });
+
+  // If body is empty or HTML (common on first hit), manually retry with cookie
+  const text = await res.text();
+  if (text.trim().startsWith("[")) {
+    try {
+      return JSON.parse(text) as KoreaEximResponse[];
+    } catch {
+      return null;
+    }
+  }
+
+  // Fallback: do manual 302 handling with cookie capture
+  res = await fetch(url, {
+    headers,
+    redirect: "manual",
+    cache: "no-store",
+  });
+  const setCookie = res.headers.get("set-cookie");
+  if (setCookie) {
+    const cookie = setCookie.split(";")[0];
+    const res2 = await fetch(url, {
+      headers: { ...headers, Cookie: cookie },
+      redirect: "follow",
+      cache: "no-store",
+    });
+    const body2 = await res2.text();
+    if (body2.trim().startsWith("[")) {
+      try {
+        return JSON.parse(body2) as KoreaEximResponse[];
+      } catch {
+        return null;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
  * 한국수출입은행 API에서 특정 날짜의 환율을 조회.
  * 영업일이 아닌 경우 빈 배열이 반환되므로 이전 날짜로 재시도.
  */
@@ -53,18 +108,8 @@ async function fetchRateFromAPI(
     const dateStr = formatDate(d);
 
     try {
-      const url = new URL(
-        "https://www.koreaexim.go.kr/site/program/financial/exchangeJSON",
-      );
-      url.searchParams.set("authkey", apiKey);
-      url.searchParams.set("searchdate", dateStr);
-      url.searchParams.set("data", "AP01");
-
-      const res = await fetch(url.toString(), { next: { revalidate: 3600 } });
-      if (!res.ok) continue;
-
-      const data: KoreaEximResponse[] = await res.json();
-      if (!Array.isArray(data) || data.length === 0) continue;
+      const data = await fetchSingleDate(apiKey, dateStr);
+      if (!data || data.length === 0) continue;
 
       const entry = data.find((item) => item.cur_unit === currency);
       if (!entry) continue;
