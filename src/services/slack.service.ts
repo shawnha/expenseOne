@@ -230,9 +230,8 @@ export async function notifySlackApproved(params: {
     getCompanyName(params.companyId),
   ]);
 
-  const urgentPrefix = params.isUrgent ? "🚨 " : "";
   const lines = [
-    `${urgentPrefix}✅ ${mention} 입금이 완료되었습니다`,
+    `✅ ${mention} 입금이 완료되었습니다`,
   ];
   lines.push(`• 회사: ${companyName ?? "-"}`);
   lines.push(
@@ -242,13 +241,6 @@ export async function notifySlackApproved(params: {
   );
   if (params.dueDate) {
     lines.push(`• 납부기일: ${params.dueDate.replace(/-/g, ".")}`);
-  }
-  if (params.isUrgent) {
-    lines.push(`• 긴급: 예`);
-  }
-  if (params.description && params.description.trim()) {
-    const memo = params.description.trim();
-    lines.push(`• 메모: ${memo.length > 500 ? memo.slice(0, 500) + "..." : memo}`);
   }
   lines.push(`<${params.expenseUrl}|상세 보기>`);
 
