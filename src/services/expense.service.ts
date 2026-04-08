@@ -631,6 +631,9 @@ export async function approveExpense(
       submitterEmail: submitterUser[0]?.email ?? "",
       companyId: expense.companyId,
       accountHolder: expense.accountHolder,
+      isUrgent: expense.isUrgent,
+      dueDate: expense.dueDate,
+      description: expense.description,
     },
   );
 

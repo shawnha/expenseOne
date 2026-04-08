@@ -214,21 +214,35 @@ export async function notifySlackApproved(params: {
   currency?: string | null;
   amountOriginal?: number | null;
   accountHolder?: string | null;
+  isUrgent?: boolean;
+  dueDate?: string | null;
+  description?: string | null;
 }): Promise<void> {
   const [mention, companyName] = await Promise.all([
     mentionUser(params.submitterEmail, params.submitterName),
     getCompanyName(params.companyId),
   ]);
 
+  const urgentPrefix = params.isUrgent ? "🚨 " : "";
   const lines = [
-    `✅ ${mention} 입금이 완료되었습니다`,
+    `${urgentPrefix}✅ ${mention} 입금이 완료되었습니다`,
   ];
-  if (companyName) lines.push(`• 회사: ${companyName}`);
+  lines.push(`• 회사: ${companyName ?? "-"}`);
   lines.push(
     `• 제목: ${params.title}`,
     `• 금액: ${formatExpenseAmount(params.amount, params.currency, params.amountOriginal)}`,
+    `• 예금주: ${params.accountHolder ?? "-"}`,
   );
-  if (params.accountHolder) lines.push(`• 예금주: ${params.accountHolder}`);
+  if (params.dueDate) {
+    lines.push(`• 납부기일: ${params.dueDate.replace(/-/g, ".")}`);
+  }
+  if (params.isUrgent) {
+    lines.push(`• 긴급: 예`);
+  }
+  if (params.description && params.description.trim()) {
+    const memo = params.description.trim();
+    lines.push(`• 메모: ${memo.length > 500 ? memo.slice(0, 500) + "..." : memo}`);
+  }
   lines.push(`<${params.expenseUrl}|상세 보기>`);
 
   await sendSlackMessage(lines.join("\n"), params.companyId);
