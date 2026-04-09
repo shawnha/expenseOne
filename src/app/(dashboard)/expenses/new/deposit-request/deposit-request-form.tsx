@@ -235,6 +235,8 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
   const watchedPrePaidPercentage = watch("prePaidPercentage");
   const watchedAmount = watch("amount");
   const [prePaidMode, setPrePaidMode] = useState<"full" | "partial">("full");
+  // Local display state for percentage input so user can clear/retype freely
+  const [percentageStr, setPercentageStr] = useState("50");
 
   useEffect(() => {
     setRecentAccounts(getRecentAccounts());
@@ -798,6 +800,7 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
                             onClick={() => {
                               setPrePaidMode("partial");
                               setValue("prePaidPercentage", 50);
+                              setPercentageStr("50");
                             }}
                             className={cn(
                               "px-4 py-2 rounded-full text-sm font-medium transition-all",
@@ -816,14 +819,28 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
                             <div className="relative w-32">
                               <Input
                                 id="prePaidPercentage"
-                                type="number"
-                                min={1}
-                                max={99}
-                                value={watchedPrePaidPercentage ?? 50}
+                                type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                value={percentageStr}
                                 onChange={(e) => {
-                                  const val = parseInt(e.target.value, 10);
-                                  if (!isNaN(val) && val >= 1 && val <= 99) {
-                                    setValue("prePaidPercentage", val);
+                                  const raw = e.target.value.replace(/\D/g, "").slice(0, 2);
+                                  setPercentageStr(raw);
+                                  const num = parseInt(raw, 10);
+                                  if (!isNaN(num) && num >= 1 && num <= 99) {
+                                    setValue("prePaidPercentage", num);
+                                  }
+                                }}
+                                onBlur={() => {
+                                  const num = parseInt(percentageStr, 10);
+                                  if (isNaN(num) || num < 1) {
+                                    setPercentageStr("1");
+                                    setValue("prePaidPercentage", 1);
+                                  } else if (num > 99) {
+                                    setPercentageStr("99");
+                                    setValue("prePaidPercentage", 99);
+                                  } else {
+                                    setPercentageStr(String(num));
                                   }
                                 }}
                                 className="pr-8"

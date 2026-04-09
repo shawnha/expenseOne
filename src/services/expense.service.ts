@@ -79,12 +79,14 @@ export async function createExpense(
   let exchangeRate: string | null = null;
   let currency = "KRW";
 
-  if (companyCurrency === "USD") {
+  // Use the user's explicit currency selection; fall back to company currency
+  const isUSD = input.currency === "USD" || (input.currency == null && companyCurrency === "USD");
+  if (isUSD) {
     const rateResult = await getExchangeRate("USD", input.transactionDate);
     if (!rateResult) {
       throw new AppError("VALIDATION_ERROR", "환율 정보를 조회할 수 없습니다. 잠시 후 다시 시도해주세요.");
     }
-    finalAmount = convertToKRW(input.amount, rateResult.rate);
+    finalAmount = convertToKRW(input.amount, rateResult.rate); // input.amount is cents
     amountOriginal = input.amount; // cents from the form
     exchangeRate = String(rateResult.rate);
     currency = "USD";
@@ -240,7 +242,8 @@ export async function createCorporateCardExpenseFromStaging(
   let amountOriginal: number | null = null;
   let exchangeRate: string | null = null;
   let currency = "KRW";
-  if (companyCurrency === "USD") {
+  const isUSDStaging = input.currency === "USD" || (input.currency == null && companyCurrency === "USD");
+  if (isUSDStaging) {
     const rateResult = await getExchangeRate("USD", input.transactionDate);
     if (!rateResult) {
       throw new AppError("VALIDATION_ERROR", "환율 정보를 조회할 수 없습니다.");
@@ -596,7 +599,7 @@ export async function updateExpense(
   }
 
   // Build the update set
-  const { status: inputStatus, ...restInput } = input;
+  const { status: inputStatus, currency: inputCurrency, ...restInput } = input;
 
   // If an approved deposit request is edited by a non-admin, reset status to SUBMITTED (needs re-approval)
   const wasApproved = expense.type === "DEPOSIT_REQUEST" && expense.status === "APPROVED";
@@ -605,6 +608,25 @@ export async function updateExpense(
     ...restInput,
     updatedAt: new Date(),
   };
+
+  // Handle USD conversion on edit: if user explicitly sets currency to USD and provides amount,
+  // treat amount as cents and convert to KRW
+  if (inputCurrency === "USD" && input.amount != null) {
+    const rateResult = await getExchangeRate("USD", input.transactionDate ?? expense.transactionDate ?? undefined);
+    if (rateResult) {
+      updateSet.amount = convertToKRW(input.amount, rateResult.rate);
+      updateSet.amountOriginal = input.amount;
+      updateSet.exchangeRate = String(rateResult.rate);
+    }
+    updateSet.currency = "USD";
+  } else if (inputCurrency === "KRW") {
+    // Switching back to KRW: clear original USD amount
+    updateSet.currency = "KRW";
+    updateSet.amountOriginal = null;
+    updateSet.exchangeRate = null;
+  } else if (inputCurrency != null) {
+    updateSet.currency = inputCurrency;
+  }
 
   // Admin can explicitly set status
   if (inputStatus && isAdmin) {

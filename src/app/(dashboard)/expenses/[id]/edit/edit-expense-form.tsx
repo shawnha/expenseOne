@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -53,6 +53,9 @@ import {
   CATEGORY_OPTIONS,
   DOCUMENT_TYPE_OPTIONS,
   formatAmount,
+  formatAmountUSD,
+  dollarsToCents,
+  parseAmountUSD,
   formatDateISO,
   formatFileSize,
 } from "@/lib/validations/expense-form";
@@ -179,9 +182,16 @@ function CorporateCardEditForm({
     useState<ExistingAttachment[]>(existingAttachments);
   const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [amountDisplay, setAmountDisplay] = useState(
-    formatAmount(expense.amount)
-  );
+
+  // Currency state — initialized from the saved expense
+  const [currency, setCurrency] = useState(expense.currency ?? "KRW");
+  const [exchangeRate, setExchangeRate] = useState<{ rate: number; date: string } | null>(null);
+
+  // For USD expenses, display the original dollar amount; for KRW display the won amount
+  const initialAmountDisplay = expense.currency === "USD" && expense.amountOriginal != null
+    ? formatAmountUSD(expense.amountOriginal / 100)
+    : formatAmount(expense.amount);
+  const [amountDisplay, setAmountDisplay] = useState(initialAmountDisplay);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [showCustomCategory, setShowCustomCategory] = useState(
     !CATEGORY_OPTIONS.some((opt) => opt.value === expense.category)
@@ -190,6 +200,11 @@ function CorporateCardEditForm({
   const transactionDate = expense.transactionDate
     ? new Date(expense.transactionDate + "T00:00:00")
     : undefined;
+
+  // Initial form amount: for USD use original cents, for KRW use amount
+  const initialFormAmount = expense.currency === "USD" && expense.amountOriginal != null
+    ? expense.amountOriginal
+    : expense.amount;
 
   const {
     register,
@@ -202,7 +217,7 @@ function CorporateCardEditForm({
     shouldFocusError: true,
     defaultValues: {
       title: expense.title,
-      amount: expense.amount,
+      amount: initialFormAmount,
       category: expense.category,
       merchantName: expense.merchantName ?? "",
       transactionDate,
@@ -213,8 +228,49 @@ function CorporateCardEditForm({
   // Warn on unsaved changes (browser close / refresh)
   useUnsavedChanges(isDirty || newFiles.length > 0 || removedAttachmentIds.length > 0);
 
+  // Fetch exchange rate when currency is USD
+  useEffect(() => {
+    if (currency !== "USD") {
+      setExchangeRate(null);
+      return;
+    }
+    let cancelled = false;
+    fetch("/api/exchange-rate?currency=USD")
+      .then((res) => res.ok ? res.json() : null)
+      .then((json) => {
+        if (!cancelled && json?.rate) {
+          setExchangeRate({ rate: json.rate, date: json.date ?? "" });
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [currency]);
+
+  const handleCurrencyChange = useCallback((newCurrency: string) => {
+    if (newCurrency === currency) return;
+    setCurrency(newCurrency);
+    setAmountDisplay("");
+    setValue("amount", 0, { shouldValidate: false });
+  }, [currency, setValue]);
+
   const handleAmountChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (currency === "USD") {
+        const raw = e.target.value.replace(/[^0-9.]/g, "");
+        const parts = raw.split(".");
+        const sanitized = parts.length > 2 ? parts[0] + "." + parts.slice(1).join("") : raw;
+        const [intPart, decPart] = sanitized.split(".");
+        const limited = decPart !== undefined ? intPart + "." + decPart.slice(0, 2) : sanitized;
+        if (limited === "" || limited === ".") {
+          setAmountDisplay("");
+          setValue("amount", 0, { shouldValidate: true });
+          return;
+        }
+        const num = parseAmountUSD(limited);
+        setAmountDisplay(limited);
+        setValue("amount", dollarsToCents(num), { shouldValidate: true });
+        return;
+      }
       const raw = e.target.value.replace(/[^\d]/g, "");
       if (raw === "") {
         setAmountDisplay("");
@@ -225,7 +281,7 @@ function CorporateCardEditForm({
       setAmountDisplay(formatAmount(num));
       setValue("amount", num, { shouldValidate: true });
     },
-    [setValue]
+    [setValue, currency]
   );
 
   const removeExistingAttachment = useCallback((id: string) => {
@@ -257,6 +313,7 @@ function CorporateCardEditForm({
           title: data.title,
           description: data.description || null,
           amount: data.amount,
+          currency,
           category: data.category,
           merchantName: data.merchantName || undefined,
           transactionDate: formatDateISO(data.transactionDate ?? new Date()),
@@ -342,10 +399,40 @@ function CorporateCardEditForm({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="amount">금액 <span className="text-[var(--apple-red)]">*</span></Label>
-              <InputGroup>
-                <InputGroupInput id="amount" placeholder="0" inputMode="numeric" value={amountDisplay} onChange={handleAmountChange} aria-invalid={!!errors.amount} />
-                <InputGroupAddon align="inline-end"><InputGroupText>원</InputGroupText></InputGroupAddon>
-              </InputGroup>
+              {/* Currency selector */}
+              <div className="flex gap-2 mb-2">
+                {(["KRW", "USD"] as const).map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => handleCurrencyChange(opt)}
+                    className={cn(
+                      "px-4 py-1.5 rounded-full text-sm font-medium transition-all",
+                      currency === opt
+                        ? "bg-[var(--apple-blue)] text-white shadow-sm"
+                        : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]"
+                    )}
+                  >
+                    {opt === "KRW" ? "원화 (₩)" : "달러 ($)"}
+                  </button>
+                ))}
+              </div>
+              {currency === "USD" ? (
+                <InputGroup>
+                  <InputGroupAddon align="inline-start"><InputGroupText>$</InputGroupText></InputGroupAddon>
+                  <InputGroupInput id="amount" placeholder="0.00" inputMode="decimal" value={amountDisplay} onChange={handleAmountChange} aria-invalid={!!errors.amount} />
+                </InputGroup>
+              ) : (
+                <InputGroup>
+                  <InputGroupInput id="amount" placeholder="0" inputMode="numeric" value={amountDisplay} onChange={handleAmountChange} aria-invalid={!!errors.amount} />
+                  <InputGroupAddon align="inline-end"><InputGroupText>원</InputGroupText></InputGroupAddon>
+                </InputGroup>
+              )}
+              {currency === "USD" && exchangeRate && amountDisplay && parseFloat(amountDisplay) > 0 && (
+                <p className="text-[12px] text-[var(--apple-secondary-label)]">
+                  ≈ {formatAmount(Math.round(parseAmountUSD(amountDisplay) * exchangeRate.rate))}원 (1달러 = {formatAmount(Math.round(exchangeRate.rate))}원)
+                </p>
+              )}
               {errors.amount && <p className="text-xs text-[var(--apple-red)]">{errors.amount.message}</p>}
             </div>
             <div className="space-y-1.5">

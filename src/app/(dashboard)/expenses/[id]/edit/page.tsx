@@ -27,6 +27,9 @@ export interface ExpenseEditData {
   title: string;
   description: string | null;
   amount: number;
+  currency: string;
+  amountOriginal: number | null;
+  exchangeRate: string | null;
   category: string;
   merchantName: string | null;
   transactionDate: string;
@@ -105,6 +108,9 @@ async function getExpenseForEdit(id: string): Promise<{
       title: expense.title,
       description: expense.description,
       amount: expense.amount,
+      currency: expense.currency ?? "KRW",
+      amountOriginal: expense.amount_original ?? null,
+      exchangeRate: expense.exchange_rate ?? null,
       category: expense.category,
       merchantName: expense.merchant_name,
       transactionDate: expense.transaction_date,

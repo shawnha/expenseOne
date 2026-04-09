@@ -95,8 +95,9 @@ export default function OnboardingPage() {
       }
 
       toast.success("프로필이 저장되었습니다!");
-      router.push("/");
-      router.refresh();
+      // Use hard navigation to bypass router cache and ensure layout re-fetches
+      // onboardingCompleted=true from the fresh DB
+      window.location.href = "/";
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "프로필 저장에 실패했습니다."

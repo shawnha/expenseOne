@@ -158,8 +158,8 @@ function QuickActionsPopover({
 export function BottomTabBar({ userId, isAdmin, unreadCount }: BottomTabBarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { realtimeUnreadDelta, resetDelta, readAllTriggered } = useRealtimeNotifications(userId);
-  const totalUnread = readAllTriggered ? realtimeUnreadDelta : unreadCount + realtimeUnreadDelta;
+  const { realtimeUnreadDelta, readOneDelta, resetDelta, readAllTriggered } = useRealtimeNotifications(userId);
+  const totalUnread = readAllTriggered ? realtimeUnreadDelta : Math.max(0, unreadCount + realtimeUnreadDelta - readOneDelta);
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   const longPressTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const longPressTriggered = useRef(false);

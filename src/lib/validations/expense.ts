@@ -19,6 +19,7 @@ const baseExpenseFields = {
   title: z.string().min(1, "제목을 입력해주세요").max(200, "제목은 200자 이내로 입력해주세요"),
   description: z.string().max(2000, "설명은 2000자 이내로 입력해주세요").optional().nullable(),
   amount: z.number().int("금액은 정수여야 합니다").positive("금액은 0보다 커야 합니다"),
+  currency: z.enum(["KRW", "USD"]).optional().default("KRW"),
   category: z.string().min(1, "카테고리를 선택해주세요").max(100, "카테고리는 100자 이내로 입력해주세요"),
   transactionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "날짜 형식은 YYYY-MM-DD여야 합니다"),
   companyId: z.string().uuid("올바른 회사 ID를 입력해주세요").optional(),
@@ -91,6 +92,7 @@ export const updateExpenseSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   description: z.string().max(2000).optional().nullable(),
   amount: z.number().int().positive().optional(),
+  currency: z.enum(["KRW", "USD"]).optional(),
   category: z.string().min(1).max(100).optional(),
   transactionDate: z
     .string()

@@ -37,10 +37,10 @@ interface HeaderProps {
 export function Header({ user, title, unreadCount = 0 }: HeaderProps) {
   const router = useRouter();
   const supabase = createClient();
-  const { realtimeUnreadDelta, resetDelta, readAllTriggered } = useRealtimeNotifications(user.id);
+  const { realtimeUnreadDelta, readOneDelta, resetDelta, readAllTriggered } = useRealtimeNotifications(user.id);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const totalUnread = readAllTriggered ? realtimeUnreadDelta : unreadCount + realtimeUnreadDelta;
+  const totalUnread = readAllTriggered ? realtimeUnreadDelta : Math.max(0, unreadCount + realtimeUnreadDelta - readOneDelta);
   const initial = user.name ? user.name.charAt(0) : "U";
 
   const handleSignOut = () => {
