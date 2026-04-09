@@ -300,6 +300,22 @@ export function SettingsForm({ user }: SettingsFormProps) {
             법카사용 내역 제출 시 자동으로 입력됩니다.
           </p>
         </div>
+
+        {/* Codef 자동 연동 진입점 */}
+        <a
+          href="/settings/codef"
+          className="mt-4 flex items-center justify-between p-3 rounded-xl bg-[var(--apple-fill-quaternary)] hover:bg-[var(--apple-fill-tertiary)] transition-colors"
+        >
+          <div className="flex flex-col">
+            <span className="text-body text-[var(--apple-label)]">
+              법카 자동 연동 (Codef)
+            </span>
+            <span className="text-caption1 text-[var(--apple-secondary-label)]">
+              카드사 계정 연결 → 법카 사용 자동 감지 + 폼 prefill
+            </span>
+          </div>
+          <span className="text-[var(--apple-secondary-label)]">→</span>
+        </a>
       </div>
 
       {/* Save / Cancel buttons */}

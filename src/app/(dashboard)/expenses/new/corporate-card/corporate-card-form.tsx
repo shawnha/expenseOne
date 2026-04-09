@@ -33,17 +33,30 @@ import { cn } from "@/lib/utils";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 
-interface CorporateCardFormProps {
-  initialCompanies?: { id: string; name: string; slug: string; currency: string }[];
+interface PrefillData {
+  amount: number;
+  merchantName: string | null;
+  transactionDate: string; // YYYY-MM-DD
+  stagingId: string;
 }
 
-export default function CorporateCardForm({ initialCompanies }: CorporateCardFormProps) {
+interface CorporateCardFormProps {
+  initialCompanies?: { id: string; name: string; slug: string; currency: string }[];
+  prefillData?: PrefillData | null;
+}
+
+export default function CorporateCardForm({ initialCompanies, prefillData }: CorporateCardFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [amountDisplay, setAmountDisplay] = useState("");
+  const [amountDisplay, setAmountDisplay] = useState(
+    prefillData ? formatAmount(prefillData.amount) : "",
+  );
   const [showCustomCategory, setShowCustomCategory] = useState(false);
-  const [showCustomMerchant, setShowCustomMerchant] = useState(false);
+  // Codef 가 보낸 가맹점은 프리셋이 아니라 자유 입력 → custom 모드 활성화
+  const [showCustomMerchant, setShowCustomMerchant] = useState(
+    Boolean(prefillData?.merchantName),
+  );
 
   // Company selection
   const [companyId, setCompanyId] = useState("");
@@ -90,7 +103,7 @@ export default function CorporateCardForm({ initialCompanies }: CorporateCardFor
   // VAT / 프리랜서 원천징수
   const [vatIncluded, setVatIncluded] = useState(false);
   const [freelancerDeduction, setFreelancerDeduction] = useState(false);
-  const [supplyAmount, setSupplyAmount] = useState(0);
+  const [supplyAmount, setSupplyAmount] = useState(prefillData?.amount ?? 0);
 
   const {
     register,
@@ -103,9 +116,10 @@ export default function CorporateCardForm({ initialCompanies }: CorporateCardFor
     shouldFocusError: true,
     defaultValues: {
       title: "",
-      merchantName: "",
+      merchantName: prefillData?.merchantName ?? "",
       description: "",
       isUrgent: false,
+      amount: prefillData?.amount,
     },
   });
 
@@ -230,7 +244,13 @@ export default function CorporateCardForm({ initialCompanies }: CorporateCardFor
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("/api/expenses", {
+      // Codef prefill 경로면 URL 에 stagingId 동봉, transaction date 도 prefill 값 사용
+      const url = prefillData
+        ? `/api/expenses?stagingId=${encodeURIComponent(prefillData.stagingId)}`
+        : "/api/expenses";
+      const transactionDate = prefillData?.transactionDate ?? formatDateISO(new Date());
+
+      const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -241,7 +261,7 @@ export default function CorporateCardForm({ initialCompanies }: CorporateCardFor
           currency: currency,
           category: data.category,
           merchantName: data.merchantName || undefined,
-          transactionDate: formatDateISO(new Date()),
+          transactionDate,
           isUrgent: false,
           companyId: companyId || undefined,
         }),
@@ -299,7 +319,9 @@ export default function CorporateCardForm({ initialCompanies }: CorporateCardFor
             법카사용 내역 작성
           </h1>
           <p className="text-footnote text-[var(--apple-secondary-label)] mt-0.5">
-            법인카드 사용내역을 입력해주세요. 제출 시 자동 승인됩니다.
+            {prefillData
+              ? "Codef 에서 가져온 거래입니다. 제목·카테고리만 선택하면 됩니다."
+              : "법인카드 사용내역을 입력해주세요. 제출 시 자동 승인됩니다."}
           </p>
         </div>
       </div>

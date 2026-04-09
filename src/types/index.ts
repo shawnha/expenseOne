@@ -36,7 +36,11 @@ export type NotificationType =
   | 'DEPOSIT_REJECTED'
   | 'NEW_DEPOSIT_REQUEST'
   | 'REMAINING_PAYMENT_REQUEST'
-  | 'REMAINING_PAYMENT_APPROVED';
+  | 'REMAINING_PAYMENT_APPROVED'
+  | 'NEW_USER_JOINED'
+  | 'DUE_DATE_REMINDER'
+  | 'CODEF_NEW_TRANSACTION'
+  | 'CODEF_TRANSACTION_CANCELLED';
 
 export interface Expense {
   id: string;
@@ -85,6 +89,7 @@ export interface Notification {
   title: string;
   message: string;
   relatedExpenseId: string | null;
+  linkUrl: string | null;
   isRead: boolean;
   readAt: string | null;
   createdAt: string;

@@ -4,6 +4,10 @@
     {
       "path": "/api/cron/due-date-check",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/codef-sync",
+      "schedule": "*/10 * * * *"
     }
   ],
   "headers": [

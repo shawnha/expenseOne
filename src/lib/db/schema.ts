@@ -11,8 +11,10 @@ import {
   char,
   pgEnum,
   index,
+  uniqueIndex,
   check,
   numeric,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -59,6 +61,8 @@ export const notificationTypeEnum = expenseSchema.enum("notification_type", [
   "REMAINING_PAYMENT_APPROVED",
   "NEW_USER_JOINED",
   "DUE_DATE_REMINDER",
+  "CODEF_NEW_TRANSACTION",
+  "CODEF_TRANSACTION_CANCELLED",
 ]);
 
 // ---------------------------------------------------------------------------
@@ -236,6 +240,7 @@ export const notifications = expenseSchema.table(
     relatedExpenseId: uuid("related_expense_id").references(() => expenses.id, {
       onDelete: "set null",
     }),
+    linkUrl: text("link_url"),
     isRead: boolean("is_read").notNull().default(false),
     readAt: timestamp("read_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -277,6 +282,107 @@ export const pushSubscriptions = expenseSchema.table(
   ],
 );
 
+/**
+ * codef_connections -- Codef 연결 상태 (사용자별 카드사 연결)
+ *
+ * connectedId 는 AES-256-GCM 암호화 상태로 저장. 평문 금지.
+ * 복호화는 src/lib/crypto/connected-id.ts 에서 처리.
+ */
+export const codefConnections = expenseSchema.table(
+  "codef_connections",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // base64(iv || ciphertext || authTag)
+    connectedIdEncrypted: text("connected_id_encrypted").notNull(),
+    cardCompany: varchar("card_company", { length: 20 }).notNull(),
+    cardNoMasked: varchar("card_no_masked", { length: 20 }),
+    isActive: boolean("is_active").notNull().default(true),
+    lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
+    lastSyncStatus: varchar("last_sync_status", { length: 20 }),
+    lastSyncError: text("last_sync_error"),
+    // 지수 백오프: lastSyncStatus='error' 면 이 시각까지 skip
+    backoffUntil: timestamp("backoff_until", { withTimezone: true }),
+    consecutiveFailures: integer("consecutive_failures").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("idx_codef_conn_user").on(table.userId),
+    index("idx_codef_conn_active_backoff").on(table.isActive, table.backoffUntil),
+  ],
+);
+
+/**
+ * codef_transactions_staging -- Codef 가 긁어온 거래 임시 보관함
+ *
+ * Dedup: (userId, resCardNo, resApprovalDate, resApprovalTime, resApprovalNo)
+ *   → 같은 날 취소+재승인 케이스까지 충돌 방지.
+ *
+ * Idempotency: consumedExpenseId 에 partial UNIQUE index
+ *   → 사용자 더블클릭/네트워크 retry 시에도 expense 중복 INSERT 방지.
+ */
+export const codefTransactionsStaging = expenseSchema.table(
+  "codef_transactions_staging",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    connectionId: uuid("connection_id")
+      .notNull()
+      .references(() => codefConnections.id, { onDelete: "cascade" }),
+
+    // Codef 원본 필드 (dedup key)
+    resApprovalNo: varchar("res_approval_no", { length: 50 }).notNull(),
+    resApprovalDate: varchar("res_approval_date", { length: 8 }).notNull(), // YYYYMMDD
+    resApprovalTime: varchar("res_approval_time", { length: 6 }).notNull().default(""), // HHMMSS
+    resCardNo: varchar("res_card_no", { length: 30 }).notNull(),
+
+    // 표시용 (폼 prefill)
+    amount: integer("amount").notNull(),
+    currency: varchar("currency", { length: 3 }).notNull().default("KRW"),
+    merchantName: varchar("merchant_name", { length: 200 }),
+    merchantType: varchar("merchant_type", { length: 100 }),
+    isCancelled: boolean("is_cancelled").notNull().default(false),
+    isOverseas: boolean("is_overseas").notNull().default(false),
+
+    // 라이프사이클
+    status: varchar("status", { length: 20 }).notNull().default("pending"), // pending | consumed | dismissed | cancelled_by_card
+    consumedExpenseId: uuid("consumed_expense_id").references(() => expenses.id, {
+      onDelete: "set null",
+    }),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    dismissedAt: timestamp("dismissed_at", { withTimezone: true }),
+
+    // 감사 / 디버깅용 원본 페이로드
+    rawPayload: jsonb("raw_payload"),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("idx_codef_stg_dedup").on(
+      table.userId,
+      table.resCardNo,
+      table.resApprovalDate,
+      table.resApprovalTime,
+      table.resApprovalNo,
+    ),
+    uniqueIndex("idx_codef_stg_consumed_expense")
+      .on(table.consumedExpenseId)
+      .where(sql`consumed_expense_id IS NOT NULL`),
+    index("idx_codef_stg_user_pending").on(table.userId, table.status),
+    index("idx_codef_stg_connection").on(table.connectionId),
+  ],
+);
+
 // ---------------------------------------------------------------------------
 // TypeScript types (insert / select)
 // ---------------------------------------------------------------------------
@@ -301,3 +407,9 @@ export type NewPushSubscription = typeof pushSubscriptions.$inferInsert;
 
 export type Department = typeof departments.$inferSelect;
 export type NewDepartment = typeof departments.$inferInsert;
+
+export type CodefConnection = typeof codefConnections.$inferSelect;
+export type NewCodefConnection = typeof codefConnections.$inferInsert;
+
+export type CodefTransactionStaging = typeof codefTransactionsStaging.$inferSelect;
+export type NewCodefTransactionStaging = typeof codefTransactionsStaging.$inferInsert;

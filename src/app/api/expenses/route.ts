@@ -7,6 +7,7 @@ import {
 } from "@/lib/validations/expense";
 import {
   createExpense,
+  createCorporateCardExpenseFromStaging,
   getExpenses,
 } from "@/services/expense.service";
 
@@ -60,6 +61,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Codef prefill 경로: ?stagingId=xxx 가 있으면 트랜잭션 내 INSERT + staging consume
+    const stagingId = request.nextUrl.searchParams.get("stagingId");
+    if (stagingId && parsed.data.type === "CORPORATE_CARD") {
+      const result = await createCorporateCardExpenseFromStaging(
+        parsed.data,
+        stagingId,
+        user.id,
+        user.name,
+        user.email,
+        user.companyId,
+      );
+      revalidatePath("/");
+      revalidatePath("/expenses");
+      revalidatePath("/admin/pending");
+      return NextResponse.json({ data: result.expense }, { status: 201 });
+    }
+
+    // 기존 경로 — 100% 동일 (REGRESSION 보장)
     const expense = await createExpense(parsed.data, user.id, user.name, user.email, user.companyId);
 
     revalidatePath("/");

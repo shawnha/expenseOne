@@ -63,6 +63,7 @@ export default function NotificationList({
             title: row.title as string,
             message: row.message as string,
             relatedExpenseId: (row.related_expense_id as string) ?? null,
+            linkUrl: (row.link_url as string) ?? null,
             isRead: (row.is_read as boolean) ?? false,
             readAt: (row.read_at as string) ?? null,
             createdAt: row.created_at as string,
@@ -99,7 +100,10 @@ export default function NotificationList({
         }
       }
 
-      if (notification.relatedExpenseId) {
+      // linkUrl 우선 (Codef prefill 등 신규 알림), 없으면 기존 relatedExpenseId 라우팅
+      if (notification.linkUrl) {
+        router.push(notification.linkUrl);
+      } else if (notification.relatedExpenseId) {
         router.push(`/expenses/${notification.relatedExpenseId}`);
       }
     },

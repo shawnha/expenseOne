@@ -4,6 +4,7 @@ import {
   attachments,
   users,
   companies,
+  codefTransactionsStaging,
   type Expense,
 } from "@/lib/db/schema";
 import {
@@ -195,6 +196,183 @@ export async function createExpense(
   }
 
   return expense;
+}
+
+// ---------------------------------------------------------------------------
+// createCorporateCardExpenseFromStaging
+// Codef staging row 를 expenses 로 트랜잭션 변환.
+// 동시 제출/네트워크 retry 시 idempotent (status='consumed' 면 기존 expense 반환).
+// ---------------------------------------------------------------------------
+export async function createCorporateCardExpenseFromStaging(
+  input: CreateExpenseInput,
+  stagingId: string,
+  userId: string,
+  userName: string,
+  userEmail: string,
+  userCompanyId?: string | null,
+): Promise<{ expense: Expense; alreadyConsumed: boolean }> {
+  if (input.type !== "CORPORATE_CARD") {
+    throw new AppError("VALIDATION_ERROR", "법카 사용만 staging 경로 지원");
+  }
+
+  // companyId 확정 (createExpense 와 동일 로직)
+  let companyId = userCompanyId;
+  if (input.companyId && input.companyId !== userCompanyId) {
+    const [userCompany] = await db
+      .select({ slug: companies.slug })
+      .from(companies)
+      .where(eq(companies.id, userCompanyId ?? ""));
+    if (userCompany?.slug === "korea") {
+      companyId = input.companyId;
+    }
+  }
+  if (!companyId) {
+    throw new AppError("VALIDATION_ERROR", "회사가 지정되지 않았습니다.");
+  }
+
+  const [companyRow] = await db
+    .select({ currency: companies.currency })
+    .from(companies)
+    .where(eq(companies.id, companyId));
+  const companyCurrency = companyRow?.currency ?? "KRW";
+
+  let finalAmount = input.amount;
+  let amountOriginal: number | null = null;
+  let exchangeRate: string | null = null;
+  let currency = "KRW";
+  if (companyCurrency === "USD") {
+    const rateResult = await getExchangeRate("USD", input.transactionDate);
+    if (!rateResult) {
+      throw new AppError("VALIDATION_ERROR", "환율 정보를 조회할 수 없습니다.");
+    }
+    finalAmount = convertToKRW(input.amount, rateResult.rate);
+    amountOriginal = input.amount;
+    exchangeRate = String(rateResult.rate);
+    currency = "USD";
+  }
+
+  const [userProfile] = await db
+    .select({ cardLastFour: users.cardLastFour })
+    .from(users)
+    .where(eq(users.id, userId));
+
+  // 트랜잭션: staging 검증 → expense INSERT → staging consume
+  const result = await db.transaction(async (tx) => {
+    // 1. staging row 조회 + 소유자 확인 + lock
+    const [staging] = await tx
+      .select()
+      .from(codefTransactionsStaging)
+      .where(
+        and(
+          eq(codefTransactionsStaging.id, stagingId),
+          eq(codefTransactionsStaging.userId, userId),
+        ),
+      )
+      .for("update");
+
+    if (!staging) {
+      throw new AppError("NOT_FOUND", "거래를 찾을 수 없습니다.");
+    }
+
+    // Idempotency: 이미 consume 되어 있으면 기존 expense 반환
+    if (staging.status === "consumed" && staging.consumedExpenseId) {
+      const [existing] = await tx
+        .select()
+        .from(expenses)
+        .where(eq(expenses.id, staging.consumedExpenseId));
+      if (existing) {
+        return { expense: existing, alreadyConsumed: true };
+      }
+    }
+
+    if (staging.status !== "pending") {
+      throw new AppError(
+        "FORBIDDEN",
+        "이미 처리된 거래입니다.",
+      );
+    }
+
+    // 2. expense INSERT
+    type NewExpense = typeof expenses.$inferInsert;
+    const baseData: Partial<NewExpense> = {
+      type: "CORPORATE_CARD",
+      status: "APPROVED",
+      title: input.title,
+      description: input.description ?? null,
+      amount: finalAmount,
+      currency,
+      amountOriginal,
+      exchangeRate,
+      category: input.category,
+      transactionDate: input.transactionDate,
+      submittedById: userId,
+      companyId,
+      merchantName: input.type === "CORPORATE_CARD" ? input.merchantName || null : null,
+      isUrgent: input.isUrgent ?? false,
+      approvedAt: new Date(),
+    };
+    if (userProfile?.cardLastFour) {
+      baseData.cardLastFour = userProfile.cardLastFour;
+    }
+
+    const [expense] = await tx
+      .insert(expenses)
+      .values(baseData as NewExpense)
+      .returning();
+
+    // 3. staging consume (status check 로 race 방지)
+    const [consumed] = await tx
+      .update(codefTransactionsStaging)
+      .set({
+        status: "consumed",
+        consumedExpenseId: expense.id,
+        consumedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(codefTransactionsStaging.id, stagingId),
+          eq(codefTransactionsStaging.status, "pending"),
+        ),
+      )
+      .returning();
+
+    if (!consumed) {
+      throw new AppError("FORBIDDEN", "거래가 동시에 처리되었습니다. 새로고침 후 다시 시도해주세요.");
+    }
+
+    return { expense, alreadyConsumed: false };
+  });
+
+  // 트랜잭션 커밋 후 알림 fire (createExpense 와 동일한 Slack/Push 로직)
+  if (!result.alreadyConsumed) {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    await Promise.allSettled([
+      notifySlackCorporateCard({
+        submitterEmail: userEmail,
+        submitterName: userName,
+        title: result.expense.title,
+        amount: result.expense.amount,
+        category: result.expense.category,
+        expenseUrl: `${appUrl}/expenses/${result.expense.id}`,
+        companyId: companyId ?? undefined,
+        currency: result.expense.currency,
+        amountOriginal: result.expense.amountOriginal,
+        merchantName: result.expense.merchantName,
+        description: result.expense.description,
+      }).catch((err) => {
+        console.error("Failed to send corporate card Slack notification:", err);
+      }),
+      sendPushToAdmins(
+        "새 법카사용",
+        `${result.expense.title} - ${formatExpenseAmount(result.expense.amount, result.expense.currency, result.expense.amountOriginal)}`,
+        `${appUrl}/expenses/${result.expense.id}`,
+      ).catch((err) => {
+        console.error("[Push] 법카사용 알림 실패:", err);
+      }),
+    ]);
+  }
+
+  return result;
 }
 
 // ---------------------------------------------------------------------------
