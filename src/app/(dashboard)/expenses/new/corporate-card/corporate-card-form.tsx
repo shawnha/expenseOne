@@ -431,9 +431,16 @@ export default function CorporateCardForm({ initialCompanies, prefillData }: Cor
               )}
             </div>
 
-            {/* 가맹점명 — 버튼 토글 + 직접 입력 */}
+            {/* 가맹점명 — GoWid prefill 시 읽기전용, 아니면 버튼 토글 + 직접 입력 */}
             <div className="space-y-1.5">
               <Label>가맹점명</Label>
+              {prefillData?.merchantName ? (
+                <Input
+                  value={prefillData.merchantName}
+                  readOnly
+                  className="bg-[var(--apple-system-grouped-background)] text-[var(--apple-label)]"
+                />
+              ) : (
               <Controller
                 name="merchantName"
                 control={control}
@@ -489,6 +496,7 @@ export default function CorporateCardForm({ initialCompanies, prefillData }: Cor
                   </div>
                 )}
               />
+              )}
               {errors.merchantName && (
                 <p className="text-xs text-[var(--apple-red)]">
                   {errors.merchantName.message}
