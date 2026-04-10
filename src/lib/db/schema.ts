@@ -59,6 +59,7 @@ export const notificationTypeEnum = expenseSchema.enum("notification_type", [
   "REMAINING_PAYMENT_APPROVED",
   "NEW_USER_JOINED",
   "DUE_DATE_REMINDER",
+  "GOWID_NEW_TRANSACTION",
 ]);
 
 // ---------------------------------------------------------------------------
@@ -241,6 +242,7 @@ export const notifications = expenseSchema.table(
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    linkUrl: text("link_url"),
   },
   (table) => [
     // PRD 6.6 indexes
@@ -301,3 +303,58 @@ export type NewPushSubscription = typeof pushSubscriptions.$inferInsert;
 
 export type Department = typeof departments.$inferSelect;
 export type NewDepartment = typeof departments.$inferInsert;
+
+/**
+ * gowid_card_mappings -- GoWid 법카 매핑 테이블
+ */
+export const gowidCardMappings = expenseSchema.table(
+  "gowid_card_mappings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    cardLastFour: varchar("card_last_four", { length: 4 }).notNull().unique(),
+    cardAlias: varchar("card_alias", { length: 100 }),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    companyId: uuid("company_id").references(() => companies.id, { onDelete: "set null" }),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_gowid_card_user").on(table.userId),
+  ],
+);
+
+/**
+ * gowid_transactions -- GoWid 거래 내역 테이블
+ */
+export const gowidTransactions = expenseSchema.table(
+  "gowid_transactions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    gowidExpenseId: integer("gowid_expense_id").notNull().unique(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    cardLastFour: varchar("card_last_four", { length: 4 }),
+    cardAlias: varchar("card_alias", { length: 100 }),
+    expenseDate: varchar("expense_date", { length: 8 }).notNull(),
+    expenseTime: varchar("expense_time", { length: 6 }),
+    amount: integer("amount").notNull(),
+    currency: varchar("currency", { length: 3 }).notNull().default("KRW"),
+    storeName: varchar("store_name", { length: 500 }),
+    storeAddress: varchar("store_address", { length: 500 }),
+    status: varchar("status", { length: 20 }).notNull().default("pending"),
+    consumedExpenseId: uuid("consumed_expense_id").references(() => expenses.id, { onDelete: "set null" }),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    notifiedAt: timestamp("notified_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_gowid_tx_user_status").on(table.userId, table.status),
+    index("idx_gowid_tx_consumed").on(table.consumedExpenseId),
+  ],
+);
+
+export type GowidCardMapping = typeof gowidCardMappings.$inferSelect;
+export type NewGowidCardMapping = typeof gowidCardMappings.$inferInsert;
+export type GowidTransaction = typeof gowidTransactions.$inferSelect;
+export type NewGowidTransaction = typeof gowidTransactions.$inferInsert;

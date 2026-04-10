@@ -36,7 +36,8 @@ export type NotificationType =
   | 'DEPOSIT_REJECTED'
   | 'NEW_DEPOSIT_REQUEST'
   | 'REMAINING_PAYMENT_REQUEST'
-  | 'REMAINING_PAYMENT_APPROVED';
+  | 'REMAINING_PAYMENT_APPROVED'
+  | 'GOWID_NEW_TRANSACTION';
 
 export interface Expense {
   id: string;
