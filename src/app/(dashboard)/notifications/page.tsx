@@ -18,6 +18,7 @@ export default async function NotificationsPage() {
     title: row.title,
     message: row.message,
     relatedExpenseId: row.relatedExpenseId,
+    linkUrl: row.linkUrl ?? null,
     isRead: row.isRead,
     readAt: row.readAt ? row.readAt.toISOString() : null,
     createdAt: row.createdAt.toISOString(),

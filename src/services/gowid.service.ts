@@ -132,7 +132,7 @@ export async function syncGowidTransactions(): Promise<{
       newCardLastFours.add(lastFour);
     }
 
-    await db.insert(gowidTransactions).values({
+    const [inserted] = await db.insert(gowidTransactions).values({
       gowidExpenseId: expense.expenseId,
       userId: mapping?.userId ?? null,
       cardLastFour: lastFour,
@@ -144,23 +144,23 @@ export async function syncGowidTransactions(): Promise<{
       storeName: expense.storeName,
       storeAddress: expense.storeAddress ?? null,
       status: "pending",
-    });
+    }).returning();
     newStaged++;
 
-    if (mapping?.userId) {
+    if (mapping?.userId && inserted) {
       const amountStr = Math.round(expense.krwAmount).toLocaleString();
       await createNotification({
         recipientId: mapping.userId,
         type: "GOWID_NEW_TRANSACTION",
         title: "법카 사용 내역이 있습니다",
         message: `${expense.storeName} ${amountStr}원 — 비용으로 등록해주세요.`,
-        linkUrl: `/expenses/new/corporate-card?gowidTxId=`,
+        linkUrl: `/expenses/new/corporate-card?gowidTxId=${inserted.id}`,
       });
 
       await db
         .update(gowidTransactions)
         .set({ notifiedAt: new Date() })
-        .where(eq(gowidTransactions.gowidExpenseId, expense.expenseId));
+        .where(eq(gowidTransactions.id, inserted.id));
 
       sendPushToUser(
         mapping.userId,

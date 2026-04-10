@@ -86,6 +86,7 @@ export interface Notification {
   title: string;
   message: string;
   relatedExpenseId: string | null;
+  linkUrl: string | null;
   isRead: boolean;
   readAt: string | null;
   createdAt: string;
