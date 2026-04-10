@@ -152,7 +152,7 @@ export async function syncGowidTransactions(): Promise<{
       await createNotification({
         recipientId: mapping.userId,
         type: "GOWID_NEW_TRANSACTION",
-        title: "법카 사용 내역이 있습니다",
+        title: "법카 사용 내역 등록해주세요",
         message: `${expense.storeName} ${amountStr}원 — 비용으로 등록해주세요.`,
         linkUrl: `/expenses/new/corporate-card?gowidTxId=${inserted.id}`,
       });
@@ -164,7 +164,7 @@ export async function syncGowidTransactions(): Promise<{
 
       sendPushToUser(
         mapping.userId,
-        "법카 사용 내역",
+        "법카 사용 내역 등록해주세요",
         `${expense.storeName} ${amountStr}원`,
         `/expenses/new/corporate-card?gowidTxId=${inserted.id}`,
       ).catch((err) => console.error("[Push] GoWid 알림 실패:", err));
