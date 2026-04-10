@@ -85,6 +85,15 @@ export async function fetchGowidNotSubmitted(
   );
 }
 
+export async function fetchGowidExpenses(
+  page = 0,
+  size = 100,
+): Promise<GowidPaginatedResponse<GowidExpenseListItem>> {
+  return gowidFetch<GowidPaginatedResponse<GowidExpenseListItem>>(
+    `/v1/expenses?page=${page}&size=${size}`,
+  );
+}
+
 export async function fetchGowidExpenseDetail(
   expenseId: number,
 ): Promise<GowidExpenseDetail> {

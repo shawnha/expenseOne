@@ -7,6 +7,7 @@ import {
 import { eq, and, inArray } from "drizzle-orm";
 import {
   fetchGowidNotSubmitted,
+  fetchGowidExpenses,
   extractCardLastFour,
   type GowidExpenseListItem,
 } from "@/lib/gowid/client";
@@ -173,7 +174,50 @@ export async function syncGowidTransactions(): Promise<{
     }
   }
 
-  // 5. Auto-register new cards
+  // 5. Discover ALL cards (from full expense history, not just not-submitted)
+  // This ensures cards with no pending transactions are also registered
+  let allForDiscovery: GowidExpenseListItem[] = [];
+  let discPage = 0;
+  let discMore = true;
+  while (discMore) {
+    const result = await fetchGowidExpenses(discPage, 100);
+    allForDiscovery = allForDiscovery.concat(result.content);
+    discMore = !result.last;
+    discPage++;
+    if (discPage > 50) break;
+  }
+
+  // Merge cards from not-submitted + all expenses
+  const allCards = new Map<string, string | null>();
+  for (const e of [...allExpenses, ...allForDiscovery]) {
+    const lf = extractCardLastFour(e.shortCardNumber);
+    if (!allCards.has(lf)) {
+      allCards.set(lf, e.cardAlias);
+    }
+  }
+
+  // Register any cards not yet in mappings
+  for (const [lastFour, alias] of allCards) {
+    if (mappings.find((m) => m.cardLastFour === lastFour)) continue;
+    if (newCardLastFours.has(lastFour)) continue; // already handled above
+
+    let autoUserId: string | null = null;
+    if (alias) {
+      const [matchedUser] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.name, alias))
+        .limit(1);
+      if (matchedUser) autoUserId = matchedUser.id;
+    }
+    await upsertCardMapping({
+      cardLastFour: lastFour,
+      cardAlias: alias ?? null,
+      userId: autoUserId,
+    });
+  }
+
+  // Also register cards from not-submitted that were new
   for (const lastFour of newCardLastFours) {
     const matchingExpense = allExpenses.find(
       (e) => extractCardLastFour(e.shortCardNumber) === lastFour,
