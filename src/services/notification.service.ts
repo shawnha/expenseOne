@@ -9,10 +9,11 @@ import { sendPushToUser, sendPushToAdmins } from "./push.service";
 // ---------------------------------------------------------------------------
 export async function createNotification(data: {
   recipientId: string;
-  type: "DEPOSIT_APPROVED" | "DEPOSIT_REJECTED" | "NEW_DEPOSIT_REQUEST" | "REMAINING_PAYMENT_REQUEST" | "REMAINING_PAYMENT_APPROVED" | "NEW_USER_JOINED";
+  type: "DEPOSIT_APPROVED" | "DEPOSIT_REJECTED" | "NEW_DEPOSIT_REQUEST" | "REMAINING_PAYMENT_REQUEST" | "REMAINING_PAYMENT_APPROVED" | "NEW_USER_JOINED" | "GOWID_NEW_TRANSACTION";
   title: string;
   message: string;
   relatedExpenseId?: string | null;
+  linkUrl?: string | null;
 }) {
   const [notification] = await db
     .insert(notifications)
@@ -22,6 +23,7 @@ export async function createNotification(data: {
       title: data.title,
       message: data.message,
       relatedExpenseId: data.relatedExpenseId ?? null,
+      linkUrl: data.linkUrl ?? null,
     })
     .returning();
 
