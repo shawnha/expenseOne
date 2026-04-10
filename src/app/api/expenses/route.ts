@@ -66,6 +66,16 @@ export async function POST(request: NextRequest) {
     revalidatePath("/expenses");
     revalidatePath("/admin/pending");
 
+    // After expense creation, consume GoWid staging if present
+    const url = new URL(request.url);
+    const gowidTxId = url.searchParams.get("gowidTxId");
+    if (gowidTxId && expense.id) {
+      const { consumeGowidTransaction } = await import("@/services/gowid.service");
+      await consumeGowidTransaction(gowidTxId, expense.id).catch((err) =>
+        console.error("[GoWid] consume staging failed:", err),
+      );
+    }
+
     return NextResponse.json({ data: expense }, { status: 201 });
   } catch (err) {
     return handleError(err);

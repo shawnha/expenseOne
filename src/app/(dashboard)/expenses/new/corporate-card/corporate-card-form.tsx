@@ -35,9 +35,15 @@ import { Breadcrumb } from "@/components/layout/breadcrumb";
 
 interface CorporateCardFormProps {
   initialCompanies?: { id: string; name: string; slug: string; currency: string }[];
+  prefillData?: {
+    amount: number;
+    merchantName: string | null;
+    transactionDate: string;
+    gowidTxId: string;
+  };
 }
 
-export default function CorporateCardForm({ initialCompanies }: CorporateCardFormProps) {
+export default function CorporateCardForm({ initialCompanies, prefillData }: CorporateCardFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -111,6 +117,18 @@ export default function CorporateCardForm({ initialCompanies }: CorporateCardFor
 
   // Warn on unsaved changes (browser close / refresh)
   useUnsavedChanges(isDirty);
+
+  // Pre-fill fields from GoWid transaction
+  useEffect(() => {
+    if (!prefillData) return;
+    setAmountDisplay(formatAmount(prefillData.amount));
+    setSupplyAmount(prefillData.amount);
+    setValue("amount", prefillData.amount, { shouldValidate: true });
+    if (prefillData.merchantName) {
+      setValue("merchantName", prefillData.merchantName);
+      setShowCustomMerchant(true);
+    }
+  }, [prefillData, setValue]);
 
   // Handle company change — only update companyId (currency is independent)
   const handleCompanyChange = useCallback((newCompanyId: string, _newCurrency?: string) => {
@@ -230,7 +248,8 @@ export default function CorporateCardForm({ initialCompanies }: CorporateCardFor
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("/api/expenses", {
+      const url = prefillData?.gowidTxId ? `/api/expenses?gowidTxId=${prefillData.gowidTxId}` : "/api/expenses";
+      const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -241,7 +260,7 @@ export default function CorporateCardForm({ initialCompanies }: CorporateCardFor
           currency: currency,
           category: data.category,
           merchantName: data.merchantName || undefined,
-          transactionDate: formatDateISO(new Date()),
+          transactionDate: prefillData?.transactionDate ?? formatDateISO(new Date()),
           isUrgent: false,
           companyId: companyId || undefined,
         }),
@@ -303,6 +322,15 @@ export default function CorporateCardForm({ initialCompanies }: CorporateCardFor
           </p>
         </div>
       </div>
+
+      {prefillData && (
+        <div className="p-3 rounded-xl bg-[rgba(0,122,255,0.08)] border border-[rgba(0,122,255,0.15)]">
+          <p className="text-[13px] text-[var(--apple-blue)]">
+            고위드에서 가져온 거래 정보가 자동 입력되었습니다.
+            제목과 카테고리를 선택한 뒤 제출해주세요.
+          </p>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit(onSubmit, onValidationError)} noValidate>
         <div className="glass p-6">
