@@ -166,6 +166,7 @@ export async function syncGowidTransactions(): Promise<{
         mapping.userId,
         "법카 사용 내역",
         `${expense.storeName} ${amountStr}원`,
+        `/expenses/new/corporate-card?gowidTxId=${inserted.id}`,
       ).catch((err) => console.error("[Push] GoWid 알림 실패:", err));
 
       notified++;
