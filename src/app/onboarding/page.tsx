@@ -18,6 +18,18 @@ export default function OnboardingPage() {
     }
   }, []);
 
+  // Guard: redirect away if user already completed onboarding
+  useEffect(() => {
+    fetch("/api/profile")
+      .then((res) => res.ok ? res.json() : null)
+      .then((json) => {
+        if (json?.data?.onboardingCompleted) {
+          window.location.href = "/";
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const [name, setName] = useState("");
   const [cardLastFour, setCardLastFour] = useState("");
   const [profileImage, setProfileImage] = useState<string | null>(null);

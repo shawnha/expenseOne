@@ -50,6 +50,7 @@ export async function GET() {
         role: users.role,
         department: users.department,
         companyId: users.companyId,
+        onboardingCompleted: users.onboardingCompleted,
       })
       .from(users)
       .where(eq(users.id, user.id));
