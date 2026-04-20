@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { users, companies } from "@/lib/db/schema";
+import { users, companies, gowidCardMappings } from "@/lib/db/schema";
 import { desc, eq, asc } from "drizzle-orm";
 import { getAuthUser, getCachedClient } from "@/lib/supabase/cached";
 import { UsersTable } from "./users-table";
@@ -40,7 +40,7 @@ export default async function AdminUsersPage() {
 
   if (profile?.role !== "ADMIN") redirect("/");
 
-  const [allUsers, activeCompanies] = await Promise.all([
+  const [allUsers, activeCompanies, cardMappings] = await Promise.all([
     db
       .select({
         id: users.id,
@@ -58,12 +58,36 @@ export default async function AdminUsersPage() {
       .leftJoin(companies, eq(users.companyId, companies.id))
       .orderBy(desc(users.createdAt)),
     getActiveCompanies(),
+    db
+      .select({
+        id: gowidCardMappings.id,
+        cardLastFour: gowidCardMappings.cardLastFour,
+        cardAlias: gowidCardMappings.cardAlias,
+        userId: gowidCardMappings.userId,
+      })
+      .from(gowidCardMappings)
+      .where(eq(gowidCardMappings.isActive, true)),
   ]);
+
+  // Group card mappings by userId
+  const cardsByUser = new Map<string, { id: string; cardLastFour: string; cardAlias: string | null }[]>();
+  const unmappedCards: { id: string; cardLastFour: string; cardAlias: string | null }[] = [];
+  for (const m of cardMappings) {
+    const entry = { id: m.id, cardLastFour: m.cardLastFour, cardAlias: m.cardAlias };
+    if (m.userId) {
+      const list = cardsByUser.get(m.userId) ?? [];
+      list.push(entry);
+      cardsByUser.set(m.userId, list);
+    } else {
+      unmappedCards.push(entry);
+    }
+  }
 
   const serialized = allUsers.map((u) => ({
     ...u,
     createdAt: u.createdAt.toISOString(),
     cardLastFour: u.cardLastFour,
+    gowidCards: cardsByUser.get(u.id) ?? [],
   }));
 
   const companyOptions = activeCompanies.map((c) => ({
@@ -80,7 +104,7 @@ export default async function AdminUsersPage() {
           팀원 역할 및 계정을 관리하세요.
         </p>
       </div>
-      <UsersTable users={serialized} currentUserId={authUser.id} companies={companyOptions} />
+      <UsersTable users={serialized} currentUserId={authUser.id} companies={companyOptions} unmappedCards={unmappedCards} />
     </div>
   );
 }

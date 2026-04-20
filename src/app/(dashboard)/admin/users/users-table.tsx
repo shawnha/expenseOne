@@ -38,6 +38,12 @@ interface CompanyOption {
   slug: string;
 }
 
+interface GowidCard {
+  id: string;
+  cardLastFour: string;
+  cardAlias: string | null;
+}
+
 interface UserRow {
   id: string;
   name: string;
@@ -49,6 +55,7 @@ interface UserRow {
   companyId: string | null;
   companyName: string | null;
   companySlug: string | null;
+  gowidCards?: GowidCard[];
 }
 
 const COMPANY_BADGE_STYLES: Record<string, string> = {
@@ -125,6 +132,7 @@ interface UsersTableProps {
   users: UserRow[];
   currentUserId: string;
   companies?: CompanyOption[];
+  unmappedCards?: GowidCard[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -641,11 +649,75 @@ function MobileUserCard({
   );
 }
 
-export function UsersTable({ users: initialUsers, currentUserId, companies = [] }: UsersTableProps) {
+export function UsersTable({ users: initialUsers, currentUserId, companies = [], unmappedCards: initialUnmapped = [] }: UsersTableProps) {
   const [userList, setUserList] = useState(initialUsers);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [unmappedCards, setUnmappedCards] = useState(initialUnmapped);
+
+  // Assign a GoWid card to a user
+  const handleAssignCard = async (userId: string, mappingId: string) => {
+    setUpdatingId(userId);
+    try {
+      const res = await fetch("/api/gowid/card-mappings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mappingId, userId }),
+      });
+      if (res.ok) {
+        const card = unmappedCards.find((c) => c.id === mappingId);
+        if (card) {
+          setUserList((prev) =>
+            prev.map((u) =>
+              u.id === userId
+                ? { ...u, gowidCards: [...(u.gowidCards ?? []), card] }
+                : u,
+            ),
+          );
+          setUnmappedCards((prev) => prev.filter((c) => c.id !== mappingId));
+        }
+        toast.success("카드가 매핑되었습니다.");
+      } else {
+        toast.error("카드 매핑에 실패했습니다.");
+      }
+    } catch {
+      toast.error("카드 매핑에 실패했습니다.");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  // Unassign a GoWid card from a user
+  const handleUnassignCard = async (userId: string, mappingId: string) => {
+    setUpdatingId(userId);
+    try {
+      const res = await fetch("/api/gowid/card-mappings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mappingId, userId: null }),
+      });
+      if (res.ok) {
+        const user = userList.find((u) => u.id === userId);
+        const card = user?.gowidCards?.find((c) => c.id === mappingId);
+        if (card) {
+          setUnmappedCards((prev) => [...prev, card]);
+          setUserList((prev) =>
+            prev.map((u) =>
+              u.id === userId
+                ? { ...u, gowidCards: (u.gowidCards ?? []).filter((c) => c.id !== mappingId) }
+                : u,
+            ),
+          );
+        }
+        toast.success("카드 매핑이 해제되었습니다.");
+      }
+    } catch {
+      toast.error("카드 매핑 해제에 실패했습니다.");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
 
   const handleFieldChange = async (userId: string, field: "name" | "cardLastFour", value: string) => {
     setUpdatingId(userId);
@@ -829,13 +901,55 @@ export function UsersTable({ users: initialUsers, currentUserId, companies = [] 
                     />
                   </TableCell>
                   <TableCell>
-                    <EditableCell
-                      value={user.cardLastFour ?? ""}
-                      placeholder="미등록"
-                      disabled={isSelf || isUpdating}
-                      onSave={(v) => handleFieldChange(user.id, "cardLastFour", v)}
-                      inputProps={{ maxLength: 4, pattern: "\\d{4}", placeholder: "끝 4자리" }}
-                    />
+                    <div className="flex flex-wrap items-center gap-1">
+                      {(user.gowidCards ?? []).map((card) => (
+                        <span
+                          key={card.id}
+                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[11px] font-mono bg-[rgba(0,122,255,0.1)] text-[#007AFF] dark:bg-[rgba(0,122,255,0.2)]"
+                        >
+                          {card.cardLastFour}
+                          {!isSelf && (
+                            <button
+                              type="button"
+                              onClick={() => handleUnassignCard(user.id, card.id)}
+                              className="ml-0.5 text-[10px] opacity-60 hover:opacity-100"
+                              title="매핑 해제"
+                            >
+                              ×
+                            </button>
+                          )}
+                        </span>
+                      ))}
+                      {(user.gowidCards ?? []).length === 0 && !unmappedCards.length && (
+                        <span className="text-[11px] text-[var(--apple-tertiary-label)]">미등록</span>
+                      )}
+                      {!isSelf && unmappedCards.length > 0 && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger
+                            render={<button type="button" />}
+                            disabled={isUpdating}
+                            className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-medium text-[var(--apple-blue)] bg-[rgba(0,122,255,0.06)] hover:bg-[rgba(0,122,255,0.12)] transition-colors"
+                          >
+                            + 카드
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" sideOffset={4}>
+                            {unmappedCards.map((card) => (
+                              <DropdownMenuItem
+                                key={card.id}
+                                onClick={() => handleAssignCard(user.id, card.id)}
+                              >
+                                {card.cardLastFour}
+                                {card.cardAlias && (
+                                  <span className="ml-1.5 text-[var(--apple-secondary-label)]">
+                                    ({card.cardAlias})
+                                  </span>
+                                )}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <span className={user.isActive ? "glass-badge glass-badge-green" : "glass-badge glass-badge-red"}>
