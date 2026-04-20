@@ -78,7 +78,9 @@ export async function createExpense(
   let exchangeRate: string | null = null;
   let currency = "KRW";
 
-  if (companyCurrency === "USD") {
+  // USD conversion: check user's submitted currency first, fallback to company currency
+  const isUSD = input.currency === "USD" || (input.currency == null && companyCurrency === "USD");
+  if (isUSD) {
     const rateResult = await getExchangeRate("USD", input.transactionDate);
     if (!rateResult) {
       throw new AppError("VALIDATION_ERROR", "환율 정보를 조회할 수 없습니다. 잠시 후 다시 시도해주세요.");
