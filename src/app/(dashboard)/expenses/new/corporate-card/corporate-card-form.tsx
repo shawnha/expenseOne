@@ -581,7 +581,9 @@ export default function CorporateCardForm({ initialCompanies, prefillData }: Cor
                         </p>
                       )}
                     </>
-                  ) : null}
+                  ) : (
+                    <p className="text-[var(--apple-red)]">환율 정보를 불러올 수 없습니다. 잠시 후 다시 시도해주세요.</p>
+                  )}
                 </div>
               )}
 

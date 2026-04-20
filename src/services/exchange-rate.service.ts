@@ -47,44 +47,56 @@ async function fetchSingleDate(
     Accept: "application/json,text/plain,*/*",
   };
 
-  // 1st request — follow redirects, let fetch handle cookies if possible
-  let res = await fetch(url, { headers, redirect: "follow", cache: "no-store" });
-
-  // If body is empty or HTML (common on first hit), manually retry with cookie
-  const text = await res.text();
-  if (text.trim().startsWith("[")) {
-    try {
-      return JSON.parse(text) as KoreaEximResponse[];
-    } catch {
-      return null;
+  function tryParse(text: string): KoreaEximResponse[] | null {
+    const trimmed = text.trim();
+    if (trimmed.startsWith("[")) {
+      try { return JSON.parse(trimmed) as KoreaEximResponse[]; } catch { return null; }
     }
+    return null;
   }
 
-  // Fallback: do manual 302 handling with cookie capture
-  res = await fetch(url, {
-    headers,
+  // Strategy: always do manual 302 + cookie capture (Vercel fetch doesn't pass cookies on redirect)
+  // Attempt 1: manual redirect to capture session cookie
+  const res1 = await fetch(url, { headers, redirect: "manual", cache: "no-store" });
+
+  // Some responses return data directly (cached session)
+  if (res1.status === 200) {
+    const body = await res1.text();
+    const parsed = tryParse(body);
+    if (parsed) return parsed;
+  }
+
+  // Capture cookie from 302 response
+  const setCookie = res1.headers.get("set-cookie");
+  if (!setCookie) {
+    // No cookie, try follow redirect as fallback
+    const resFallback = await fetch(url, { headers, redirect: "follow", cache: "no-store" });
+    const body = await resFallback.text();
+    return tryParse(body);
+  }
+
+  const cookie = setCookie.split(";")[0];
+
+  // Attempt 2: retry with session cookie (also manual redirect in case of double-302)
+  const res2 = await fetch(url, {
+    headers: { ...headers, Cookie: cookie },
     redirect: "manual",
     cache: "no-store",
   });
-  const setCookie = res.headers.get("set-cookie");
-  if (setCookie) {
-    const cookie = setCookie.split(";")[0];
-    const res2 = await fetch(url, {
-      headers: { ...headers, Cookie: cookie },
-      redirect: "follow",
-      cache: "no-store",
-    });
-    const body2 = await res2.text();
-    if (body2.trim().startsWith("[")) {
-      try {
-        return JSON.parse(body2) as KoreaEximResponse[];
-      } catch {
-        return null;
-      }
-    }
+
+  if (res2.status === 200) {
+    const body = await res2.text();
+    return tryParse(body);
   }
 
-  return null;
+  // Attempt 3: if still 302, follow with cookie
+  const res3 = await fetch(url, {
+    headers: { ...headers, Cookie: cookie },
+    redirect: "follow",
+    cache: "no-store",
+  });
+  const body3 = await res3.text();
+  return tryParse(body3);
 }
 
 /**
