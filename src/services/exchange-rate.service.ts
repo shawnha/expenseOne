@@ -1,6 +1,9 @@
 // ---------------------------------------------------------------------------
 // 한국수출입은행 환율 API 서비스
+// Node.js https 모듈 사용 (fetch는 HTTP/1.0 + Connection:Close 서버와 호환 문제)
 // ---------------------------------------------------------------------------
+
+import https from "https";
 
 interface ExchangeRateCache {
   rate: number;
@@ -33,6 +36,54 @@ interface KoreaEximResponse {
 }
 
 /**
+ * Low-level HTTPS GET using Node.js https module.
+ * Returns { statusCode, headers, body }.
+ */
+function httpsGet(
+  url: string,
+  headers: Record<string, string> = {},
+  followRedirect = false,
+): Promise<{ statusCode: number; headers: Record<string, string | string[] | undefined>; body: string }> {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, { headers, rejectUnauthorized: false }, (res) => {
+      // Handle redirect manually
+      if (!followRedirect && res.statusCode && res.statusCode >= 300 && res.statusCode < 400) {
+        resolve({
+          statusCode: res.statusCode,
+          headers: res.headers as Record<string, string | string[] | undefined>,
+          body: "",
+        });
+        res.resume(); // drain
+        return;
+      }
+
+      // Follow redirect
+      if (followRedirect && res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        const redirectUrl = res.headers.location.startsWith("http")
+          ? res.headers.location
+          : `https://www.koreaexim.go.kr${res.headers.location}`;
+        res.resume();
+        httpsGet(redirectUrl, headers, false).then(resolve).catch(reject);
+        return;
+      }
+
+      let body = "";
+      res.setEncoding("utf8");
+      res.on("data", (chunk) => { body += chunk; });
+      res.on("end", () => {
+        resolve({
+          statusCode: res.statusCode ?? 0,
+          headers: res.headers as Record<string, string | string[] | undefined>,
+          body,
+        });
+      });
+    });
+    req.on("error", reject);
+    req.setTimeout(10000, () => { req.destroy(new Error("timeout")); });
+  });
+}
+
+/**
  * 한국수출입은행 API 단일 요청.
  * 서버가 첫 요청에 302 + Set-Cookie로 응답하는 세션 검증 방식이라
  * manual redirect + 쿠키 재사용이 필요함.
@@ -55,48 +106,36 @@ async function fetchSingleDate(
     return null;
   }
 
-  // Strategy: always do manual 302 + cookie capture (Vercel fetch doesn't pass cookies on redirect)
-  // Attempt 1: manual redirect to capture session cookie
-  const res1 = await fetch(url, { headers, redirect: "manual", cache: "no-store" });
+  // Step 1: manual request to get 302 + Set-Cookie
+  const res1 = await httpsGet(url, headers, false);
 
-  // Some responses return data directly (cached session)
-  if (res1.status === 200) {
-    const body = await res1.text();
-    const parsed = tryParse(body);
+  if (res1.statusCode === 200) {
+    const parsed = tryParse(res1.body);
     if (parsed) return parsed;
   }
 
-  // Capture cookie from 302 response
-  const setCookie = res1.headers.get("set-cookie");
+  // Extract cookie from 302 response
+  const setCookieHeader = res1.headers["set-cookie"];
+  const setCookie = Array.isArray(setCookieHeader) ? setCookieHeader[0] : setCookieHeader;
+
   if (!setCookie) {
-    // No cookie, try follow redirect as fallback
-    const resFallback = await fetch(url, { headers, redirect: "follow", cache: "no-store" });
-    const body = await resFallback.text();
-    return tryParse(body);
+    // No cookie — try with follow redirect
+    const resFallback = await httpsGet(url, headers, true);
+    return tryParse(resFallback.body);
   }
 
   const cookie = setCookie.split(";")[0];
 
-  // Attempt 2: retry with session cookie (also manual redirect in case of double-302)
-  const res2 = await fetch(url, {
-    headers: { ...headers, Cookie: cookie },
-    redirect: "manual",
-    cache: "no-store",
-  });
+  // Step 2: retry with session cookie
+  const res2 = await httpsGet(url, { ...headers, Cookie: cookie }, false);
 
-  if (res2.status === 200) {
-    const body = await res2.text();
-    return tryParse(body);
+  if (res2.statusCode === 200) {
+    return tryParse(res2.body);
   }
 
-  // Attempt 3: if still 302, follow with cookie
-  const res3 = await fetch(url, {
-    headers: { ...headers, Cookie: cookie },
-    redirect: "follow",
-    cache: "no-store",
-  });
-  const body3 = await res3.text();
-  return tryParse(body3);
+  // Step 3: follow redirect with cookie
+  const res3 = await httpsGet(url, { ...headers, Cookie: cookie }, true);
+  return tryParse(res3.body);
 }
 
 /**
