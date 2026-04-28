@@ -524,12 +524,19 @@ interface MyCard {
   cardLastFour: string;
   cardAlias: string | null;
   userId: string | null;
+  companyId?: string | null;
   companyName?: string | null;
+}
+
+interface CardCompany {
+  id: string;
+  name: string;
 }
 
 function MyCardMappings() {
   const [myCards, setMyCards] = useState<MyCard[]>([]);
   const [unmappedCards, setUnmappedCards] = useState<MyCard[]>([]);
+  const [cardCompanies, setCardCompanies] = useState<CardCompany[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -540,6 +547,7 @@ function MyCardMappings() {
       const json = await res.json();
       setMyCards(json.myCards ?? []);
       setUnmappedCards(json.unmappedCards ?? []);
+      setCardCompanies(json.companies ?? []);
     } catch {
       // ignore
     } finally {
@@ -549,13 +557,13 @@ function MyCardMappings() {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleAdd = async (mappingId: string) => {
+  const handleAddToCompany = async (mappingId: string, companyId: string) => {
     setBusy(true);
     try {
       const res = await fetch("/api/gowid/card-mappings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mappingId, userId: "self" }),
+        body: JSON.stringify({ mappingId, userId: "self", companyId }),
       });
       if (res.ok) {
         toast.success("카드가 등록되었습니다.");
@@ -596,94 +604,62 @@ function MyCardMappings() {
     return <div className="flex justify-center py-4"><Loader2 className="size-4 animate-spin text-[var(--apple-secondary-label)]" /></div>;
   }
 
-  // Group cards by company
-  const groupByCompany = (cards: MyCard[]) => {
-    const groups = new Map<string, MyCard[]>();
-    for (const card of cards) {
-      const key = card.companyName ?? "미지정";
-      const list = groups.get(key) ?? [];
-      list.push(card);
-      groups.set(key, list);
-    }
-    return groups;
-  };
-
-  const myGroups = groupByCompany(myCards);
-  const unmappedGroups = groupByCompany(unmappedCards);
-
-  const renderCardBadge = (card: MyCard, removable: boolean) => (
-    <span
-      key={card.id}
-      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-mono bg-[rgba(0,122,255,0.1)] text-[#007AFF] dark:bg-[rgba(0,122,255,0.2)]"
-    >
-      •••• {card.cardLastFour}
-      {card.cardAlias && (
-        <span className="text-[11px] font-sans text-[var(--apple-secondary-label)]">
-          ({card.cardAlias})
-        </span>
-      )}
-      {removable && (
-        <button
-          type="button"
-          onClick={() => handleRemove(card.id)}
-          disabled={busy}
-          className="ml-0.5 text-[12px] opacity-60 hover:opacity-100"
-          title="해제"
-        >
-          ×
-        </button>
-      )}
-    </span>
-  );
+  // Group my cards by company
+  const myCardsByCompany = new Map<string, MyCard[]>();
+  for (const card of myCards) {
+    const key = card.companyId ?? "__none__";
+    const list = myCardsByCompany.get(key) ?? [];
+    list.push(card);
+    myCardsByCompany.set(key, list);
+  }
 
   return (
     <div className="space-y-4">
-      {/* My cards grouped by company */}
-      {myCards.length > 0 ? (
-        <div className="space-y-3">
-          <p className="text-[12px] text-[var(--apple-secondary-label)]">등록된 카드</p>
-          {[...myGroups.entries()].map(([companyName, cards]) => (
-            <div key={companyName} className="space-y-1.5">
-              <p className="text-[11px] font-medium text-[var(--apple-secondary-label)]">{companyName}</p>
-              <div className="flex flex-wrap gap-2">
-                {cards.map((card) => renderCardBadge(card, true))}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="text-[13px] text-[var(--apple-secondary-label)]">
-          등록된 법인카드가 없습니다.
-        </p>
-      )}
-
-      {/* Unmapped cards grouped by company */}
-      {unmappedCards.length > 0 && (
-        <div className="space-y-3">
-          <p className="text-[12px] text-[var(--apple-secondary-label)]">등록 가능한 카드</p>
-          {[...unmappedGroups.entries()].map(([companyName, cards]) => (
-            <div key={companyName} className="space-y-1.5">
-              <p className="text-[11px] font-medium text-[var(--apple-secondary-label)]">{companyName}</p>
+      {/* Company sections */}
+      {cardCompanies.map((company) => {
+        const cards = myCardsByCompany.get(company.id) ?? [];
+        return (
+          <div key={company.id} className="rounded-xl border border-[var(--apple-separator)] p-3 space-y-2">
+            <p className="text-[13px] font-semibold text-[var(--apple-label)]">{company.name}</p>
+            {cards.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {cards.map((card) => (
+                  <span
+                    key={card.id}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-mono bg-[rgba(0,122,255,0.1)] text-[#007AFF] dark:bg-[rgba(0,122,255,0.2)]"
+                  >
+                    •••• {card.cardLastFour}
+                    {card.cardAlias && (
+                      <span className="text-[11px] font-sans text-[var(--apple-secondary-label)]">({card.cardAlias})</span>
+                    )}
+                    <button type="button" onClick={() => handleRemove(card.id)} disabled={busy} className="ml-0.5 text-[12px] opacity-60 hover:opacity-100" title="해제">×</button>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[12px] text-[var(--apple-tertiary-label)]">등록된 카드 없음</p>
+            )}
+
+            {/* Unmapped cards — add to this company */}
+            {unmappedCards.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-1 border-t border-[var(--apple-separator)]">
+                {unmappedCards.map((card) => (
                   <button
                     key={card.id}
                     type="button"
-                    onClick={() => handleAdd(card.id)}
+                    onClick={() => handleAddToCompany(card.id, company.id)}
                     disabled={busy}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-mono border border-dashed border-[var(--apple-separator)] text-[var(--apple-secondary-label)] hover:border-[var(--apple-blue)] hover:text-[var(--apple-blue)] transition-colors"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[12px] font-mono border border-dashed border-[var(--apple-separator)] text-[var(--apple-secondary-label)] hover:border-[var(--apple-blue)] hover:text-[var(--apple-blue)] transition-colors"
                   >
-                    + •••• {card.cardLastFour}
-                    {card.cardAlias && (
-                      <span className="text-[11px] font-sans">({card.cardAlias})</span>
-                    )}
+                    + {card.cardLastFour}
+                    {card.cardAlias && <span className="text-[10px] font-sans">({card.cardAlias})</span>}
                   </button>
                 ))}
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            )}
+          </div>
+        );
+      })}
 
       <p className="text-[11px] text-[var(--apple-tertiary-label)]">
         카드를 등록하면 해당 카드 거래 시 알림을 받을 수 있습니다.

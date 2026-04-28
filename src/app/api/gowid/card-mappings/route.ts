@@ -28,8 +28,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ data: mappings });
   }
 
-  // Member (or admin with scope=mine): return own cards + unmapped cards
-  const [myCards, unmappedCards] = await Promise.all([
+  // Member (or admin with scope=mine): return own cards + unmapped cards + company list
+  const [myCards, unmappedCards, companyList] = await Promise.all([
     db
       .select({
         id: gowidCardMappings.id,
@@ -52,9 +52,14 @@ export async function GET(request: Request) {
       .from(gowidCardMappings)
       .leftJoin(companies, eq(gowidCardMappings.companyId, companies.id))
       .where(isNull(gowidCardMappings.userId)),
+    db
+      .select({ id: companies.id, name: companies.name })
+      .from(companies)
+      .where(eq(companies.isActive, true))
+      .orderBy(companies.sortOrder),
   ]);
 
-  return NextResponse.json({ myCards, unmappedCards });
+  return NextResponse.json({ myCards, unmappedCards, companies: companyList });
 }
 
 // PATCH — update mapping userId
@@ -84,9 +89,10 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: { code: "BAD_REQUEST", message: "mappingId 필수" } }, { status: 400 });
   }
 
-  // Handle companyId update (admin only)
+  // Handle companyId update
   if (companyId !== undefined) {
-    if (!isAdmin) {
+    // Non-admin can set company only when assigning to self
+    if (!isAdmin && !(userId === authUser.id || userId === "self")) {
       return NextResponse.json({ error: { code: "FORBIDDEN", message: "관리자만 회사를 변경할 수 있습니다" } }, { status: 403 });
     }
     await db.update(gowidCardMappings).set({
@@ -94,7 +100,6 @@ export async function PATCH(request: Request) {
       updatedAt: new Date(),
     }).where(eq(gowidCardMappings.id, mappingId));
     if (userId === undefined) {
-      // Only updating companyId
       return NextResponse.json({ ok: true });
     }
   }
