@@ -277,29 +277,11 @@ export function SettingsForm({ user }: SettingsFormProps) {
         <div className="flex items-center gap-2 mb-5">
           <CreditCard className="size-4 text-[var(--apple-orange)]" />
           <h3 className="text-subheadline font-semibold text-[var(--apple-label)]">
-            카드 정보
+            내 법인카드
           </h3>
         </div>
 
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="settings-card" className="text-[13px] text-[var(--apple-secondary-label)]">
-            법인카드 끝 4자리
-          </Label>
-          <Input
-            id="settings-card"
-            value={cardLastFour}
-            onChange={(e) => {
-              const val = e.target.value.replace(/[^\d]/g, "");
-              setCardLastFour(val);
-            }}
-            placeholder="0000"
-            maxLength={4}
-            inputMode="numeric"
-          />
-          <p className="text-[12px] text-[var(--apple-secondary-label)]">
-            법카사용 내역 제출 시 자동으로 입력됩니다.
-          </p>
-        </div>
+        <MyCardMappings />
       </div>
 
       {/* Save / Cancel buttons */}
@@ -529,6 +511,153 @@ function PushTestCard() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// MyCardMappings — 사용자 본인의 법인카드 관리
+// ---------------------------------------------------------------------------
+
+interface MyCard {
+  id: string;
+  cardLastFour: string;
+  cardAlias: string | null;
+  userId: string | null;
+}
+
+function MyCardMappings() {
+  const [myCards, setMyCards] = useState<MyCard[]>([]);
+  const [unmappedCards, setUnmappedCards] = useState<MyCard[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch("/api/gowid/card-mappings?scope=mine");
+      if (!res.ok) return;
+      const json = await res.json();
+      setMyCards(json.myCards ?? []);
+      setUnmappedCards(json.unmappedCards ?? []);
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleAdd = async (mappingId: string) => {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/gowid/card-mappings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mappingId, userId: "self" }),
+      });
+      if (res.ok) {
+        toast.success("카드가 등록되었습니다.");
+        load();
+      } else {
+        const json = await res.json();
+        toast.error(json.error?.message ?? "등록 실패");
+      }
+    } catch {
+      toast.error("카드 등록에 실패했습니다.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRemove = async (mappingId: string) => {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/gowid/card-mappings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mappingId, userId: null }),
+      });
+      if (res.ok) {
+        toast.success("카드가 해제되었습니다.");
+        load();
+      } else {
+        toast.error("해제 실패");
+      }
+    } catch {
+      toast.error("카드 해제에 실패했습니다.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="flex justify-center py-4"><Loader2 className="size-4 animate-spin text-[var(--apple-secondary-label)]" /></div>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* My cards */}
+      {myCards.length > 0 ? (
+        <div className="space-y-2">
+          <p className="text-[12px] text-[var(--apple-secondary-label)]">등록된 카드</p>
+          <div className="flex flex-wrap gap-2">
+            {myCards.map((card) => (
+              <span
+                key={card.id}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-mono bg-[rgba(0,122,255,0.1)] text-[#007AFF] dark:bg-[rgba(0,122,255,0.2)]"
+              >
+                •••• {card.cardLastFour}
+                {card.cardAlias && (
+                  <span className="text-[11px] font-sans text-[var(--apple-secondary-label)]">
+                    ({card.cardAlias})
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleRemove(card.id)}
+                  disabled={busy}
+                  className="ml-0.5 text-[12px] opacity-60 hover:opacity-100"
+                  title="해제"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <p className="text-[13px] text-[var(--apple-secondary-label)]">
+          등록된 법인카드가 없습니다.
+        </p>
+      )}
+
+      {/* Add card from unmapped */}
+      {unmappedCards.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[12px] text-[var(--apple-secondary-label)]">등록 가능한 카드</p>
+          <div className="flex flex-wrap gap-2">
+            {unmappedCards.map((card) => (
+              <button
+                key={card.id}
+                type="button"
+                onClick={() => handleAdd(card.id)}
+                disabled={busy}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-mono border border-dashed border-[var(--apple-separator)] text-[var(--apple-secondary-label)] hover:border-[var(--apple-blue)] hover:text-[var(--apple-blue)] transition-colors"
+              >
+                + •••• {card.cardLastFour}
+                {card.cardAlias && (
+                  <span className="text-[11px] font-sans">({card.cardAlias})</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <p className="text-[11px] text-[var(--apple-tertiary-label)]">
+        카드를 등록하면 해당 카드 거래 시 알림을 받을 수 있습니다.
+      </p>
     </div>
   );
 }
