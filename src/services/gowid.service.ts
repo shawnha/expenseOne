@@ -4,8 +4,9 @@ import {
   gowidTransactions,
   users,
   companies,
+  expenses,
 } from "@/lib/db/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import {
   fetchGowidNotSubmitted,
   fetchGowidExpenses,
@@ -158,6 +159,26 @@ export async function syncGowidTransactions(): Promise<{
     newStaged++;
 
     if (mapping?.userId && inserted) {
+      // Check if user already submitted an expense for this transaction
+      const [alreadyExists] = await db
+        .select({ id: expenses.id })
+        .from(expenses)
+        .where(
+          and(
+            eq(expenses.submittedById, mapping.userId),
+            eq(expenses.type, "CORPORATE_CARD"),
+            eq(expenses.amount, Math.round(expense.krwAmount)),
+            sql`${expenses.status} != 'CANCELLED'`,
+          ),
+        )
+        .limit(1);
+
+      if (alreadyExists) {
+        // Mark as consumed — user already submitted
+        await db.update(gowidTransactions).set({ status: "consumed" }).where(eq(gowidTransactions.id, inserted.id));
+        continue;
+      }
+
       const amountStr = Math.round(expense.krwAmount).toLocaleString();
       await createNotification({
         recipientId: mapping.userId,
