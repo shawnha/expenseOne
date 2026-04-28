@@ -34,7 +34,7 @@ async function fetchNewCodefTransactions(
   const result = await db.execute(sql`
     SELECT id, date::text, amount::integer, counterparty, card_number, source_type, is_cancel
     FROM financeone.transactions
-    WHERE source_type IN ('codef_woori_card', 'codef_shinhan_card')
+    WHERE source_type IN ('codef_woori_card', 'codef_shinhan_card', 'mercury_api')
       AND date >= ${sinceDate}::date
       AND is_cancel = false
       AND is_duplicate = false
