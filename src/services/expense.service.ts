@@ -473,32 +473,34 @@ export async function updateExpense(
 
     if (submitter) {
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-      updateSlackExpenseMessage({
-        slackMessageTs: updated.slackMessageTs,
-        slackChannelId: updated.slackChannelId,
-        submitterEmail: submitter.email,
-        submitterName: submitter.name,
-        type: updated.type as "CORPORATE_CARD" | "DEPOSIT_REQUEST",
-        title: updated.title,
-        amount: updated.amount,
-        category: updated.category,
-        expenseUrl: `${appUrl}/expenses/${updated.id}`,
-        companyId: updated.companyId,
-        currency: updated.currency,
-        amountOriginal: updated.amountOriginal,
-        merchantName: updated.merchantName,
-        description: updated.description,
-        dueDate: updated.dueDate,
-        isUrgent: updated.isUrgent,
-      }).then(async (newSlack) => {
-        // Save new message ts after delete+repost
+      try {
+        const newSlack = await updateSlackExpenseMessage({
+          slackMessageTs: updated.slackMessageTs,
+          slackChannelId: updated.slackChannelId,
+          submitterEmail: submitter.email,
+          submitterName: submitter.name,
+          type: updated.type as "CORPORATE_CARD" | "DEPOSIT_REQUEST",
+          title: updated.title,
+          amount: updated.amount,
+          category: updated.category,
+          expenseUrl: `${appUrl}/expenses/${updated.id}`,
+          companyId: updated.companyId,
+          currency: updated.currency,
+          amountOriginal: updated.amountOriginal,
+          merchantName: updated.merchantName,
+          description: updated.description,
+          dueDate: updated.dueDate,
+          isUrgent: updated.isUrgent,
+        });
         if (newSlack) {
           await db.update(expenses).set({
             slackMessageTs: newSlack.ts,
             slackChannelId: newSlack.channel,
           }).where(eq(expenses.id, updated.id)).catch(() => {});
         }
-      }).catch((err) => console.error("[Slack] 메시지 수정 실패:", err));
+      } catch (err) {
+        console.error("[Slack] 메시지 수정 실패:", err);
+      }
     }
   }
 
