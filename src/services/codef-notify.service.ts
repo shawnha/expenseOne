@@ -106,15 +106,12 @@ export async function processCodefNotifications(): Promise<{
   }
 
   // Check which FinanceOne transaction IDs we've already processed
-  // Use gowid_transactions with a special marker to avoid re-notifying
   const finTxIds = transactions.map((t) => t.id);
-  const existing = await db.execute(sql`
-    SELECT gowid_expense_id FROM expenseone.gowid_transactions
-    WHERE gowid_expense_id = ANY(${finTxIds}::int[])
-  `);
-  const existingSet = new Set(
-    (existing as unknown as { gowid_expense_id: number }[]).map((r) => r.gowid_expense_id),
-  );
+  const existingRows = await db
+    .select({ gowidExpenseId: gowidTransactions.gowidExpenseId })
+    .from(gowidTransactions)
+    .where(inArray(gowidTransactions.gowidExpenseId, finTxIds));
+  const existingSet = new Set(existingRows.map((r) => r.gowidExpenseId));
 
   let notified = 0;
   let skippedDuplicate = 0;
