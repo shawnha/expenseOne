@@ -214,14 +214,6 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
             <AdminQuickEditButton
               expense={{
                 id: expense.id,
-                title: expense.title,
-                category: expense.category,
-                amount: expense.amount,
-                status: expense.status,
-                type: expense.type,
-                createdAt: expense.createdAt ?? "",
-                companyId: expense.companyId,
-                submitter: expense.submitter ? { name: expense.submitter.name } : null,
               }}
             />
           )}

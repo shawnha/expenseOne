@@ -129,9 +129,8 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
   }, [confirmId, router]);
 
   const handleQuickEdit = useCallback((expense: ExpenseRow) => {
-    setEditExpense(expense);
-    setEditDialogOpen(true);
-  }, []);
+    router.push(`/expenses/${expense.id}/edit`);
+  }, [router]);
 
   return (
     <>

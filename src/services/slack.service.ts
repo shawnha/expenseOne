@@ -104,30 +104,30 @@ async function sendSlackMessage(text: string, companyId?: string | null): Promis
 }
 
 // ---------------------------------------------------------------------------
-// Update existing Slack message via chat.update
+// Delete existing Slack message via chat.delete
 // ---------------------------------------------------------------------------
-async function updateSlackMessage(channel: string, ts: string, text: string): Promise<boolean> {
+async function deleteSlackMessage(channel: string, ts: string): Promise<boolean> {
   const token = process.env.SLACK_BOT_TOKEN;
   if (!token) return false;
 
   try {
-    const res = await fetch("https://slack.com/api/chat.update", {
+    const res = await fetch("https://slack.com/api/chat.delete", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ channel, ts, text }),
+      body: JSON.stringify({ channel, ts }),
     });
 
     const data = await res.json();
     if (!data.ok) {
-      console.error(`[Slack] chat.update 실패: ${data.error}`);
+      console.error(`[Slack] chat.delete 실패: ${data.error}`);
       return false;
     }
     return true;
   } catch (err) {
-    console.error("[Slack] chat.update 오류:", err);
+    console.error("[Slack] chat.delete 오류:", err);
     return false;
   }
 }
@@ -299,7 +299,11 @@ export async function updateSlackExpenseMessage(params: {
   description?: string | null;
   dueDate?: string | null;
   isUrgent?: boolean;
-}): Promise<boolean> {
+}): Promise<{ ts: string; channel: string } | null> {
+  // 1. Delete the old message
+  await deleteSlackMessage(params.slackChannelId, params.slackMessageTs);
+
+  // 2. Post a new message with updated content
   const [mention, companyName] = await Promise.all([
     mentionUser(params.submitterEmail, params.submitterName),
     getCompanyName(params.companyId),
@@ -327,7 +331,7 @@ export async function updateSlackExpenseMessage(params: {
     const memo = params.description.trim();
     lines.push(`• 메모: ${memo.length > 500 ? memo.slice(0, 500) + "..." : memo}`);
   }
-  lines.push(`<${params.expenseUrl}|상세 보기> (수정됨)`);
+  lines.push(`<${params.expenseUrl}|상세 보기>`);
 
-  return updateSlackMessage(params.slackChannelId, params.slackMessageTs, lines.join("\n"));
+  return sendSlackMessage(lines.join("\n"), params.companyId);
 }

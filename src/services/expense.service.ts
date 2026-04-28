@@ -490,6 +490,14 @@ export async function updateExpense(
         description: updated.description,
         dueDate: updated.dueDate,
         isUrgent: updated.isUrgent,
+      }).then(async (newSlack) => {
+        // Save new message ts after delete+repost
+        if (newSlack) {
+          await db.update(expenses).set({
+            slackMessageTs: newSlack.ts,
+            slackChannelId: newSlack.channel,
+          }).where(eq(expenses.id, updated.id)).catch(() => {});
+        }
       }).catch((err) => console.error("[Slack] 메시지 수정 실패:", err));
     }
   }
