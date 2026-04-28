@@ -29,7 +29,7 @@ import {
   notifyExpenseRejected,
   notifyNewDepositRequest,
 } from "./notification.service";
-import { notifySlackCorporateCard, notifySlackDepositRequest } from "./slack.service";
+import { notifySlackCorporateCard, notifySlackDepositRequest, updateSlackExpenseMessage } from "./slack.service";
 import { sendPushToAdmins } from "./push.service";
 import { AppError } from "./attachment.service";
 import { getExchangeRate, convertToKRW } from "./exchange-rate.service";
@@ -139,8 +139,9 @@ export async function createExpense(
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
   // Await notifications to prevent Vercel serverless from killing them
+  // Save Slack message ts for future updates
   if (isCorporateCard) {
-    await Promise.allSettled([
+    const [slackResult] = await Promise.allSettled([
       notifySlackCorporateCard({
         submitterEmail: userEmail,
         submitterName: userName,
@@ -153,8 +154,6 @@ export async function createExpense(
         amountOriginal: expense.amountOriginal,
         merchantName: expense.merchantName,
         description: expense.description,
-      }).catch((err) => {
-        console.error("Failed to send corporate card Slack notification:", err);
       }),
       sendPushToAdmins(
         "새 법카사용",
@@ -164,8 +163,15 @@ export async function createExpense(
         console.error("[Push] 법카사용 알림 실패:", err);
       }),
     ]);
+    // Save Slack message ts
+    if (slackResult.status === "fulfilled" && slackResult.value) {
+      await db.update(expenses).set({
+        slackMessageTs: slackResult.value.ts,
+        slackChannelId: slackResult.value.channel,
+      }).where(eq(expenses.id, expense.id)).catch(() => {});
+    }
   } else {
-    await Promise.allSettled([
+    const [, slackResult] = await Promise.allSettled([
       notifyNewDepositRequest(expense.id, expense.title, userName, {
         amount: expense.amount,
         category: expense.category,
@@ -190,10 +196,15 @@ export async function createExpense(
         dueDate: expense.dueDate,
         isUrgent: expense.isUrgent ?? false,
         description: expense.description,
-      }).catch((err) => {
-        console.error("Failed to send deposit request Slack notification:", err);
       }),
     ]);
+    // Save Slack message ts
+    if (slackResult.status === "fulfilled" && slackResult.value) {
+      await db.update(expenses).set({
+        slackMessageTs: slackResult.value.ts,
+        slackChannelId: slackResult.value.channel,
+      }).where(eq(expenses.id, expense.id)).catch(() => {});
+    }
   }
 
   return expense;
@@ -450,6 +461,37 @@ export async function updateExpense(
       "FORBIDDEN",
       "비용 상태가 변경되었습니다. 페이지를 새로고침해주세요.",
     );
+  }
+
+  // Update Slack message if we have the ts
+  if (updated.slackMessageTs && updated.slackChannelId) {
+    // Look up submitter info
+    const [submitter] = await db
+      .select({ name: users.name, email: users.email })
+      .from(users)
+      .where(eq(users.id, updated.submittedById));
+
+    if (submitter) {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      updateSlackExpenseMessage({
+        slackMessageTs: updated.slackMessageTs,
+        slackChannelId: updated.slackChannelId,
+        submitterEmail: submitter.email,
+        submitterName: submitter.name,
+        type: updated.type as "CORPORATE_CARD" | "DEPOSIT_REQUEST",
+        title: updated.title,
+        amount: updated.amount,
+        category: updated.category,
+        expenseUrl: `${appUrl}/expenses/${updated.id}`,
+        companyId: updated.companyId,
+        currency: updated.currency,
+        amountOriginal: updated.amountOriginal,
+        merchantName: updated.merchantName,
+        description: updated.description,
+        dueDate: updated.dueDate,
+        isUrgent: updated.isUrgent,
+      }).catch((err) => console.error("[Slack] 메시지 수정 실패:", err));
+    }
   }
 
   return updated;

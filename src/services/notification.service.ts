@@ -225,7 +225,7 @@ export async function notifyExpenseApproved(
   });
 
   // Await Slack + Push to prevent Vercel serverless from killing them
-  const sideEffects: Promise<void>[] = [];
+  const sideEffects: Promise<unknown>[] = [];
 
   if (extra) {
     sideEffects.push(

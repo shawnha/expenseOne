@@ -164,6 +164,8 @@ export const expenses = expenseSchema.table(
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    slackMessageTs: varchar("slack_message_ts", { length: 50 }),
+    slackChannelId: varchar("slack_channel_id", { length: 50 }),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
