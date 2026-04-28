@@ -1,16 +1,26 @@
 const GOWID_BASE_URL = "https://openapi.gowid.com";
 
-function getApiKey(): string {
-  const key = process.env.GOWID_API_KEY;
-  if (!key) throw new Error("GOWID_API_KEY is not set");
-  return key;
+// Multi-company GoWid API keys
+export interface GowidCompanyConfig {
+  apiKey: string;
+  companySlug: string;
+  companyId?: string;
 }
 
-async function gowidFetch<T>(path: string, init?: RequestInit): Promise<T> {
+export function getGowidConfigs(): GowidCompanyConfig[] {
+  const configs: GowidCompanyConfig[] = [];
+  const koreaKey = process.env.GOWID_API_KEY;
+  if (koreaKey) configs.push({ apiKey: koreaKey, companySlug: "korea" });
+  const retailKey = process.env.GOWID_API_KEY_RETAIL;
+  if (retailKey) configs.push({ apiKey: retailKey, companySlug: "retail" });
+  return configs;
+}
+
+async function gowidFetch<T>(path: string, apiKey: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${GOWID_BASE_URL}${path}`, {
     ...init,
     headers: {
-      Authorization: getApiKey(),
+      Authorization: apiKey,
       "Content-Type": "application/json",
       ...init?.headers,
     },
@@ -72,32 +82,35 @@ interface GowidPaginatedResponse<T> {
   content: T[];
 }
 
-export async function fetchGowidMembers(): Promise<GowidMember[]> {
-  return gowidFetch<GowidMember[]>("/v1/members");
+export async function fetchGowidMembers(apiKey: string): Promise<GowidMember[]> {
+  return gowidFetch<GowidMember[]>("/v1/members", apiKey);
 }
 
 export async function fetchGowidNotSubmitted(
+  apiKey: string,
   page = 0,
   size = 100,
 ): Promise<GowidPaginatedResponse<GowidExpenseListItem>> {
   return gowidFetch<GowidPaginatedResponse<GowidExpenseListItem>>(
-    `/v1/expenses/not-submitted?page=${page}&size=${size}`,
+    `/v1/expenses/not-submitted?page=${page}&size=${size}`, apiKey,
   );
 }
 
 export async function fetchGowidExpenses(
+  apiKey: string,
   page = 0,
   size = 100,
 ): Promise<GowidPaginatedResponse<GowidExpenseListItem>> {
   return gowidFetch<GowidPaginatedResponse<GowidExpenseListItem>>(
-    `/v1/expenses?page=${page}&size=${size}`,
+    `/v1/expenses?page=${page}&size=${size}`, apiKey,
   );
 }
 
 export async function fetchGowidExpenseDetail(
+  apiKey: string,
   expenseId: number,
 ): Promise<GowidExpenseDetail> {
-  return gowidFetch<GowidExpenseDetail>(`/v1/expenses/${expenseId}`);
+  return gowidFetch<GowidExpenseDetail>(`/v1/expenses/${expenseId}`, apiKey);
 }
 
 export function extractCardLastFour(shortCardNumber: string): string {

@@ -11,6 +11,7 @@ import {
   fetchGowidNotSubmitted,
   fetchGowidExpenses,
   extractCardLastFour,
+  getGowidConfigs,
   type GowidExpenseListItem,
 } from "@/lib/gowid/client";
 import { createNotification } from "./notification.service";
@@ -85,24 +86,31 @@ export async function syncGowidTransactions(): Promise<{
   newStaged: number;
   notified: number;
 }> {
-  // Default company for new cards (GoWid API key is for 한아원코리아)
-  const [defaultCompany] = await db
-    .select({ id: companies.id })
-    .from(companies)
-    .where(eq(companies.slug, "korea"))
-    .limit(1);
-  const defaultCompanyId = defaultCompany?.id ?? null;
+  const configs = getGowidConfigs();
+  if (configs.length === 0) {
+    return { fetched: 0, newStaged: 0, notified: 0 };
+  }
 
-  // 1. Fetch all not-submitted from GoWid (paginate)
-  let allExpenses: GowidExpenseListItem[] = [];
-  let page = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const result = await fetchGowidNotSubmitted(page, 100);
-    allExpenses = allExpenses.concat(result.content);
-    hasMore = !result.last;
-    page++;
-    if (page > 50) break;
+  // Resolve company IDs for each config
+  const allCompanyRows = await db.select({ id: companies.id, slug: companies.slug }).from(companies);
+  const slugToId = new Map(allCompanyRows.map((c) => [c.slug, c.id]));
+  for (const config of configs) {
+    config.companyId = slugToId.get(config.companySlug) ?? undefined;
+  }
+
+  // 1. Fetch all not-submitted from all GoWid accounts (paginate)
+  let allExpenses: (GowidExpenseListItem & { _companyId?: string })[] = [];
+  for (const config of configs) {
+    let page = 0;
+    let hasMore = true;
+    while (hasMore) {
+      const result = await fetchGowidNotSubmitted(config.apiKey, page, 100);
+      const withCompany = result.content.map((e) => ({ ...e, _companyId: config.companyId }));
+      allExpenses = allExpenses.concat(withCompany);
+      hasMore = !result.last;
+      page++;
+      if (page > 50) break;
+    }
   }
 
   if (allExpenses.length === 0) {
@@ -204,47 +212,50 @@ export async function syncGowidTransactions(): Promise<{
     }
   }
 
-  // 5. Discover ALL cards (from full expense history, not just not-submitted)
-  // This ensures cards with no pending transactions are also registered
-  let allForDiscovery: GowidExpenseListItem[] = [];
-  let discPage = 0;
-  let discMore = true;
-  while (discMore) {
-    const result = await fetchGowidExpenses(discPage, 100);
-    allForDiscovery = allForDiscovery.concat(result.content);
-    discMore = !result.last;
-    discPage++;
-    if (discPage > 50) break;
+  // 5. Discover ALL cards (from full expense history across all companies)
+  let allForDiscovery: (GowidExpenseListItem & { _companyId?: string })[] = [];
+  for (const config of configs) {
+    let discPage = 0;
+    let discMore = true;
+    while (discMore) {
+      const result = await fetchGowidExpenses(config.apiKey, discPage, 100);
+      allForDiscovery = allForDiscovery.concat(
+        result.content.map((e) => ({ ...e, _companyId: config.companyId })),
+      );
+      discMore = !result.last;
+      discPage++;
+      if (discPage > 50) break;
+    }
   }
 
   // Merge cards from not-submitted + all expenses
-  const allCards = new Map<string, string | null>();
+  const allCards = new Map<string, { alias: string | null; companyId: string | undefined }>();
   for (const e of [...allExpenses, ...allForDiscovery]) {
     const lf = extractCardLastFour(e.shortCardNumber);
     if (!allCards.has(lf)) {
-      allCards.set(lf, e.cardAlias);
+      allCards.set(lf, { alias: e.cardAlias, companyId: (e as { _companyId?: string })._companyId });
     }
   }
 
   // Register any cards not yet in mappings
-  for (const [lastFour, alias] of allCards) {
+  for (const [lastFour, info] of allCards) {
     if (mappings.find((m) => m.cardLastFour === lastFour)) continue;
-    if (newCardLastFours.has(lastFour)) continue; // already handled above
+    if (newCardLastFours.has(lastFour)) continue;
 
     let autoUserId: string | null = null;
-    if (alias) {
+    if (info.alias) {
       const [matchedUser] = await db
         .select({ id: users.id })
         .from(users)
-        .where(eq(users.name, alias))
+        .where(eq(users.name, info.alias))
         .limit(1);
       if (matchedUser) autoUserId = matchedUser.id;
     }
     await upsertCardMapping({
       cardLastFour: lastFour,
-      cardAlias: alias ?? null,
+      cardAlias: info.alias ?? null,
       userId: autoUserId,
-      companyId: defaultCompanyId,
+      companyId: info.companyId ?? null,
     });
   }
 
@@ -266,6 +277,7 @@ export async function syncGowidTransactions(): Promise<{
       cardLastFour: lastFour,
       cardAlias: matchingExpense?.cardAlias ?? null,
       userId: autoUserId,
+      companyId: (matchingExpense as { _companyId?: string })?._companyId ?? null,
     });
   }
 
