@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getAuthUser, getCachedClient } from "@/lib/supabase/cached";
 import { listCardMappings, updateCardMappingUser } from "@/services/gowid.service";
 import { db } from "@/lib/db";
-import { gowidCardMappings } from "@/lib/db/schema";
+import { gowidCardMappings, companies } from "@/lib/db/schema";
 import { eq, isNull } from "drizzle-orm";
 
 // GET — list card mappings
@@ -36,16 +36,21 @@ export async function GET(request: Request) {
         cardLastFour: gowidCardMappings.cardLastFour,
         cardAlias: gowidCardMappings.cardAlias,
         userId: gowidCardMappings.userId,
+        companyId: gowidCardMappings.companyId,
+        companyName: companies.name,
       })
       .from(gowidCardMappings)
+      .leftJoin(companies, eq(gowidCardMappings.companyId, companies.id))
       .where(eq(gowidCardMappings.userId, authUser.id)),
     db
       .select({
         id: gowidCardMappings.id,
         cardLastFour: gowidCardMappings.cardLastFour,
         cardAlias: gowidCardMappings.cardAlias,
+        companyName: companies.name,
       })
       .from(gowidCardMappings)
+      .leftJoin(companies, eq(gowidCardMappings.companyId, companies.id))
       .where(isNull(gowidCardMappings.userId)),
   ]);
 
@@ -70,7 +75,7 @@ export async function PATCH(request: Request) {
   const isAdmin = user?.role === "ADMIN";
 
   const body = await request.json();
-  let { mappingId, userId } = body as { mappingId: string; userId: string | null };
+  let { mappingId, userId, companyId } = body as { mappingId: string; userId?: string | null; companyId?: string | null };
 
   // "self" = assign to current user
   if (userId === "self") userId = authUser.id;
@@ -79,12 +84,26 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: { code: "BAD_REQUEST", message: "mappingId 필수" } }, { status: 400 });
   }
 
+  // Handle companyId update (admin only)
+  if (companyId !== undefined) {
+    if (!isAdmin) {
+      return NextResponse.json({ error: { code: "FORBIDDEN", message: "관리자만 회사를 변경할 수 있습니다" } }, { status: 403 });
+    }
+    await db.update(gowidCardMappings).set({
+      companyId: companyId,
+      updatedAt: new Date(),
+    }).where(eq(gowidCardMappings.id, mappingId));
+    if (userId === undefined) {
+      // Only updating companyId
+      return NextResponse.json({ ok: true });
+    }
+  }
+
   // Non-admin: can only assign to self or unassign own cards
-  if (!isAdmin) {
+  if (!isAdmin && userId !== undefined) {
     if (userId && userId !== authUser.id) {
       return NextResponse.json({ error: { code: "FORBIDDEN", message: "본인에게만 카드를 매핑할 수 있습니다" } }, { status: 403 });
     }
-    // If unassigning (userId=null), verify the card belongs to this user
     if (userId === null) {
       const [mapping] = await db
         .select({ userId: gowidCardMappings.userId })
@@ -96,7 +115,9 @@ export async function PATCH(request: Request) {
     }
   }
 
-  const updated = await updateCardMappingUser(mappingId, userId);
+  const updated = userId !== undefined
+    ? await updateCardMappingUser(mappingId, userId)
+    : { id: mappingId };
   if (!updated) {
     return NextResponse.json({ error: { code: "NOT_FOUND", message: "매핑을 찾을 수 없습니다" } }, { status: 404 });
   }

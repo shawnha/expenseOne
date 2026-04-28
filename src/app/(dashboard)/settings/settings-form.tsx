@@ -524,6 +524,7 @@ interface MyCard {
   cardLastFour: string;
   cardAlias: string | null;
   userId: string | null;
+  companyName?: string | null;
 }
 
 function MyCardMappings() {
@@ -613,6 +614,11 @@ function MyCardMappings() {
                     ({card.cardAlias})
                   </span>
                 )}
+                {card.companyName && (
+                  <span className="text-[10px] font-sans text-[var(--apple-blue)] opacity-70">
+                    {card.companyName}
+                  </span>
+                )}
                 <button
                   type="button"
                   onClick={() => handleRemove(card.id)}
@@ -648,6 +654,9 @@ function MyCardMappings() {
                 + •••• {card.cardLastFour}
                 {card.cardAlias && (
                   <span className="text-[11px] font-sans">({card.cardAlias})</span>
+                )}
+                {card.companyName && (
+                  <span className="text-[10px] font-sans opacity-70">{card.companyName}</span>
                 )}
               </button>
             ))}

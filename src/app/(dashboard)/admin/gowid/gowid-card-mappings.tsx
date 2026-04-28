@@ -11,6 +11,12 @@ interface AppUser {
   email: string;
 }
 
+interface Company {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 interface CardMapping {
   id: string;
   cardLastFour: string;
@@ -24,9 +30,10 @@ interface CardMapping {
 
 interface GowidCardMappingsProps {
   appUsers: AppUser[];
+  companies: Company[];
 }
 
-export function GowidCardMappings({ appUsers }: GowidCardMappingsProps) {
+export function GowidCardMappings({ appUsers, companies }: GowidCardMappingsProps) {
   const [mappings, setMappings] = useState<CardMapping[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -62,19 +69,19 @@ export function GowidCardMappings({ appUsers }: GowidCardMappingsProps) {
     }
   };
 
-  const handleUserChange = async (mappingId: string, userId: string | null) => {
+  const handleUpdate = async (mappingId: string, field: "userId" | "companyId", value: string | null) => {
     setUpdatingId(mappingId);
     try {
       const res = await fetch("/api/gowid/card-mappings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mappingId, userId }),
+        body: JSON.stringify({ mappingId, [field]: value }),
       });
       if (!res.ok) throw new Error("업데이트 실패");
-      toast.success("매핑이 업데이트되었습니다.");
+      toast.success("업데이트되었습니다.");
       fetchMappings();
     } catch {
-      toast.error("매핑 업데이트에 실패했습니다.");
+      toast.error("업데이트에 실패했습니다.");
     } finally {
       setUpdatingId(null);
     }
@@ -110,7 +117,7 @@ export function GowidCardMappings({ appUsers }: GowidCardMappingsProps) {
         </Button>
       </div>
 
-      <div className="glass overflow-hidden">
+      <div className="glass overflow-hidden overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="border-b border-[var(--apple-separator)]">
@@ -119,6 +126,9 @@ export function GowidCardMappings({ appUsers }: GowidCardMappingsProps) {
               </th>
               <th className="px-4 py-3 text-left text-footnote font-medium text-[var(--apple-secondary-label)]">
                 카드 별칭
+              </th>
+              <th className="px-4 py-3 text-left text-footnote font-medium text-[var(--apple-secondary-label)]">
+                회사
               </th>
               <th className="px-4 py-3 text-left text-footnote font-medium text-[var(--apple-secondary-label)]">
                 매핑된 사용자
@@ -139,9 +149,26 @@ export function GowidCardMappings({ appUsers }: GowidCardMappingsProps) {
                 </td>
                 <td className="px-4 py-3">
                   <select
+                    value={m.companyId ?? ""}
+                    onChange={(e) =>
+                      handleUpdate(m.id, "companyId", e.target.value || null)
+                    }
+                    disabled={updatingId === m.id}
+                    className="w-full max-w-[160px] rounded-lg border border-[var(--apple-separator)] bg-transparent px-2 py-1.5 text-subheadline text-[var(--apple-label)] focus:outline-none focus:ring-2 focus:ring-[var(--apple-blue)]"
+                  >
+                    <option value="">미지정</option>
+                    {companies.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td className="px-4 py-3">
+                  <select
                     value={m.userId ?? ""}
                     onChange={(e) =>
-                      handleUserChange(m.id, e.target.value || null)
+                      handleUpdate(m.id, "userId", e.target.value || null)
                     }
                     disabled={updatingId === m.id}
                     className="w-full max-w-[200px] rounded-lg border border-[var(--apple-separator)] bg-transparent px-2 py-1.5 text-subheadline text-[var(--apple-label)] focus:outline-none focus:ring-2 focus:ring-[var(--apple-blue)]"
@@ -159,7 +186,7 @@ export function GowidCardMappings({ appUsers }: GowidCardMappingsProps) {
             {mappings.length === 0 && (
               <tr>
                 <td
-                  colSpan={3}
+                  colSpan={4}
                   className="px-4 py-8 text-center text-footnote text-[var(--apple-secondary-label)]"
                 >
                   카드 매핑이 없습니다. &ldquo;지금 동기화&rdquo; 버튼을 눌러 고위드에서 카드 정보를 가져오세요.

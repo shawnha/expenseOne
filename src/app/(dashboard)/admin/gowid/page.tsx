@@ -17,11 +17,10 @@ export default async function GowidSettingsPage() {
 
   if (user?.role !== "ADMIN") redirect("/");
 
-  const { data: appUsers } = await supabase
-    .from("users")
-    .select("id, name, email")
-    .eq("is_active", true)
-    .order("name");
+  const [{ data: appUsers }, { data: companyRows }] = await Promise.all([
+    supabase.from("users").select("id, name, email").eq("is_active", true).order("name"),
+    supabase.from("companies").select("id, name, slug").eq("is_active", true).order("sort_order"),
+  ]);
 
   return (
     <div className="flex flex-col gap-4 sm:gap-5">
@@ -34,11 +33,8 @@ export default async function GowidSettingsPage() {
         </p>
       </div>
       <GowidCardMappings
-        appUsers={(appUsers ?? []).map((u) => ({
-          id: u.id,
-          name: u.name,
-          email: u.email,
-        }))}
+        appUsers={(appUsers ?? []).map((u) => ({ id: u.id, name: u.name, email: u.email }))}
+        companies={(companyRows ?? []).map((c) => ({ id: c.id, name: c.name, slug: c.slug }))}
       />
     </div>
   );
