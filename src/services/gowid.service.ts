@@ -3,6 +3,7 @@ import {
   gowidCardMappings,
   gowidTransactions,
   users,
+  companies,
 } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import {
@@ -83,6 +84,14 @@ export async function syncGowidTransactions(): Promise<{
   newStaged: number;
   notified: number;
 }> {
+  // Default company for new cards (GoWid API key is for 한아원코리아)
+  const [defaultCompany] = await db
+    .select({ id: companies.id })
+    .from(companies)
+    .where(eq(companies.slug, "korea"))
+    .limit(1);
+  const defaultCompanyId = defaultCompany?.id ?? null;
+
   // 1. Fetch all not-submitted from GoWid (paginate)
   let allExpenses: GowidExpenseListItem[] = [];
   let page = 0;
@@ -214,6 +223,7 @@ export async function syncGowidTransactions(): Promise<{
       cardLastFour: lastFour,
       cardAlias: alias ?? null,
       userId: autoUserId,
+      companyId: defaultCompanyId,
     });
   }
 

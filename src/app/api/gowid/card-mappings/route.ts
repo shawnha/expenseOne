@@ -47,6 +47,7 @@ export async function GET(request: Request) {
         id: gowidCardMappings.id,
         cardLastFour: gowidCardMappings.cardLastFour,
         cardAlias: gowidCardMappings.cardAlias,
+        companyId: gowidCardMappings.companyId,
         companyName: companies.name,
       })
       .from(gowidCardMappings)

@@ -640,10 +640,10 @@ function MyCardMappings() {
               <p className="text-[12px] text-[var(--apple-tertiary-label)]">등록된 카드 없음</p>
             )}
 
-            {/* Unmapped cards — add to this company */}
-            {unmappedCards.length > 0 && (
+            {/* Unmapped cards — only show cards that belong to this company or have no company */}
+            {unmappedCards.filter((c) => !c.companyId || c.companyId === company.id).length > 0 && (
               <div className="flex flex-wrap gap-1.5 pt-1 border-t border-[var(--apple-separator)]">
-                {unmappedCards.map((card) => (
+                {unmappedCards.filter((c) => !c.companyId || c.companyId === company.id).map((card) => (
                   <button
                     key={card.id}
                     type="button"
