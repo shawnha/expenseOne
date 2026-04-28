@@ -29,7 +29,7 @@ import {
   notifyExpenseRejected,
   notifyNewDepositRequest,
 } from "./notification.service";
-import { notifySlackCorporateCard, notifySlackDepositRequest, updateSlackExpenseMessage } from "./slack.service";
+import { notifySlackCorporateCard, notifySlackDepositRequest, updateSlackExpenseMessage, deleteSlackExpenseMessage } from "./slack.service";
 import { sendPushToAdmins } from "./push.service";
 import { AppError } from "./attachment.service";
 import { getExchangeRate, convertToKRW } from "./exchange-rate.service";
@@ -568,6 +568,13 @@ export async function deleteExpense(
     );
   }
 
+  // Delete Slack message on delete
+  if (deleted.slackMessageTs && deleted.slackChannelId) {
+    await deleteSlackExpenseMessage(deleted.slackChannelId, deleted.slackMessageTs).catch(
+      (err) => console.error("[Slack] 삭제 메시지 제거 실패:", err),
+    );
+  }
+
   return deleted;
 }
 
@@ -609,6 +616,13 @@ export async function cancelExpense(expenseId: string, userId: string) {
 
   if (!updated) {
     throw new AppError("FORBIDDEN", "비용 상태가 변경되었습니다. 페이지를 새로고침해주세요.");
+  }
+
+  // Delete Slack message on cancel
+  if (updated.slackMessageTs && updated.slackChannelId) {
+    await deleteSlackExpenseMessage(updated.slackChannelId, updated.slackMessageTs).catch(
+      (err) => console.error("[Slack] 취소 메시지 삭제 실패:", err),
+    );
   }
 
   return updated;

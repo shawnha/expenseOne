@@ -335,3 +335,10 @@ export async function updateSlackExpenseMessage(params: {
 
   return sendSlackMessage(lines.join("\n"), params.companyId);
 }
+
+/**
+ * 비용 취소/삭제 시 Slack 메시지 삭제
+ */
+export async function deleteSlackExpenseMessage(channel: string, ts: string): Promise<boolean> {
+  return deleteSlackMessage(channel, ts);
+}
