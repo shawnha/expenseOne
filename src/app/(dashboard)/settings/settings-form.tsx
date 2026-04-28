@@ -596,41 +596,60 @@ function MyCardMappings() {
     return <div className="flex justify-center py-4"><Loader2 className="size-4 animate-spin text-[var(--apple-secondary-label)]" /></div>;
   }
 
+  // Group cards by company
+  const groupByCompany = (cards: MyCard[]) => {
+    const groups = new Map<string, MyCard[]>();
+    for (const card of cards) {
+      const key = card.companyName ?? "미지정";
+      const list = groups.get(key) ?? [];
+      list.push(card);
+      groups.set(key, list);
+    }
+    return groups;
+  };
+
+  const myGroups = groupByCompany(myCards);
+  const unmappedGroups = groupByCompany(unmappedCards);
+
+  const renderCardBadge = (card: MyCard, removable: boolean) => (
+    <span
+      key={card.id}
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-mono bg-[rgba(0,122,255,0.1)] text-[#007AFF] dark:bg-[rgba(0,122,255,0.2)]"
+    >
+      •••• {card.cardLastFour}
+      {card.cardAlias && (
+        <span className="text-[11px] font-sans text-[var(--apple-secondary-label)]">
+          ({card.cardAlias})
+        </span>
+      )}
+      {removable && (
+        <button
+          type="button"
+          onClick={() => handleRemove(card.id)}
+          disabled={busy}
+          className="ml-0.5 text-[12px] opacity-60 hover:opacity-100"
+          title="해제"
+        >
+          ×
+        </button>
+      )}
+    </span>
+  );
+
   return (
-    <div className="space-y-3">
-      {/* My cards */}
+    <div className="space-y-4">
+      {/* My cards grouped by company */}
       {myCards.length > 0 ? (
-        <div className="space-y-2">
+        <div className="space-y-3">
           <p className="text-[12px] text-[var(--apple-secondary-label)]">등록된 카드</p>
-          <div className="flex flex-wrap gap-2">
-            {myCards.map((card) => (
-              <span
-                key={card.id}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-mono bg-[rgba(0,122,255,0.1)] text-[#007AFF] dark:bg-[rgba(0,122,255,0.2)]"
-              >
-                •••• {card.cardLastFour}
-                {card.cardAlias && (
-                  <span className="text-[11px] font-sans text-[var(--apple-secondary-label)]">
-                    ({card.cardAlias})
-                  </span>
-                )}
-                {card.companyName && (
-                  <span className="text-[10px] font-sans text-[var(--apple-blue)] opacity-70">
-                    {card.companyName}
-                  </span>
-                )}
-                <button
-                  type="button"
-                  onClick={() => handleRemove(card.id)}
-                  disabled={busy}
-                  className="ml-0.5 text-[12px] opacity-60 hover:opacity-100"
-                  title="해제"
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
+          {[...myGroups.entries()].map(([companyName, cards]) => (
+            <div key={companyName} className="space-y-1.5">
+              <p className="text-[11px] font-medium text-[var(--apple-secondary-label)]">{companyName}</p>
+              <div className="flex flex-wrap gap-2">
+                {cards.map((card) => renderCardBadge(card, true))}
+              </div>
+            </div>
+          ))}
         </div>
       ) : (
         <p className="text-[13px] text-[var(--apple-secondary-label)]">
@@ -638,29 +657,31 @@ function MyCardMappings() {
         </p>
       )}
 
-      {/* Add card from unmapped */}
+      {/* Unmapped cards grouped by company */}
       {unmappedCards.length > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-3">
           <p className="text-[12px] text-[var(--apple-secondary-label)]">등록 가능한 카드</p>
-          <div className="flex flex-wrap gap-2">
-            {unmappedCards.map((card) => (
-              <button
-                key={card.id}
-                type="button"
-                onClick={() => handleAdd(card.id)}
-                disabled={busy}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-mono border border-dashed border-[var(--apple-separator)] text-[var(--apple-secondary-label)] hover:border-[var(--apple-blue)] hover:text-[var(--apple-blue)] transition-colors"
-              >
-                + •••• {card.cardLastFour}
-                {card.cardAlias && (
-                  <span className="text-[11px] font-sans">({card.cardAlias})</span>
-                )}
-                {card.companyName && (
-                  <span className="text-[10px] font-sans opacity-70">{card.companyName}</span>
-                )}
-              </button>
-            ))}
-          </div>
+          {[...unmappedGroups.entries()].map(([companyName, cards]) => (
+            <div key={companyName} className="space-y-1.5">
+              <p className="text-[11px] font-medium text-[var(--apple-secondary-label)]">{companyName}</p>
+              <div className="flex flex-wrap gap-2">
+                {cards.map((card) => (
+                  <button
+                    key={card.id}
+                    type="button"
+                    onClick={() => handleAdd(card.id)}
+                    disabled={busy}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-mono border border-dashed border-[var(--apple-separator)] text-[var(--apple-secondary-label)] hover:border-[var(--apple-blue)] hover:text-[var(--apple-blue)] transition-colors"
+                  >
+                    + •••• {card.cardLastFour}
+                    {card.cardAlias && (
+                      <span className="text-[11px] font-sans">({card.cardAlias})</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
