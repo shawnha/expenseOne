@@ -464,6 +464,9 @@ function DepositRequestEditForm({
   const [amountDisplay, setAmountDisplay] = useState(
     formatAmount(expense.amount)
   );
+  const [supplyAmount, setSupplyAmount] = useState(expense.amount);
+  const [vatIncluded, setVatIncluded] = useState(false);
+  const [freelancerDeduction, setFreelancerDeduction] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [docTypeErrors, setDocTypeErrors] = useState<Record<string, boolean>>({});
   const [showCustomCategory, setShowCustomCategory] = useState(
@@ -498,19 +501,49 @@ function DepositRequestEditForm({
   // Warn on unsaved changes (browser close / refresh)
   useUnsavedChanges(isDirty || newFiles.length > 0 || removedAttachmentIds.length > 0);
 
+  const calcFinalAmount = useCallback(
+    (base: number, vat: boolean, freelancer: boolean) => {
+      let result = base;
+      if (vat) result = Math.round(result * 1.1);
+      if (freelancer) result = Math.round(result * (1 - 0.033));
+      return result;
+    },
+    []
+  );
+
   const handleAmountChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const raw = e.target.value.replace(/[^\d]/g, "");
       if (raw === "") {
         setAmountDisplay("");
+        setSupplyAmount(0);
         setValue("amount", 0, { shouldValidate: true });
         return;
       }
       const num = parseInt(raw, 10);
+      setSupplyAmount(num);
       setAmountDisplay(formatAmount(num));
-      setValue("amount", num, { shouldValidate: true });
+      setValue("amount", calcFinalAmount(num, vatIncluded, freelancerDeduction), { shouldValidate: true });
     },
-    [setValue]
+    [setValue, vatIncluded, freelancerDeduction, calcFinalAmount]
+  );
+
+  const handleVatToggle = useCallback(
+    (checked: boolean) => {
+      setVatIncluded(checked);
+      if (supplyAmount <= 0) return;
+      setValue("amount", calcFinalAmount(supplyAmount, checked, freelancerDeduction), { shouldValidate: true });
+    },
+    [setValue, supplyAmount, freelancerDeduction, calcFinalAmount]
+  );
+
+  const handleFreelancerToggle = useCallback(
+    (checked: boolean) => {
+      setFreelancerDeduction(checked);
+      if (supplyAmount <= 0) return;
+      setValue("amount", calcFinalAmount(supplyAmount, vatIncluded, checked), { shouldValidate: true });
+    },
+    [setValue, supplyAmount, vatIncluded, calcFinalAmount]
   );
 
   const handleDocumentTypeChange = useCallback(
@@ -661,6 +694,49 @@ function DepositRequestEditForm({
                 <InputGroupAddon align="inline-end"><InputGroupText>원</InputGroupText></InputGroupAddon>
               </InputGroup>
               {errors.amount && <p className="text-xs text-[var(--apple-red)]">{errors.amount.message}</p>}
+
+              {/* VAT + 프리랜서 원천징수 */}
+              <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input type="checkbox" checked={vatIncluded} onChange={(e) => handleVatToggle(e.target.checked)} className="size-4 rounded border-[rgba(0,0,0,0.15)] dark:border-[rgba(255,255,255,0.2)] text-[var(--apple-blue)] focus:ring-[var(--apple-blue)] cursor-pointer" />
+                  <span className="text-[13px] text-[var(--apple-secondary-label)]">VAT 포함 (+10%)</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input type="checkbox" checked={freelancerDeduction} onChange={(e) => handleFreelancerToggle(e.target.checked)} className="size-4 rounded border-[rgba(0,0,0,0.15)] dark:border-[rgba(255,255,255,0.2)] text-[var(--apple-blue)] focus:ring-[var(--apple-blue)] cursor-pointer" />
+                  <span className="text-[13px] text-[var(--apple-secondary-label)]">프리랜서 원천징수 (-3.3%)</span>
+                </label>
+              </div>
+
+              {/* 금액 내역 */}
+              {supplyAmount > 0 && (vatIncluded || freelancerDeduction) && (() => {
+                const vatAmount = vatIncluded ? Math.round(supplyAmount * 0.1) : 0;
+                const freelancerAmount = freelancerDeduction ? Math.round((supplyAmount + vatAmount) * 0.033) : 0;
+                const finalAmount = calcFinalAmount(supplyAmount, vatIncluded, freelancerDeduction);
+                return (
+                  <div className="mt-2 p-3 rounded-lg bg-[rgba(0,122,255,0.06)] text-[13px] space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-[var(--apple-secondary-label)]">공급가액</span>
+                      <span>{formatAmount(supplyAmount)}원</span>
+                    </div>
+                    {vatIncluded && (
+                      <div className="flex justify-between">
+                        <span className="text-[var(--apple-secondary-label)]">VAT (+10%)</span>
+                        <span>+{formatAmount(vatAmount)}원</span>
+                      </div>
+                    )}
+                    {freelancerDeduction && (
+                      <div className="flex justify-between">
+                        <span className="text-[var(--apple-secondary-label)]">원천징수 (-3.3%)</span>
+                        <span className="text-[var(--apple-red)]">-{formatAmount(freelancerAmount)}원</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-semibold border-t border-[rgba(0,0,0,0.08)] dark:border-[rgba(255,255,255,0.1)] pt-1 mt-1">
+                      <span>실지급액</span>
+                      <span className="text-[var(--apple-blue)]">{formatAmount(finalAmount)}원</span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
             {/* 긴급 / 선지급 */}
             <div className="flex flex-col gap-3">
