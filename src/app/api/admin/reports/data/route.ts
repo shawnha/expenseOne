@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, handleError } from "@/lib/api-utils";
 import { db } from "@/lib/db";
 import { expenses, users, companies } from "@/lib/db/schema";
-import { eq, and, gte, lte, sql, sum } from "drizzle-orm";
+import { eq, and, gte, lte, sql } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
 // GET /api/admin/reports/data

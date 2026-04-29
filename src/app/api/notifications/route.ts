@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
 import { requireAuth, handleError, jsonWithCache } from "@/lib/api-utils";
 import { getNotifications } from "@/services/notification.service";

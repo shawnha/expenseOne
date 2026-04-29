@@ -342,13 +342,11 @@ function AppearanceSection() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
     const saved = localStorage.getItem("theme") as ThemeMode | null;
-    if (saved === "light" || saved === "dark" || saved === "system") {
-      setMode(saved);
-    } else {
-      setMode("system");
-    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- SSR hydration: read localStorage post-mount
+    setMode(saved === "light" || saved === "dark" || saved === "system" ? saved : "system");
+     
+    setMounted(true);
   }, []);
 
   // Sync with header toggle
@@ -455,7 +453,7 @@ function PushTestCard() {
       } else {
         toast.error(data.message || "Push 전송 실패");
       }
-    } catch (err) {
+    } catch {
       setResult({ ok: false, message: "요청 실패" });
       toast.error("Push 테스트 요청에 실패했습니다.");
     } finally {

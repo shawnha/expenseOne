@@ -23,7 +23,6 @@ function LoginContent() {
   const router = useRouter();
   const errorCode = searchParams.get('error');
   const debugMsg = searchParams.get('debug');
-  const redirectTo = searchParams.get('redirectTo');
   const errorMessage = errorCode ? ERROR_MESSAGES[errorCode] : null;
 
   const [loading, setLoading] = useState(false);

@@ -87,7 +87,7 @@ export async function PATCH(request: NextRequest) {
 
     const { name, cardLastFour, department, companyId } = parsed.data;
 
-    const updateData: Record<string, any> = {
+    const updateData: Record<string, unknown> = {
       updatedAt: new Date(),
     };
 

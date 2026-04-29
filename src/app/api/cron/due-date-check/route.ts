@@ -95,7 +95,7 @@ export async function GET(request: Request) {
       // Only notify admins who haven't received this reminder for this expense today
       const alreadyNotifiedToday = new Set(
         existing
-          .filter((n) => {
+          .filter(() => {
             // Check if we already sent this specific days-until for this expense
             // (stored as title prefix in notification.title)
             return true; // simplified — if any exist, skip (we re-notify each reminder day)

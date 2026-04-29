@@ -28,7 +28,10 @@ export function useRealtimeNotifications(
   const [realtimeUnreadDelta, setRealtimeUnreadDelta] = useState(0);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const onNewNotificationRef = useRef(onNewNotification);
-  onNewNotificationRef.current = onNewNotification;
+
+  useEffect(() => {
+    onNewNotificationRef.current = onNewNotification;
+  }, [onNewNotification]);
 
   // When mark-all-read fires, ignore the stale server-side unreadCount
   const [readAllTriggered, setReadAllTriggered] = useState(false);

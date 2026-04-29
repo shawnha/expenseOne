@@ -4,7 +4,6 @@ import {
   attachments,
   users,
   companies,
-  type Expense,
 } from "@/lib/db/schema";
 import {
   eq,
@@ -17,7 +16,6 @@ import {
   ilike,
   count,
   sum,
-  sql,
 } from "drizzle-orm";
 import type {
   CreateExpenseInput,
@@ -765,24 +763,12 @@ export async function rejectExpense(
     );
   }
 
-  // Look up names and emails for Slack mention
-  const [adminUser, submitterUser] = await Promise.all([
-    db.select({ name: users.name }).from(users).where(eq(users.id, adminId)),
-    db.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, expense.submittedById)),
-  ]);
-
   // Send notification to the submitter
   await notifyExpenseRejected(
     expense.submittedById,
     expense.id,
     expense.title,
     rejectionReason,
-    {
-      amount: expense.amount,
-      rejecterName: adminUser[0]?.name ?? "관리자",
-      submitterName: submitterUser[0]?.name ?? "요청자",
-      submitterEmail: submitterUser[0]?.email ?? "",
-    },
   );
 
   return updated;

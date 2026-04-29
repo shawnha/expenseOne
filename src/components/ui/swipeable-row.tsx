@@ -128,9 +128,13 @@ export function SwipeableRow({
 
   // Keep isOpen in a ref so touch handlers can read it without re-attaching
   const isOpenRef = useRef(isOpen);
-  isOpenRef.current = isOpen;
   const enabledRef = useRef(enabled);
-  enabledRef.current = enabled;
+  useEffect(() => {
+    isOpenRef.current = isOpen;
+  }, [isOpen]);
+  useEffect(() => {
+    enabledRef.current = enabled;
+  }, [enabled]);
 
   // -----------------------------------------------------------------------
   // Transform helpers
@@ -157,6 +161,7 @@ export function SwipeableRow({
   useEffect(() => {
     if (!isOpen && contentRef.current) {
       applyTransform(0, EASE);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- close confirm popup when row closes externally
       setConfirmKey(null);
     }
   }, [isOpen, applyTransform]);
@@ -263,7 +268,7 @@ export function SwipeableRow({
       el.removeEventListener("touchend", onTouchEnd);
       clearTimeout(confirmTimeoutRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [actions.length, totalActionsWidth, id, requestOpen, requestClose, applyTransform]);
 
   // -----------------------------------------------------------------------

@@ -47,7 +47,9 @@ export function FileUpload({
 
   // Revoke object URLs on unmount to prevent memory leaks
   const filesRef = useRef(files);
-  filesRef.current = files;
+  useEffect(() => {
+    filesRef.current = files;
+  }, [files]);
   useEffect(() => {
     return () => {
       filesRef.current.forEach((f) => { if (f.preview) URL.revokeObjectURL(f.preview); });
@@ -341,7 +343,9 @@ export function FileUploadWithDocType({
 
   // Revoke object URLs on unmount to prevent memory leaks
   const filesRef2 = useRef(files);
-  filesRef2.current = files;
+  useEffect(() => {
+    filesRef2.current = files;
+  }, [files]);
   useEffect(() => {
     return () => {
       filesRef2.current.forEach((f) => { if (f.preview) URL.revokeObjectURL(f.preview); });

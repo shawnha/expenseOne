@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { users, companies, gowidCardMappings } from "@/lib/db/schema";
-import { desc, eq, asc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { getAuthUser, getCachedClient } from "@/lib/supabase/cached";
 import { UsersTable } from "./users-table";
 import { getActiveCompanies } from "@/services/company.service";

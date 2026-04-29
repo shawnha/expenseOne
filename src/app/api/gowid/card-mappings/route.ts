@@ -81,7 +81,8 @@ export async function PATCH(request: Request) {
   const isAdmin = user?.role === "ADMIN";
 
   const body = await request.json();
-  let { mappingId, userId, companyId } = body as { mappingId: string; userId?: string | null; companyId?: string | null };
+  const { mappingId, companyId } = body as { mappingId: string; userId?: string | null; companyId?: string | null };
+  let userId = (body as { userId?: string | null }).userId;
 
   // "self" = assign to current user
   if (userId === "self") userId = authUser.id;

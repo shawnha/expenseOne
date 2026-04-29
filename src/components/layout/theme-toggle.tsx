@@ -39,11 +39,13 @@ export function ThemeToggle() {
   }, []);
 
   useEffect(() => {
-    setMounted(true);
     const saved = localStorage.getItem("theme") as ThemeMode | null;
     const initial = saved && CYCLE.includes(saved) ? saved : "system";
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- SSR hydration: read localStorage post-mount
     setMode(initial);
     applyTheme(initial);
+     
+    setMounted(true);
 
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     mq.addEventListener("change", handleSystemChange);

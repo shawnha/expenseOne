@@ -111,8 +111,8 @@ export async function POST(request: NextRequest) {
         console.error('Admin notification error:', notifyError);
       }
     })();
-  } catch (insertError: any) {
-    console.error('User registration error:', insertError.message);
+  } catch (insertError) {
+    console.error('User registration error:', insertError instanceof Error ? insertError.message : insertError);
     return NextResponse.json({ error: { code: 'registration_failed', message: '계정 생성에 실패했습니다.' } }, { status: 500 });
   }
 

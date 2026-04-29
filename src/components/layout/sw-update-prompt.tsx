@@ -142,6 +142,7 @@ export function SwUpdatePrompt() {
   }, [markFound]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async SW update check; setState only fires when new SW found
     checkForUpdate();
   }, [pathname, checkForUpdate]);
 

@@ -1,5 +1,4 @@
 import {
-  pgTable,
   pgSchema,
   uuid,
   varchar,
@@ -9,7 +8,6 @@ import {
   timestamp,
   date,
   char,
-  pgEnum,
   index,
   check,
   numeric,

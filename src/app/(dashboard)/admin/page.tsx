@@ -282,14 +282,16 @@ function CategoryPieSection({
   const strokeW = 18;
   const circumference = 2 * Math.PI * radius;
   const gapAngle = data.length > 1 ? 0.015 : 0;
-  let accumulated = 0;
-  const segments = data.map((item, i) => {
+  const segments = data.reduce<
+    Array<{ label: string; value: number; pct: number; dashLength: number; offset: number; color: string }>
+  >((acc, item, i) => {
+    const accumulated = acc.reduce((s, x) => s + x.pct, 0);
     const pct = total > 0 ? item.value / total : 0;
     const dashLength = Math.max(0, pct - gapAngle) * circumference;
     const offset = -(accumulated + gapAngle / 2) * circumference + circumference * 0.25;
-    accumulated += pct;
-    return { ...item, pct, dashLength, offset, color: CATEGORY_COLORS[i % CATEGORY_COLORS.length] };
-  });
+    acc.push({ ...item, pct, dashLength, offset, color: CATEGORY_COLORS[i % CATEGORY_COLORS.length] });
+    return acc;
+  }, []);
 
   const sorted = [...segments].sort((a, b) => b.value - a.value);
 
@@ -373,7 +375,6 @@ function LineChartSection({
   }
 
   const maxValue = Math.max(...data.map((d) => d.value), 1);
-  const minValue = Math.min(...data.map((d) => d.value));
   const latestValue = data[data.length - 1]?.value ?? 0;
   const prevValue = data.length >= 2 ? data[data.length - 2].value : latestValue;
   const changeRate = prevValue > 0 ? ((latestValue - prevValue) / prevValue) * 100 : 0;

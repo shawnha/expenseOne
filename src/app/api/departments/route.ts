@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, requireAdmin, errorResponse, handleError, validateOrigin, jsonWithCache, validateUUID } from "@/lib/api-utils";
+import { requireAuth, requireAdmin, errorResponse, handleError, validateOrigin, jsonWithCache } from "@/lib/api-utils";
 import { db } from "@/lib/db";
 import { departments, users } from "@/lib/db/schema";
 import { eq, asc, count } from "drizzle-orm";
@@ -109,9 +109,9 @@ export async function POST(request: NextRequest) {
       { data: { ...created, createdAt: created.createdAt.toISOString() } },
       { status: 201 },
     );
-  } catch (err: any) {
+  } catch (err) {
     // Handle unique constraint violation
-    if (err?.code === "23505") {
+    if ((err as { code?: string })?.code === "23505") {
       return errorResponse("VALIDATION_ERROR", "이미 존재하는 부서명입니다.");
     }
     return handleError(err);
@@ -138,7 +138,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const updateData: Record<string, any> = { name: parsed.data.name.trim() };
+    const updateData: Record<string, unknown> = { name: parsed.data.name.trim() };
     if (parsed.data.sortOrder !== undefined) {
       updateData.sortOrder = parsed.data.sortOrder;
     }
@@ -156,8 +156,8 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({
       data: { ...updated, createdAt: updated.createdAt.toISOString() },
     });
-  } catch (err: any) {
-    if (err?.code === "23505") {
+  } catch (err) {
+    if ((err as { code?: string })?.code === "23505") {
       return errorResponse("VALIDATION_ERROR", "이미 존재하는 부서명입니다.");
     }
     return handleError(err);

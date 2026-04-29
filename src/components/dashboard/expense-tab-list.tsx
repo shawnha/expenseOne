@@ -4,7 +4,6 @@ import { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { formatAmount } from "@/lib/validations/expense-form";
 import { formatExpenseAmount } from "@/lib/utils/expense-utils";
 import { SwipeableGroup, SwipeableRow, type SwipeAction } from "@/components/ui/swipeable-row";
 import { CreditCard, Banknote, ArrowRight, Pencil, Trash2, Receipt } from "lucide-react";

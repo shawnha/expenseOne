@@ -27,7 +27,7 @@ const STATUS_LABELS: Record<string, string> = {
 // ---------------------------------------------------------------------------
 export async function GET(request: NextRequest) {
   try {
-    const admin = await requireAdmin();
+    await requireAdmin();
     const { searchParams } = request.nextUrl;
 
     // Parse query parameters

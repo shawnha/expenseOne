@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   Table,
   TableBody,
@@ -11,7 +11,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { SwipeableGroup, SwipeableRow, type SwipeAction } from "@/components/ui/swipeable-row";
-import { formatAmount } from "@/lib/validations/expense-form";
 import { getCategoryLabel, formatExpenseAmount } from "@/lib/utils/expense-utils";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -101,7 +100,7 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
-  const [editExpense, setEditExpense] = useState<ExpenseRow | null>(null);
+  const [editExpense] = useState<ExpenseRow | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   const handleAdminDelete = useCallback(async (expenseId: string, e: React.MouseEvent) => {

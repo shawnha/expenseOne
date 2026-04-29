@@ -174,6 +174,7 @@ function EditableCell({
 
   useEffect(() => {
     if (editing) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset draft on edit-mode entry
       setDraft(value);
       setTimeout(() => inputRef.current?.focus(), 0);
     }

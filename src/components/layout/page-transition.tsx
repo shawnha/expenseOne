@@ -16,9 +16,12 @@ export function PageTransition({ children }: PageTransitionProps) {
   useEffect(() => {
     if (pathname !== prevPathname.current) {
       prevPathname.current = pathname;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- pathname change is a stable trigger; cascade is intentional for transition
       setPhase("enter");
+       
       setDisplayChildren(children);
     } else {
+       
       setDisplayChildren(children);
     }
   }, [pathname, children]);

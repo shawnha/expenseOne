@@ -63,7 +63,7 @@ export function DepartmentManager({ initialDepartments, companyId }: DepartmentM
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [isAdding, setIsAdding] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [, setDeletingId] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
 
   // Companies for "전체" mode - need to pick one when adding

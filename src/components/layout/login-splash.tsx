@@ -17,10 +17,12 @@ export function LoginSplash() {
     const key = "expense-one-splash-shown";
     if (sessionStorage.getItem(key)) {
       // Already shown this session — hide immediately
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- SSR: sessionStorage check post-mount
       setShow(false);
     } else {
       sessionStorage.setItem(key, "1");
     }
+     
     setChecked(true);
   }, []);
 

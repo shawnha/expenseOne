@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import { cn } from "@/lib/utils";
 import { ExpenseFilters } from "@/components/expenses/expense-filters";
 import { ExpenseTable } from "@/components/expenses/expense-table";
 import { Pagination } from "@/components/expenses/pagination";
@@ -68,8 +67,7 @@ async function getExpensesData(searchParams: Record<string, string | string[] | 
 
 export default async function ExpensesPage({ searchParams }: ExpensesPageProps) {
   const resolvedParams = await searchParams;
-  const { expenses, meta, userRole } = await getExpensesData(resolvedParams);
-  const isAdmin = userRole === "ADMIN";
+  const { expenses, meta } = await getExpensesData(resolvedParams);
 
   return (
     <div className="flex flex-col gap-4 sm:gap-5 lg:gap-6">

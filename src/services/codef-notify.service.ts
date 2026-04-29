@@ -8,8 +8,8 @@
  */
 
 import { db } from "@/lib/db";
-import { gowidCardMappings, gowidTransactions, expenses } from "@/lib/db/schema";
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { gowidCardMappings, gowidTransactions } from "@/lib/db/schema";
+import { eq, sql, inArray } from "drizzle-orm";
 import { createNotification } from "./notification.service";
 import { sendPushToUser } from "./push.service";
 
@@ -52,7 +52,6 @@ async function hasExistingExpense(
   userId: string,
   amount: number,
   date: string,
-  cardLastFour: string,
 ): Promise<boolean> {
   const result = await db.execute(sql`
     SELECT 1 FROM expenseone.expenses
@@ -138,7 +137,6 @@ export async function processCodefNotifications(): Promise<{
       mapping.userId,
       tx.amount,
       tx.date,
-      mapping.cardLastFour,
     );
 
     // Stage the transaction (to prevent re-notification)

@@ -189,7 +189,7 @@ export async function DELETE(request: NextRequest) {
     // Clean up storage files (non-blocking)
     if (fileKeys.length > 0) {
       const supabase = await createClient();
-      await supabase.storage.from("attachments").remove(fileKeys).catch((err: any) => {
+      await supabase.storage.from("attachments").remove(fileKeys).catch((err: unknown) => {
         console.error("Failed to clean up storage files:", err);
       });
     }
@@ -201,8 +201,8 @@ export async function DELETE(request: NextRequest) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!,
       );
       await adminClient.auth.admin.deleteUser(userId);
-    } catch (authErr: any) {
-      console.error("Failed to delete user from Supabase Auth:", authErr.message);
+    } catch (authErr) {
+      console.error("Failed to delete user from Supabase Auth:", authErr instanceof Error ? authErr.message : authErr);
     }
 
     revalidatePath("/");

@@ -2,7 +2,7 @@
 // Slack Bot API Service — #99-expenses 채널 멘션 알림
 // ---------------------------------------------------------------------------
 
-import { formatKRW, getCategoryLabel, formatExpenseAmount } from "@/lib/utils/expense-utils";
+import { getCategoryLabel, formatExpenseAmount } from "@/lib/utils/expense-utils";
 import { db } from "@/lib/db";
 import { companies } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";

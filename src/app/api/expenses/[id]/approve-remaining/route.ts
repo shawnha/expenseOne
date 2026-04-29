@@ -17,7 +17,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const csrfError = validateOrigin(request);
     if (csrfError) return csrfError;
 
-    const admin = await requireAdmin();
+    await requireAdmin();
     const id = validateUUID((await context.params).id);
 
     // Fetch the expense

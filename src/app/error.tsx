@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 import { ExpenseOneLogo } from "@/components/layout/expense-one-logo";
 
 export default function RootError({
@@ -72,12 +73,12 @@ export default function RootError({
           >
             다시 시도
           </button>
-          <a
+          <Link
             href="/"
             className="glass inline-flex h-11 items-center justify-center rounded-full border border-[var(--apple-separator,rgba(0,0,0,0.1))] px-6 text-[15px] font-medium text-[var(--apple-label,#1c1c1e)] transition-colors"
           >
             홈으로 돌아가기
-          </a>
+          </Link>
         </div>
       </div>
     </div>

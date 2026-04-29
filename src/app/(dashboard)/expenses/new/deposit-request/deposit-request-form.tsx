@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useCallback, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -131,7 +130,6 @@ interface DepositRequestFormProps {
 }
 
 export default function DepositRequestForm({ initialCompanies }: DepositRequestFormProps) {
-  const router = useRouter();
   const [files, setFiles] = useState<FileWithPreview[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCustomCategory, setShowCustomCategory] = useState(false);
@@ -233,7 +231,6 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
 
   const watchedIsPrePaid = watch("isPrePaid");
   const watchedPrePaidPercentage = watch("prePaidPercentage");
-  const watchedAmount = watch("amount");
   const [prePaidMode, setPrePaidMode] = useState<"full" | "partial">("full");
 
   useEffect(() => {

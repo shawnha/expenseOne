@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { expenses, users } from "@/lib/db/schema";
+import { expenses } from "@/lib/db/schema";
 import { desc, count } from "drizzle-orm";
-import { eq } from "drizzle-orm";
 
 export async function GET() {
   const start = Date.now();

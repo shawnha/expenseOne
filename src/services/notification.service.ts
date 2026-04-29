@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { notifications, users } from "@/lib/db/schema";
-import { eq, and, desc, count, lt, sql, inArray } from "drizzle-orm";
+import { eq, and, desc, count, lt, inArray } from "drizzle-orm";
 import { notifySlackApproved } from "./slack.service";
 import { sendPushToUser, sendPushToAdmins } from "./push.service";
 
@@ -267,12 +267,6 @@ export async function notifyExpenseRejected(
   expenseId: string,
   expenseTitle: string,
   rejectionReason: string,
-  extra?: {
-    amount: number;
-    rejecterName: string;
-    submitterName: string;
-    submitterEmail: string;
-  },
 ) {
   const notification = await createNotification({
     recipientId: submitterId,

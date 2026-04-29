@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { formatAmount } from "@/lib/validations/expense-form";
 import { formatExpenseAmount } from "@/lib/utils/expense-utils";
 
 interface AdminApproveRejectProps {
