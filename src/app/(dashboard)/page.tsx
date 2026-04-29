@@ -112,20 +112,37 @@ async function getDashboardData(monthKey?: string) {
     .order("created_at", { ascending: false })
     .limit(5);
 
-  // Execute all 5 queries in parallel
+  // Execute all 5 queries in parallel with a hard timeout. If a query hangs
+  // (PostgREST stall, pooler exhaustion, network blip), we don't want users
+  // staring at a permanent skeleton — we'd rather show zeros and let them
+  // refresh. The retry on next request usually succeeds.
+  const QUERY_TIMEOUT_MS = 8000;
+  const timeoutPromise = new Promise<{ data: null; count: null }>((resolve) =>
+    setTimeout(() => {
+      console.error("[Dashboard] query timeout, falling back to zeros");
+      resolve({ data: null, count: null });
+    }, QUERY_TIMEOUT_MS),
+  );
+
   const [
-    { data: approvedExpenses },
-    { count: submittedCount },
-    { count: pendingCount },
-    { count: approvedCount },
-    { data: recentExpenses },
+    approvedExpensesRes,
+    submittedCountRes,
+    pendingCountRes,
+    approvedCountRes,
+    recentExpensesRes,
   ] = await Promise.all([
-    approvedAmountQ,
-    submittedCountQ,
-    pendingCountQ,
-    approvedCountQ,
-    recentQ,
+    Promise.race([approvedAmountQ.then((r) => ({ data: r.data, count: r.count })), timeoutPromise]),
+    Promise.race([submittedCountQ.then((r) => ({ data: r.data, count: r.count })), timeoutPromise]),
+    Promise.race([pendingCountQ.then((r) => ({ data: r.data, count: r.count })), timeoutPromise]),
+    Promise.race([approvedCountQ.then((r) => ({ data: r.data, count: r.count })), timeoutPromise]),
+    Promise.race([recentQ.then((r) => ({ data: r.data, count: r.count })), timeoutPromise]),
   ]);
+
+  const approvedExpenses = approvedExpensesRes.data ?? [];
+  const submittedCount = submittedCountRes.count ?? 0;
+  const pendingCount = pendingCountRes.count ?? 0;
+  const approvedCount = approvedCountRes.count ?? 0;
+  const recentExpenses = recentExpensesRes.data ?? [];
 
   const totalApproved = (approvedExpenses ?? []).reduce(
     (sum, e) => sum + (e.amount ?? 0),
