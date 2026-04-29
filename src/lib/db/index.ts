@@ -5,11 +5,11 @@ import * as schema from "./schema";
 /**
  * Supabase PostgreSQL connection via the `postgres` driver.
  *
- * Vercel serverless invocations are single-tenant, so `max: 1` is the right
- * pool size: each lambda gets its own client and won't hold extra Supabase
- * pooler slots. The previous `max: 10` could exhaust the Transaction-mode
- * pooler (default ~15 active txns) under fan-out from cron, push, and report
- * traffic.
+ * Vercel may serve multiple requests on a warm function instance, and pages
+ * fan-out queries via Promise.all — `max: 1` serialises everything onto a
+ * single connection and surfaces as visible page hangs. `max: 5` keeps each
+ * instance responsive while staying well under the Supabase pooler ceiling
+ * even at moderate concurrency.
  *
  * - Transaction-mode pooler (port 6543) is required for serverless.
  * - `prepare: false` is required for PgBouncer transaction mode.
@@ -24,7 +24,7 @@ if (!connectionString) {
 
 const client = postgres(connectionString, {
   prepare: false,
-  max: 1,
+  max: 5,
   idle_timeout: 10,
   max_lifetime: 30,
   connect_timeout: 10,

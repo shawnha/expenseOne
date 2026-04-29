@@ -31,20 +31,37 @@ async function getExpensesData(searchParams: Record<string, string | string[] | 
   const pageStr = typeof searchParams.page === "string" ? searchParams.page : "1";
   const page = Math.max(1, parseInt(pageStr, 10) || 1);
 
-  const result = await getExpenses(
-    {
-      page,
-      limit: PAGE_SIZE,
-      type: type as "CORPORATE_CARD" | "DEPOSIT_REQUEST" | undefined,
-      status: status as "SUBMITTED" | "APPROVED" | "REJECTED" | "CANCELLED" | undefined,
-      category,
-      startDate,
-      endDate,
-      search,
-    },
-    user.id,
-    user.role,
-  );
+  const QUERY_TIMEOUT_MS = 8000;
+  const result = await Promise.race([
+    getExpenses(
+      {
+        page,
+        limit: PAGE_SIZE,
+        type: type as "CORPORATE_CARD" | "DEPOSIT_REQUEST" | undefined,
+        status: status as "SUBMITTED" | "APPROVED" | "REJECTED" | "CANCELLED" | undefined,
+        category,
+        startDate,
+        endDate,
+        search,
+      },
+      user.id,
+      user.role,
+    ),
+    new Promise<{
+      data: never[];
+      meta: { page: number; totalPages: number; total: number };
+      totalAmount: number;
+    }>((resolve) =>
+      setTimeout(() => {
+        console.error("[ExpensesPage] query timeout, falling back to empty");
+        resolve({
+          data: [],
+          meta: { page: 1, totalPages: 0, total: 0 },
+          totalAmount: 0,
+        });
+      }, QUERY_TIMEOUT_MS),
+    ),
+  ]);
 
   const expenses = result.data.map((item) => ({
     id: item.id,

@@ -73,14 +73,33 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  // Fetch profile (cached — shared with child pages) and notification count in parallel
+  // Fetch profile (cached — shared with child pages) and notification count in parallel.
+  // Hard 6s timeout guards against pooler stalls; if either query hangs, we
+  // render the layout with a degraded fallback rather than blocking the
+  // whole tree on a single slow query.
+  const LAYOUT_TIMEOUT_MS = 6000;
+  const layoutTimer = <T,>(p: PromiseLike<T>, fb: T): Promise<T> =>
+    Promise.race([
+      Promise.resolve(p),
+      new Promise<T>((resolve) =>
+        setTimeout(() => {
+          console.error("[DashboardLayout] query timeout, falling back");
+          resolve(fb);
+        }, LAYOUT_TIMEOUT_MS),
+      ),
+    ]);
+
   const [cachedUser, notifResult] = await Promise.all([
-    getCachedCurrentUser(),
-    supabase
-      .from("notifications")
-      .select("*", { count: "exact", head: true })
-      .eq("recipient_id", authUser.id)
-      .eq("is_read", false),
+    layoutTimer(getCachedCurrentUser(), null),
+    layoutTimer(
+      supabase
+        .from("notifications")
+        .select("*", { count: "exact", head: true })
+        .eq("recipient_id", authUser.id)
+        .eq("is_read", false)
+        .then((r) => ({ count: r.count })),
+      { count: 0 } as { count: number | null },
+    ),
   ]);
 
   const { count: unreadCount } = notifResult;
