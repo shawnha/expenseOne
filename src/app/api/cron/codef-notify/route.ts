@@ -1,15 +1,12 @@
 import { NextResponse } from "next/server";
 import { processCodefNotifications } from "@/services/codef-notify.service";
+import { verifyCronAuth } from "@/lib/cron-auth";
 
 export const maxDuration = 60;
 
 export async function GET(request: Request) {
-  // Verify CRON_SECRET (also used as webhook auth)
-  const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
+  const authError = verifyCronAuth(request);
+  if (authError) return authError;
 
   try {
     const result = await processCodefNotifications();

@@ -4,6 +4,7 @@ import { expenses, users, notifications } from "@/lib/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
 import { sendPushToAdmins } from "@/services/push.service";
 import { formatExpenseAmount } from "@/lib/utils/expense-utils";
+import { verifyCronAuth } from "@/lib/cron-auth";
 
 // ---------------------------------------------------------------------------
 // Cron — 납입 기일 임박 알림
@@ -28,12 +29,8 @@ function getReminderLabel(daysUntil: number): { emoji: string; text: string } {
 }
 
 export async function GET(request: Request) {
-  // Vercel Cron sends Authorization header with CRON_SECRET
-  const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
+  const authError = verifyCronAuth(request);
+  if (authError) return authError;
 
   const today = new Date();
   const reminderDays = [7, 3, 1, 0];
