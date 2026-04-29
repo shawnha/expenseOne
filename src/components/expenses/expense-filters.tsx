@@ -43,7 +43,17 @@ const ALL_CATEGORY_OPTIONS = [
   ...CATEGORY_OPTIONS,
 ];
 
-export function ExpenseFilters() {
+const AUTO_CLASSIFIED_OPTIONS = [
+  { value: "all", label: "전체" },
+  { value: "auto", label: "자동분류" },
+  { value: "manual", label: "수동제출" },
+];
+
+interface ExpenseFiltersProps {
+  showAdminFilters?: boolean;
+}
+
+export function ExpenseFilters({ showAdminFilters = false }: ExpenseFiltersProps = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -113,7 +123,8 @@ export function ExpenseFilters() {
   const hasActiveFilters = !!(
     searchParams.get("type") ||
     searchParams.get("status") ||
-    searchParams.get("category")
+    searchParams.get("category") ||
+    (searchParams.get("autoClassified") && searchParams.get("autoClassified") !== "all")
   );
 
   return (
@@ -204,6 +215,28 @@ export function ExpenseFilters() {
             ))}
           </SelectContent>
         </Select>
+
+        {showAdminFilters && (
+          <Select
+            value={searchParams.get("autoClassified") ?? "all"}
+            onValueChange={(v) => v && handleFilterChange("autoClassified", v === "all" ? "" : v)}
+          >
+            <SelectTrigger className="h-11 sm:h-8 w-full sm:w-auto rounded-xl glass-input" aria-label="자동분류 필터">
+              <SelectValue>
+                {AUTO_CLASSIFIED_OPTIONS.find(
+                  (o) => o.value === (searchParams.get("autoClassified") || "all"),
+                )?.label}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {AUTO_CLASSIFIED_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           <Input

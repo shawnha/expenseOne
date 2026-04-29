@@ -34,6 +34,7 @@ interface ExpenseRow {
     email: string;
   } | null;
   isUrgent?: boolean;
+  autoClassified?: boolean;
   companyName?: string | null;
   companySlug?: string | null;
 }
@@ -172,6 +173,7 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
                     <span className="flex items-center gap-1.5">
                       <span className="truncate">{expense.title}</span>
                       {expense.isUrgent && <span className="glass-badge glass-badge-red shrink-0">긴급</span>}
+                      {expense.autoClassified && <span className="glass-badge glass-badge-blue shrink-0">자동분류</span>}
                     </span>
                   </TableCell>
                   <TableCell>
@@ -359,6 +361,7 @@ function MobileExpenseCard({
           <span className="flex items-center gap-1.5 min-w-0">
             <span className="text-sm font-medium text-[var(--apple-label)] truncate">{expense.title}</span>
             {expense.isUrgent && <span className="glass-badge glass-badge-red shrink-0">긴급</span>}
+            {expense.autoClassified && <span className="glass-badge glass-badge-blue shrink-0">자동분류</span>}
           </span>
           <span className={cn(statusInfo.className, "shrink-0")}>{statusInfo.label}</span>
         </div>

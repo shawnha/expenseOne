@@ -31,6 +31,11 @@ async function getAdminExpensesData(searchParams: Record<string, string | string
   const endDate = typeof searchParams.endDate === "string" ? searchParams.endDate : undefined;
   const search = typeof searchParams.search === "string" ? searchParams.search : undefined;
   const company = typeof searchParams.company === "string" ? searchParams.company : undefined;
+  const autoClassifiedParam = typeof searchParams.autoClassified === "string" ? searchParams.autoClassified : undefined;
+  const autoClassified =
+    autoClassifiedParam === "auto" || autoClassifiedParam === "manual" || autoClassifiedParam === "all"
+      ? (autoClassifiedParam as "all" | "auto" | "manual")
+      : undefined;
   const pageStr = typeof searchParams.page === "string" ? searchParams.page : "1";
   const page = Math.max(1, parseInt(pageStr, 10) || 1);
 
@@ -45,6 +50,7 @@ async function getAdminExpensesData(searchParams: Record<string, string | string
       endDate,
       search,
       company,
+      autoClassified,
     },
     user.id,
     user.role,
@@ -63,6 +69,7 @@ async function getAdminExpensesData(searchParams: Record<string, string | string
     isUrgent: item.isUrgent ?? false,
     companyName: item.companyName ?? null,
     companySlug: item.companySlug ?? null,
+    autoClassified: item.autoClassified ?? false,
   }));
 
   return {
@@ -97,7 +104,7 @@ export default async function AdminExpensesPage({ searchParams }: AdminExpensesP
       {/* Filters */}
       <Suspense fallback={<div className="h-10 animate-pulse rounded-xl glass-subtle" />}>
         <div className="animate-fade-up-1">
-          <ExpenseFilters />
+          <ExpenseFilters showAdminFilters />
         </div>
       </Suspense>
 
