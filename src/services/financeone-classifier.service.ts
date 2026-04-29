@@ -39,22 +39,23 @@ async function matchByMappingRules(
   if (!storeName.trim()) return null;
 
   const codes = Array.from(MEAL_LEAF_CODES);
+  const codesList = sql.join(codes.map((c) => sql`${c}`), sql`, `);
   const result = await db.execute<MappingRuleHit>(sql`
     SELECT
       mr.internal_account_id,
       ia.code,
       ia.name,
-      (ia.code = ANY(${codes}::text[])) AS is_meal
+      (ia.code IN (${codesList})) AS is_meal
     FROM financeone.mapping_rules mr
     JOIN financeone.internal_accounts ia ON ia.id = mr.internal_account_id
     WHERE mr.entity_id = ${entityId}
       AND (
         mr.counterparty_pattern = ${storeName}
-        OR similarity(mr.counterparty_pattern, ${storeName}) >= 0.5
+        OR financeone.similarity(mr.counterparty_pattern, ${storeName}) >= 0.5
       )
     ORDER BY
       (mr.counterparty_pattern = ${storeName}) DESC,
-      similarity(mr.counterparty_pattern, ${storeName}) DESC,
+      financeone.similarity(mr.counterparty_pattern, ${storeName}) DESC,
       mr.confidence DESC,
       mr.hit_count DESC
     LIMIT 1
@@ -94,13 +95,14 @@ async function matchByHistoryMajority(
   entityId: number,
 ): Promise<MealClassification | null> {
   const codes = Array.from(MEAL_LEAF_CODES);
+  const codesList = sql.join(codes.map((c) => sql`${c}`), sql`, `);
   const result = await db.execute<HistoryRow>(sql`
     SELECT
       t.internal_account_id,
       ia.code,
       ia.name,
       count(*)::int AS uses,
-      (ia.code = ANY(${codes}::text[])) AS is_meal
+      (ia.code IN (${codesList})) AS is_meal
     FROM financeone.transactions t
     JOIN financeone.internal_accounts ia ON ia.id = t.internal_account_id
     WHERE t.entity_id = ${entityId}
@@ -110,7 +112,7 @@ async function matchByHistoryMajority(
       AND t.internal_account_id IS NOT NULL
       AND (
         t.counterparty = ${storeName}
-        OR similarity(t.counterparty, ${storeName}) >= 0.5
+        OR financeone.similarity(t.counterparty, ${storeName}) >= 0.5
       )
     GROUP BY t.internal_account_id, ia.code, ia.name
   `);
