@@ -8,6 +8,48 @@
       "when": 1773331054137,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1773370862000,
+      "tag": "0001_category_to_varchar",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1777438744000,
+      "tag": "0003_gowid_source_column",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1777438957000,
+      "tag": "0004_due_date_dedup_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1777444452000,
+      "tag": "0005_rls_missing_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1777450315000,
+      "tag": "0006_users_department_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1777450384000,
+      "tag": "0007_backfill_department_id",
+      "breakpoints": true
     }
   ]
 }
