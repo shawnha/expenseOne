@@ -76,51 +76,28 @@ export async function GET(request: Request) {
       const amountText = formatExpenseAmount(exp.amount, exp.currency, exp.amountOriginal);
       const message = `${exp.title} — ${amountText}`;
 
-      // Insert in-app notifications for all admins (avoid duplicate per expense+type+day via unique key check)
-      // Check existing notifications for today with same expense+type to prevent duplicates
-      const existing = await db
-        .select({ recipientId: notifications.recipientId })
-        .from(notifications)
-        .where(
-          and(
-            eq(notifications.relatedExpenseId, exp.id),
-            eq(notifications.type, "DUE_DATE_REMINDER"),
-            inArray(notifications.recipientId, adminIds),
-          ),
-        );
-
-      // Only notify admins who haven't received this reminder for this expense today
-      const alreadyNotifiedToday = new Set(
-        existing
-          .filter(() => {
-            // Check if we already sent this specific days-until for this expense
-            // (stored as title prefix in notification.title)
-            return true; // simplified — if any exist, skip (we re-notify each reminder day)
-          })
-          .map((n) => n.recipientId),
-      );
-      void alreadyNotifiedToday;
-
-      // Insert new notifications (one per admin)
-      // Dedup using title as marker: if title+expense already exists, skip
-      const todaysNotifs = existing.filter(() => true);
-      const alreadyForTitle = new Set<string>();
-      if (todaysNotifs.length > 0) {
-        const titlesCheck = await db
-          .select({ recipientId: notifications.recipientId, title: notifications.title })
+      // Dedup is identity = (relatedExpenseId, type, title, recipientId).
+      // Title encodes the days-until bucket via emoji prefix, so each of the
+      // 7/3/1/0 reminders is its own notification. Concurrent cron runs (rare,
+      // but Vercel may retry) can still race here — TODO: add a unique partial
+      // index on those four columns and switch this to INSERT ... ON CONFLICT
+      // DO NOTHING once migration permission is granted.
+      const alreadyNotified = new Set(
+        (await db
+          .select({ recipientId: notifications.recipientId })
           .from(notifications)
           .where(
             and(
               eq(notifications.relatedExpenseId, exp.id),
               eq(notifications.type, "DUE_DATE_REMINDER"),
               eq(notifications.title, title),
+              inArray(notifications.recipientId, adminIds),
             ),
-          );
-        titlesCheck.forEach((t) => alreadyForTitle.add(t.recipientId));
-      }
+          )).map((n) => n.recipientId),
+      );
 
       const toInsert = adminIds
-        .filter((id) => !alreadyForTitle.has(id))
+        .filter((id) => !alreadyNotified.has(id))
         .map((id) => ({
           recipientId: id,
           type: "DUE_DATE_REMINDER" as const,
@@ -133,7 +110,8 @@ export async function GET(request: Request) {
         await db.insert(notifications).values(toInsert);
         notifiedCount += toInsert.length;
 
-        // Also send Web Push to admins (fire-and-forget)
+        // Web Push fire-and-forget — push duplicates are tolerable, in-app
+        // duplicates are what we actually guard against above.
         sendPushToAdmins(title, message, `/expenses/${exp.id}`).catch((err) => {
           console.error("[DueDateCron] Push failed:", err);
         });

@@ -167,7 +167,14 @@ export async function syncGowidTransactions(): Promise<{
     newStaged++;
 
     if (mapping?.userId && inserted) {
-      // Check if user already submitted an expense for this transaction
+      // Dedup before notifying. Tight match prevents an unrelated same-amount
+      // expense from swallowing a real GoWid transaction:
+      // user + type + amount + card last 4 + transactionDate within 2 days
+      // of the GoWid expenseDate. Matching on the staged transaction's
+      // gowidTxId is even tighter, but the prefill flow only writes that
+      // when the form was opened from a notification — so the date+card
+      // window covers both "filed from prefill" and "filed manually".
+      const expenseDateStr = expense.expenseDate; // yyyy-mm-dd
       const [alreadyExists] = await db
         .select({ id: expenses.id })
         .from(expenses)
@@ -176,7 +183,9 @@ export async function syncGowidTransactions(): Promise<{
             eq(expenses.submittedById, mapping.userId),
             eq(expenses.type, "CORPORATE_CARD"),
             eq(expenses.amount, Math.round(expense.krwAmount)),
+            eq(expenses.cardLastFour, lastFour),
             sql`${expenses.status} != 'CANCELLED'`,
+            sql`${expenses.transactionDate}::date BETWEEN (${expenseDateStr}::date - INTERVAL '2 days') AND (${expenseDateStr}::date + INTERVAL '2 days')`,
           ),
         )
         .limit(1);
@@ -323,5 +332,20 @@ export async function getPendingGowidTransaction(txId: string, userId: string) {
       ),
     )
     .limit(1);
-  return tx ?? null;
+  if (!tx) return null;
+
+  // Resolve which company the card belongs to so the corporate-card form can
+  // prefill the right entity. Without this, multi-company users could file
+  // a card expense under the wrong company by accident.
+  let mappedCompanyId: string | null = null;
+  if (tx.cardLastFour) {
+    const [mapping] = await db
+      .select({ companyId: gowidCardMappings.companyId })
+      .from(gowidCardMappings)
+      .where(eq(gowidCardMappings.cardLastFour, tx.cardLastFour))
+      .limit(1);
+    mappedCompanyId = mapping?.companyId ?? null;
+  }
+
+  return { ...tx, mappedCompanyId };
 }

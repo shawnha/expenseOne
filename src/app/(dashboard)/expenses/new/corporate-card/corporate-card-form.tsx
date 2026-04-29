@@ -39,6 +39,7 @@ interface CorporateCardFormProps {
     merchantName: string | null;
     transactionDate: string;
     gowidTxId: string;
+    companyId: string | null;
   };
 }
 
@@ -65,11 +66,20 @@ export default function CorporateCardForm({ initialCompanies, prefillData }: Cor
         const cid = json?.data?.companyId;
         if (cid) {
           setUserCompanyId(cid);
-          setCompanyId(cid);
+          // GoWid prefill wins over user-profile fallback. The card itself
+          // belongs to a specific company, so submitting under the user's
+          // default company would file the expense to the wrong entity for
+          // multi-company users.
+          if (!prefillData?.companyId) {
+            setCompanyId(cid);
+          }
         }
       })
       .catch(() => {});
-  }, []);
+    if (prefillData?.companyId) {
+      setCompanyId(prefillData.companyId);
+    }
+  }, [prefillData?.companyId]);
 
   // Fetch exchange rate when currency is USD
   useEffect(() => {

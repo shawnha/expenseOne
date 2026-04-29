@@ -10,6 +10,7 @@ interface PrefillData {
   merchantName: string | null;
   transactionDate: string;
   gowidTxId: string;
+  companyId: string | null;
 }
 
 export default async function CorporateCardPage({
@@ -40,6 +41,7 @@ export default async function CorporateCardPage({
           merchantName: tx.storeName,
           transactionDate: dateStr,
           gowidTxId: tx.id,
+          companyId: tx.mappedCompanyId,
         };
       }
     }

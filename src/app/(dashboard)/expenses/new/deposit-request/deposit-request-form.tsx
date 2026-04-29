@@ -400,6 +400,7 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
           title: data.title,
           description: data.description || null,
           amount: data.amount,
+          currency,
           category: data.category,
           bankName: data.bankName,
           accountHolder: data.accountHolder,
