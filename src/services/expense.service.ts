@@ -535,6 +535,21 @@ export async function deleteExpense(
     );
   }
 
+  // Members may not delete an APPROVED deposit request — that record represents
+  // a payment decision by an admin and may already be paid out.
+  // Auto-APPROVED corporate-card entries can still be deleted by the submitter
+  // since approval there is not an admin action.
+  if (
+    !isAdmin &&
+    expense.status === "APPROVED" &&
+    expense.type === "DEPOSIT_REQUEST"
+  ) {
+    throw new AppError(
+      "FORBIDDEN",
+      "승인된 입금요청은 관리자만 삭제할 수 있습니다.",
+    );
+  }
+
   // Cascade will handle attachments in DB; also clean up storage
   const expenseAttachments = await db
     .select()
@@ -597,6 +612,25 @@ export async function cancelExpense(expenseId: string, userId: string) {
     throw new AppError("FORBIDDEN", "취소할 수 없는 상태입니다.");
   }
 
+  // Block member-initiated cancel on APPROVED deposit requests.
+  // Approval there is an explicit admin payment decision; cancellation has to
+  // go through an admin reversal so audit trail is preserved.
+  if (
+    expense.status === "APPROVED" &&
+    expense.type === "DEPOSIT_REQUEST"
+  ) {
+    throw new AppError(
+      "FORBIDDEN",
+      "승인된 입금요청은 취소할 수 없습니다. 관리자에게 문의해주세요.",
+    );
+  }
+
+  // Build status whitelist that matches the type-specific rules above.
+  const allowedStatuses =
+    expense.type === "DEPOSIT_REQUEST"
+      ? [eq(expenses.status, "SUBMITTED")]
+      : [eq(expenses.status, "SUBMITTED"), eq(expenses.status, "APPROVED")];
+
   const [updated] = await db
     .update(expenses)
     .set({ status: "CANCELLED", updatedAt: new Date() })
@@ -604,10 +638,7 @@ export async function cancelExpense(expenseId: string, userId: string) {
       and(
         eq(expenses.id, expenseId),
         eq(expenses.submittedById, userId),
-        or(
-          eq(expenses.status, "SUBMITTED"),
-          eq(expenses.status, "APPROVED"),
-        ),
+        or(...allowedStatuses),
       ),
     )
     .returning();

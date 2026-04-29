@@ -45,7 +45,10 @@ function httpsGet(
   followRedirect = false,
 ): Promise<{ statusCode: number; headers: Record<string, string | string[] | undefined>; body: string }> {
   return new Promise((resolve, reject) => {
-    const req = https.get(url, { headers, rejectUnauthorized: false }, (res) => {
+    // TLS verification stays enabled — koreaexim.go.kr has a valid public cert.
+    // If a chain issue surfaces, fix it via NODE_EXTRA_CA_CERTS, never by disabling
+    // verification (would allow MITM on USD→KRW rates).
+    const req = https.get(url, { headers }, (res) => {
       // Handle redirect manually
       if (!followRedirect && res.statusCode && res.statusCode >= 300 && res.statusCode < 400) {
         resolve({
