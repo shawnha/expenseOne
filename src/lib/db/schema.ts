@@ -173,6 +173,9 @@ export const expenses = expenseSchema.table(
       .defaultNow(),
     slackMessageTs: varchar("slack_message_ts", { length: 50 }),
     slackChannelId: varchar("slack_channel_id", { length: 50 }),
+    autoClassified: boolean("auto_classified").notNull().default(false),
+    autoClassifiedSource: varchar("auto_classified_source", { length: 32 }),
+    autoClassifiedAccountId: integer("auto_classified_account_id"),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -198,6 +201,9 @@ export const expenses = expenseSchema.table(
       table.status,
       table.createdAt,
     ),
+    index("idx_expenses_auto_classified")
+      .on(table.autoClassified)
+      .where(sql`auto_classified = true`),
   ],
 );
 
