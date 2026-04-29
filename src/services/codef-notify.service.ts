@@ -8,10 +8,12 @@
  */
 
 import { db } from "@/lib/db";
-import { gowidCardMappings, gowidTransactions } from "@/lib/db/schema";
+import { gowidCardMappings, gowidTransactions, expenses, companies } from "@/lib/db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { createNotification } from "./notification.service";
 import { sendPushToUser } from "./push.service";
+import { classifyMealExpense } from "./financeone-classifier.service";
+import { COMPANY_TO_ENTITY } from "@/lib/financeone/meal-accounts";
 
 // ---------------------------------------------------------------------------
 // Read new card transactions from financeone.transactions
@@ -74,6 +76,7 @@ export async function processCodefNotifications(): Promise<{
   notified: number;
   skippedDuplicate: number;
   skippedNoMapping: number;
+  autoClassified: number;
 }> {
   // Fetch transactions from last 7 days
   const sevenDaysAgo = new Date();
@@ -83,8 +86,12 @@ export async function processCodefNotifications(): Promise<{
   const transactions = await fetchNewCodefTransactions(sinceDate);
 
   if (transactions.length === 0) {
-    return { checked: 0, notified: 0, skippedDuplicate: 0, skippedNoMapping: 0 };
+    return { checked: 0, notified: 0, skippedDuplicate: 0, skippedNoMapping: 0, autoClassified: 0 };
   }
+
+  // companyId → companySlug map for classifier entity lookup
+  const companyRows = await db.select({ id: companies.id, slug: companies.slug }).from(companies);
+  const companyIdToSlug = new Map(companyRows.map((c) => [c.id, c.slug]));
 
   // Get all card mappings
   const mappings = await db
@@ -122,6 +129,7 @@ export async function processCodefNotifications(): Promise<{
   let notified = 0;
   let skippedDuplicate = 0;
   let skippedNoMapping = 0;
+  let autoClassifiedCount = 0;
 
   for (const tx of transactions) {
     if (existingSet.has(tx.id)) continue;
@@ -169,6 +177,52 @@ export async function processCodefNotifications(): Promise<{
       continue;
     }
 
+    // ---------------------------------------------------------------
+    // Meal auto-classification: skip notification + create APPROVED
+    // expense automatically when FinanceOne maps the merchant to a
+    // meal-leaf account.
+    // ---------------------------------------------------------------
+    if (mapping.companyId) {
+      const slug = companyIdToSlug.get(mapping.companyId);
+      const entityId = slug ? (COMPANY_TO_ENTITY[slug] ?? null) : null;
+      const mealMatch = await classifyMealExpense(tx.counterparty, entityId);
+
+      if (mealMatch) {
+        const [autoExp] = await db
+          .insert(expenses)
+          .values({
+            type: "CORPORATE_CARD",
+            status: "APPROVED",
+            title: tx.counterparty ?? "법카 사용",
+            amount: tx.amount,
+            currency: "KRW",
+            category: mealMatch.accountName,
+            merchantName: tx.counterparty,
+            transactionDate: tx.date,
+            cardLastFour: mapping.cardLastFour,
+            companyId: mapping.companyId,
+            submittedById: mapping.userId,
+            approvedAt: new Date(),
+            autoClassified: true,
+            autoClassifiedSource: mealMatch.source,
+            autoClassifiedAccountId: mealMatch.internalAccountId,
+          })
+          .returning();
+
+        await db
+          .update(gowidTransactions)
+          .set({
+            status: "consumed",
+            consumedExpenseId: autoExp?.id ?? null,
+            consumedAt: new Date(),
+          })
+          .where(eq(gowidTransactions.id, inserted.id));
+
+        autoClassifiedCount++;
+        continue;
+      }
+    }
+
     // Send notification
     const amountStr = tx.amount.toLocaleString();
     const storeName = tx.counterparty ?? "카드 결제";
@@ -200,5 +254,6 @@ export async function processCodefNotifications(): Promise<{
     notified,
     skippedDuplicate,
     skippedNoMapping,
+    autoClassified: autoClassifiedCount,
   };
 }
