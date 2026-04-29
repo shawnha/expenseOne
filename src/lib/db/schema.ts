@@ -111,7 +111,15 @@ export const users = expenseSchema.table("users", {
   email: varchar("email", { length: 255 }).unique().notNull(),
   name: varchar("name", { length: 100 }).notNull(),
   role: userRoleEnum("role").notNull().default("MEMBER"),
+  // Legacy free-form department string. Kept for backward compat during the
+  // P3-#11 migration. Reads should prefer departmentId; writes update both.
   department: varchar("department", { length: 100 }),
+  // Normalized FK to departments table (added 2026-04-29). New code reads/
+  // writes this. Older clients that only know the string column still work
+  // because the API mirrors writes back.
+  departmentId: uuid("department_id").references(() => departments.id, {
+    onDelete: "set null",
+  }),
   companyId: uuid("company_id").references(() => companies.id),
   profileImageUrl: text("profile_image_url"),
   cardLastFour: char("card_last_four", { length: 4 }),

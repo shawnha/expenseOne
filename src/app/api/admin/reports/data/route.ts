@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, handleError } from "@/lib/api-utils";
 import { db } from "@/lib/db";
-import { expenses, users, companies } from "@/lib/db/schema";
+import { expenses, users, companies, departments } from "@/lib/db/schema";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
@@ -58,11 +58,18 @@ export async function GET(request: NextRequest) {
 
     const currentConditions = buildConditions(startDate, endDate);
 
-    // Helper: apply department filter via subquery if needed
+    // Helper: apply department filter via subquery if needed.
+    // Match either the legacy string column or the normalized departmentId
+    // by joining departments by name in the same company. Both columns are
+    // kept in sync by the profile API while the migration finishes.
     function withDeptFilter(conditions: ReturnType<typeof buildConditions>) {
       if (hasDeptFilter) {
         conditions.push(
-          sql`${expenses.submittedById} in (select ${users.id} from ${users} where ${users.department} = ${department})` as ReturnType<typeof eq>,
+          sql`${expenses.submittedById} in (
+            select u.id from ${users} u
+            left join ${departments} d on d.id = u.department_id
+            where u.department = ${department} or d.name = ${department}
+          )` as ReturnType<typeof eq>,
         );
       }
       return and(...conditions);
@@ -212,31 +219,48 @@ export async function GET(request: NextRequest) {
     });
 
     // -----------------------------------------------------------------------
-    // 6. Department breakdown (join users for department)
+    // 6. Department breakdown — group by departments.id when set, fall back
+    // to the legacy string column for unmigrated users. Department names
+    // shared across companies stay distinct because departmentId is unique
+    // per (company, name).
     // -----------------------------------------------------------------------
     const deptConditions = buildConditions(startDate, endDate);
-    // For department breakdown, we join users anyway, so apply dept filter directly
     if (hasDeptFilter) {
-      deptConditions.push(eq(users.department, department!) as ReturnType<typeof eq>);
+      deptConditions.push(
+        sql`(${departments.name} = ${department} OR ${users.department} = ${department})` as ReturnType<typeof eq>,
+      );
     }
 
     const departmentRows = await db
       .select({
-        department: users.department,
+        departmentId: users.departmentId,
+        deptName: departments.name,
+        legacyDeptName: users.department,
+        companyName: companies.name,
         amount: sql<number>`coalesce(sum(${expenses.amount}), 0)::int`,
         count: sql<number>`count(*)::int`,
       })
       .from(expenses)
       .innerJoin(users, eq(expenses.submittedById, users.id))
+      .leftJoin(departments, eq(users.departmentId, departments.id))
+      .leftJoin(companies, eq(users.companyId, companies.id))
       .where(and(...deptConditions))
-      .groupBy(users.department)
+      .groupBy(users.departmentId, departments.name, users.department, companies.name)
       .orderBy(sql`sum(${expenses.amount}) desc`);
 
-    const departmentBreakdown = departmentRows.map((row) => ({
-      department: row.department ?? "미지정",
-      amount: Number(row.amount),
-      count: Number(row.count),
-    }));
+    const departmentBreakdown = departmentRows.map((row) => {
+      const name = row.deptName ?? row.legacyDeptName;
+      const display = name
+        ? row.companyName
+          ? `${name} (${row.companyName})`
+          : name
+        : "미지정";
+      return {
+        department: display,
+        amount: Number(row.amount),
+        count: Number(row.count),
+      };
+    });
 
     // -----------------------------------------------------------------------
     // 7. Company comparison (always show all companies, ignore companyId filter)
@@ -255,7 +279,11 @@ export async function GET(request: NextRequest) {
     }
     if (hasDeptFilter) {
       companyConditions.push(
-        sql`${expenses.submittedById} in (select ${users.id} from ${users} where ${users.department} = ${department})` as ReturnType<typeof eq>,
+        sql`${expenses.submittedById} in (
+          select u.id from ${users} u
+          left join ${departments} d on d.id = u.department_id
+          where u.department = ${department} or d.name = ${department}
+        )` as ReturnType<typeof eq>,
       );
     }
 

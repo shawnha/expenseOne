@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { requireAuth, errorResponse, handleError, validateOrigin } from "@/lib/api-utils";
 import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { users, departments } from "@/lib/db/schema";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 // ---------------------------------------------------------------------------
@@ -101,12 +101,8 @@ export async function PATCH(request: NextRequest) {
       updateData.cardLastFour = cardLastFour || null;
     }
 
-    // Only update department if it was provided in the request
-    if (department !== undefined) {
-      updateData.department = department || null;
-    }
-
     // 회사 변경: 첫 설정(null→값)은 누구나 가능, 이후 변경은 ADMIN만
+    let resolvedCompanyId: string | null | undefined = undefined;
     if (companyId !== undefined) {
       const [currentProfile] = await db
         .select({ companyId: users.companyId })
@@ -116,7 +112,65 @@ export async function PATCH(request: NextRequest) {
       if (currentProfile?.companyId && user.role !== "ADMIN") {
         return errorResponse("FORBIDDEN", "회사 변경은 관리자만 가능합니다.");
       }
-      updateData.companyId = companyId || null;
+      resolvedCompanyId = companyId || null;
+      updateData.companyId = resolvedCompanyId;
+    }
+
+    // Department: write to BOTH the legacy string column AND the normalized
+    // FK column. Reports and reads should prefer departmentId; the string
+    // column stays in sync until the column is dropped (separate migration).
+    // Department resolution requires a companyId — without one, the
+    // (name, company) lookup in departments has no scope.
+    if (department !== undefined) {
+      const trimmed = department ? department.trim() : "";
+      updateData.department = trimmed || null;
+
+      if (!trimmed) {
+        updateData.departmentId = null;
+      } else {
+        const effectiveCompanyId =
+          resolvedCompanyId !== undefined
+            ? resolvedCompanyId
+            : (
+                await db
+                  .select({ companyId: users.companyId })
+                  .from(users)
+                  .where(eq(users.id, user.id))
+              )[0]?.companyId ?? null;
+
+        if (effectiveCompanyId) {
+          const [existing] = await db
+            .select({ id: departments.id })
+            .from(departments)
+            .where(
+              and(
+                eq(departments.companyId, effectiveCompanyId),
+                eq(departments.name, trimmed),
+              ),
+            )
+            .limit(1);
+
+          if (existing) {
+            updateData.departmentId = existing.id;
+          } else {
+            const [created] = await db
+              .insert(departments)
+              .values({
+                name: trimmed,
+                companyId: effectiveCompanyId,
+                sortOrder: 999,
+              })
+              .returning({ id: departments.id });
+            updateData.departmentId = created.id;
+          }
+        } else {
+          // No company yet — can't normalize. Leave departmentId null;
+          // the string column still records the user's intent and will be
+          // resolved automatically the next time the user saves with a
+          // company selected.
+          updateData.departmentId = null;
+        }
+      }
     }
 
     const [updated] = await db

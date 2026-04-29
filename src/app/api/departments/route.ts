@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, requireAdmin, errorResponse, handleError, validateOrigin, jsonWithCache } from "@/lib/api-utils";
 import { db } from "@/lib/db";
 import { departments, users } from "@/lib/db/schema";
-import { eq, asc, count } from "drizzle-orm";
+import { eq, asc, count, sql } from "drizzle-orm";
 import { z } from "zod";
 
 // ---------------------------------------------------------------------------
@@ -184,9 +184,12 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Check if any users are assigned to this department
+    // Check if any users are assigned to this department. Match by
+    // departmentId (FK) primarily; fall back to the legacy name match
+    // scoped to the same company so we don't block deletion of a
+    // company's "개발팀" because of another company's "개발팀".
     const [dept] = await db
-      .select({ name: departments.name })
+      .select({ name: departments.name, companyId: departments.companyId })
       .from(departments)
       .where(eq(departments.id, parsed.data.id));
 
@@ -197,7 +200,10 @@ export async function DELETE(request: NextRequest) {
     const [userCount] = await db
       .select({ count: count() })
       .from(users)
-      .where(eq(users.department, dept.name));
+      .where(
+        sql`${users.departmentId} = ${parsed.data.id}
+           OR (${users.companyId} = ${dept.companyId} AND ${users.department} = ${dept.name})`,
+      );
 
     if (userCount && userCount.count > 0) {
       return errorResponse(
