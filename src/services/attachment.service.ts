@@ -27,15 +27,40 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 const MAX_TOTAL_SIZE_PER_EXPENSE = 50 * 1024 * 1024; // 50 MB
 const STORAGE_BUCKET = "attachments";
 
-// Magic byte signatures for file type verification
+// Magic byte signatures for file type verification.
+// HEIC/HEIF require a structural check (ftyp box + brand), not a fixed prefix.
 const MAGIC_BYTES: Record<string, number[][]> = {
   "image/jpeg": [[0xff, 0xd8, 0xff]],
   "image/png": [[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]],
   "image/webp": [[0x52, 0x49, 0x46, 0x46]], // RIFF header (WebP)
-  "image/heic": [[0x00, 0x00, 0x00]], // ftyp box (HEIC/HEIF container) — partial match
-  "image/heif": [[0x00, 0x00, 0x00]], // same container format
   "application/pdf": [[0x25, 0x50, 0x44, 0x46]], // %PDF
 };
+
+// HEIC/HEIF use the ISO Base Media File Format. Bytes 4-7 are 'ftyp'
+// and bytes 8-11 are the major brand. iPhone photos most commonly come
+// as 'heic' (single image) or 'heix' (newer iOS). We also accept the
+// HEIF still-image brand 'mif1' and the HEVC sequence brands.
+const HEIC_BRANDS = new Set(["heic", "heix", "hevc", "hevx", "mif1", "msf1"]);
+
+async function verifyHeicHeif(file: File): Promise<boolean> {
+  // Read first 12 bytes: 4 size + 4 'ftyp' + 4 brand
+  const buffer = await file.slice(0, 12).arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  if (bytes.length < 12) return false;
+
+  // bytes 4..7 must spell 'ftyp'
+  if (
+    bytes[4] !== 0x66 || // f
+    bytes[5] !== 0x74 || // t
+    bytes[6] !== 0x79 || // y
+    bytes[7] !== 0x70    // p
+  ) {
+    return false;
+  }
+
+  const brand = String.fromCharCode(bytes[8], bytes[9], bytes[10], bytes[11]);
+  return HEIC_BRANDS.has(brand);
+}
 
 /**
  * Verify file content matches declared MIME type using magic bytes.
@@ -43,6 +68,10 @@ const MAGIC_BYTES: Record<string, number[][]> = {
  * file with a forged Content-Type header.
  */
 async function verifyMagicBytes(file: File, declaredMime: string): Promise<boolean> {
+  if (declaredMime === "image/heic" || declaredMime === "image/heif") {
+    return verifyHeicHeif(file);
+  }
+
   const signatures = MAGIC_BYTES[declaredMime];
   if (!signatures) return false;
 

@@ -32,10 +32,12 @@ export const ALLOWED_MIME_TYPES = [
   "image/jpeg",
   "image/png",
   "image/webp",
+  "image/heic",
+  "image/heif",
   "application/pdf",
 ] as const;
 
-export const ALLOWED_FILE_EXTENSIONS = ".jpeg,.jpg,.png,.webp,.pdf";
+export const ALLOWED_FILE_EXTENSIONS = ".jpeg,.jpg,.png,.webp,.heic,.heif,.pdf";
 export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 export const MAX_TOTAL_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 

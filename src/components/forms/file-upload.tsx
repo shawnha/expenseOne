@@ -59,7 +59,7 @@ export function FileUpload({
   const validateFile = useCallback(
     (file: File): string | null => {
       if (!ALLOWED_MIME_TYPES.includes(file.type as (typeof ALLOWED_MIME_TYPES)[number])) {
-        return `"${file.name}": 허용되지 않는 파일 형식입니다. (jpeg, png, webp, pdf만 가능)`;
+        return `"${file.name}": 허용되지 않는 파일 형식입니다. (jpeg, png, webp, heic, pdf만 가능)`;
       }
       if (file.size > MAX_FILE_SIZE) {
         return `"${file.name}": 파일 크기가 10MB를 초과합니다.`;
@@ -186,7 +186,7 @@ export function FileUpload({
             <span className="hidden sm:block">파일을 드래그하여 놓거나 클릭하여 선택하세요</span>
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            JPEG, PNG, WebP, PDF (최대 10MB / 총 50MB)
+            JPEG, PNG, WebP, HEIC, PDF (최대 10MB / 총 50MB)
           </p>
         </div>
 
@@ -217,7 +217,7 @@ export function FileUpload({
         ref={fileInputRef}
         type="file"
         className="hidden"
-        accept="image/jpeg,image/png,image/webp,application/pdf"
+        accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
         multiple
         onChange={handleFileSelect}
         aria-hidden="true"
@@ -355,7 +355,7 @@ export function FileUploadWithDocType({
   const validateFile = useCallback(
     (file: File): string | null => {
       if (!ALLOWED_MIME_TYPES.includes(file.type as (typeof ALLOWED_MIME_TYPES)[number])) {
-        return `"${file.name}": 허용되지 않는 파일 형식입니다. (jpeg, png, webp, pdf만 가능)`;
+        return `"${file.name}": 허용되지 않는 파일 형식입니다. (jpeg, png, webp, heic, pdf만 가능)`;
       }
       if (file.size > MAX_FILE_SIZE) {
         return `"${file.name}": 파일 크기가 10MB를 초과합니다.`;
@@ -482,7 +482,7 @@ export function FileUploadWithDocType({
             <span className="hidden sm:block">파일을 드래그하여 놓거나 클릭하여 선택하세요</span>
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            JPEG, PNG, WebP, PDF (최대 10MB / 총 50MB)
+            JPEG, PNG, WebP, HEIC, PDF (최대 10MB / 총 50MB)
           </p>
           <p className="mt-0.5 text-xs font-medium text-destructive">
             * 최소 1개의 파일을 첨부해야 합니다
@@ -516,7 +516,7 @@ export function FileUploadWithDocType({
         ref={fileInputRef}
         type="file"
         className="hidden"
-        accept="image/jpeg,image/png,image/webp,application/pdf"
+        accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
         multiple
         onChange={handleFileSelect}
         aria-hidden="true"
