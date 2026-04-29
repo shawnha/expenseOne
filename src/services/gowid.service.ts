@@ -11,6 +11,7 @@ import {
   fetchGowidNotSubmitted,
   fetchGowidExpenses,
   extractCardLastFour,
+  extractCardIssuer,
   getGowidConfigs,
   type GowidExpenseListItem,
 } from "@/lib/gowid/client";
@@ -27,6 +28,7 @@ export async function listCardMappings() {
       id: gowidCardMappings.id,
       cardLastFour: gowidCardMappings.cardLastFour,
       cardAlias: gowidCardMappings.cardAlias,
+      issuer: gowidCardMappings.issuer,
       userId: gowidCardMappings.userId,
       companyId: gowidCardMappings.companyId,
       isActive: gowidCardMappings.isActive,
@@ -41,6 +43,7 @@ export async function listCardMappings() {
 export async function upsertCardMapping(data: {
   cardLastFour: string;
   cardAlias?: string | null;
+  issuer?: string | null;
   userId?: string | null;
   companyId?: string | null;
 }) {
@@ -49,6 +52,7 @@ export async function upsertCardMapping(data: {
     .values({
       cardLastFour: data.cardLastFour,
       cardAlias: data.cardAlias ?? null,
+      issuer: data.issuer ?? null,
       userId: data.userId ?? null,
       companyId: data.companyId ?? null,
     })
@@ -56,6 +60,7 @@ export async function upsertCardMapping(data: {
       target: gowidCardMappings.cardLastFour,
       set: {
         cardAlias: data.cardAlias ?? undefined,
+        issuer: data.issuer ?? undefined,
         userId: data.userId ?? undefined,
         companyId: data.companyId ?? undefined,
         updatedAt: new Date(),
@@ -244,13 +249,37 @@ export async function syncGowidTransactions(): Promise<{
     }
   }
 
-  // Merge cards from not-submitted + all expenses
-  const allCards = new Map<string, { alias: string | null; companyId: string | undefined }>();
+  // Merge cards from not-submitted + all expenses. We capture the issuer
+  // here too so existing mappings can be back-filled in the next loop.
+  const allCards = new Map<
+    string,
+    { alias: string | null; companyId: string | undefined; issuer: string | null }
+  >();
   for (const e of [...allExpenses, ...allForDiscovery]) {
     const lf = extractCardLastFour(e.shortCardNumber);
+    const iss = extractCardIssuer(e.shortCardNumber);
     if (!allCards.has(lf)) {
-      allCards.set(lf, { alias: e.cardAlias, companyId: (e as { _companyId?: string })._companyId });
+      allCards.set(lf, {
+        alias: e.cardAlias,
+        companyId: (e as { _companyId?: string })._companyId,
+        issuer: iss,
+      });
+    } else if (iss && !allCards.get(lf)!.issuer) {
+      // Fill in issuer from a later expense if the first one we saw didn't
+      // have a clean prefix.
+      allCards.get(lf)!.issuer = iss;
     }
+  }
+
+  // Back-fill issuer on existing mappings whose `issuer` column is NULL.
+  for (const m of mappings) {
+    if (m.issuer) continue;
+    const found = allCards.get(m.cardLastFour);
+    if (!found?.issuer) continue;
+    await db
+      .update(gowidCardMappings)
+      .set({ issuer: found.issuer, updatedAt: new Date() })
+      .where(eq(gowidCardMappings.id, m.id));
   }
 
   // Register any cards not yet in mappings
@@ -270,6 +299,7 @@ export async function syncGowidTransactions(): Promise<{
     await upsertCardMapping({
       cardLastFour: lastFour,
       cardAlias: info.alias ?? null,
+      issuer: info.issuer,
       userId: autoUserId,
       companyId: info.companyId ?? null,
     });

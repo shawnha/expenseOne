@@ -117,3 +117,38 @@ export function extractCardLastFour(shortCardNumber: string): string {
   const match = shortCardNumber.match(/(\d{4})$/);
   return match ? match[1] : shortCardNumber.slice(-4);
 }
+
+/**
+ * Extract the issuing bank from GoWid's shortCardNumber. The format is
+ * "<issuer> <digits>", e.g. "롯데 9884" or "우리 1234". Returns null when
+ * we can't recognize the prefix so callers can decide how to handle it.
+ *
+ * The prefix list isn't exhaustive — new issuers picked up by GoWid will
+ * just get the raw prefix returned, which the admin can clean up via the
+ * card-management UI. We only normalize the canonical names here.
+ */
+export function extractCardIssuer(shortCardNumber: string): string | null {
+  const trimmed = shortCardNumber.trim();
+  if (!trimmed) return null;
+
+  // Pull off the trailing digits and use whatever's left as the issuer.
+  const stripped = trimmed.replace(/\s*\d+$/, "").trim();
+  if (!stripped) return null;
+
+  // Normalize a few common forms so "롯데카드" / "롯데" / "lotte" all map
+  // to the same group.
+  const lower = stripped.toLowerCase();
+  if (/롯데|lotte/.test(lower)) return "롯데";
+  if (/우리|woori/.test(lower)) return "우리";
+  if (/신한|shinhan/.test(lower)) return "신한";
+  if (/국민|kookmin|kb/.test(lower)) return "국민";
+  if (/하나|hana/.test(lower)) return "하나";
+  if (/현대|hyundai/.test(lower)) return "현대";
+  if (/삼성|samsung/.test(lower)) return "삼성";
+  if (/비씨|bc/.test(lower)) return "BC";
+  if (/nh|농협/.test(lower)) return "NH";
+
+  // Unknown issuer — return the raw prefix so it's at least visible in
+  // the UI as its own group.
+  return stripped;
+}

@@ -35,6 +35,7 @@ export async function GET(request: Request) {
         id: gowidCardMappings.id,
         cardLastFour: gowidCardMappings.cardLastFour,
         cardAlias: gowidCardMappings.cardAlias,
+        issuer: gowidCardMappings.issuer,
         userId: gowidCardMappings.userId,
         companyId: gowidCardMappings.companyId,
         companyName: companies.name,
@@ -47,6 +48,7 @@ export async function GET(request: Request) {
         id: gowidCardMappings.id,
         cardLastFour: gowidCardMappings.cardLastFour,
         cardAlias: gowidCardMappings.cardAlias,
+        issuer: gowidCardMappings.issuer,
         companyId: gowidCardMappings.companyId,
         companyName: companies.name,
       })
@@ -81,7 +83,12 @@ export async function PATCH(request: Request) {
   const isAdmin = user?.role === "ADMIN";
 
   const body = await request.json();
-  const { mappingId, companyId } = body as { mappingId: string; userId?: string | null; companyId?: string | null };
+  const { mappingId, companyId, issuer } = body as {
+    mappingId: string;
+    userId?: string | null;
+    companyId?: string | null;
+    issuer?: string | null;
+  };
   let userId = (body as { userId?: string | null }).userId;
 
   // "self" = assign to current user
@@ -89,6 +96,24 @@ export async function PATCH(request: Request) {
 
   if (!mappingId) {
     return NextResponse.json({ error: { code: "BAD_REQUEST", message: "mappingId 필수" } }, { status: 400 });
+  }
+
+  // Handle issuer update — admin only.
+  if (issuer !== undefined) {
+    if (!isAdmin) {
+      return NextResponse.json(
+        { error: { code: "FORBIDDEN", message: "관리자만 발급사를 변경할 수 있습니다" } },
+        { status: 403 },
+      );
+    }
+    const normalized = issuer === null ? null : String(issuer).trim() || null;
+    await db
+      .update(gowidCardMappings)
+      .set({ issuer: normalized, updatedAt: new Date() })
+      .where(eq(gowidCardMappings.id, mappingId));
+    if (userId === undefined && companyId === undefined) {
+      return NextResponse.json({ ok: true });
+    }
   }
 
   // Handle companyId update

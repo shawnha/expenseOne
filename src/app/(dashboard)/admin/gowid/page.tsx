@@ -25,11 +25,9 @@ export default async function GowidSettingsPage() {
   return (
     <div className="flex flex-col gap-4 sm:gap-5">
       <div>
-        <h1 className="text-title3 text-[var(--apple-label)]">
-          고위드 카드 관리
-        </h1>
+        <h1 className="text-title3 text-[var(--apple-label)]">카드 관리</h1>
         <p className="text-footnote text-[var(--apple-secondary-label)] mt-0.5">
-          법인카드와 사용자를 매핑하고, 거래 내역을 동기화합니다.
+          법인카드를 발급사별로 분류하고, 사용자와 회사를 매핑합니다.
         </p>
       </div>
       <GowidCardMappings

@@ -322,6 +322,10 @@ export const gowidCardMappings = expenseSchema.table(
     id: uuid("id").primaryKey().defaultRandom(),
     cardLastFour: varchar("card_last_four", { length: 4 }).notNull().unique(),
     cardAlias: varchar("card_alias", { length: 100 }),
+    // Issuing bank (롯데, 우리, 신한, ...). GoWid returns this as a prefix
+    // in shortCardNumber (e.g. "롯데 9884"); the sync code parses it
+    // automatically. Admins can also override from the card-management UI.
+    issuer: varchar("issuer", { length: 50 }),
     userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
     companyId: uuid("company_id").references(() => companies.id, { onDelete: "set null" }),
     isActive: boolean("is_active").notNull().default(true),
@@ -330,6 +334,7 @@ export const gowidCardMappings = expenseSchema.table(
   },
   (table) => [
     index("idx_gowid_card_user").on(table.userId),
+    index("idx_gowid_card_issuer").on(table.issuer),
   ],
 );
 
