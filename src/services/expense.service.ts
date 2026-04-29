@@ -260,6 +260,11 @@ export async function getExpenses(
       conditions.push(eq(expenses.companyId, company.id));
     }
   }
+  if (query.autoClassified === "auto") {
+    conditions.push(eq(expenses.autoClassified, true));
+  } else if (query.autoClassified === "manual") {
+    conditions.push(eq(expenses.autoClassified, false));
+  }
 
   const whereClause =
     conditions.length > 0 ? and(...conditions) : undefined;

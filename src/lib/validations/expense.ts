@@ -153,6 +153,7 @@ export const expenseQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).optional().default(20),
   ownOnly: z.enum(["true", "false"]).optional(),
   company: z.string().max(50).optional(),
+  autoClassified: z.enum(["all", "auto", "manual"]).optional().default("all"),
 });
 
 export type ExpenseQueryInput = z.infer<typeof expenseQuerySchema>;
