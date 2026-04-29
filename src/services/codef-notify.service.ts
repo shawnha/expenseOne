@@ -9,7 +9,7 @@
 
 import { db } from "@/lib/db";
 import { gowidCardMappings, gowidTransactions } from "@/lib/db/schema";
-import { eq, sql, inArray } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { createNotification } from "./notification.service";
 import { sendPushToUser } from "./push.service";
 
@@ -104,12 +104,19 @@ export async function processCodefNotifications(): Promise<{
     }
   }
 
-  // Check which FinanceOne transaction IDs we've already processed
+  // Check which FinanceOne transaction IDs we've already processed —
+  // scope by source so collisions with the gowid namespace can't suppress
+  // notifications or pull the wrong staged row.
   const finTxIds = transactions.map((t) => t.id);
   const existingRows = await db
     .select({ gowidExpenseId: gowidTransactions.gowidExpenseId })
     .from(gowidTransactions)
-    .where(inArray(gowidTransactions.gowidExpenseId, finTxIds));
+    .where(
+      and(
+        eq(gowidTransactions.source, "codef"),
+        inArray(gowidTransactions.gowidExpenseId, finTxIds),
+      ),
+    );
   const existingSet = new Set(existingRows.map((r) => r.gowidExpenseId));
 
   let notified = 0;
@@ -141,6 +148,7 @@ export async function processCodefNotifications(): Promise<{
 
     // Stage the transaction (to prevent re-notification)
     const [inserted] = await db.insert(gowidTransactions).values({
+      source: "codef",
       gowidExpenseId: tx.id, // reuse this field for financeone.transactions.id
       userId: mapping.userId,
       cardLastFour: mapping.cardLastFour,

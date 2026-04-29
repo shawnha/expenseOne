@@ -9,6 +9,7 @@ import {
   date,
   char,
   index,
+  uniqueIndex,
   check,
   numeric,
 } from "drizzle-orm/pg-core";
@@ -331,7 +332,11 @@ export const gowidTransactions = expenseSchema.table(
   "gowid_transactions",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    gowidExpenseId: integer("gowid_expense_id").notNull().unique(),
+    // `source` separates upstream namespaces. Upstream IDs from GoWid and
+    // FinanceOne/Codef can collide on the integer space, so dedup happens on
+    // (source, gowid_expense_id) — not on gowid_expense_id alone.
+    source: varchar("source", { length: 16 }).notNull().default("gowid"),
+    gowidExpenseId: integer("gowid_expense_id").notNull(),
     userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
     cardLastFour: varchar("card_last_four", { length: 4 }),
     cardAlias: varchar("card_alias", { length: 100 }),
@@ -351,6 +356,7 @@ export const gowidTransactions = expenseSchema.table(
   (table) => [
     index("idx_gowid_tx_user_status").on(table.userId, table.status),
     index("idx_gowid_tx_consumed").on(table.consumedExpenseId),
+    uniqueIndex("idx_gowid_tx_source_upstream").on(table.source, table.gowidExpenseId),
   ],
 );
 

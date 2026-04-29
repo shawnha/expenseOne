@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { expenses, users, notifications } from "@/lib/db/schema";
-import { and, eq, inArray } from "drizzle-orm";
+import { expenses, users } from "@/lib/db/schema";
+import { and, eq, sql } from "drizzle-orm";
 import { sendPushToAdmins } from "@/services/push.service";
 import { formatExpenseAmount } from "@/lib/utils/expense-utils";
 import { verifyCronAuth } from "@/lib/cron-auth";
@@ -76,39 +76,40 @@ export async function GET(request: Request) {
       const amountText = formatExpenseAmount(exp.amount, exp.currency, exp.amountOriginal);
       const message = `${exp.title} — ${amountText}`;
 
-      // Dedup is identity = (relatedExpenseId, type, title, recipientId).
-      // Title encodes the days-until bucket via emoji prefix, so each of the
-      // 7/3/1/0 reminders is its own notification. Concurrent cron runs (rare,
-      // but Vercel may retry) can still race here — TODO: add a unique partial
-      // index on those four columns and switch this to INSERT ... ON CONFLICT
-      // DO NOTHING once migration permission is granted.
-      const alreadyNotified = new Set(
-        (await db
-          .select({ recipientId: notifications.recipientId })
-          .from(notifications)
-          .where(
-            and(
-              eq(notifications.relatedExpenseId, exp.id),
-              eq(notifications.type, "DUE_DATE_REMINDER"),
-              eq(notifications.title, title),
-              inArray(notifications.recipientId, adminIds),
-            ),
-          )).map((n) => n.recipientId),
-      );
+      // Dedup identity = (relatedExpenseId, type, title, recipientId).
+      // Title encodes the days-until bucket (emoji prefix), so each of the
+      // 7/3/1/0 reminders is its own notification. Migration 0004 added a
+      // partial unique index covering exactly that tuple. ON CONFLICT must
+      // restate the partial-index predicate (Drizzle's helper API doesn't
+      // expose `WHERE` for the conflict target), so we drop to raw SQL.
+      const valuesSql = adminIds
+        .map(
+          (id) => sql`(
+            gen_random_uuid(),
+            ${id},
+            'DUE_DATE_REMINDER',
+            ${title},
+            ${message},
+            ${exp.id},
+            false,
+            now()
+          )`,
+        )
+        .reduce((acc, cur, i) => (i === 0 ? cur : sql`${acc}, ${cur}`));
 
-      const toInsert = adminIds
-        .filter((id) => !alreadyNotified.has(id))
-        .map((id) => ({
-          recipientId: id,
-          type: "DUE_DATE_REMINDER" as const,
-          title,
-          message,
-          relatedExpenseId: exp.id,
-        }));
+      const insertedRaw = await db.execute<{ id: string }>(sql`
+        INSERT INTO expenseone.notifications
+          (id, recipient_id, type, title, message, related_expense_id, is_read, created_at)
+        VALUES ${valuesSql}
+        ON CONFLICT (related_expense_id, type, title, recipient_id)
+          WHERE type = 'DUE_DATE_REMINDER'
+          DO NOTHING
+        RETURNING id
+      `);
+      const inserted = Array.from(insertedRaw as Iterable<{ id: string }>);
 
-      if (toInsert.length > 0) {
-        await db.insert(notifications).values(toInsert);
-        notifiedCount += toInsert.length;
+      if (inserted.length > 0) {
+        notifiedCount += inserted.length;
 
         // Web Push fire-and-forget — push duplicates are tolerable, in-app
         // duplicates are what we actually guard against above.

@@ -117,12 +117,18 @@ export async function syncGowidTransactions(): Promise<{
     return { fetched: 0, newStaged: 0, notified: 0 };
   }
 
-  // 2. Check existing to skip duplicates
+  // 2. Check existing to skip duplicates — scope by source so the gowid
+  // namespace doesn't collide with codef/financeone integer IDs.
   const gowidIds = allExpenses.map((e) => e.expenseId);
   const existing = await db
     .select({ gowidExpenseId: gowidTransactions.gowidExpenseId })
     .from(gowidTransactions)
-    .where(inArray(gowidTransactions.gowidExpenseId, gowidIds));
+    .where(
+      and(
+        eq(gowidTransactions.source, "gowid"),
+        inArray(gowidTransactions.gowidExpenseId, gowidIds),
+      ),
+    );
   const existingSet = new Set(existing.map((e) => e.gowidExpenseId));
 
   // 3. Get card mappings
@@ -152,6 +158,7 @@ export async function syncGowidTransactions(): Promise<{
     }
 
     const [inserted] = await db.insert(gowidTransactions).values({
+      source: "gowid",
       gowidExpenseId: expense.expenseId,
       userId: mapping?.userId ?? null,
       cardLastFour: lastFour,
