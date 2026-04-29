@@ -17,6 +17,8 @@ import {
 } from "@/lib/gowid/client";
 import { createNotification } from "./notification.service";
 import { sendPushToUser } from "./push.service";
+import { classifyMealExpense } from "./financeone-classifier.service";
+import { COMPANY_TO_ENTITY } from "@/lib/financeone/meal-accounts";
 
 // ---------------------------------------------------------------------------
 // Card Mapping CRUD
@@ -90,10 +92,11 @@ export async function syncGowidTransactions(): Promise<{
   fetched: number;
   newStaged: number;
   notified: number;
+  autoClassified: number;
 }> {
   const configs = getGowidConfigs();
   if (configs.length === 0) {
-    return { fetched: 0, newStaged: 0, notified: 0 };
+    return { fetched: 0, newStaged: 0, notified: 0, autoClassified: 0 };
   }
 
   // Resolve company IDs for each config
@@ -119,7 +122,7 @@ export async function syncGowidTransactions(): Promise<{
   }
 
   if (allExpenses.length === 0) {
-    return { fetched: 0, newStaged: 0, notified: 0 };
+    return { fetched: 0, newStaged: 0, notified: 0, autoClassified: 0 };
   }
 
   // 2. Check existing to skip duplicates — scope by source so the gowid
@@ -150,7 +153,14 @@ export async function syncGowidTransactions(): Promise<{
   // 4. Insert new transactions + auto-discover cards
   let newStaged = 0;
   let notified = 0;
+  let autoClassifiedCount = 0;
   const newCardLastFours = new Set<string>();
+
+  // companyId → companySlug for entity lookup (classifier wants entity id)
+  const companyIdToSlug = new Map<string, string>();
+  for (const config of configs) {
+    if (config.companyId) companyIdToSlug.set(config.companyId, config.companySlug);
+  }
 
   for (const expense of allExpenses) {
     if (existingSet.has(expense.expenseId)) continue;
@@ -206,6 +216,53 @@ export async function syncGowidTransactions(): Promise<{
         // Mark as consumed — user already submitted
         await db.update(gowidTransactions).set({ status: "consumed" }).where(eq(gowidTransactions.id, inserted.id));
         continue;
+      }
+
+      // ---------------------------------------------------------------
+      // Meal auto-classification: if FinanceOne classifies this merchant
+      // as a meal-leaf account, create an APPROVED expense automatically
+      // and skip the user-facing notification.
+      // ---------------------------------------------------------------
+      if (mapping.companyId) {
+        const slug = companyIdToSlug.get(mapping.companyId);
+        const entityId = slug ? (COMPANY_TO_ENTITY[slug] ?? null) : null;
+        const mealMatch = await classifyMealExpense(expense.storeName, entityId);
+
+        if (mealMatch) {
+          const txDate = `${expense.expenseDate.slice(0, 4)}-${expense.expenseDate.slice(4, 6)}-${expense.expenseDate.slice(6, 8)}`;
+          const [autoExp] = await db
+            .insert(expenses)
+            .values({
+              type: "CORPORATE_CARD",
+              status: "APPROVED",
+              title: expense.storeName ?? "법카 사용",
+              amount: Math.round(expense.krwAmount),
+              currency: expense.currency,
+              category: mealMatch.accountName,
+              merchantName: expense.storeName,
+              transactionDate: txDate,
+              cardLastFour: lastFour,
+              companyId: mapping.companyId,
+              submittedById: mapping.userId,
+              approvedAt: new Date(),
+              autoClassified: true,
+              autoClassifiedSource: mealMatch.source,
+              autoClassifiedAccountId: mealMatch.internalAccountId,
+            })
+            .returning();
+
+          await db
+            .update(gowidTransactions)
+            .set({
+              status: "consumed",
+              consumedExpenseId: autoExp?.id ?? null,
+              consumedAt: new Date(),
+            })
+            .where(eq(gowidTransactions.id, inserted.id));
+
+          autoClassifiedCount++;
+          continue;
+        }
       }
 
       const amountStr = Math.round(expense.krwAmount).toLocaleString();
@@ -327,7 +384,7 @@ export async function syncGowidTransactions(): Promise<{
     });
   }
 
-  return { fetched: allExpenses.length, newStaged, notified };
+  return { fetched: allExpenses.length, newStaged, notified, autoClassified: autoClassifiedCount };
 }
 
 // ---------------------------------------------------------------------------
