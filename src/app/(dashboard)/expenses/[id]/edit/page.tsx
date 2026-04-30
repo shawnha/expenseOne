@@ -84,9 +84,11 @@ async function getExpenseForEdit(id: string): Promise<{
     }
   }
 
-  // Permission: deposit request = only SUBMITTED status
+  // Deposit request: SUBMITTED is fully editable; APPROVED stays editable so
+  // the submitter can attach late receipts (e.g. 영수증 보충) without the
+  // admin having to revert the approval. REJECTED / CANCELLED are dead-end.
   if (expenseType === "DEPOSIT_REQUEST") {
-    if (expenseStatus !== "SUBMITTED") {
+    if (expenseStatus !== "SUBMITTED" && expenseStatus !== "APPROVED") {
       return null;
     }
   }

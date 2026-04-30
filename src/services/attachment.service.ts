@@ -148,14 +148,13 @@ export async function uploadAttachment(params: {
     throw new AppError("FORBIDDEN", "본인이 제출한 비용에만 파일을 첨부할 수 있습니다.");
   }
 
-  // Block uploads to finalized expenses (but allow for auto-approved corporate cards)
-  // Corporate card expenses are created with APPROVED status immediately,
-  // so we must check the type to allow initial file attachment.
-  if (
-    (expense.status === "REJECTED" || expense.status === "CANCELLED") ||
-    (expense.status === "APPROVED" && expense.type !== "CORPORATE_CARD")
-  ) {
-    throw new AppError("FORBIDDEN", "완료된 비용에는 파일을 첨부할 수 없습니다.");
+  // REJECTED / CANCELLED stays blocked — those are dead-end states.
+  // APPROVED is now allowed: deposit requests sometimes need late
+  // receipts (e.g. 영수증 보충), and corporate-card entries are
+  // auto-APPROVED at creation so the initial upload has to land here too.
+  // Audit trail is preserved by the delete restriction below.
+  if (expense.status === "REJECTED" || expense.status === "CANCELLED") {
+    throw new AppError("FORBIDDEN", "반려/취소된 비용에는 파일을 첨부할 수 없습니다.");
   }
 
   // 5. Upload to Supabase Storage
@@ -224,14 +223,16 @@ export async function deleteAttachment(
     throw new AppError("FORBIDDEN", "본인이 업로드한 파일만 삭제할 수 있습니다.");
   }
 
-  // 2.5. Block deletion from finalized expenses (audit trail protection)
+  // REJECTED는 dead-end이므로 첨부 삭제 차단. APPROVED는 후속으로
+  // 영수증을 교체하는 케이스가 있어 허용 — 새 영수증을 올린 뒤 옛 것을
+  // 지우는 흐름을 막으면 사용자가 같은 비용에 영수증 2장을 남기게 된다.
   const [expense] = await db
     .select({ status: expenses.status })
     .from(expenses)
     .where(eq(expenses.id, attachment.expenseId));
 
-  if (expense && (expense.status === "APPROVED" || expense.status === "REJECTED")) {
-    throw new AppError("FORBIDDEN", "승인/반려된 비용의 첨부파일은 삭제할 수 없습니다.");
+  if (expense && expense.status === "REJECTED") {
+    throw new AppError("FORBIDDEN", "반려된 비용의 첨부파일은 삭제할 수 없습니다.");
   }
 
   // 3. Delete from Supabase Storage

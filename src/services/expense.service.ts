@@ -436,21 +436,19 @@ export async function updateExpense(
   // Build the update set
   const { status: inputStatus, ...restInput } = input;
 
-  // If an approved deposit request is edited by a non-admin, reset status to SUBMITTED (needs re-approval)
-  const wasApproved = expense.type === "DEPOSIT_REQUEST" && expense.status === "APPROVED";
-
   const updateSet: Record<string, unknown> = {
     ...restInput,
     updatedAt: new Date(),
   };
 
-  // Admin can explicitly set status
+  // Admin can explicitly set status. Non-admin edits no longer auto-reset
+  // an APPROVED deposit request back to SUBMITTED — the common case is the
+  // submitter attaching a late receipt or fixing a typo, and forcing
+  // re-approval there just creates churn for the admin. updatedAt + Slack
+  // re-post still capture the change for audit; if amount/account changed,
+  // admin can spot it from the message and revert manually.
   if (inputStatus && isAdmin) {
     updateSet.status = inputStatus;
-  } else if (wasApproved && !isAdmin) {
-    updateSet.status = "SUBMITTED";
-    updateSet.approvedById = null;
-    updateSet.approvedAt = null;
   }
 
   const [updated] = await db
