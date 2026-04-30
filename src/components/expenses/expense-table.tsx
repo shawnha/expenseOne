@@ -104,6 +104,92 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
   const [editExpense] = useState<ExpenseRow | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
 
+  // ── Bulk approve state (admin only, deposit-request SUBMITTED only) ──
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkApproving, setBulkApproving] = useState(false);
+
+  const approvable = useMemo(
+    () => expenses.filter(
+      (e) => e.type === "DEPOSIT_REQUEST" && e.status === "SUBMITTED",
+    ),
+    [expenses],
+  );
+  const approvableIds = useMemo(
+    () => new Set(approvable.map((e) => e.id)),
+    [approvable],
+  );
+
+  const allApprovableSelected =
+    approvable.length > 0 && approvable.every((e) => selectedIds.has(e.id));
+
+  const toggleOne = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleAll = useCallback(() => {
+    setSelectedIds((prev) => {
+      if (approvable.every((e) => prev.has(e.id))) {
+        const next = new Set(prev);
+        for (const e of approvable) next.delete(e.id);
+        return next;
+      }
+      const next = new Set(prev);
+      for (const e of approvable) next.add(e.id);
+      return next;
+    });
+  }, [approvable]);
+
+  const selectedCount = useMemo(
+    () => expenses.filter((e) => selectedIds.has(e.id)).length,
+    [expenses, selectedIds],
+  );
+  const selectedTotal = useMemo(
+    () => expenses
+      .filter((e) => selectedIds.has(e.id))
+      .reduce((sum, e) => sum + (e.amount ?? 0), 0),
+    [expenses, selectedIds],
+  );
+
+  const handleBulkApprove = useCallback(async () => {
+    if (selectedCount === 0 || bulkApproving) return;
+    if (!confirm(`${selectedCount}건 (${selectedTotal.toLocaleString()}원)을 일괄 승인하시겠습니까?`)) {
+      return;
+    }
+    setBulkApproving(true);
+    try {
+      const res = await fetch("/api/expenses/bulk-action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "approve",
+          expenseIds: Array.from(selectedIds),
+        }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(json?.error?.message ?? "승인 실패");
+      }
+      const { success, failed, errors } = json?.data ?? {};
+      if (failed && failed > 0) {
+        toast.warning(`${success}건 승인, ${failed}건 실패`);
+        if (errors?.length) console.error("[bulk-approve errors]", errors);
+      } else {
+        toast.success(`${success}건 일괄 승인 완료`);
+      }
+      setSelectedIds(new Set());
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "승인 요청에 실패했습니다.");
+    } finally {
+      setBulkApproving(false);
+    }
+  }, [selectedIds, selectedCount, selectedTotal, bulkApproving, router]);
+
   const handleAdminDelete = useCallback(async (expenseId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (confirmId !== expenseId) {
@@ -134,11 +220,59 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
 
   return (
     <>
+      {/* Bulk action toolbar — admin only, only shown when at least one
+          deposit request is in SUBMITTED state on this page. Sticks to the
+          top-left of the expense table area without taking over layout. */}
+      {isAdmin && approvable.length > 0 && (
+        <div className="hidden lg:flex items-center justify-between glass px-4 py-2.5 mb-3 rounded-xl">
+          <label className="flex items-center gap-2 text-sm text-[var(--apple-label)] cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={allApprovableSelected}
+              onChange={toggleAll}
+              className="size-4 accent-[var(--apple-blue)] cursor-pointer"
+            />
+            <span>
+              승인 대기 입금요청 {approvable.length}건
+              {selectedCount > 0 && (
+                <span className="ml-2 text-[var(--apple-secondary-label)]">
+                  · {selectedCount}건 선택 / {selectedTotal.toLocaleString()}원
+                </span>
+              )}
+            </span>
+          </label>
+          <button
+            type="button"
+            onClick={handleBulkApprove}
+            disabled={selectedCount === 0 || bulkApproving}
+            className={cn(
+              "px-4 py-1.5 rounded-full text-sm font-semibold transition-colors apple-press",
+              selectedCount === 0 || bulkApproving
+                ? "bg-[var(--apple-fill)] text-[var(--apple-tertiary-label)] cursor-not-allowed"
+                : "bg-[var(--apple-green)] text-white hover:bg-[color-mix(in_srgb,var(--apple-green)_85%,black)]",
+            )}
+          >
+            {bulkApproving ? "승인 중..." : `선택 일괄 승인${selectedCount > 0 ? ` (${selectedCount})` : ""}`}
+          </button>
+        </div>
+      )}
+
       {/* Desktop table */}
       <div className="hidden lg:block glass p-4 overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
+              {isAdmin && approvable.length > 0 && (
+                <TableHead className="w-[40px] pl-2">
+                  <input
+                    type="checkbox"
+                    aria-label="전체 선택"
+                    checked={allApprovableSelected}
+                    onChange={toggleAll}
+                    className="size-4 accent-[var(--apple-blue)] cursor-pointer"
+                  />
+                </TableHead>
+              )}
               <TableHead className="min-w-[140px]">제목</TableHead>
               <TableHead className="w-[80px]">유형</TableHead>
               <TableHead className="w-[120px] text-right pr-6">금액</TableHead>
@@ -169,6 +303,21 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
                     }
                   }}
                 >
+                  {isAdmin && approvable.length > 0 && (
+                    <TableCell className="w-[40px] pl-2" onClick={(e) => e.stopPropagation()}>
+                      {approvableIds.has(expense.id) ? (
+                        <input
+                          type="checkbox"
+                          aria-label={`${expense.title} 선택`}
+                          checked={selectedIds.has(expense.id)}
+                          onChange={() => toggleOne(expense.id)}
+                          className="size-4 accent-[var(--apple-blue)] cursor-pointer"
+                        />
+                      ) : (
+                        <span className="inline-block size-4" aria-hidden="true" />
+                      )}
+                    </TableCell>
+                  )}
                   <TableCell className="font-medium max-w-[200px] text-[var(--apple-label)]">
                     <span className="flex items-center gap-1.5">
                       <span className="truncate">{expense.title}</span>
