@@ -185,6 +185,37 @@ async function fetchRateFromAPI(
 }
 
 /**
+ * Frankfurter API fallback. ECB published rates, no auth, no rate limits.
+ * Used when Korea Exim API is unavailable so USD submissions don't block.
+ * Resolution: business day; non-business dates fall back to most recent.
+ */
+async function fetchRateFromFrankfurter(
+  currency: string,
+  searchDate: Date,
+): Promise<{ rate: number; date: string } | null> {
+  if (currency !== "USD") return null; // only USD wired up; expand if other currencies needed
+
+  const dateStr = `${searchDate.getFullYear()}-${String(searchDate.getMonth() + 1).padStart(2, "0")}-${String(searchDate.getDate()).padStart(2, "0")}`;
+  // /v1/<date>?...  returns most recent business day on or before <date>
+  const url = `https://api.frankfurter.dev/v1/${dateStr}?from=USD&to=KRW`;
+
+  try {
+    const res = await httpsGet(url, { Accept: "application/json" }, true);
+    if (res.statusCode !== 200) {
+      console.error(`[ExchangeRate] Frankfurter HTTP ${res.statusCode}`);
+      return null;
+    }
+    const json = JSON.parse(res.body) as { date?: string; rates?: { KRW?: number } };
+    const rate = json.rates?.KRW;
+    if (typeof rate !== "number" || rate <= 0) return null;
+    return { rate, date: json.date ?? dateStr };
+  } catch (err) {
+    console.error("[ExchangeRate] Frankfurter error:", err);
+    return null;
+  }
+}
+
+/**
  * USD→KRW 매매기준율을 조회 (캐시 적용).
  * @param currency 통화 코드 (기본: USD)
  * @param targetDate 환율 기준 날짜 (거래일). 미지정 시 오늘.
@@ -206,16 +237,35 @@ export async function getExchangeRate(
     return { rate: cached.rate, date: cached.date };
   }
 
-  const result = await fetchRateFromAPI(currency, searchDate);
+  let result = await fetchRateFromAPI(currency, searchDate);
+
+  // Fallback to Frankfurter if Korea Exim API failed (timeout, key missing, etc.)
+  if (!result) {
+    result = await fetchRateFromFrankfurter(currency, searchDate);
+    if (result) {
+      console.warn(`[ExchangeRate] Korea Exim unavailable, used Frankfurter fallback: ${result.rate} (${result.date})`);
+    }
+  }
+
   if (result) {
     rateCache.set(cacheKey, {
       rate: result.rate,
       date: result.date,
       fetchedAt: Date.now(),
     });
+    return result;
   }
 
-  return result;
+  // Last-resort: any cached rate for this currency, regardless of date or TTL.
+  // Better to use a stale rate than block the user from submitting.
+  for (const [key, entry] of rateCache.entries()) {
+    if (key.startsWith(`${currency}:`)) {
+      console.warn(`[ExchangeRate] All APIs failed, using stale cache: ${entry.rate} (${entry.date})`);
+      return { rate: entry.rate, date: entry.date };
+    }
+  }
+
+  return null;
 }
 
 /**
