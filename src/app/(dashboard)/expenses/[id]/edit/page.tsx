@@ -1,11 +1,19 @@
 import { redirect } from "next/navigation";
 import { getAuthUser, getCachedClient } from "@/lib/supabase/cached";
+import { getActiveCompanies } from "@/services/company.service";
 import type {
   ExpenseType,
   ExpenseStatus,
   DocumentType,
 } from "@/types";
 import { EditExpenseForm } from "./edit-expense-form";
+
+export interface CompanyOption {
+  id: string;
+  name: string;
+  slug: string;
+  currency: string;
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -39,6 +47,7 @@ export interface ExpenseEditData {
   prePaidPercentage: number | null;
   dueDate: string | null;
   createdAt: string;
+  companyId: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -119,6 +128,7 @@ async function getExpenseForEdit(id: string): Promise<{
       prePaidPercentage: expense.pre_paid_percentage ?? null,
       dueDate: expense.due_date ?? null,
       createdAt: expense.created_at,
+      companyId: expense.company_id ?? null,
     },
     attachments: (attachmentRows ?? []).map(
       (a: {
@@ -157,10 +167,19 @@ export default async function EditExpensePage({ params }: EditExpensePageProps) 
     redirect(`/expenses/${id}?error=edit_not_allowed`);
   }
 
+  const companies = await getActiveCompanies();
+  const initialCompanies: CompanyOption[] = companies.map((c) => ({
+    id: c.id,
+    name: c.name,
+    slug: c.slug,
+    currency: c.currency,
+  }));
+
   return (
     <EditExpenseForm
       expense={result.expense}
       existingAttachments={result.attachments}
+      initialCompanies={initialCompanies}
     />
   );
 }

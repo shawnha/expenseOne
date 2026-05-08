@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/input-group";
 
 import { FileUpload, FileUploadWithDocType } from "@/components/forms/file-upload";
+import { CompanySelector } from "@/components/forms/company-selector";
 import {
   corporateCardFormSchema,
   depositRequestFormSchema,
@@ -49,7 +50,7 @@ import {
   formatFileSize,
 } from "@/lib/validations/expense-form";
 import type { DocumentType } from "@/types";
-import type { ExpenseEditData, ExistingAttachment } from "./page";
+import type { ExpenseEditData, ExistingAttachment, CompanyOption } from "./page";
 import { cn } from "@/lib/utils";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 
@@ -60,6 +61,7 @@ import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 interface EditExpenseFormProps {
   expense: ExpenseEditData;
   existingAttachments: ExistingAttachment[];
+  initialCompanies: CompanyOption[];
 }
 
 // ---------------------------------------------------------------------------
@@ -69,12 +71,14 @@ interface EditExpenseFormProps {
 export function EditExpenseForm({
   expense,
   existingAttachments,
+  initialCompanies,
 }: EditExpenseFormProps) {
   if (expense.type === "CORPORATE_CARD") {
     return (
       <CorporateCardEditForm
         expense={expense}
         existingAttachments={existingAttachments}
+        initialCompanies={initialCompanies}
       />
     );
   }
@@ -83,6 +87,7 @@ export function EditExpenseForm({
     <DepositRequestEditForm
       expense={expense}
       existingAttachments={existingAttachments}
+      initialCompanies={initialCompanies}
     />
   );
 }
@@ -164,6 +169,7 @@ function ExistingAttachmentItem({
 function CorporateCardEditForm({
   expense,
   existingAttachments,
+  initialCompanies,
 }: EditExpenseFormProps) {
   const router = useRouter();
   const [newFiles, setNewFiles] = useState<FileWithPreview[]>([]);
@@ -178,6 +184,27 @@ function CorporateCardEditForm({
   const [showCustomCategory, setShowCustomCategory] = useState(
     !CATEGORY_OPTIONS.some((opt) => opt.value === expense.category)
   );
+  const [companyId, setCompanyId] = useState<string>(expense.companyId ?? "");
+  const [userCompanyId, setUserCompanyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/profile")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        const cid = json?.data?.companyId;
+        if (!cancelled && cid) setUserCompanyId(cid);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleCompanyChange = useCallback((newCompanyId: string, _currency?: string) => {
+    void _currency;
+    setCompanyId(newCompanyId);
+  }, []);
 
   const transactionDate = expense.transactionDate
     ? new Date(expense.transactionDate + "T00:00:00")
@@ -203,7 +230,8 @@ function CorporateCardEditForm({
   });
 
   // Warn on unsaved changes (browser close / refresh)
-  useUnsavedChanges(isDirty || newFiles.length > 0 || removedAttachmentIds.length > 0);
+  const companyChanged = companyId !== (expense.companyId ?? "");
+  useUnsavedChanges(isDirty || newFiles.length > 0 || removedAttachmentIds.length > 0 || companyChanged);
 
   const handleAmountChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -252,6 +280,7 @@ function CorporateCardEditForm({
           category: data.category,
           merchantName: data.merchantName || undefined,
           transactionDate: formatDateISO(data.transactionDate ?? new Date()),
+          companyId: companyId || undefined,
         }),
       });
 
@@ -327,6 +356,12 @@ function CorporateCardEditForm({
             <span className="text-[var(--apple-red)]">*</span> 필수 항목
           </p>
           <div className="space-y-5">
+            <CompanySelector
+              value={companyId}
+              onChange={handleCompanyChange}
+              userCompanyId={userCompanyId}
+              initialCompanies={initialCompanies}
+            />
             <div className="space-y-1.5">
               <Label htmlFor="title">제목 <span className="text-[var(--apple-red)]">*</span></Label>
               <Input id="title" placeholder="예: 3월 사무용품 구매" aria-invalid={!!errors.title} {...register("title")} />
@@ -446,6 +481,7 @@ function CorporateCardEditForm({
 function DepositRequestEditForm({
   expense,
   existingAttachments,
+  initialCompanies,
 }: EditExpenseFormProps) {
   const router = useRouter();
   const [newFiles, setNewFiles] = useState<FileWithPreview[]>([]);
@@ -465,6 +501,27 @@ function DepositRequestEditForm({
     !CATEGORY_OPTIONS.some((opt) => opt.value === expense.category)
   );
   const [dueDateOpen, setDueDateOpen] = useState(false);
+  const [companyId, setCompanyId] = useState<string>(expense.companyId ?? "");
+  const [userCompanyId, setUserCompanyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/profile")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        const cid = json?.data?.companyId;
+        if (!cancelled && cid) setUserCompanyId(cid);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleCompanyChange = useCallback((newCompanyId: string, _currency?: string) => {
+    void _currency;
+    setCompanyId(newCompanyId);
+  }, []);
 
   const {
     register,
@@ -491,7 +548,8 @@ function DepositRequestEditForm({
   });
 
   // Warn on unsaved changes (browser close / refresh)
-  useUnsavedChanges(isDirty || newFiles.length > 0 || removedAttachmentIds.length > 0);
+  const companyChanged = companyId !== (expense.companyId ?? "");
+  useUnsavedChanges(isDirty || newFiles.length > 0 || removedAttachmentIds.length > 0 || companyChanged);
 
   const calcFinalAmount = useCallback(
     (base: number, vat: boolean, freelancer: boolean) => {
@@ -612,6 +670,7 @@ function DepositRequestEditForm({
           isPrePaid: data.isPrePaid,
           prePaidPercentage: data.prePaidPercentage ?? null,
           dueDate: data.dueDate ? formatDateISO(data.dueDate) : null,
+          companyId: companyId || undefined,
         }),
       });
       if (!response.ok) {
@@ -674,6 +733,12 @@ function DepositRequestEditForm({
           <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-1">기본 정보</h2>
           <p className="text-[13px] text-[var(--apple-secondary-label)] mb-5"><span className="text-[var(--apple-red)]">*</span> 필수 항목</p>
           <div className="space-y-5">
+            <CompanySelector
+              value={companyId}
+              onChange={handleCompanyChange}
+              userCompanyId={userCompanyId}
+              initialCompanies={initialCompanies}
+            />
             <div className="space-y-1.5">
               <Label htmlFor="title">제목 <span className="text-[var(--apple-red)]">*</span></Label>
               <Input id="title" placeholder="예: 외주 개발비 지급 요청" aria-invalid={!!errors.title} {...register("title")} />
