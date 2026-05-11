@@ -16,6 +16,8 @@ import {
   ilike,
   count,
   sum,
+  exists,
+  sql,
 } from "drizzle-orm";
 import type {
   CreateExpenseInput,
@@ -250,6 +252,26 @@ export async function getExpenses(
       or(
         ilike(expenses.title, searchTerm),
         ilike(expenses.merchantName, searchTerm),
+        ilike(expenses.description, searchTerm),
+        ilike(expenses.accountHolder, searchTerm),
+        ilike(expenses.bankName, searchTerm),
+        ilike(expenses.accountNumber, searchTerm),
+        ilike(expenses.cardLastFour, searchTerm),
+        ilike(expenses.category, searchTerm),
+        exists(
+          db
+            .select({ one: sql`1` })
+            .from(users)
+            .where(
+              and(
+                eq(users.id, expenses.submittedById),
+                or(
+                  ilike(users.name, searchTerm),
+                  ilike(users.email, searchTerm),
+                ),
+              ),
+            ),
+        ),
       )!,
     );
   }

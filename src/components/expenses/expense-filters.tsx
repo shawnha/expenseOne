@@ -138,7 +138,7 @@ export function ExpenseFilters({ showAdminFilters = false }: ExpenseFiltersProps
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[var(--apple-secondary-label)]" />
           <Input
-            placeholder="제목, 가맹점명 검색..."
+            placeholder="제목, 가맹점, 제출자, 예금주, 카드번호 검색..."
             defaultValue={searchParams.get("search") ?? ""}
             onChange={handleSearchChange}
             className="pl-9"
