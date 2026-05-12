@@ -2,8 +2,13 @@
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { Search, SlidersHorizontal, CalendarIcon } from "lucide-react";
+import { format, startOfMonth, endOfMonth, subMonths, subDays, startOfYear, endOfYear } from "date-fns";
+import { ko } from "date-fns/locale";
+import type { DateRange } from "react-day-picker";
 import { Input } from "@/components/ui/input";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -12,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CATEGORY_OPTIONS } from "@/lib/validations/expense-form";
+import { cn } from "@/lib/utils";
 
 function getDefaultDateRange() {
   const now = new Date();
@@ -53,6 +59,19 @@ interface ExpenseFiltersProps {
   showAdminFilters?: boolean;
 }
 
+function parseISODate(value: string | null | undefined): Date | undefined {
+  if (!value) return undefined;
+  const d = new Date(`${value}T00:00:00`);
+  return isNaN(d.getTime()) ? undefined : d;
+}
+
+function toISODate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export function ExpenseFilters({ showAdminFilters = false }: ExpenseFiltersProps = {}) {
   const router = useRouter();
   const pathname = usePathname();
@@ -60,6 +79,7 @@ export function ExpenseFilters({ showAdminFilters = false }: ExpenseFiltersProps
   const [isPending, startTransition] = useTransition();
   const defaults = useMemo(() => getDefaultDateRange(), []);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [dateOpen, setDateOpen] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Cleanup debounce timer on unmount
@@ -110,15 +130,71 @@ export function ExpenseFilters({ showAdminFilters = false }: ExpenseFiltersProps
     [createQueryString, pathname, router]
   );
 
-  const handleDateChange = useCallback(
-    (key: "startDate" | "endDate", value: string) => {
+  const handleDateRangeChange = useCallback(
+    (range: { from?: Date; to?: Date } | undefined) => {
+      const from = range?.from ? toISODate(range.from) : null;
+      const to = range?.to ? toISODate(range.to) : null;
       startTransition(() => {
-        const qs = createQueryString({ [key]: value || null });
+        const qs = createQueryString({ startDate: from, endDate: to });
         router.push(`${pathname}${qs ? `?${qs}` : ""}`);
       });
     },
     [createQueryString, pathname, router]
   );
+
+  const applyPreset = useCallback(
+    (preset: "thisMonth" | "lastMonth" | "last7" | "last30" | "thisYear") => {
+      const now = new Date();
+      let from: Date;
+      let to: Date;
+      switch (preset) {
+        case "thisMonth":
+          from = startOfMonth(now);
+          to = endOfMonth(now);
+          break;
+        case "lastMonth": {
+          const lm = subMonths(now, 1);
+          from = startOfMonth(lm);
+          to = endOfMonth(lm);
+          break;
+        }
+        case "last7":
+          from = subDays(now, 6);
+          to = now;
+          break;
+        case "last30":
+          from = subDays(now, 29);
+          to = now;
+          break;
+        case "thisYear":
+          from = startOfYear(now);
+          to = endOfYear(now);
+          break;
+      }
+      handleDateRangeChange({ from, to });
+      setDateOpen(false);
+    },
+    [handleDateRangeChange]
+  );
+
+  const startDateParam = searchParams.get("startDate") ?? defaults.startDate;
+  const endDateParam = searchParams.get("endDate") ?? defaults.endDate;
+  const selectedRange: DateRange | undefined = useMemo(() => {
+    const from = parseISODate(startDateParam);
+    const to = parseISODate(endDateParam);
+    if (!from && !to) return undefined;
+    return { from, to };
+  }, [startDateParam, endDateParam]);
+
+  const dateLabel = useMemo(() => {
+    const from = parseISODate(startDateParam);
+    const to = parseISODate(endDateParam);
+    if (!from && !to) return "기간 선택";
+    const fromStr = from ? format(from, "yy.MM.dd", { locale: ko }) : "—";
+    const toStr = to ? format(to, "yy.MM.dd", { locale: ko }) : "—";
+    if (from && to && fromStr === toStr) return fromStr;
+    return `${fromStr} ~ ${toStr}`;
+  }, [startDateParam, endDateParam]);
 
   const hasActiveFilters = !!(
     searchParams.get("type") ||
@@ -238,23 +314,54 @@ export function ExpenseFilters({ showAdminFilters = false }: ExpenseFiltersProps
           </Select>
         )}
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          <Input
-            type="date"
-            defaultValue={searchParams.get("startDate") ?? defaults.startDate}
-            onChange={(e) => handleDateChange("startDate", e.target.value)}
-            className="w-full sm:w-auto"
-            aria-label="시작일"
-          />
-          <span className="hidden sm:inline text-[var(--apple-secondary-label)] text-sm">~</span>
-          <Input
-            type="date"
-            defaultValue={searchParams.get("endDate") ?? defaults.endDate}
-            onChange={(e) => handleDateChange("endDate", e.target.value)}
-            className="w-full sm:w-auto"
-            aria-label="종료일"
-          />
-        </div>
+        <Popover open={dateOpen} onOpenChange={setDateOpen}>
+          <PopoverTrigger
+            className={cn(
+              "h-11 sm:h-8 w-full sm:w-auto rounded-xl glass-input px-3 inline-flex items-center justify-start gap-2 text-sm",
+              "text-[var(--apple-label)] hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(0,122,255,0.4)]",
+            )}
+            aria-label="기간 선택"
+          >
+            <CalendarIcon className="size-4 text-[var(--apple-secondary-label)] shrink-0" />
+            <span className="tabular-nums truncate">{dateLabel}</span>
+          </PopoverTrigger>
+          <PopoverContent
+            className="w-auto p-0 rounded-2xl glass-strong border-0 overflow-hidden"
+            align="end"
+            sideOffset={8}
+          >
+            <div className="flex flex-col sm:flex-row">
+              <div className="flex sm:flex-col gap-1 p-2 sm:p-2.5 sm:border-r sm:border-[var(--apple-separator)] overflow-x-auto sm:overflow-visible sm:min-w-[112px]">
+                {[
+                  { key: "thisMonth", label: "이번 달" },
+                  { key: "lastMonth", label: "지난 달" },
+                  { key: "last7", label: "최근 7일" },
+                  { key: "last30", label: "최근 30일" },
+                  { key: "thisYear", label: "올해" },
+                ].map((preset) => (
+                  <button
+                    key={preset.key}
+                    type="button"
+                    onClick={() => applyPreset(preset.key as Parameters<typeof applyPreset>[0])}
+                    className="shrink-0 text-left text-sm rounded-lg px-2.5 py-1.5 text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.04)] dark:hover:bg-[rgba(255,255,255,0.06)] transition-colors whitespace-nowrap"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+              <div className="p-2 sm:p-2.5">
+                <Calendar
+                  mode="range"
+                  selected={selectedRange}
+                  onSelect={(range) => handleDateRangeChange(range)}
+                  numberOfMonths={1}
+                  locale={ko}
+                  defaultMonth={selectedRange?.from ?? new Date()}
+                />
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
 
       {isPending && (
