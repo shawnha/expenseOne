@@ -16,11 +16,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 import { CompanySelector } from "@/components/forms/company-selector";
+import { FileUpload } from "@/components/forms/file-upload";
 import dynamic from "next/dynamic";
 const SubmitSuccessDialog = dynamic(() => import("@/components/forms/submit-success-dialog").then(m => m.SubmitSuccessDialog), { ssr: false });
 import {
   corporateCardFormSchema,
   type CorporateCardFormData,
+  type FileWithPreview,
   CATEGORY_OPTIONS,
   formatAmount,
   formatAmountUSD,
@@ -106,6 +108,9 @@ export default function CorporateCardForm({ initialCompanies, prefillData }: Cor
   const [freelancerDeduction, setFreelancerDeduction] = useState(false);
   const [supplyAmount, setSupplyAmount] = useState(0);
 
+  // Optional receipt attachments
+  const [files, setFiles] = useState<FileWithPreview[]>([]);
+
   const {
     register,
     handleSubmit,
@@ -124,7 +129,7 @@ export default function CorporateCardForm({ initialCompanies, prefillData }: Cor
   });
 
   // Warn on unsaved changes (browser close / refresh)
-  useUnsavedChanges(isDirty);
+  useUnsavedChanges(isDirty || files.length > 0);
 
   // Pre-fill fields from GoWid transaction
   useEffect(() => {
@@ -279,6 +284,33 @@ export default function CorporateCardForm({ initialCompanies, prefillData }: Cor
         throw new Error(
           errorData?.error?.message || "비용 제출에 실패했습니다."
         );
+      }
+
+      // Upload optional attachments (receipts). 법카사용은 첨부 선택사항이라
+      // 업로드가 일부 실패해도 제출 자체는 성공으로 처리 — 상세 화면에서 재첨부 가능.
+      if (files.length > 0) {
+        const result = await response.json().catch(() => null);
+        const expenseId = result?.data?.id;
+        if (expenseId) {
+          const uploadResults = await Promise.allSettled(
+            files.map((fileItem) => {
+              const formData = new FormData();
+              formData.append("file", fileItem.file);
+              formData.append("expenseId", expenseId);
+              formData.append("documentType", "RECEIPT");
+              return fetch("/api/attachments/upload", { method: "POST", body: formData })
+                .then((res) => { if (!res.ok) throw new Error(fileItem.file.name); return res; });
+            })
+          );
+          const failed = uploadResults.filter((r) => r.status === "rejected");
+          if (failed.length > 0) {
+            if (failed.length === files.length) {
+              toast.error("파일 업로드에 실패했습니다. 비용 상세에서 다시 첨부해주세요.");
+            } else {
+              toast.error(`${files.length}개 파일 중 ${failed.length}개 업로드 실패. 비용 상세에서 다시 첨부해주세요.`);
+            }
+          }
+        }
       }
 
       setShowSuccess(true);
@@ -691,6 +723,17 @@ export default function CorporateCardForm({ initialCompanies, prefillData }: Cor
               )}
             </div>
           </div>
+        </div>
+
+        {/* 파일 첨부 (선택) */}
+        <div className="glass p-6 mt-4">
+          <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-1">
+            영수증 첨부
+          </h2>
+          <p className="text-footnote text-[var(--apple-secondary-label)] mb-4">
+            영수증 사진이나 PDF를 첨부할 수 있습니다 (선택사항).
+          </p>
+          <FileUpload files={files} onFilesChange={setFiles} />
         </div>
 
         {/* 버튼 */}
