@@ -411,6 +411,7 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
           prePaidPercentage: data.prePaidPercentage ?? null,
           dueDate: data.dueDate ? formatDateISO(data.dueDate) : null,
           companyId: companyId || undefined,
+          hasFreelancerWithholding: freelancerDeduction,
         }),
       });
 

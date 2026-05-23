@@ -48,6 +48,7 @@ export interface ExpenseEditData {
   dueDate: string | null;
   createdAt: string;
   companyId: string | null;
+  hasFreelancerWithholding: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -129,6 +130,7 @@ async function getExpenseForEdit(id: string): Promise<{
       dueDate: expense.due_date ?? null,
       createdAt: expense.created_at,
       companyId: expense.company_id ?? null,
+      hasFreelancerWithholding: expense.has_freelancer_withholding ?? false,
     },
     attachments: (attachmentRows ?? []).map(
       (a: {

@@ -196,11 +196,21 @@ export function ExpenseFilters({ showAdminFilters = false }: ExpenseFiltersProps
     return `${fromStr} ~ ${toStr}`;
   }, [startDateParam, endDateParam]);
 
+  const freelancerActive = searchParams.get("freelancer") === "true";
+
+  const handleFreelancerToggle = useCallback(() => {
+    startTransition(() => {
+      const qs = createQueryString({ freelancer: freelancerActive ? null : "true" });
+      router.push(`${pathname}${qs ? `?${qs}` : ""}`);
+    });
+  }, [createQueryString, freelancerActive, pathname, router]);
+
   const hasActiveFilters = !!(
     searchParams.get("type") ||
     searchParams.get("status") ||
     searchParams.get("category") ||
-    (searchParams.get("autoClassified") && searchParams.get("autoClassified") !== "all")
+    (searchParams.get("autoClassified") && searchParams.get("autoClassified") !== "all") ||
+    freelancerActive
   );
 
   return (
@@ -291,6 +301,22 @@ export function ExpenseFilters({ showAdminFilters = false }: ExpenseFiltersProps
             ))}
           </SelectContent>
         </Select>
+
+        <button
+          type="button"
+          onClick={handleFreelancerToggle}
+          aria-pressed={freelancerActive}
+          aria-label="프리랜서 원천징수 필터"
+          className={cn(
+            "h-11 sm:h-8 w-full sm:w-auto rounded-full px-3.5 inline-flex items-center justify-center gap-1.5 text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(0,122,255,0.4)]",
+            freelancerActive
+              ? "bg-[var(--apple-blue)] text-white border border-[var(--apple-blue)]"
+              : "glass-input text-[var(--apple-label)] hover:bg-white",
+          )}
+        >
+          <span className="tabular-nums">프리랜서</span>
+          {freelancerActive && <span aria-hidden className="text-xs leading-none">×</span>}
+        </button>
 
         {showAdminFilters && (
           <Select

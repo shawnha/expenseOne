@@ -494,7 +494,9 @@ function DepositRequestEditForm({
   );
   const [supplyAmount, setSupplyAmount] = useState(expense.amount);
   const [vatIncluded, setVatIncluded] = useState(false);
-  const [freelancerDeduction, setFreelancerDeduction] = useState(false);
+  const [freelancerDeduction, setFreelancerDeduction] = useState(
+    expense.hasFreelancerWithholding ?? false
+  );
   const [fileError, setFileError] = useState<string | null>(null);
   const [docTypeErrors, setDocTypeErrors] = useState<Record<string, boolean>>({});
   const [showCustomCategory, setShowCustomCategory] = useState(
@@ -671,6 +673,7 @@ function DepositRequestEditForm({
           prePaidPercentage: data.prePaidPercentage ?? null,
           dueDate: data.dueDate ? formatDateISO(data.dueDate) : null,
           companyId: companyId || undefined,
+          hasFreelancerWithholding: freelancerDeduction,
         }),
       });
       if (!response.ok) {

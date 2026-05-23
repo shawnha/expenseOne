@@ -79,6 +79,9 @@ export async function GET(request: NextRequest) {
     if (companyId) {
       conditions.push(eq(expenses.companyId, companyId));
     }
+    if (query.freelancer === "true") {
+      conditions.push(eq(expenses.hasFreelancerWithholding, true));
+    }
 
     const whereClause =
       conditions.length > 0 ? and(...conditions) : undefined;
@@ -115,6 +118,7 @@ export async function GET(request: NextRequest) {
       "예금주": row.expense.accountHolder ?? "",
       "계좌번호": row.expense.accountNumber ?? "",
       "긴급": row.expense.isUrgent ? "Y" : "N",
+      "프리랜서원천징수": row.expense.hasFreelancerWithholding ? "Y" : "N",
       "선지급": row.expense.isPrePaid ? "Y" : "N",
       "선지급비율": row.expense.prePaidPercentage ?? "",
       "후지급승인": row.expense.remainingPaymentApproved ? "Y" : "N",

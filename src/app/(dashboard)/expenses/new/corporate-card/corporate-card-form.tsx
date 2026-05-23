@@ -276,6 +276,7 @@ export default function CorporateCardForm({ initialCompanies, prefillData }: Cor
           transactionDate: prefillData?.transactionDate ?? formatDateISO(new Date()),
           isUrgent: false,
           companyId: companyId || undefined,
+          hasFreelancerWithholding: freelancerDeduction,
         }),
       });
 

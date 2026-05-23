@@ -106,6 +106,7 @@ export async function createExpense(
     transactionDate: input.transactionDate,
     submittedById: userId,
     companyId,
+    hasFreelancerWithholding: input.hasFreelancerWithholding ?? false,
   };
 
   if (isCorporateCard) {
@@ -286,6 +287,9 @@ export async function getExpenses(
     conditions.push(eq(expenses.autoClassified, true));
   } else if (query.autoClassified === "manual") {
     conditions.push(eq(expenses.autoClassified, false));
+  }
+  if (query.freelancer === "true") {
+    conditions.push(eq(expenses.hasFreelancerWithholding, true));
   }
 
   const whereClause =

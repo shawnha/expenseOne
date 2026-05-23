@@ -176,6 +176,7 @@ export const expenses = expenseSchema.table(
     autoClassified: boolean("auto_classified").notNull().default(false),
     autoClassifiedSource: varchar("auto_classified_source", { length: 32 }),
     autoClassifiedAccountId: integer("auto_classified_account_id"),
+    hasFreelancerWithholding: boolean("has_freelancer_withholding").notNull().default(false),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -204,6 +205,9 @@ export const expenses = expenseSchema.table(
     index("idx_expenses_auto_classified")
       .on(table.autoClassified)
       .where(sql`auto_classified = true`),
+    index("idx_expenses_has_freelancer_withholding")
+      .on(table.hasFreelancerWithholding)
+      .where(sql`has_freelancer_withholding = true`),
   ],
 );
 

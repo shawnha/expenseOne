@@ -38,6 +38,7 @@ export const corporateCardSubmitSchema = z.object({
     .optional()
     .or(z.literal("")),
   isUrgent: z.boolean().optional().default(false),
+  hasFreelancerWithholding: z.boolean().optional().default(false),
 });
 
 export type CorporateCardSubmitInput = z.infer<typeof corporateCardSubmitSchema>;
@@ -69,6 +70,7 @@ export const depositRequestSubmitSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, "날짜 형식은 YYYY-MM-DD여야 합니다")
     .optional()
     .nullable(),
+  hasFreelancerWithholding: z.boolean().optional().default(false),
 });
 
 export type DepositRequestSubmitInput = z.infer<typeof depositRequestSubmitSchema>;
@@ -113,6 +115,7 @@ export const updateExpenseSchema = z.object({
     .nullable(),
   status: z.enum(["SUBMITTED", "APPROVED", "REJECTED", "CANCELLED"]).optional(),
   companyId: z.string().uuid().optional(),
+  hasFreelancerWithholding: z.boolean().optional(),
 });
 
 export type UpdateExpenseInput = z.infer<typeof updateExpenseSchema>;
@@ -154,6 +157,7 @@ export const expenseQuerySchema = z.object({
   ownOnly: z.enum(["true", "false"]).optional(),
   company: z.string().max(50).optional(),
   autoClassified: z.enum(["all", "auto", "manual"]).optional(),
+  freelancer: z.enum(["all", "true"]).optional(),
 });
 
 export type ExpenseQueryInput = z.infer<typeof expenseQuerySchema>;
@@ -175,6 +179,7 @@ export const csvExportQuerySchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
   company: z.string().max(50).optional(),
+  freelancer: z.enum(["all", "true"]).optional(),
 });
 
 export type CsvExportQueryInput = z.infer<typeof csvExportQuerySchema>;
