@@ -70,6 +70,9 @@ async function getAdminExpensesData(searchParams: Record<string, string | string
     companyName: item.companyName ?? null,
     companySlug: item.companySlug ?? null,
     autoClassified: item.autoClassified ?? false,
+    isPrePaid: item.isPrePaid ?? false,
+    prePaidPercentage: item.prePaidPercentage ?? null,
+    remainingPaymentApproved: item.remainingPaymentApproved ?? false,
   }));
 
   return {

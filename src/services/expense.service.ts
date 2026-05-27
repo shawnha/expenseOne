@@ -395,11 +395,15 @@ export async function getExpenseById(
     throw new AppError("FORBIDDEN", "본인의 비용만 조회할 수 있습니다.");
   }
 
-  // Fetch attachments
+  // Fetch attachments (파일 이름 순 정렬 — 같은 이름끼리 묶이도록, 한글/숫자 자연정렬)
   const expenseAttachments = await db
     .select()
     .from(attachments)
     .where(eq(attachments.expenseId, expenseId));
+
+  expenseAttachments.sort((a, b) =>
+    a.fileName.localeCompare(b.fileName, "ko", { numeric: true, sensitivity: "base" }),
+  );
 
   return {
     ...result.expense,

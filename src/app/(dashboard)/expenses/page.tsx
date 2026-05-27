@@ -73,6 +73,9 @@ async function getExpensesData(searchParams: Record<string, string | string[] | 
     createdAt: item.createdAt?.toISOString() ?? "",
     submitter: item.submitter ?? null,
     isUrgent: item.isUrgent ?? false,
+    isPrePaid: item.isPrePaid ?? false,
+    prePaidPercentage: item.prePaidPercentage ?? null,
+    remainingPaymentApproved: item.remainingPaymentApproved ?? false,
   }));
 
   return {

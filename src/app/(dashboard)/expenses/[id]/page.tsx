@@ -206,6 +206,17 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
           <div className="flex items-center gap-2 mb-2">
             <span className={cn(typeInfo.className, "animate-spring-pop")}>{typeInfo.label}</span>
             <span className={cn(statusInfo.className, "animate-spring-pop")}>{statusInfo.label}</span>
+            {/* 부분 선지급 건은 '승인'만으로는 후지급 완료 여부를 알 수 없어 별도 배지로 표시 */}
+            {isDepositRequest &&
+              expense.isPrePaid &&
+              expense.prePaidPercentage != null &&
+              expense.prePaidPercentage < 100 &&
+              expense.status === "APPROVED" &&
+              (expense.remainingPaymentApproved ? (
+                <span className={cn("glass-badge glass-badge-green", "animate-spring-pop")}>후지급 완료</span>
+              ) : (
+                <span className={cn("glass-badge glass-badge-orange", "animate-spring-pop")}>후지급 대기</span>
+              ))}
           </div>
           <h1 className="text-title3 text-[var(--apple-label)]">{expense.title}</h1>
         </div>

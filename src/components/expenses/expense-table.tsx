@@ -37,6 +37,27 @@ interface ExpenseRow {
   autoClassified?: boolean;
   companyName?: string | null;
   companySlug?: string | null;
+  isPrePaid?: boolean;
+  prePaidPercentage?: number | null;
+  remainingPaymentApproved?: boolean;
+}
+
+// 부분 선지급 입금요청은 '승인'만으로 후지급 완료 여부를 알 수 없어 별도 배지로 표시
+function RemainingPaymentBadge({ expense }: { expense: ExpenseRow }) {
+  if (
+    expense.type !== "DEPOSIT_REQUEST" ||
+    !expense.isPrePaid ||
+    expense.prePaidPercentage == null ||
+    expense.prePaidPercentage >= 100 ||
+    expense.status !== "APPROVED"
+  ) {
+    return null;
+  }
+  return expense.remainingPaymentApproved ? (
+    <span className="glass-badge glass-badge-green shrink-0">후지급 완료</span>
+  ) : (
+    <span className="glass-badge glass-badge-orange shrink-0">후지급 대기</span>
+  );
 }
 
 interface ExpenseTableProps {
@@ -335,7 +356,10 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
                     {getCategoryLabel(expense.category)}
                   </TableCell>
                   <TableCell>
-                    <span className={statusInfo.className}>{statusInfo.label}</span>
+                    <span className="flex items-center gap-1.5">
+                      <span className={statusInfo.className}>{statusInfo.label}</span>
+                      <RemainingPaymentBadge expense={expense} />
+                    </span>
                   </TableCell>
                   <TableCell className="text-[var(--apple-secondary-label)]">
                     {formatDateKR(expense.createdAt)}
@@ -512,7 +536,10 @@ function MobileExpenseCard({
             {expense.isUrgent && <span className="glass-badge glass-badge-red shrink-0">긴급</span>}
             {expense.autoClassified && <span className="glass-badge glass-badge-blue shrink-0">자동분류</span>}
           </span>
-          <span className={cn(statusInfo.className, "shrink-0")}>{statusInfo.label}</span>
+          <span className="flex items-center gap-1.5 shrink-0">
+            <span className={statusInfo.className}>{statusInfo.label}</span>
+            <RemainingPaymentBadge expense={expense} />
+          </span>
         </div>
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
