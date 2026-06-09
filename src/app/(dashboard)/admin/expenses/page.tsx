@@ -36,6 +36,7 @@ async function getAdminExpensesData(searchParams: Record<string, string | string
     autoClassifiedParam === "auto" || autoClassifiedParam === "manual" || autoClassifiedParam === "all"
       ? (autoClassifiedParam as "all" | "auto" | "manual")
       : undefined;
+  const freelancer = searchParams.freelancer === "true" ? "true" : undefined;
   const pageStr = typeof searchParams.page === "string" ? searchParams.page : "1";
   const page = Math.max(1, parseInt(pageStr, 10) || 1);
 
@@ -51,6 +52,7 @@ async function getAdminExpensesData(searchParams: Record<string, string | string
       search,
       company,
       autoClassified,
+      freelancer,
     },
     user.id,
     user.role,

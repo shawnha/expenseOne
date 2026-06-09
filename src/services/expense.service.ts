@@ -17,6 +17,7 @@ import {
   count,
   sum,
   exists,
+  inArray,
   sql,
 } from "drizzle-orm";
 import type {
@@ -361,6 +362,142 @@ export async function getExpenses(
       total,
       totalPages: Math.ceil(total / limit),
       totalAmount,
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// getFreelancerWithholdingSummary -- 사업소득(프리랜서 원천징수) 대상자 집계
+//   예금주(accountHolder)를 사업소득자로 보고 인별로 묶어 인원/건수/금액을 집계.
+//   반려·취소 건은 제외(실제 지급 대상이 아님).
+// ---------------------------------------------------------------------------
+export interface FreelancerWithholdingFilter {
+  startDate?: string;
+  endDate?: string;
+  company?: string;
+}
+
+export interface FreelancerWithholdingExpense {
+  id: string;
+  type: "CORPORATE_CARD" | "DEPOSIT_REQUEST";
+  status: "SUBMITTED" | "APPROVED" | "REJECTED" | "CANCELLED";
+  title: string;
+  amount: number;
+  currency: string;
+  amountOriginal: number | null;
+  transactionDate: string;
+  bankName: string | null;
+  accountNumber: string | null;
+  submitterName: string | null;
+  companyName: string | null;
+}
+
+export interface FreelancerWithholdingGroup {
+  /** 예금주명. 미입력 건 버킷은 null */
+  accountHolder: string | null;
+  expenseCount: number;
+  totalAmount: number;
+  expenses: FreelancerWithholdingExpense[];
+}
+
+export async function getFreelancerWithholdingSummary(
+  filter: FreelancerWithholdingFilter,
+) {
+  const conditions: ReturnType<typeof eq>[] = [
+    eq(expenses.hasFreelancerWithholding, true),
+    // 반려·취소 건은 실제 지급/신고 대상이 아니므로 제외
+    inArray(expenses.status, ["SUBMITTED", "APPROVED"]),
+  ];
+
+  if (filter.startDate) {
+    conditions.push(gte(expenses.transactionDate, filter.startDate));
+  }
+  if (filter.endDate) {
+    conditions.push(lte(expenses.transactionDate, filter.endDate));
+  }
+  if (filter.company) {
+    const { getCompanyBySlug } = await import("@/services/company.service");
+    const company = await getCompanyBySlug(filter.company);
+    if (company) {
+      conditions.push(eq(expenses.companyId, company.id));
+    }
+  }
+
+  const rows = await db
+    .select({
+      id: expenses.id,
+      type: expenses.type,
+      status: expenses.status,
+      title: expenses.title,
+      amount: expenses.amount,
+      currency: expenses.currency,
+      amountOriginal: expenses.amountOriginal,
+      transactionDate: expenses.transactionDate,
+      accountHolder: expenses.accountHolder,
+      bankName: expenses.bankName,
+      accountNumber: expenses.accountNumber,
+      submitterName: users.name,
+      companyName: companies.name,
+    })
+    .from(expenses)
+    .leftJoin(users, eq(expenses.submittedById, users.id))
+    .leftJoin(companies, eq(expenses.companyId, companies.id))
+    .where(and(...conditions))
+    .orderBy(desc(expenses.transactionDate));
+
+  // 예금주명(공백 trim)으로 그룹핑. 미입력은 별도 버킷(null)으로.
+  const groupMap = new Map<string, FreelancerWithholdingGroup>();
+  const NO_HOLDER = " __no_holder__";
+
+  for (const row of rows) {
+    const holder = row.accountHolder?.trim() || null;
+    const key = holder ?? NO_HOLDER;
+    let group = groupMap.get(key);
+    if (!group) {
+      group = {
+        accountHolder: holder,
+        expenseCount: 0,
+        totalAmount: 0,
+        expenses: [],
+      };
+      groupMap.set(key, group);
+    }
+    group.expenseCount += 1;
+    group.totalAmount += row.amount;
+    group.expenses.push({
+      id: row.id,
+      type: row.type as FreelancerWithholdingExpense["type"],
+      status: row.status as FreelancerWithholdingExpense["status"],
+      title: row.title,
+      amount: row.amount,
+      currency: row.currency,
+      amountOriginal: row.amountOriginal ?? null,
+      transactionDate: row.transactionDate,
+      bankName: row.bankName ?? null,
+      accountNumber: row.accountNumber ?? null,
+      submitterName: row.submitterName ?? null,
+      companyName: row.companyName ?? null,
+    });
+  }
+
+  // 금액 합계 내림차순 정렬, 예금주 미입력 버킷은 항상 맨 뒤
+  const groups = Array.from(groupMap.values()).sort((a, b) => {
+    if (a.accountHolder === null) return 1;
+    if (b.accountHolder === null) return -1;
+    return b.totalAmount - a.totalAmount;
+  });
+
+  const identifiedGroups = groups.filter((g) => g.accountHolder !== null);
+  const unidentified = groups.find((g) => g.accountHolder === null) ?? null;
+
+  return {
+    groups,
+    totals: {
+      // "대상 인원"은 예금주가 식별된 인원만 카운트
+      peopleCount: identifiedGroups.length,
+      expenseCount: rows.length,
+      totalAmount: rows.reduce((acc, r) => acc + r.amount, 0),
+      unidentifiedCount: unidentified?.expenseCount ?? 0,
     },
   };
 }

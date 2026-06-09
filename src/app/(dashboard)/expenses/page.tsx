@@ -28,6 +28,7 @@ async function getExpensesData(searchParams: Record<string, string | string[] | 
   const startDate = typeof searchParams.startDate === "string" ? searchParams.startDate : undefined;
   const endDate = typeof searchParams.endDate === "string" ? searchParams.endDate : undefined;
   const search = typeof searchParams.search === "string" ? searchParams.search : undefined;
+  const freelancer = searchParams.freelancer === "true" ? "true" : undefined;
   const pageStr = typeof searchParams.page === "string" ? searchParams.page : "1";
   const page = Math.max(1, parseInt(pageStr, 10) || 1);
 
@@ -43,6 +44,7 @@ async function getExpensesData(searchParams: Record<string, string | string[] | 
         startDate,
         endDate,
         search,
+        freelancer,
       },
       user.id,
       user.role,
