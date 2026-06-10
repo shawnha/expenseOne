@@ -32,7 +32,7 @@ import {
   notifyExpenseRejected,
   notifyNewDepositRequest,
 } from "./notification.service";
-import { notifySlackCorporateCard, notifySlackDepositRequest, updateSlackExpenseMessage, deleteSlackExpenseMessage } from "./slack.service";
+import { notifySlackCorporateCard, notifySlackDepositRequest, notifySlackRefund, updateSlackExpenseMessage, deleteSlackExpenseMessage } from "./slack.service";
 import { sendPushToAdmins } from "./push.service";
 import { AppError } from "./attachment.service";
 import { getExchangeRate, convertToKRW } from "./exchange-rate.service";
@@ -224,6 +224,8 @@ export async function createRefund(
   input: RefundSubmitInput,
   userId: string,
   userRole: "MEMBER" | "ADMIN",
+  userName: string,
+  userEmail: string,
 ) {
   // 1. 원거래 조회
   const [original] = await db
@@ -323,6 +325,24 @@ export async function createRefund(
       originalExpenseId: original.id,
     } as NewExpense)
     .returning();
+
+  // Slack 알림 — 실패해도 등록 자체는 성공 처리 (법카사용과 동일 패턴)
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  await notifySlackRefund({
+    submitterEmail: userEmail,
+    submitterName: userName,
+    title: refund.title,
+    amount: refund.amount,
+    category: refund.category,
+    expenseUrl: `${appUrl}/expenses/${refund.id}`,
+    originalTitle: original.title,
+    companyId: original.companyId ?? undefined,
+    currency: refund.currency,
+    amountOriginal: refund.amountOriginal,
+    description: refund.description,
+  }).catch((err) => {
+    console.error("Failed to send refund Slack notification:", err);
+  });
 
   return refund;
 }

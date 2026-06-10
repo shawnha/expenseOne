@@ -1,6 +1,6 @@
 // ExpenseOne Service Worker — Instant splash shell + NetworkFirst HTML + CacheFirst static + Web Push
-// mq7rkw7l is replaced at build time by next.config.ts
-const CACHE_NAME = "expenseone-mq7rkw7l";
+// mq7t7h56 is replaced at build time by next.config.ts
+const CACHE_NAME = "expenseone-mq7t7h56";
 
 const APP_SHELL = ["/offline.html", "/splash-shell.html"];
 

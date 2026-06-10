@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
 
     const expense =
       parsed.data.type === "REFUND"
-        ? await createRefund(parsed.data, user.id, user.role)
+        ? await createRefund(parsed.data, user.id, user.role, user.name, user.email)
         : await createExpense(parsed.data, user.id, user.name, user.email, user.companyId);
 
     revalidatePath("/");

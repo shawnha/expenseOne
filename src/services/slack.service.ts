@@ -240,6 +240,45 @@ export async function notifySlackDepositRequest(params: {
 }
 
 /**
+ * 반품/환불 등록 → 제출자 멘션 + 원거래 정보. 금액은 차감(-)으로 표시.
+ */
+export async function notifySlackRefund(params: {
+  submitterEmail: string;
+  submitterName: string;
+  title: string;
+  amount: number;
+  category: string;
+  expenseUrl: string;
+  originalTitle: string;
+  companyId?: string;
+  currency?: string | null;
+  amountOriginal?: number | null;
+  description?: string | null;
+}): Promise<{ ts: string; channel: string } | null> {
+  const [mention, companyName] = await Promise.all([
+    mentionUser(params.submitterEmail, params.submitterName),
+    getCompanyName(params.companyId),
+  ]);
+
+  const lines = [
+    `↩️ ${mention} 반품/환불이 등록되었습니다`,
+  ];
+  if (companyName) lines.push(`• 회사: ${companyName}`);
+  lines.push(
+    `• 원거래: ${params.originalTitle}`,
+    `• 환불 금액: -${formatExpenseAmount(params.amount, params.currency, params.amountOriginal)}`,
+    `• 카테고리: ${getCategoryLabel(params.category)}`,
+  );
+  if (params.description && params.description.trim()) {
+    const memo = params.description.trim();
+    lines.push(`• 사유: ${memo.length > 500 ? memo.slice(0, 500) + "..." : memo}`);
+  }
+  lines.push(`<${params.expenseUrl}|상세 보기>`);
+
+  return sendSlackMessage(lines.join("\n"), params.companyId);
+}
+
+/**
  * 입금요청 승인 → 요청자 멘션
  */
 export async function notifySlackApproved(params: {
