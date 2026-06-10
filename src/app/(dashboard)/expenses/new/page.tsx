@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CreditCard, Banknote, ArrowRight } from "lucide-react";
+import { CreditCard, Banknote, ArrowRight, Undo2 } from "lucide-react";
 import { TiltCard } from "@/components/layout/tilt-card";
 
 const expenseTypes = [
@@ -16,6 +16,12 @@ const expenseTypes = [
     description: "입금을 요청합니다. 증빙서류 첨부 필수, 관리자 승인 후 처리됩니다.",
     href: "/expenses/new/deposit-request",
     icon: <Banknote className="size-6 text-[var(--apple-green)]" />,
+  },
+  {
+    title: "반품/환불",
+    description: "반품·환불된 금액을 등록합니다. 원거래에 연결되어 합계에서 차감됩니다.",
+    href: "/expenses/new/refund",
+    icon: <Undo2 className="size-6 text-[var(--apple-red)]" />,
   },
 ] as const;
 

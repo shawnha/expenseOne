@@ -12,6 +12,7 @@ import {
   uniqueIndex,
   check,
   numeric,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -30,6 +31,7 @@ export const userRoleEnum = expenseSchema.enum("user_role", ["MEMBER", "ADMIN"])
 export const expenseTypeEnum = expenseSchema.enum("expense_type", [
   "CORPORATE_CARD",
   "DEPOSIT_REQUEST",
+  "REFUND",
 ]);
 
 export const expenseStatusEnum = expenseSchema.enum("expense_status", [
@@ -177,6 +179,11 @@ export const expenses = expenseSchema.table(
     autoClassifiedSource: varchar("auto_classified_source", { length: 32 }),
     autoClassifiedAccountId: integer("auto_classified_account_id"),
     hasFreelancerWithholding: boolean("has_freelancer_withholding").notNull().default(false),
+    // 반품(REFUND) 건이 상쇄하는 원거래. 원거래 삭제 시에도 반품 기록은 보존.
+    originalExpenseId: uuid("original_expense_id").references(
+      (): AnyPgColumn => expenses.id,
+      { onDelete: "set null" },
+    ),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -208,6 +215,9 @@ export const expenses = expenseSchema.table(
     index("idx_expenses_has_freelancer_withholding")
       .on(table.hasFreelancerWithholding)
       .where(sql`has_freelancer_withholding = true`),
+    index("idx_expenses_original_expense_id")
+      .on(table.originalExpenseId)
+      .where(sql`original_expense_id IS NOT NULL`),
   ],
 );
 

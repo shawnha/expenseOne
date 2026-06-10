@@ -3,6 +3,7 @@ import { requireAdmin, handleError } from "@/lib/api-utils";
 import { db } from "@/lib/db";
 import { expenses, users, companies, departments } from "@/lib/db/schema";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
+import { signedAmount } from "@/lib/db/amount";
 
 // ---------------------------------------------------------------------------
 // GET /api/admin/reports/data
@@ -80,11 +81,11 @@ export async function GET(request: NextRequest) {
     // -----------------------------------------------------------------------
     const [summaryResult] = await db
       .select({
-        totalAmount: sql<number>`coalesce(sum(${expenses.amount}), 0)::int`,
+        totalAmount: sql<number>`coalesce(sum(${signedAmount}), 0)::int`,
         totalCount: sql<number>`count(*)::int`,
         approvedCount: sql<number>`count(*) filter (where ${expenses.status} = 'APPROVED')::int`,
-        corporateCardAmount: sql<number>`coalesce(sum(${expenses.amount}) filter (where ${expenses.type} = 'CORPORATE_CARD'), 0)::int`,
-        depositRequestAmount: sql<number>`coalesce(sum(${expenses.amount}) filter (where ${expenses.type} = 'DEPOSIT_REQUEST'), 0)::int`,
+        corporateCardAmount: sql<number>`coalesce(sum(${signedAmount}) filter (where ${expenses.type} = 'CORPORATE_CARD'), 0)::int`,
+        depositRequestAmount: sql<number>`coalesce(sum(${signedAmount}) filter (where ${expenses.type} = 'DEPOSIT_REQUEST'), 0)::int`,
       })
       .from(expenses)
       .where(withDeptFilter([...currentConditions]));
@@ -123,10 +124,10 @@ export async function GET(request: NextRequest) {
 
       const [prevResult] = await db
         .select({
-          totalAmount: sql<number>`coalesce(sum(${expenses.amount}), 0)::int`,
+          totalAmount: sql<number>`coalesce(sum(${signedAmount}), 0)::int`,
           totalCount: sql<number>`count(*)::int`,
           approvedCount: sql<number>`count(*) filter (where ${expenses.status} = 'APPROVED')::int`,
-          corporateCardAmount: sql<number>`coalesce(sum(${expenses.amount}) filter (where ${expenses.type} = 'CORPORATE_CARD'), 0)::int`,
+          corporateCardAmount: sql<number>`coalesce(sum(${signedAmount}) filter (where ${expenses.type} = 'CORPORATE_CARD'), 0)::int`,
         })
         .from(expenses)
         .where(withDeptFilter([...prevConditions]));
@@ -151,7 +152,7 @@ export async function GET(request: NextRequest) {
     const monthlyTrendRows = await db
       .select({
         month: sql<string>`to_char(${expenses.transactionDate}::date, 'YYYY-MM')`,
-        amount: sql<number>`coalesce(sum(${expenses.amount}), 0)::int`,
+        amount: sql<number>`coalesce(sum(${signedAmount}), 0)::int`,
       })
       .from(expenses)
       .where(withDeptFilter([...currentConditions]))
@@ -173,13 +174,13 @@ export async function GET(request: NextRequest) {
     const categoryRows = await db
       .select({
         category: expenses.category,
-        amount: sql<number>`coalesce(sum(${expenses.amount}), 0)::int`,
+        amount: sql<number>`coalesce(sum(${signedAmount}), 0)::int`,
         count: sql<number>`count(*)::int`,
       })
       .from(expenses)
       .where(withDeptFilter([...currentConditions]))
       .groupBy(expenses.category)
-      .orderBy(sql`sum(${expenses.amount}) desc`);
+      .orderBy(sql`sum(${signedAmount}) desc`);
 
     const categoryTotal = categoryRows.reduce((acc, r) => acc + Number(r.amount), 0);
     const categoryBreakdown = categoryRows.map((row) => ({
@@ -195,8 +196,8 @@ export async function GET(request: NextRequest) {
     const typeRatioRows = await db
       .select({
         month: sql<string>`to_char(${expenses.transactionDate}::date, 'YYYY-MM')`,
-        corporateCardAmount: sql<number>`coalesce(sum(${expenses.amount}) filter (where ${expenses.type} = 'CORPORATE_CARD'), 0)::int`,
-        depositRequestAmount: sql<number>`coalesce(sum(${expenses.amount}) filter (where ${expenses.type} = 'DEPOSIT_REQUEST'), 0)::int`,
+        corporateCardAmount: sql<number>`coalesce(sum(${signedAmount}) filter (where ${expenses.type} = 'CORPORATE_CARD'), 0)::int`,
+        depositRequestAmount: sql<number>`coalesce(sum(${signedAmount}) filter (where ${expenses.type} = 'DEPOSIT_REQUEST'), 0)::int`,
       })
       .from(expenses)
       .where(withDeptFilter([...currentConditions]))
@@ -237,7 +238,7 @@ export async function GET(request: NextRequest) {
         deptName: departments.name,
         legacyDeptName: users.department,
         companyName: companies.name,
-        amount: sql<number>`coalesce(sum(${expenses.amount}), 0)::int`,
+        amount: sql<number>`coalesce(sum(${signedAmount}), 0)::int`,
         count: sql<number>`count(*)::int`,
       })
       .from(expenses)
@@ -246,7 +247,7 @@ export async function GET(request: NextRequest) {
       .leftJoin(companies, eq(users.companyId, companies.id))
       .where(and(...deptConditions))
       .groupBy(users.departmentId, departments.name, users.department, companies.name)
-      .orderBy(sql`sum(${expenses.amount}) desc`);
+      .orderBy(sql`sum(${signedAmount}) desc`);
 
     const departmentBreakdown = departmentRows.map((row) => {
       const name = row.deptName ?? row.legacyDeptName;
@@ -292,7 +293,7 @@ export async function GET(request: NextRequest) {
         companyId: companies.id,
         name: companies.name,
         slug: companies.slug,
-        amount: sql<number>`coalesce(sum(${expenses.amount}), 0)::int`,
+        amount: sql<number>`coalesce(sum(${signedAmount}), 0)::int`,
         count: sql<number>`count(${expenses.id})::int`,
       })
       .from(companies)
@@ -305,7 +306,7 @@ export async function GET(request: NextRequest) {
       )
       .where(eq(companies.isActive, true))
       .groupBy(companies.id, companies.name, companies.slug)
-      .orderBy(sql`sum(${expenses.amount}) desc nulls last`);
+      .orderBy(sql`sum(${signedAmount}) desc nulls last`);
 
     const companyComparison = companyRows.map((row) => ({
       companyId: row.companyId,
@@ -323,14 +324,14 @@ export async function GET(request: NextRequest) {
         userId: users.id,
         name: users.name,
         profileImageUrl: users.profileImageUrl,
-        amount: sql<number>`coalesce(sum(${expenses.amount}), 0)::int`,
+        amount: sql<number>`coalesce(sum(${signedAmount}), 0)::int`,
         count: sql<number>`count(*)::int`,
       })
       .from(expenses)
       .innerJoin(users, eq(expenses.submittedById, users.id))
       .where(withDeptFilter([...currentConditions]))
       .groupBy(users.id, users.name, users.profileImageUrl)
-      .orderBy(sql`sum(${expenses.amount}) desc`)
+      .orderBy(sql`sum(${signedAmount}) desc`)
       .limit(5);
 
     const topSubmitters = topRows.map((row) => ({

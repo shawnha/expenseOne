@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
   Download,
+  Undo2,
 } from "lucide-react";
 import { getCachedCurrentUser } from "@/lib/supabase/cached";
 import { getExpenseById } from "@/services/expense.service";
@@ -38,6 +39,10 @@ const TYPE_LABELS: Record<ExpenseType, { label: string; className: string }> = {
   DEPOSIT_REQUEST: {
     label: "입금요청",
     className: "glass-badge glass-badge-orange",
+  },
+  REFUND: {
+    label: "반품",
+    className: "glass-badge glass-badge-red",
   },
 };
 
@@ -131,7 +136,10 @@ async function getExpenseDetail(id: string) {
         updatedAt: result.updatedAt?.toISOString() ?? null,
         companyId: result.companyId ?? null,
         submitter: result.submitter,
+        originalExpenseId: result.originalExpenseId ?? null,
       },
+      originalExpense: result.originalExpense,
+      refunds: result.refunds,
       attachments: (result.attachments ?? []).map((a) => ({
         id: a.id,
         documentType: a.documentType as DocumentType,
@@ -165,12 +173,22 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
     notFound();
   }
 
-  const { expense, attachments, currentUserId, userRole } = result;
+  const { expense, attachments, currentUserId, userRole, originalExpense, refunds } = result;
   const typeInfo = TYPE_LABELS[expense.type];
   const statusInfo = STATUS_LABELS[expense.status];
   const isOwner = currentUserId === expense.submittedById;
   const isCorporateCard = expense.type === "CORPORATE_CARD";
   const isDepositRequest = expense.type === "DEPOSIT_REQUEST";
+  const isRefund = expense.type === "REFUND";
+
+  // 환불 가능 잔액 (원거래 통화 기준) — '반품 등록' 버튼 노출 여부에 사용
+  const isUSD = expense.currency === "USD";
+  const refundedTotal = refunds.reduce(
+    (acc, r) => acc + (isUSD ? (r.amountOriginal ?? 0) : r.amount),
+    0,
+  );
+  const refundableRemaining =
+    (isUSD ? (expense.amountOriginal ?? 0) : expense.amount) - refundedTotal;
 
   const canEdit = (() => {
     if (!isOwner) return false;
@@ -183,9 +201,15 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
     return false;
   })();
 
-  const canCancel = isOwner && (expense.status === "SUBMITTED" || expense.status === "APPROVED");
+  const canCancel = isOwner && !isRefund && (expense.status === "SUBMITTED" || expense.status === "APPROVED");
   const isAdmin = userRole === "ADMIN";
   const canApproveReject = isAdmin && !isOwner && expense.type === "DEPOSIT_REQUEST" && expense.status === "SUBMITTED";
+  // 반품 등록: 승인된 원거래(비반품)이고 환불 가능 잔액이 남아 있을 때
+  const canRefund =
+    !isRefund &&
+    expense.status === "APPROVED" &&
+    (isOwner || isAdmin) &&
+    refundableRemaining > 0;
 
   return (
     <div className="flex flex-col gap-5 max-w-3xl">
@@ -236,6 +260,15 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
               수정
             </Link>
           )}
+          {canRefund && (
+            <Link
+              href={`/expenses/new/refund?originalId=${id}`}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full glass text-sm font-medium text-[var(--apple-red)] hover:bg-[rgba(0,0,0,0.05)] dark:hover:bg-[rgba(255,255,255,0.08)] transition-colors apple-press"
+            >
+              <Undo2 className="size-4" />
+              반품 등록
+            </Link>
+          )}
           {canCancel && <CancelExpenseButton expenseId={id} />}
           {canApproveReject && (
             <AdminApproveReject
@@ -263,8 +296,11 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
 
         {/* Amount */}
         <div className="mb-5 p-4 rounded-xl bg-[rgba(0,0,0,0.04)] dark:bg-[rgba(255,255,255,0.06)]">
-          <span className="text-[13px] text-[var(--apple-secondary-label)]">금액</span>
-          <p className="text-xl sm:text-2xl font-semibold tabular-nums text-[var(--apple-label)]">{formatExpenseAmount(expense.amount, expense.currency, expense.amountOriginal)}</p>
+          <span className="text-[13px] text-[var(--apple-secondary-label)]">{isRefund ? "환불 금액" : "금액"}</span>
+          <p className={`text-xl sm:text-2xl font-semibold tabular-nums ${isRefund ? "text-[var(--apple-red)]" : "text-[var(--apple-label)]"}`}>
+            {isRefund && "-"}
+            {formatExpenseAmount(expense.amount, expense.currency, expense.amountOriginal)}
+          </p>
           {expense.currency === "USD" && expense.exchangeRate && (
             <p className="text-[12px] text-[var(--apple-tertiary-label)] mt-1">적용 환율: 1 USD = {Number(expense.exchangeRate).toLocaleString("ko-KR")}원</p>
           )}
@@ -358,6 +394,55 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
             </div>
           );
         })()}
+        {/* 반품 건 → 원거래 링크 */}
+        {isRefund && originalExpense && (
+          <div className="mt-4 pt-4 border-t border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)]">
+            <span className="text-[13px] text-[var(--apple-secondary-label)]">원거래</span>
+            <Link
+              href={`/expenses/${originalExpense.id}`}
+              className="mt-1 flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)] hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)] transition-colors apple-press"
+            >
+              <span className="text-sm text-[var(--apple-label)] truncate">{originalExpense.title}</span>
+              <span className="text-sm font-medium tabular-nums text-[var(--apple-label)] shrink-0">
+                {formatAmount(originalExpense.amount)}원
+              </span>
+            </Link>
+          </div>
+        )}
+
+        {/* 원거래 → 연결된 반품 내역 */}
+        {!isRefund && refunds.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)]">
+            <h3 className="text-footnote font-semibold text-[var(--apple-label)] mb-2">반품 내역</h3>
+            <div className="flex flex-col gap-1.5">
+              {refunds.map((r) => (
+                <Link
+                  key={r.id}
+                  href={`/expenses/${r.id}`}
+                  className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)] hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)] transition-colors apple-press"
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    <span className="text-[13px] text-[var(--apple-secondary-label)] tabular-nums shrink-0">
+                      {formatDateKR(r.transactionDate)}
+                    </span>
+                    <span className="text-sm text-[var(--apple-label)] truncate">{r.title}</span>
+                  </span>
+                  <span className="text-sm font-medium tabular-nums text-[var(--apple-red)] shrink-0">
+                    -{formatExpenseAmount(r.amount, r.currency, r.amountOriginal)}
+                  </span>
+                </Link>
+              ))}
+              <div className="flex items-center justify-between px-3 py-1.5 text-[13px] text-[var(--apple-secondary-label)]">
+                <span>환불 후 잔액</span>
+                <span className="font-medium tabular-nums text-[var(--apple-label)]">
+                  {isUSD
+                    ? `$${(refundableRemaining / 100).toLocaleString("en-US", { minimumFractionDigits: 2 })}`
+                    : `${formatAmount(refundableRemaining)}원`}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Status timeline */}
@@ -375,7 +460,7 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
             <TimelineItem
               label="승인"
               date={formatDateTimeKR(expense.approvedAt)}
-              description={isCorporateCard ? "자동 승인" : "관리자 승인"}
+              description={isCorporateCard || isRefund ? "자동 승인" : "관리자 승인"}
               active
               variant="success"
               isLast

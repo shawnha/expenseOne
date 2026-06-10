@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, handleError } from "@/lib/api-utils";
 import { db } from "@/lib/db";
 import { expenses, users, departments, companies } from "@/lib/db/schema";
-import { eq, and, gte, lte, sql, sum } from "drizzle-orm";
+import { eq, and, gte, lte, sql } from "drizzle-orm";
+import { signedAmount } from "@/lib/db/amount";
 
 // ---------------------------------------------------------------------------
 // GET /api/admin/reports/department?startDate=&endDate=&type=&status=
@@ -48,9 +49,9 @@ export async function GET(request: NextRequest) {
         deptName: departments.name,
         legacyDeptName: users.department,
         companyName: companies.name,
-        totalAmount: sum(expenses.amount),
+        totalAmount: sql<string>`coalesce(sum(${signedAmount}), 0)`,
         count: sql<number>`count(*)::int`,
-        approvedAmount: sql<number>`coalesce(sum(${expenses.amount}) filter (where ${expenses.status} = 'APPROVED'), 0)::int`,
+        approvedAmount: sql<number>`coalesce(sum(${signedAmount}) filter (where ${expenses.status} = 'APPROVED'), 0)::int`,
       })
       .from(expenses)
       .innerJoin(users, eq(expenses.submittedById, users.id))
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
       .leftJoin(companies, eq(users.companyId, companies.id))
       .where(whereClause)
       .groupBy(users.departmentId, departments.name, users.department, companies.name)
-      .orderBy(sql`${sum(expenses.amount)} desc`);
+      .orderBy(sql`sum(${signedAmount}) desc`);
 
     const data = rows.map((row) => {
       const name = row.deptName ?? row.legacyDeptName;

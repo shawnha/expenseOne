@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, handleError } from "@/lib/api-utils";
 import { db } from "@/lib/db";
 import { expenses, users } from "@/lib/db/schema";
-import { eq, and, gte, lte, sql, sum } from "drizzle-orm";
+import { eq, and, gte, lte, sql } from "drizzle-orm";
+import { signedAmount } from "@/lib/db/amount";
 import { getCompanyBySlug } from "@/services/company.service";
 
 // ---------------------------------------------------------------------------
@@ -77,7 +78,7 @@ export async function GET(request: NextRequest) {
 
     const [statsResult] = await db
       .select({
-        totalAmount: sum(expenses.amount),
+        totalAmount: sql<string>`coalesce(sum(${signedAmount}), 0)`,
         pendingCount: sql<number>`count(*) filter (where ${expenses.status} = 'SUBMITTED')`,
         approvedCount: sql<number>`count(*) filter (where ${expenses.status} = 'APPROVED')`,
         rejectedCount: sql<number>`count(*) filter (where ${expenses.status} = 'REJECTED')`,
@@ -89,12 +90,12 @@ export async function GET(request: NextRequest) {
     const categoryBreakdown = await db
       .select({
         category: expenses.category,
-        amount: sum(expenses.amount),
+        amount: sql<string>`coalesce(sum(${signedAmount}), 0)`,
       })
       .from(expenses)
       .where(dateFilter)
       .groupBy(expenses.category)
-      .orderBy(sql`${sum(expenses.amount)} desc`);
+      .orderBy(sql`sum(${signedAmount}) desc`);
 
     // 3. Monthly trend (last 6 months from startDate)
     const startD = new Date(startDate);
@@ -110,7 +111,7 @@ export async function GET(request: NextRequest) {
     const monthlyTrend = await db
       .select({
         month: sql<string>`to_char(${expenses.transactionDate}::date, 'YYYY-MM')`,
-        amount: sum(expenses.amount),
+        amount: sql<string>`coalesce(sum(${signedAmount}), 0)`,
       })
       .from(expenses)
       .where(and(...trendConditions))
@@ -121,13 +122,13 @@ export async function GET(request: NextRequest) {
     const topSubmitters = await db
       .select({
         name: users.name,
-        amount: sum(expenses.amount),
+        amount: sql<string>`coalesce(sum(${signedAmount}), 0)`,
       })
       .from(expenses)
       .innerJoin(users, eq(expenses.submittedById, users.id))
       .where(dateFilter)
       .groupBy(users.id, users.name)
-      .orderBy(sql`${sum(expenses.amount)} desc`)
+      .orderBy(sql`sum(${signedAmount}) desc`)
       .limit(5);
 
     // Format monthly trend labels

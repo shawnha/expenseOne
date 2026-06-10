@@ -84,6 +84,11 @@ async function getExpenseForEdit(id: string): Promise<{
   const expenseType = expense.type as ExpenseType;
   const expenseStatus = expense.status as ExpenseStatus;
 
+  // 반품 건은 수정 불가 — 삭제 후 재등록
+  if (expenseType === "REFUND") {
+    return null;
+  }
+
   // Permission: corporate card = within 7 days of creation
   if (expenseType === "CORPORATE_CARD") {
     const createdAt = new Date(expense.created_at);

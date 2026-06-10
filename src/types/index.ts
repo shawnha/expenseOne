@@ -21,7 +21,7 @@ export interface User {
 // Expense Types
 // ============================================================
 
-export type ExpenseType = 'CORPORATE_CARD' | 'DEPOSIT_REQUEST';
+export type ExpenseType = 'CORPORATE_CARD' | 'DEPOSIT_REQUEST' | 'REFUND';
 
 export type ExpenseStatus = 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 

@@ -75,7 +75,7 @@ async function getDashboardData(monthKey?: string) {
   // Use Supabase RPC-style sum via single-row select for approved amount
   const approvedAmountQ = supabase
     .from("expenses")
-    .select("amount", { count: "exact", head: false })
+    .select("amount, type", { count: "exact", head: false })
     .eq("status", "APPROVED")
     .eq("submitted_by_id", authUser.id)
     .gte("created_at", startOfMonth)
@@ -144,8 +144,10 @@ async function getDashboardData(monthKey?: string) {
   const approvedCount = approvedCountRes.count ?? 0;
   const recentExpenses = recentExpensesRes.data ?? [];
 
+  // 반품(REFUND)은 지출 차감이므로 음수로 합산
   const totalApproved = (approvedExpenses ?? []).reduce(
-    (sum, e) => sum + (e.amount ?? 0),
+    (sum, e) =>
+      sum + ((e as { type?: string }).type === "REFUND" ? -(e.amount ?? 0) : (e.amount ?? 0)),
     0
   );
 

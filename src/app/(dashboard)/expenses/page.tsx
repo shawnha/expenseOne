@@ -38,7 +38,7 @@ async function getExpensesData(searchParams: Record<string, string | string[] | 
       {
         page,
         limit: PAGE_SIZE,
-        type: type as "CORPORATE_CARD" | "DEPOSIT_REQUEST" | undefined,
+        type: type as "CORPORATE_CARD" | "DEPOSIT_REQUEST" | "REFUND" | undefined,
         status: status as "SUBMITTED" | "APPROVED" | "REJECTED" | "CANCELLED" | undefined,
         category,
         startDate,

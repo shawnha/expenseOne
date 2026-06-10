@@ -4,7 +4,7 @@ import { z } from "zod";
 // Shared enums
 // ---------------------------------------------------------------------------
 
-const expenseTypeValues = ["CORPORATE_CARD", "DEPOSIT_REQUEST"] as const;
+const expenseTypeValues = ["CORPORATE_CARD", "DEPOSIT_REQUEST", "REFUND"] as const;
 const expenseStatusValues = ["SUBMITTED", "APPROVED", "REJECTED", "CANCELLED"] as const;
 // Category is now a free-form string (varchar) with default presets
 // Default presets: ODD, MART_PHARMACY, OTHER
@@ -76,12 +76,30 @@ export const depositRequestSubmitSchema = z.object({
 export type DepositRequestSubmitInput = z.infer<typeof depositRequestSubmitSchema>;
 
 // ---------------------------------------------------------------------------
+// 2-1. Refund submission schema (반품/환불 제출)
+//   회사·카테고리·통화·환율은 원거래에서 상속하므로 받지 않는다.
+//   amount는 양수로 받고(amount > 0 CHECK), 표시/집계에서 차감 처리.
+// ---------------------------------------------------------------------------
+
+export const refundSubmitSchema = z.object({
+  type: z.literal("REFUND"),
+  originalExpenseId: z.string().uuid("원거래를 선택해주세요"),
+  // 환불 금액: 원거래 통화 기준 (KRW면 원, USD면 센트)
+  amount: z.number().int("금액은 정수여야 합니다").positive("금액은 0보다 커야 합니다"),
+  transactionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "날짜 형식은 YYYY-MM-DD여야 합니다"),
+  description: z.string().max(2000, "사유는 2000자 이내로 입력해주세요").optional().nullable(),
+});
+
+export type RefundSubmitInput = z.infer<typeof refundSubmitSchema>;
+
+// ---------------------------------------------------------------------------
 // 3. Unified expense creation schema (discriminated union)
 // ---------------------------------------------------------------------------
 
 export const createExpenseSchema = z.discriminatedUnion("type", [
   corporateCardSubmitSchema,
   depositRequestSubmitSchema,
+  refundSubmitSchema,
 ]);
 
 export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;

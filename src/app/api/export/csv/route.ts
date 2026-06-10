@@ -13,6 +13,7 @@ import { getCategoryLabel } from "@/lib/utils/expense-utils";
 const TYPE_LABELS: Record<string, string> = {
   CORPORATE_CARD: "법카사용",
   DEPOSIT_REQUEST: "입금요청",
+  REFUND: "반품/환불",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -109,7 +110,8 @@ export async function GET(request: NextRequest) {
       "회사": row.companyName ?? "",
       "비용유형": TYPE_LABELS[row.expense.type] ?? row.expense.type,
       "상태": STATUS_LABELS[row.expense.status] ?? row.expense.status,
-      "금액(원)": row.expense.amount,
+      // 반품은 차감이므로 음수로 출력 — 열 합계가 곧 순지출
+      "금액(원)": row.expense.type === "REFUND" ? -row.expense.amount : row.expense.amount,
       "카테고리": getCategoryLabel(row.expense.category),
       "거래일": row.expense.transactionDate,
       "가맹점명": row.expense.merchantName ?? "",
@@ -118,6 +120,7 @@ export async function GET(request: NextRequest) {
       "예금주": row.expense.accountHolder ?? "",
       "계좌번호": row.expense.accountNumber ?? "",
       "긴급": row.expense.isUrgent ? "Y" : "N",
+      "원거래ID": row.expense.originalExpenseId ?? "",
       "프리랜서원천징수": row.expense.hasFreelancerWithholding ? "Y" : "N",
       "선지급": row.expense.isPrePaid ? "Y" : "N",
       "선지급비율": row.expense.prePaidPercentage ?? "",

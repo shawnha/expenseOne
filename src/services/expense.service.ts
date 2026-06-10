@@ -22,9 +22,11 @@ import {
 } from "drizzle-orm";
 import type {
   CreateExpenseInput,
+  RefundSubmitInput,
   UpdateExpenseInput,
   ExpenseQueryInput,
 } from "@/lib/validations/expense";
+import { signedAmount } from "@/lib/db/amount";
 import {
   notifyExpenseApproved,
   notifyExpenseRejected,
@@ -40,7 +42,8 @@ import { formatExpenseAmount } from "@/lib/utils/expense-utils";
 // createExpense
 // ---------------------------------------------------------------------------
 export async function createExpense(
-  input: CreateExpenseInput,
+  // 반품(REFUND)은 createRefund에서 별도 처리 — 여기서는 제외
+  input: Exclude<CreateExpenseInput, { type: "REFUND" }>,
   userId: string,
   userName: string,
   userEmail: string,
@@ -213,6 +216,118 @@ export async function createExpense(
 }
 
 // ---------------------------------------------------------------------------
+// createRefund -- 반품/환불 등록
+//   회사·카테고리·통화·환율·가맹점은 원거래에서 상속.
+//   이미 일어난 사실의 기록이므로 즉시 APPROVED (법카사용과 동일).
+// ---------------------------------------------------------------------------
+export async function createRefund(
+  input: RefundSubmitInput,
+  userId: string,
+  userRole: "MEMBER" | "ADMIN",
+) {
+  // 1. 원거래 조회
+  const [original] = await db
+    .select()
+    .from(expenses)
+    .where(eq(expenses.id, input.originalExpenseId));
+
+  if (!original) {
+    throw new AppError("NOT_FOUND", "원거래를 찾을 수 없습니다.");
+  }
+  if (original.type === "REFUND") {
+    throw new AppError("VALIDATION_ERROR", "반품 건에 대해 다시 반품할 수 없습니다.");
+  }
+  if (original.status !== "APPROVED") {
+    throw new AppError("VALIDATION_ERROR", "승인된 비용만 반품할 수 있습니다.");
+  }
+  // MEMBER는 본인이 제출한 비용만 반품 가능
+  if (userRole === "MEMBER" && original.submittedById !== userId) {
+    throw new AppError("FORBIDDEN", "본인이 제출한 비용만 반품할 수 있습니다.");
+  }
+
+  // 2. 기존 반품 누계 조회 — 환불 가능 잔액 검증
+  //    (원거래 통화 기준: USD면 amountOriginal 센트, KRW면 amount 원)
+  const isUSD = original.currency === "USD";
+  const priorRefunds = await db
+    .select({
+      amount: expenses.amount,
+      amountOriginal: expenses.amountOriginal,
+    })
+    .from(expenses)
+    .where(
+      and(
+        eq(expenses.originalExpenseId, original.id),
+        eq(expenses.type, "REFUND"),
+      ),
+    );
+
+  const originalTotal = isUSD ? (original.amountOriginal ?? 0) : original.amount;
+  const refundedSoFar = priorRefunds.reduce(
+    (acc, r) => acc + (isUSD ? (r.amountOriginal ?? 0) : r.amount),
+    0,
+  );
+  const remaining = originalTotal - refundedSoFar;
+
+  if (input.amount > remaining) {
+    const unit = isUSD ? "센트" : "원";
+    throw new AppError(
+      "VALIDATION_ERROR",
+      `환불 금액이 환불 가능 잔액(${remaining.toLocaleString("ko-KR")}${unit})을 초과합니다.`,
+    );
+  }
+
+  // 3. KRW 환산 — 원거래의 환율을 그대로 사용해 전액 반품 시 정확히 상쇄되도록 함
+  let finalAmount = input.amount;
+  let amountOriginal: number | null = null;
+  let exchangeRate: string | null = null;
+  if (isUSD) {
+    let rate = original.exchangeRate ? Number(original.exchangeRate) : null;
+    if (!rate) {
+      const rateResult = await getExchangeRate("USD", input.transactionDate);
+      if (!rateResult) {
+        throw new AppError("VALIDATION_ERROR", "환율 정보를 조회할 수 없습니다. 잠시 후 다시 시도해주세요.");
+      }
+      rate = rateResult.rate;
+    }
+    // 전액(잔액) 반품이면 원거래 KRW 금액에서 기존 반품 KRW를 뺀 잔액으로 정확히 상쇄
+    const priorKrw = priorRefunds.reduce((acc, r) => acc + r.amount, 0);
+    const exactRemainder = original.amount - priorKrw;
+    finalAmount =
+      input.amount === remaining && exactRemainder > 0
+        ? exactRemainder
+        : convertToKRW(input.amount, rate);
+    amountOriginal = input.amount;
+    exchangeRate = String(rate);
+  }
+
+  type NewExpense = typeof expenses.$inferInsert;
+
+  const [refund] = await db
+    .insert(expenses)
+    .values({
+      type: "REFUND",
+      status: "APPROVED",
+      approvedAt: new Date(),
+      title: `[반품] ${original.title}`.slice(0, 200),
+      description: input.description ?? null,
+      amount: finalAmount,
+      currency: original.currency,
+      amountOriginal,
+      exchangeRate,
+      category: original.category,
+      merchantName: original.merchantName,
+      cardLastFour: original.cardLastFour,
+      transactionDate: input.transactionDate,
+      submittedById: userId,
+      companyId: original.companyId,
+      originalExpenseId: original.id,
+    } as NewExpense)
+    .returning();
+
+  return refund;
+}
+
+// ---------------------------------------------------------------------------
 // getExpenses -- list with filters, sort, pagination
 // ---------------------------------------------------------------------------
 export async function getExpenses(
@@ -342,7 +457,11 @@ export async function getExpenses(
       .limit(limit)
       .offset(offset),
     db.select({ count: count() }).from(expenses).where(whereClause),
-    db.select({ totalAmount: sum(expenses.amount) }).from(expenses).where(whereClause),
+    // 반품(REFUND)은 차감 처리된 net 합계
+    db
+      .select({ totalAmount: sql<string>`coalesce(sum(${signedAmount}), 0)` })
+      .from(expenses)
+      .where(whereClause),
   ]);
 
   const total = totalResult[0]?.count ?? 0;
@@ -542,10 +661,50 @@ export async function getExpenseById(
     a.fileName.localeCompare(b.fileName, "ko", { numeric: true, sensitivity: "base" }),
   );
 
+  // 반품 ↔ 원거래 상호 링크
+  // 이 비용이 반품이면: 원거래 요약 / 이 비용이 원거래면: 연결된 반품 목록
+  let originalExpense: { id: string; title: string; amount: number } | null = null;
+  let refunds: {
+    id: string;
+    title: string;
+    amount: number;
+    currency: string;
+    amountOriginal: number | null;
+    transactionDate: string;
+  }[] = [];
+
+  if (result.expense.type === "REFUND" && result.expense.originalExpenseId) {
+    const [orig] = await db
+      .select({ id: expenses.id, title: expenses.title, amount: expenses.amount })
+      .from(expenses)
+      .where(eq(expenses.id, result.expense.originalExpenseId));
+    originalExpense = orig ?? null;
+  } else if (result.expense.type !== "REFUND") {
+    refunds = await db
+      .select({
+        id: expenses.id,
+        title: expenses.title,
+        amount: expenses.amount,
+        currency: expenses.currency,
+        amountOriginal: expenses.amountOriginal,
+        transactionDate: expenses.transactionDate,
+      })
+      .from(expenses)
+      .where(
+        and(
+          eq(expenses.originalExpenseId, expenseId),
+          eq(expenses.type, "REFUND"),
+        ),
+      )
+      .orderBy(desc(expenses.transactionDate));
+  }
+
   return {
     ...result.expense,
     submitter: result.submitter,
     attachments: expenseAttachments,
+    originalExpense,
+    refunds,
   };
 }
 
@@ -573,6 +732,11 @@ export async function updateExpense(
   // 2. Only the submitter can update (admins can edit any expense)
   if (!isAdmin && expense.submittedById !== userId) {
     throw new AppError("FORBIDDEN", "본인이 제출한 비용만 수정할 수 있습니다.");
+  }
+
+  // 반품 건은 수정 불가 — 잘못 등록했다면 삭제 후 다시 등록
+  if (expense.type === "REFUND") {
+    throw new AppError("VALIDATION_ERROR", "반품 건은 수정할 수 없습니다. 삭제 후 다시 등록해주세요.");
   }
 
   // 3. Check update eligibility — admins can edit any status

@@ -75,6 +75,10 @@ const TYPE_LABELS: Record<ExpenseType, { label: string; className: string }> = {
     label: "입금요청",
     className: "glass-badge glass-badge-orange",
   },
+  REFUND: {
+    label: "반품",
+    className: "glass-badge glass-badge-red",
+  },
 };
 
 const STATUS_LABELS: Record<ExpenseStatus, { label: string; className: string }> = {
@@ -349,7 +353,12 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
                   <TableCell>
                     <span className={typeInfo.className}>{typeInfo.label}</span>
                   </TableCell>
-                  <TableCell className="text-right tabular-nums font-medium text-[var(--apple-label)] pr-6">
+                  <TableCell
+                    className={`text-right tabular-nums font-medium pr-6 ${
+                      expense.type === "REFUND" ? "text-[var(--apple-red)]" : "text-[var(--apple-label)]"
+                    }`}
+                  >
+                    {expense.type === "REFUND" && "-"}
                     {formatExpenseAmount(expense.amount, expense.currency, expense.amountOriginal)}
                   </TableCell>
                   <TableCell className="text-[var(--apple-secondary-label)]">
@@ -548,7 +557,12 @@ function MobileExpenseCard({
               {getCategoryLabel(expense.category)}
             </span>
           </div>
-          <span className="text-sm font-medium tabular-nums text-[var(--apple-label)]">
+          <span
+            className={`text-sm font-medium tabular-nums ${
+              expense.type === "REFUND" ? "text-[var(--apple-red)]" : "text-[var(--apple-label)]"
+            }`}
+          >
+            {expense.type === "REFUND" && "-"}
             {formatExpenseAmount(expense.amount, expense.currency, expense.amountOriginal)}
           </span>
         </div>

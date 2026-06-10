@@ -34,6 +34,7 @@ const TYPE_OPTIONS = [
   { value: "__all__", label: "전체 유형" },
   { value: "CORPORATE_CARD", label: "법카사용" },
   { value: "DEPOSIT_REQUEST", label: "입금요청" },
+  { value: "REFUND", label: "반품" },
 ];
 
 const STATUS_OPTIONS = [
