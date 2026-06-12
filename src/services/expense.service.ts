@@ -444,6 +444,9 @@ export async function getExpenses(
   const orderColumn = orderByMap[sortColumn] ?? expenses.createdAt;
   const orderFn = sortDir === "asc" ? asc : desc;
 
+  // 후지급 요청됐지만 아직 승인 안 된 건은 관리자 액션이 필요하므로 목록 맨 앞으로
+  const remainingPaymentPriority = sql`CASE WHEN ${expenses.remainingPaymentRequested} = true AND ${expenses.remainingPaymentApproved} = false THEN 0 ELSE 1 END`;
+
   // Subquery for attachment count per expense
   const attachmentCountSq = db
     .select({
@@ -473,7 +476,7 @@ export async function getExpenses(
       .leftJoin(attachmentCountSq, eq(expenses.id, attachmentCountSq.expenseId))
       .leftJoin(companies, eq(expenses.companyId, companies.id))
       .where(whereClause)
-      .orderBy(orderFn(orderColumn))
+      .orderBy(remainingPaymentPriority, orderFn(orderColumn))
       .limit(limit)
       .offset(offset),
     db.select({ count: count() }).from(expenses).where(whereClause),
@@ -503,6 +506,57 @@ export async function getExpenses(
       totalAmount,
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// getPendingRemainingPayments -- 후지급 승인 대기 목록 (관리자 승인 대기 큐용)
+//   부분 선지급 건 중 후지급이 요청됐지만 아직 승인되지 않은 비용
+// ---------------------------------------------------------------------------
+export async function getPendingRemainingPayments(company?: string) {
+  const conditions: ReturnType<typeof eq>[] = [
+    eq(expenses.isPrePaid, true),
+    eq(expenses.remainingPaymentRequested, true),
+    eq(expenses.remainingPaymentApproved, false),
+    eq(expenses.status, "APPROVED"),
+  ];
+
+  if (company) {
+    const { getCompanyBySlug } = await import("@/services/company.service");
+    const companyRow = await getCompanyBySlug(company);
+    if (companyRow) {
+      conditions.push(eq(expenses.companyId, companyRow.id));
+    }
+  }
+
+  const rows = await db
+    .select({
+      id: expenses.id,
+      title: expenses.title,
+      amount: expenses.amount,
+      currency: expenses.currency,
+      amountOriginal: expenses.amountOriginal,
+      prePaidPercentage: expenses.prePaidPercentage,
+      dueDate: expenses.dueDate,
+      updatedAt: expenses.updatedAt,
+      submitterName: users.name,
+      companyName: companies.name,
+      companySlug: companies.slug,
+    })
+    .from(expenses)
+    .leftJoin(users, eq(expenses.submittedById, users.id))
+    .leftJoin(companies, eq(expenses.companyId, companies.id))
+    .where(and(...conditions))
+    .orderBy(desc(expenses.updatedAt));
+
+  return rows.map((row) => {
+    const pct = row.prePaidPercentage ?? 0;
+    const prePaidAmount = Math.round((row.amount * pct) / 100);
+    return {
+      ...row,
+      prePaidAmount,
+      remainingAmount: row.amount - prePaidAmount,
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------

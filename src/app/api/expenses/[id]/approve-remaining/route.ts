@@ -101,6 +101,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     revalidatePath("/");
     revalidatePath("/expenses");
     revalidatePath("/admin/pending");
+    revalidatePath("/admin/expenses");
 
     return NextResponse.json({ data: updated });
   } catch (err) {

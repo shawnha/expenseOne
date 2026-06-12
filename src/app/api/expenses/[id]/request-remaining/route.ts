@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { expenses, users } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { createNotification } from "@/services/notification.service";
+import { notifySlackRemainingPaymentRequest } from "@/services/slack.service";
+import { sendPushToAdmins } from "@/services/push.service";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -78,19 +80,44 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const remainingAmount = expense.amount - Math.round(expense.amount * expense.prePaidPercentage / 100);
 
-    await Promise.all(admins.map((admin) =>
-      createNotification({
-        recipientId: admin.id,
-        type: "REMAINING_PAYMENT_REQUEST",
-        title: "후지급 요청이 등록되었습니다",
-        message: `${user.name}님이 "${expense.title}" 건의 후지급(${remainingAmount.toLocaleString()}원)을 요청했습니다.`,
-        relatedExpenseId: expense.id,
-      })
-    ));
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
+    // 인앱 알림 + Slack + 푸시 — 알림 실패가 요청 처리를 막지 않도록 allSettled
+    await Promise.allSettled([
+      ...admins.map((admin) =>
+        createNotification({
+          recipientId: admin.id,
+          type: "REMAINING_PAYMENT_REQUEST",
+          title: "후지급 요청이 등록되었습니다",
+          message: `${user.name}님이 "${expense.title}" 건의 후지급(${remainingAmount.toLocaleString()}원)을 요청했습니다.`,
+          relatedExpenseId: expense.id,
+        })
+      ),
+      notifySlackRemainingPaymentRequest({
+        submitterEmail: user.email,
+        submitterName: user.name,
+        title: expense.title,
+        amount: expense.amount,
+        prePaidPercentage: expense.prePaidPercentage,
+        expenseUrl: `${appUrl}/expenses/${expense.id}`,
+        companyId: expense.companyId ?? undefined,
+        currency: expense.currency,
+        amountOriginal: expense.amountOriginal,
+        dueDate: expense.dueDate,
+      }).catch((err) => {
+        console.error("Failed to send remaining-payment Slack notification:", err);
+      }),
+      sendPushToAdmins(
+        "후지급 요청",
+        `${expense.title} - ${remainingAmount.toLocaleString()}원`,
+        `/expenses/${expense.id}`,
+      ),
+    ]);
 
     revalidatePath("/");
     revalidatePath("/expenses");
     revalidatePath("/admin/pending");
+    revalidatePath("/admin/expenses");
 
     return NextResponse.json({ data: updated });
   } catch (err) {

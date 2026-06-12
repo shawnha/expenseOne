@@ -279,6 +279,47 @@ export async function notifySlackRefund(params: {
 }
 
 /**
+ * 후지급 요청 → 제출자 멘션 + 선지급/후지급 금액. 관리자 승인이 필요한 액션.
+ */
+export async function notifySlackRemainingPaymentRequest(params: {
+  submitterEmail: string;
+  submitterName: string;
+  title: string;
+  amount: number;
+  prePaidPercentage: number;
+  expenseUrl: string;
+  companyId?: string;
+  currency?: string | null;
+  amountOriginal?: number | null;
+  dueDate?: string | null;
+}): Promise<{ ts: string; channel: string } | null> {
+  const [mention, companyName] = await Promise.all([
+    mentionUser(params.submitterEmail, params.submitterName),
+    getCompanyName(params.companyId),
+  ]);
+
+  const prePaidAmount = Math.round((params.amount * params.prePaidPercentage) / 100);
+  const remainingAmount = params.amount - prePaidAmount;
+
+  const lines = [
+    `🔔 ${mention} 후지급 요청이 등록되었습니다`,
+  ];
+  if (companyName) lines.push(`• 회사: ${companyName}`);
+  lines.push(
+    `• 제목: ${params.title}`,
+    `• 총 금액: ${formatExpenseAmount(params.amount, params.currency, params.amountOriginal)}`,
+    `• 선지급 완료 (${params.prePaidPercentage}%): ${prePaidAmount.toLocaleString("ko-KR")}원`,
+    `• 후지급 요청액 (${100 - params.prePaidPercentage}%): *${remainingAmount.toLocaleString("ko-KR")}원*`,
+  );
+  if (params.dueDate) {
+    lines.push(`• 납입 기일: ${params.dueDate.replace(/-/g, ".")}`);
+  }
+  lines.push(`<${params.expenseUrl}|상세 보기>`);
+
+  return sendSlackMessage(lines.join("\n"), params.companyId);
+}
+
+/**
  * 입금요청 승인 → 요청자 멘션
  */
 export async function notifySlackApproved(params: {
