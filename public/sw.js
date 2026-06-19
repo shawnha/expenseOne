@@ -1,6 +1,6 @@
-// ExpenseOne Service Worker — Instant splash shell + NetworkFirst HTML + CacheFirst static + Web Push
-// mqkaja0f is replaced at build time by next.config.ts
-const CACHE_NAME = "expenseone-mqkaja0f";
+// ExpenseOne Service Worker — NetworkFirst HTML + CacheFirst static + Web Push
+// mqkap8fp is replaced at build time by next.config.ts
+const CACHE_NAME = "expenseone-mqkap8fp";
 
 const APP_SHELL = ["/offline.html", "/splash-shell.html"];
 
@@ -8,7 +8,11 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
   );
-  // Don't skipWaiting automatically — wait for user to accept the update
+  // Activate immediately. A previously-deployed SW could trap users on the
+  // splash screen (see fetch handler note); waiting for the user to tap an
+  // update prompt is impossible when they're stuck on a loading splash, so a
+  // fixed SW must be able to replace a broken one on its own.
+  self.skipWaiting();
 });
 
 // When the client sends SKIP_WAITING, activate the new SW immediately
@@ -81,58 +85,16 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Instant splash shell — for HTML navigation requests, return cached splash
-  // shell immediately so the user sees the splash animation with zero delay.
-  // The shell loads the real page in a hidden iframe, then fades in when ready.
-  // Skip if _nosplash param is present (request from the shell's iframe).
-  if (
-    request.mode === "navigate" &&
-    request.headers.get("accept")?.includes("text/html") &&
-    !url.searchParams.has("_nosplash") &&
-    url.pathname !== "/splash-shell.html" &&
-    url.pathname !== "/shell-test.html" &&
-    url.pathname !== "/offline.html"
-  ) {
-    event.respondWith(
-      caches.match("/splash-shell.html").then((cached) => {
-        if (cached) {
-          // Clone the cached response and inject the original URL as a header
-          // so splash-shell.html can read it. We use a custom response
-          // with the same body but add a header for the target URL.
-          const originalPath = url.pathname + url.search;
-          const headers = new Headers(cached.headers);
-          headers.set("X-Original-URL", originalPath);
-          return cached.clone().text().then((body) => {
-            // Inject the target URL into the HTML
-            const injected = body.replace(
-              "var targetUrl = location.hash.slice(1) || '/';",
-              "var targetUrl = '" + originalPath.replace(/'/g, "\\'") + "';"
-            );
-            return new Response(injected, {
-              status: 200,
-              statusText: "OK",
-              headers: { "Content-Type": "text/html; charset=utf-8" },
-            });
-          });
-        }
-        // No cached shell — fall through to normal fetch
-        return fetch(request)
-          .then((response) => {
-            if (response.ok) {
-              const clone = response.clone();
-              caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-            }
-            return response;
-          })
-          .catch(() =>
-            caches.match(request).then((c) => c || caches.match("/offline.html"))
-          );
-      })
-    );
-    return;
-  }
+  // NOTE: We intentionally do NOT intercept navigations with an iframe-based
+  // "splash shell" anymore. That mechanism served a cached splash-shell.html
+  // that revealed the real page only when a hidden iframe fired `load`, and its
+  // only escape hatch (a 10s window.location.replace WITHOUT _nosplash) just
+  // re-triggered this SW to serve the shell again — an infinite splash loop
+  // whenever the iframe was slow to load. Navigations now go NetworkFirst to the
+  // real page, which renders its own inline splash (app/layout.tsx) with a
+  // guaranteed 3s dismiss. Simpler and impossible to get stuck on.
 
-  // NetworkFirst for HTML pages (including _nosplash iframe requests) — always
+  // NetworkFirst for HTML pages — always
   // try the network first to avoid serving stale HTML after a new deployment.
   if (request.headers.get("accept")?.includes("text/html")) {
     event.respondWith(
