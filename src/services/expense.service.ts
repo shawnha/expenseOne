@@ -696,6 +696,135 @@ export async function getFreelancerWithholdingSummary(
 }
 
 // ---------------------------------------------------------------------------
+// getMartPharmacySummary -- 마트/약국 카테고리 비용 월별 집계
+//   실비 청구 리스트를 세무법인에 전달하는 용도. category=MART_PHARMACY 비용을
+//   거래월(YYYY-MM)별로 묶어 건수/순지출을 집계. 반려·취소 건은 제외,
+//   반품(REFUND)은 음수로 차감해 순지출(net)로 계산.
+// ---------------------------------------------------------------------------
+export interface MartPharmacyFilter {
+  startDate?: string;
+  endDate?: string;
+  company?: string;
+}
+
+export interface MartPharmacyExpense {
+  id: string;
+  type: "CORPORATE_CARD" | "DEPOSIT_REQUEST" | "REFUND";
+  status: "SUBMITTED" | "APPROVED" | "REJECTED" | "CANCELLED";
+  title: string;
+  /** 저장된 양수 금액 (KRW) */
+  amount: number;
+  /** REFUND이면 음수 — 월 순지출 계산용 */
+  signedAmount: number;
+  currency: string;
+  amountOriginal: number | null;
+  transactionDate: string;
+  merchantName: string | null;
+  submitterName: string | null;
+  companyName: string | null;
+}
+
+export interface MartPharmacyMonthGroup {
+  /** 거래월 "YYYY-MM" */
+  month: string;
+  expenseCount: number;
+  /** 순지출 (반품 차감) */
+  totalAmount: number;
+  expenses: MartPharmacyExpense[];
+}
+
+export async function getMartPharmacySummary(filter: MartPharmacyFilter) {
+  const conditions: ReturnType<typeof eq>[] = [
+    eq(expenses.category, "MART_PHARMACY"),
+    // 반려·취소 건은 실제 정산 대상이 아니므로 제외 (REFUND는 항상 APPROVED라 포함됨)
+    inArray(expenses.status, ["SUBMITTED", "APPROVED"]),
+  ];
+
+  if (filter.startDate) {
+    conditions.push(gte(expenses.transactionDate, filter.startDate));
+  }
+  if (filter.endDate) {
+    conditions.push(lte(expenses.transactionDate, filter.endDate));
+  }
+  if (filter.company) {
+    const { getCompanyBySlug } = await import("@/services/company.service");
+    const company = await getCompanyBySlug(filter.company);
+    if (company) {
+      conditions.push(eq(expenses.companyId, company.id));
+    }
+  }
+
+  const rows = await db
+    .select({
+      id: expenses.id,
+      type: expenses.type,
+      status: expenses.status,
+      title: expenses.title,
+      amount: expenses.amount,
+      currency: expenses.currency,
+      amountOriginal: expenses.amountOriginal,
+      transactionDate: expenses.transactionDate,
+      merchantName: expenses.merchantName,
+      submitterName: users.name,
+      companyName: companies.name,
+    })
+    .from(expenses)
+    .leftJoin(users, eq(expenses.submittedById, users.id))
+    .leftJoin(companies, eq(expenses.companyId, companies.id))
+    .where(and(...conditions))
+    .orderBy(desc(expenses.transactionDate));
+
+  // 거래월(YYYY-MM)별로 그룹핑
+  const groupMap = new Map<string, MartPharmacyMonthGroup>();
+
+  for (const row of rows) {
+    const month = row.transactionDate.slice(0, 7); // "YYYY-MM"
+    const signed = row.type === "REFUND" ? -row.amount : row.amount;
+    let group = groupMap.get(month);
+    if (!group) {
+      group = { month, expenseCount: 0, totalAmount: 0, expenses: [] };
+      groupMap.set(month, group);
+    }
+    group.expenseCount += 1;
+    group.totalAmount += signed;
+    group.expenses.push({
+      id: row.id,
+      type: row.type as MartPharmacyExpense["type"],
+      status: row.status as MartPharmacyExpense["status"],
+      title: row.title,
+      amount: row.amount,
+      signedAmount: signed,
+      currency: row.currency,
+      amountOriginal: row.amountOriginal ?? null,
+      transactionDate: row.transactionDate,
+      merchantName: row.merchantName ?? null,
+      submitterName: row.submitterName ?? null,
+      companyName: row.companyName ?? null,
+    });
+  }
+
+  // 최신 월부터 정렬
+  const groups = Array.from(groupMap.values()).sort((a, b) =>
+    b.month.localeCompare(a.month),
+  );
+
+  const totalAmount = rows.reduce(
+    (acc, r) => acc + (r.type === "REFUND" ? -r.amount : r.amount),
+    0,
+  );
+
+  return {
+    groups,
+    totals: {
+      monthCount: groups.length,
+      expenseCount: rows.length,
+      totalAmount,
+      monthlyAverage: groups.length ? Math.round(totalAmount / groups.length) : 0,
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // getExpenseById -- detail with attachments
 // ---------------------------------------------------------------------------
 export async function getExpenseById(
