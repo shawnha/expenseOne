@@ -179,6 +179,8 @@ export const expenses = expenseSchema.table(
     autoClassifiedSource: varchar("auto_classified_source", { length: 32 }),
     autoClassifiedAccountId: integer("auto_classified_account_id"),
     hasFreelancerWithholding: boolean("has_freelancer_withholding").notNull().default(false),
+    // 호점 구분 (마트/약국 실비 정리용). null = 미지정. 코드값: STORE_1, STORE_2.
+    branch: varchar("branch", { length: 20 }),
     // 반품(REFUND) 건이 상쇄하는 원거래. 원거래 삭제 시에도 반품 기록은 보존.
     originalExpenseId: uuid("original_expense_id").references(
       (): AnyPgColumn => expenses.id,
@@ -218,6 +220,9 @@ export const expenses = expenseSchema.table(
     index("idx_expenses_original_expense_id")
       .on(table.originalExpenseId)
       .where(sql`original_expense_id IS NOT NULL`),
+    index("idx_expenses_branch")
+      .on(table.branch)
+      .where(sql`branch IS NOT NULL`),
   ],
 );
 

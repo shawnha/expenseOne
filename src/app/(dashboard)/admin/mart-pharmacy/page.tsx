@@ -7,6 +7,8 @@ import { getPeriodDates } from "@/lib/utils/report-periods";
 import { formatKRW, formatExpenseAmount } from "@/lib/utils/expense-utils";
 import { AdminCompanyFilter } from "@/components/admin/company-filter";
 import { FreelancerFilters } from "@/components/admin/freelancer-filters";
+import { BranchFilter } from "@/components/admin/branch-filter";
+import { BranchSelect } from "@/components/admin/branch-select";
 
 interface MartPharmacyPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -42,6 +44,7 @@ async function getData(searchParams: Record<string, string | string[] | undefine
   const endParam = typeof searchParams.endDate === "string" ? searchParams.endDate : undefined;
   const period = typeof searchParams.period === "string" ? searchParams.period : "this_year";
   const company = typeof searchParams.company === "string" ? searchParams.company : undefined;
+  const branch = typeof searchParams.branch === "string" ? searchParams.branch : undefined;
 
   // 기본값: 올해. period=all 이면 기간 제한 없음.
   let startDate = startParam;
@@ -52,14 +55,14 @@ async function getData(searchParams: Record<string, string | string[] | undefine
     endDate = current.endDate;
   }
 
-  const summary = await getMartPharmacySummary({ startDate, endDate, company });
+  const summary = await getMartPharmacySummary({ startDate, endDate, company, branch });
 
-  return { summary, startDate, endDate, company };
+  return { summary, startDate, endDate, company, branch };
 }
 
 export default async function MartPharmacyPage({ searchParams }: MartPharmacyPageProps) {
   const resolvedParams = await searchParams;
-  const { summary, startDate, endDate, company } = await getData(resolvedParams);
+  const { summary, startDate, endDate, company, branch } = await getData(resolvedParams);
   const { groups, totals } = summary;
 
   // CSV 내보내기 링크 (세무법인 전달용) — 기존 export 라우트의 category 필터 재사용
@@ -67,6 +70,7 @@ export default async function MartPharmacyPage({ searchParams }: MartPharmacyPag
   if (startDate) csvParams.set("startDate", startDate);
   if (endDate) csvParams.set("endDate", endDate);
   if (company) csvParams.set("company", company);
+  if (branch) csvParams.set("branch", branch);
   const csvHref = `/api/export/csv?${csvParams.toString()}`;
 
   return (
@@ -101,6 +105,13 @@ export default async function MartPharmacyPage({ searchParams }: MartPharmacyPag
       <Suspense fallback={<div className="h-12 animate-pulse rounded-xl glass-subtle" />}>
         <div className="animate-fade-up-1">
           <FreelancerFilters />
+        </div>
+      </Suspense>
+
+      {/* Branch (호점) filter */}
+      <Suspense fallback={<div className="h-12 animate-pulse rounded-xl glass-subtle" />}>
+        <div className="animate-fade-up-1">
+          <BranchFilter />
         </div>
       </Suspense>
 
@@ -199,14 +210,19 @@ export default async function MartPharmacyPage({ searchParams }: MartPharmacyPag
                             {e.merchantName && <span>· {e.merchantName}</span>}
                           </div>
                         </div>
-                        <span
-                          className={`shrink-0 text-sm font-medium tabular-nums ${
-                            isRefund ? "text-[var(--apple-red,#FF3B30)]" : "text-[var(--apple-label)]"
-                          }`}
-                        >
-                          {isRefund ? "−" : ""}
-                          {formatExpenseAmount(e.amount, e.currency, e.amountOriginal)}
-                        </span>
+                        <div className="shrink-0 flex flex-col items-end gap-1.5">
+                          <span
+                            className={`text-sm font-medium tabular-nums ${
+                              isRefund ? "text-[var(--apple-red,#FF3B30)]" : "text-[var(--apple-label)]"
+                            }`}
+                          >
+                            {isRefund ? "−" : ""}
+                            {formatExpenseAmount(e.amount, e.currency, e.amountOriginal)}
+                          </span>
+                          {!isRefund && (
+                            <BranchSelect expenseId={e.id} value={e.branch} />
+                          )}
+                        </div>
                       </li>
                     );
                   })}
@@ -219,6 +235,7 @@ export default async function MartPharmacyPage({ searchParams }: MartPharmacyPag
 
       <p className="text-xs text-[var(--apple-tertiary-label)] animate-fade-up-2">
         승인·제출 대기 건 기준입니다 (반려·취소 제외). 반품(환불)은 음수로 차감된 순지출이며, 월 합계·총액에 반영됩니다.
+        각 항목의 호점(1호점·2호점) 칩을 눌러 지정하면 즉시 저장되고 CSV·필터에 반영됩니다 (같은 칩을 다시 누르면 미지정). 반품 건은 호점 지정이 불가합니다.
       </p>
     </div>
   );

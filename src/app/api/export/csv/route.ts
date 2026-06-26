@@ -3,9 +3,9 @@ import { requireAdmin, errorResponse, handleError } from "@/lib/api-utils";
 import { csvExportQuerySchema } from "@/lib/validations/expense";
 import { db } from "@/lib/db";
 import { expenses, users, companies } from "@/lib/db/schema";
-import { eq, and, gte, lte, desc } from "drizzle-orm";
+import { eq, and, gte, lte, desc, isNull } from "drizzle-orm";
 import Papa from "papaparse";
-import { getCategoryLabel } from "@/lib/utils/expense-utils";
+import { getCategoryLabel, getBranchLabel } from "@/lib/utils/expense-utils";
 
 // ---------------------------------------------------------------------------
 // Category / Status / Type labels for CSV
@@ -83,6 +83,11 @@ export async function GET(request: NextRequest) {
     if (query.freelancer === "true") {
       conditions.push(eq(expenses.hasFreelancerWithholding, true));
     }
+    if (query.branch === "none") {
+      conditions.push(isNull(expenses.branch));
+    } else if (query.branch === "STORE_1" || query.branch === "STORE_2") {
+      conditions.push(eq(expenses.branch, query.branch));
+    }
 
     const whereClause =
       conditions.length > 0 ? and(...conditions) : undefined;
@@ -113,6 +118,7 @@ export async function GET(request: NextRequest) {
       // 반품은 차감이므로 음수로 출력 — 열 합계가 곧 순지출
       "금액(원)": row.expense.type === "REFUND" ? -row.expense.amount : row.expense.amount,
       "카테고리": getCategoryLabel(row.expense.category),
+      "호점": getBranchLabel(row.expense.branch),
       "거래일": row.expense.transactionDate,
       "가맹점명": row.expense.merchantName ?? "",
       "카드끝4자리": row.expense.cardLastFour ?? "",

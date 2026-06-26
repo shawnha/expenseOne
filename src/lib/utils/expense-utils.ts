@@ -1,4 +1,4 @@
-import { CATEGORY_OPTIONS } from "@/lib/validations/expense-form";
+import { CATEGORY_OPTIONS, BRANCH_OPTIONS } from "@/lib/validations/expense-form";
 
 /**
  * 금액을 KRW 형식 문자열로 포맷 (예: "1,000원")
@@ -35,4 +35,10 @@ export function formatExpenseAmount(
  */
 export function getCategoryLabel(category: string): string {
   return CATEGORY_OPTIONS.find((c) => c.value === category)?.label ?? category;
+}
+
+/** 호점 코드(STORE_1/STORE_2)를 라벨(1호점/2호점)로 변환. null/미지정은 빈 문자열. */
+export function getBranchLabel(branch: string | null | undefined): string {
+  if (!branch) return "";
+  return BRANCH_OPTIONS.find((b) => b.value === branch)?.label ?? branch;
 }

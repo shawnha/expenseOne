@@ -18,6 +18,7 @@ import {
   sum,
   exists,
   inArray,
+  isNull,
   sql,
 } from "drizzle-orm";
 import type {
@@ -705,6 +706,8 @@ export interface MartPharmacyFilter {
   startDate?: string;
   endDate?: string;
   company?: string;
+  /** 호점 필터: "STORE_1" | "STORE_2" | "none"(미지정만). 없으면 전체. */
+  branch?: string;
 }
 
 export interface MartPharmacyExpense {
@@ -722,6 +725,8 @@ export interface MartPharmacyExpense {
   merchantName: string | null;
   submitterName: string | null;
   companyName: string | null;
+  /** 호점 코드 STORE_1/STORE_2, 미지정이면 null */
+  branch: string | null;
 }
 
 export interface MartPharmacyMonthGroup {
@@ -753,6 +758,11 @@ export async function getMartPharmacySummary(filter: MartPharmacyFilter) {
       conditions.push(eq(expenses.companyId, company.id));
     }
   }
+  if (filter.branch === "none") {
+    conditions.push(isNull(expenses.branch));
+  } else if (filter.branch === "STORE_1" || filter.branch === "STORE_2") {
+    conditions.push(eq(expenses.branch, filter.branch));
+  }
 
   const rows = await db
     .select({
@@ -765,6 +775,7 @@ export async function getMartPharmacySummary(filter: MartPharmacyFilter) {
       amountOriginal: expenses.amountOriginal,
       transactionDate: expenses.transactionDate,
       merchantName: expenses.merchantName,
+      branch: expenses.branch,
       submitterName: users.name,
       companyName: companies.name,
     })
@@ -800,6 +811,7 @@ export async function getMartPharmacySummary(filter: MartPharmacyFilter) {
       merchantName: row.merchantName ?? null,
       submitterName: row.submitterName ?? null,
       companyName: row.companyName ?? null,
+      branch: row.branch ?? null,
     });
   }
 

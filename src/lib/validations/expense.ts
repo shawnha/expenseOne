@@ -134,6 +134,8 @@ export const updateExpenseSchema = z.object({
   status: z.enum(["SUBMITTED", "APPROVED", "REJECTED", "CANCELLED"]).optional(),
   companyId: z.string().uuid().optional(),
   hasFreelancerWithholding: z.boolean().optional(),
+  // 호점 구분 (마트/약국 실비 정리용). null 이면 미지정으로 해제.
+  branch: z.enum(["STORE_1", "STORE_2"]).nullable().optional(),
 });
 
 export type UpdateExpenseInput = z.infer<typeof updateExpenseSchema>;
@@ -198,6 +200,8 @@ export const csvExportQuerySchema = z.object({
     .optional(),
   company: z.string().max(50).optional(),
   freelancer: z.enum(["all", "true"]).optional(),
+  // 호점 필터: STORE_1 / STORE_2 / none(미지정만)
+  branch: z.enum(["STORE_1", "STORE_2", "none"]).optional(),
 });
 
 export type CsvExportQueryInput = z.infer<typeof csvExportQuerySchema>;

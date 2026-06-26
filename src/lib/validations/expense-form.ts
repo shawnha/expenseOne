@@ -12,6 +12,17 @@ export const CATEGORY_OPTIONS: { value: string; label: string }[] = [
 ];
 
 // ============================================================
+// 호점 옵션 (마트/약국 실비 정리용) - 관리자가 목록에서 직접 지정
+// ============================================================
+
+export const BRANCH_VALUES = ["STORE_1", "STORE_2"] as const;
+
+export const BRANCH_OPTIONS: { value: (typeof BRANCH_VALUES)[number]; label: string }[] = [
+  { value: "STORE_1", label: "1호점" },
+  { value: "STORE_2", label: "2호점" },
+];
+
+// ============================================================
 // 문서 유형 옵션 (UI 표시용)
 // ============================================================
 
