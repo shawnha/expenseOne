@@ -56,7 +56,7 @@ export default async function FreelancersPage({ searchParams }: FreelancersPageP
   const { groups, totals } = summary;
 
   // CSV 내보내기 링크 (회계팀 전달용) — 기존 export 라우트의 freelancer 필터 재사용
-  const csvParams = new URLSearchParams({ freelancer: "true" });
+  const csvParams = new URLSearchParams({ freelancer: "true", activeOnly: "true" });
   if (startDate) csvParams.set("startDate", startDate);
   if (endDate) csvParams.set("endDate", endDate);
   if (company) csvParams.set("company", company);

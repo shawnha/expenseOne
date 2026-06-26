@@ -202,6 +202,8 @@ export const csvExportQuerySchema = z.object({
   freelancer: z.enum(["all", "true"]).optional(),
   // 호점 필터: STORE_1 / STORE_2 / none(미지정만)
   branch: z.enum(["STORE_1", "STORE_2", "none"]).optional(),
+  // true 이면 제출·승인 건만(반려·취소 제외) — 화면 집계와 일치시키는 정산용 export
+  activeOnly: z.enum(["true"]).optional(),
 });
 
 export type CsvExportQueryInput = z.infer<typeof csvExportQuerySchema>;

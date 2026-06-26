@@ -3,7 +3,7 @@ import { requireAdmin, errorResponse, handleError } from "@/lib/api-utils";
 import { csvExportQuerySchema } from "@/lib/validations/expense";
 import { db } from "@/lib/db";
 import { expenses, users, companies } from "@/lib/db/schema";
-import { eq, and, gte, lte, desc, isNull } from "drizzle-orm";
+import { eq, and, gte, lte, desc, isNull, inArray } from "drizzle-orm";
 import Papa from "papaparse";
 import { getCategoryLabel, getBranchLabel } from "@/lib/utils/expense-utils";
 
@@ -67,6 +67,10 @@ export async function GET(request: NextRequest) {
     }
     if (query.status) {
       conditions.push(eq(expenses.status, query.status));
+    }
+    // 정산용 export: 반려·취소 제외(제출·승인만) — 마트/약국·프리랜서 화면 합계와 일치
+    if (query.activeOnly === "true") {
+      conditions.push(inArray(expenses.status, ["SUBMITTED", "APPROVED"]));
     }
     if (query.category) {
       conditions.push(eq(expenses.category, query.category));
