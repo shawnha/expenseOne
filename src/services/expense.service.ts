@@ -1010,8 +1010,27 @@ export async function updateExpense(
     );
   }
 
+  // Update Slack message only when a field that actually appears in the Slack
+  // message changed. 호점(branch) 지정·원천징수 플래그 같은 내부 정리용 변경은
+  // Slack 메시지 내용과 무관하므로 재게시하지 않는다 (불필요한 알림 방지).
+  const SLACK_RELEVANT_FIELDS = [
+    "title",
+    "amount",
+    "category",
+    "merchantName",
+    "description",
+    "dueDate",
+    "isUrgent",
+    "companyId",
+    "currency",
+    "amountOriginal",
+  ];
+  const touchesSlack = Object.keys(input).some((k) =>
+    SLACK_RELEVANT_FIELDS.includes(k),
+  );
+
   // Update Slack message if we have the ts
-  if (updated.slackMessageTs && updated.slackChannelId) {
+  if (touchesSlack && updated.slackMessageTs && updated.slackChannelId) {
     // Look up submitter info
     const [submitter] = await db
       .select({ name: users.name, email: users.email })
