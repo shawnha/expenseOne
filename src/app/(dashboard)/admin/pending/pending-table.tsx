@@ -31,6 +31,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { formatAmount } from "@/lib/validations/expense-form";
 import { getCategoryLabel, formatExpenseAmount } from "@/lib/utils/expense-utils";
+import { PrePaidBadge } from "@/components/expenses/pre-paid-badge";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -50,6 +51,8 @@ export interface PendingExpense {
   } | null;
   attachmentCount: number;
   isUrgent: boolean;
+  isPrePaid?: boolean;
+  prePaidPercentage?: number | null;
   companyName?: string | null;
   companySlug?: string | null;
 }
@@ -280,6 +283,7 @@ export function PendingTable({ expenses }: PendingTableProps) {
                   <span className="flex items-center gap-1.5">
                     <span className="truncate">{expense.title}</span>
                     {expense.isUrgent && <span className="glass-badge glass-badge-red shrink-0">긴급</span>}
+                    <PrePaidBadge isPrePaid={expense.isPrePaid} percentage={expense.prePaidPercentage} />
                   </span>
                 </TableCell>
                 <TableCell className="text-sm text-[var(--apple-label)]">{expense.submitter?.name ?? "알 수 없음"}</TableCell>
@@ -360,6 +364,7 @@ export function PendingTable({ expenses }: PendingTableProps) {
                     <p className="text-sm font-medium text-[var(--apple-label)] truncate flex items-center gap-1.5">
                       <span className="truncate">{expense.title}</span>
                       {expense.isUrgent && <span className="glass-badge glass-badge-red shrink-0">긴급</span>}
+                      <PrePaidBadge isPrePaid={expense.isPrePaid} percentage={expense.prePaidPercentage} />
                     </p>
                     <p className="text-xs text-[var(--apple-secondary-label)]">{expense.submitter?.name ?? "알 수 없음"}</p>
                   </div>

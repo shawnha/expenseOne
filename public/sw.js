@@ -1,6 +1,6 @@
 // ExpenseOne Service Worker — NetworkFirst HTML + CacheFirst static + Web Push
-// mqkap8fp is replaced at build time by next.config.ts
-const CACHE_NAME = "expenseone-mqkap8fp";
+// mr4hgyas is replaced at build time by next.config.ts
+const CACHE_NAME = "expenseone-mr4hgyas";
 
 const APP_SHELL = ["/offline.html", "/splash-shell.html"];
 
@@ -100,7 +100,12 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          if (response.ok) {
+          // Only cache a genuine, same-URL page. Do NOT cache redirected
+          // responses (e.g. an auth 307 landing on /login): a cached redirected
+          // response, when later served for a navigation on a network blip, is
+          // rejected by the browser ("redirected flag set") and the page renders
+          // blank. Caching only clean 200s keeps the offline fallback safe.
+          if (response.ok && !response.redirected) {
             const clone = response.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
           }

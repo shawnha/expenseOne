@@ -107,7 +107,7 @@ async function getDashboardData(monthKey?: string) {
 
   const recentQ = supabase
     .from("expenses")
-    .select("id, title, amount, status, type, created_at, is_urgent")
+    .select("id, title, amount, status, type, created_at, is_urgent, is_pre_paid, pre_paid_percentage")
     .eq("submitted_by_id", authUser.id)
     .order("created_at", { ascending: false })
     .limit(5);

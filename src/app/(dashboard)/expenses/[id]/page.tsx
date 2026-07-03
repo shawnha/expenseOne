@@ -21,6 +21,7 @@ import { RequestRemainingButton } from "@/components/expenses/request-remaining-
 import { ApproveRemainingButton } from "@/components/expenses/approve-remaining-button";
 import { AdminApproveReject } from "@/components/expenses/admin-approve-reject";
 import { AdminQuickEditButton } from "@/components/expenses/admin-quick-edit-button";
+import { PrePaidBadge } from "@/components/expenses/pre-paid-badge";
 import type {
   ExpenseType,
   ExpenseStatus,
@@ -230,6 +231,14 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
           <div className="flex items-center gap-2 mb-2">
             <span className={cn(typeInfo.className, "animate-spring-pop")}>{typeInfo.label}</span>
             <span className={cn(statusInfo.className, "animate-spring-pop")}>{statusInfo.label}</span>
+            {expense.isUrgent && (
+              <span className={cn("glass-badge glass-badge-red", "animate-spring-pop")}>긴급</span>
+            )}
+            <PrePaidBadge
+              isPrePaid={expense.isPrePaid}
+              percentage={expense.prePaidPercentage}
+              className="animate-spring-pop"
+            />
             {/* 부분 선지급 건은 '승인'만으로는 후지급 완료 여부를 알 수 없어 별도 배지로 표시 */}
             {isDepositRequest &&
               expense.isPrePaid &&

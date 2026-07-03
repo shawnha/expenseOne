@@ -51,6 +51,8 @@ async function getPendingExpenses(company?: string): Promise<PendingExpense[]> {
       : null,
     attachmentCount: item.attachmentCount ?? 0,
     isUrgent: item.isUrgent ?? false,
+    isPrePaid: item.isPrePaid ?? false,
+    prePaidPercentage: item.prePaidPercentage ?? null,
     companyName: item.companyName ?? null,
     companySlug: item.companySlug ?? null,
   }));

@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Pencil, Trash2 } from "lucide-react";
 import { AdminQuickEditDialog } from "@/components/expenses/admin-quick-edit-dialog";
+import { PrePaidBadge } from "@/components/expenses/pre-paid-badge";
 import type { ExpenseType, ExpenseStatus } from "@/types";
 
 interface ExpenseRow {
@@ -347,6 +348,7 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
                     <span className="flex items-center gap-1.5">
                       <span className="truncate">{expense.title}</span>
                       {expense.isUrgent && <span className="glass-badge glass-badge-red shrink-0">긴급</span>}
+                      <PrePaidBadge isPrePaid={expense.isPrePaid} percentage={expense.prePaidPercentage} />
                       {expense.autoClassified && <span className="glass-badge glass-badge-blue shrink-0">자동분류</span>}
                     </span>
                   </TableCell>
@@ -543,6 +545,7 @@ function MobileExpenseCard({
           <span className="flex items-center gap-1.5 min-w-0">
             <span className="text-sm font-medium text-[var(--apple-label)] truncate">{expense.title}</span>
             {expense.isUrgent && <span className="glass-badge glass-badge-red shrink-0">긴급</span>}
+            <PrePaidBadge isPrePaid={expense.isPrePaid} percentage={expense.prePaidPercentage} />
             {expense.autoClassified && <span className="glass-badge glass-badge-blue shrink-0">자동분류</span>}
           </span>
           <span className="flex items-center gap-1.5 shrink-0">

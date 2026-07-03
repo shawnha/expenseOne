@@ -8,6 +8,7 @@ import { formatExpenseAmount } from "@/lib/utils/expense-utils";
 import { SwipeableGroup, SwipeableRow, type SwipeAction } from "@/components/ui/swipeable-row";
 import { CreditCard, Banknote, ArrowRight, Pencil, Trash2, Receipt } from "lucide-react";
 import { toast } from "sonner";
+import { PrePaidBadge } from "@/components/expenses/pre-paid-badge";
 import type { ExpenseStatus } from "@/types";
 
 const STATUS_LABELS: Record<ExpenseStatus, { label: string; className: string }> = {
@@ -32,6 +33,8 @@ interface Expense {
   type: string;
   created_at: string;
   is_urgent?: boolean;
+  is_pre_paid?: boolean;
+  pre_paid_percentage?: number | null;
 }
 
 type TabType = "CORPORATE_CARD" | "DEPOSIT_REQUEST";
@@ -216,6 +219,7 @@ function DashboardExpenseRow({ expense, idx }: { expense: Expense; idx: number }
           <p className="text-[13px] sm:text-sm font-medium text-[var(--apple-label)] truncate flex items-center gap-1.5">
             <span className="truncate">{expense.title}</span>
             {expense.is_urgent && <span className="glass-badge glass-badge-red shrink-0">긴급</span>}
+            <PrePaidBadge isPrePaid={expense.is_pre_paid} percentage={expense.pre_paid_percentage} />
           </p>
           <span className={cn(statusInfo.className, "shrink-0")}>
             {statusInfo.label}
