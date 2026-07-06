@@ -7,6 +7,7 @@ import type { DocumentType } from "@/types";
 
 export const CATEGORY_OPTIONS: { value: string; label: string }[] = [
   { value: "ODD", label: "ODD" },
+  { value: "GLPH", label: "GLPH" },
   { value: "MART_PHARMACY", label: "마트/약국" },
   { value: "OTHER", label: "기타" },
 ];
