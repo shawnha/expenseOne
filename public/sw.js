@@ -1,6 +1,6 @@
 // ExpenseOne Service Worker — NetworkFirst HTML + CacheFirst static + Web Push
-// mr8vxken is replaced at build time by next.config.ts
-const CACHE_NAME = "expenseone-mr8vxken";
+// mrxcrjwi is replaced at build time by next.config.ts
+const CACHE_NAME = "expenseone-mrxcrjwi";
 
 const APP_SHELL = ["/offline.html", "/splash-shell.html"];
 

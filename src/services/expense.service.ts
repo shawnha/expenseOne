@@ -201,6 +201,8 @@ export async function createExpense(
         amountOriginal: expense.amountOriginal,
         dueDate: expense.dueDate,
         isUrgent: expense.isUrgent ?? false,
+        isPrePaid: expense.isPrePaid ?? false,
+        prePaidPercentage: expense.prePaidPercentage,
         description: expense.description,
       }),
     ]);
@@ -1021,6 +1023,8 @@ export async function updateExpense(
     "description",
     "dueDate",
     "isUrgent",
+    "isPrePaid",
+    "prePaidPercentage",
     "companyId",
     "currency",
     "amountOriginal",
@@ -1057,6 +1061,8 @@ export async function updateExpense(
           description: updated.description,
           dueDate: updated.dueDate,
           isUrgent: updated.isUrgent,
+          isPrePaid: updated.isPrePaid,
+          prePaidPercentage: updated.prePaidPercentage,
         });
         if (newSlack) {
           await db.update(expenses).set({

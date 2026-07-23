@@ -203,6 +203,8 @@ export async function notifySlackDepositRequest(params: {
   amountOriginal?: number | null;
   dueDate?: string | null;
   isUrgent?: boolean;
+  isPrePaid?: boolean;
+  prePaidPercentage?: number | null;
   description?: string | null;
 }): Promise<{ ts: string; channel: string } | null> {
   const [mention, companyName] = await Promise.all([
@@ -227,6 +229,10 @@ export async function notifySlackDepositRequest(params: {
   }
   if (params.isUrgent) {
     lines.push(`• 긴급: 예`);
+  }
+  if (params.isPrePaid) {
+    const pct = params.prePaidPercentage;
+    lines.push(pct != null && pct < 100 ? `• 선지급: 예 (${pct}%)` : `• 선지급: 예`);
   }
   if (params.description && params.description.trim()) {
     // Truncate description to 500 chars for Slack readability
@@ -379,6 +385,8 @@ export async function updateSlackExpenseMessage(params: {
   description?: string | null;
   dueDate?: string | null;
   isUrgent?: boolean;
+  isPrePaid?: boolean;
+  prePaidPercentage?: number | null;
 }): Promise<{ ts: string; channel: string } | null> {
   // 1. Delete the old message
   await deleteSlackMessage(params.slackChannelId, params.slackMessageTs);
@@ -406,6 +414,10 @@ export async function updateSlackExpenseMessage(params: {
   }
   if (!isCorporateCard && params.dueDate) {
     lines.push(`• 납입 기일: ${params.dueDate.replace(/-/g, ".")}`);
+  }
+  if (!isCorporateCard && params.isPrePaid) {
+    const pct = params.prePaidPercentage;
+    lines.push(pct != null && pct < 100 ? `• 선지급: 예 (${pct}%)` : `• 선지급: 예`);
   }
   if (params.description?.trim()) {
     const memo = params.description.trim();
