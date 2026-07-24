@@ -32,6 +32,7 @@ import {
   notifyExpenseApproved,
   notifyExpenseRejected,
   notifyNewDepositRequest,
+  notifyApprovalReverted,
 } from "./notification.service";
 import { notifySlackCorporateCard, notifySlackDepositRequest, notifySlackRefund, updateSlackExpenseMessage, deleteSlackExpenseMessage } from "./slack.service";
 import { sendPushToAdmins } from "./push.service";
@@ -1307,6 +1308,83 @@ export async function approveExpense(
       isUrgent: expense.isUrgent,
       dueDate: expense.dueDate,
       description: expense.description,
+    },
+  );
+
+  return updated;
+}
+
+// ---------------------------------------------------------------------------
+// revertApproval -- ADMIN only. 승인 번복: APPROVED → SUBMITTED로 되돌림
+// ---------------------------------------------------------------------------
+export async function revertApproval(expenseId: string) {
+  const [expense] = await db
+    .select()
+    .from(expenses)
+    .where(eq(expenses.id, expenseId));
+
+  if (!expense) {
+    throw new AppError("NOT_FOUND", "비용을 찾을 수 없습니다.");
+  }
+
+  if (expense.type !== "DEPOSIT_REQUEST") {
+    throw new AppError(
+      "FORBIDDEN",
+      "입금요청만 승인 취소할 수 있습니다.",
+    );
+  }
+
+  if (expense.status !== "APPROVED") {
+    throw new AppError(
+      "FORBIDDEN",
+      "APPROVED 상태의 입금요청만 승인 취소할 수 있습니다.",
+    );
+  }
+
+  // Use WHERE with status check to prevent race conditions (TOCTOU).
+  // 후지급 플래그도 함께 리셋 — 재승인 시 낡은 후지급 상태가 남지 않도록.
+  const [updated] = await db
+    .update(expenses)
+    .set({
+      status: "SUBMITTED",
+      approvedById: null,
+      approvedAt: null,
+      remainingPaymentRequested: false,
+      remainingPaymentApproved: false,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(expenses.id, expenseId),
+        eq(expenses.status, "APPROVED"),
+      ),
+    )
+    .returning();
+
+  if (!updated) {
+    throw new AppError(
+      "FORBIDDEN",
+      "이미 처리된 요청입니다. 페이지를 새로고침해주세요.",
+    );
+  }
+
+  // Look up submitter for notification
+  const [submitterUser] = await db
+    .select({ name: users.name, email: users.email })
+    .from(users)
+    .where(eq(users.id, expense.submittedById));
+
+  await notifyApprovalReverted(
+    expense.submittedById,
+    expense.id,
+    expense.title,
+    {
+      amount: expense.amount,
+      submitterName: submitterUser?.name ?? "요청자",
+      submitterEmail: submitterUser?.email ?? "",
+      companyId: expense.companyId,
+      currency: expense.currency,
+      amountOriginal: expense.amountOriginal,
     },
   );
 

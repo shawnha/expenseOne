@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { notifications, users } from "@/lib/db/schema";
 import { eq, and, desc, count, lt, inArray } from "drizzle-orm";
-import { notifySlackApproved } from "./slack.service";
+import { notifySlackApproved, notifySlackApprovalReverted } from "./slack.service";
 import { sendPushToUser, sendPushToAdmins } from "./push.service";
 
 // ---------------------------------------------------------------------------
@@ -338,4 +338,62 @@ export async function notifyNewDepositRequest(
   ).catch((err) => console.error("[Push] 새 입금요청 알림 실패:", err));
 
   return created;
+}
+
+// ---------------------------------------------------------------------------
+// notifyApprovalReverted -- 승인 번복 시 요청자에게 알림
+// ---------------------------------------------------------------------------
+export async function notifyApprovalReverted(
+  submitterId: string,
+  expenseId: string,
+  expenseTitle: string,
+  extra?: {
+    amount: number;
+    submitterName: string;
+    submitterEmail: string;
+    companyId?: string | null;
+    currency?: string | null;
+    amountOriginal?: number | null;
+  },
+) {
+  // NOTE: notification_type은 DB enum이라 신규 값 추가에 마이그레이션이 필요.
+  // 알림 UI는 type으로 분기하지 않으므로 DEPOSIT_REJECTED를 재사용한다.
+  const notification = await createNotification({
+    recipientId: submitterId,
+    type: "DEPOSIT_REJECTED",
+    title: "입금요청 승인이 취소되었습니다",
+    message: `"${expenseTitle}" 입금요청 승인이 취소되어 승인 대기 상태로 변경되었습니다.`,
+    relatedExpenseId: expenseId,
+  });
+
+  // Await Slack + Push to prevent Vercel serverless from killing them
+  const sideEffects: Promise<unknown>[] = [];
+
+  if (extra) {
+    sideEffects.push(
+      notifySlackApprovalReverted({
+        submitterEmail: extra.submitterEmail,
+        submitterName: extra.submitterName,
+        title: expenseTitle,
+        amount: extra.amount,
+        expenseUrl: expenseUrl(expenseId),
+        companyId: extra.companyId ?? undefined,
+        currency: extra.currency,
+        amountOriginal: extra.amountOriginal,
+      }).catch((err) => console.error("[Slack] 승인 취소 알림 실패:", err)),
+    );
+  }
+
+  sideEffects.push(
+    sendPushToUser(
+      submitterId,
+      "입금요청 승인 취소",
+      `"${expenseTitle}" 승인이 취소되어 승인 대기 상태로 변경되었습니다.`,
+      expenseUrl(expenseId),
+    ).catch((err) => console.error("[Push] 승인 취소 알림 실패:", err)),
+  );
+
+  await Promise.allSettled(sideEffects);
+
+  return notification;
 }

@@ -20,6 +20,7 @@ import { CancelExpenseButton } from "@/components/expenses/cancel-expense-button
 import { RequestRemainingButton } from "@/components/expenses/request-remaining-button";
 import { ApproveRemainingButton } from "@/components/expenses/approve-remaining-button";
 import { AdminApproveReject } from "@/components/expenses/admin-approve-reject";
+import { RevertApprovalButton } from "@/components/expenses/revert-approval-button";
 import { AdminQuickEditButton } from "@/components/expenses/admin-quick-edit-button";
 import { PrePaidBadge } from "@/components/expenses/pre-paid-badge";
 import type {
@@ -205,6 +206,7 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
   const canCancel = isOwner && !isRefund && (expense.status === "SUBMITTED" || expense.status === "APPROVED");
   const isAdmin = userRole === "ADMIN";
   const canApproveReject = isAdmin && !isOwner && expense.type === "DEPOSIT_REQUEST" && expense.status === "SUBMITTED";
+  const canRevertApproval = isAdmin && !isOwner && isDepositRequest && expense.status === "APPROVED";
   // 반품 등록: 승인된 원거래(비반품)이고 환불 가능 잔액이 남아 있을 때
   const canRefund =
     !isRefund &&
@@ -287,6 +289,9 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
               expenseCurrency={expense.currency}
               expenseAmountOriginal={expense.amountOriginal}
             />
+          )}
+          {canRevertApproval && (
+            <RevertApprovalButton expenseId={id} expenseTitle={expense.title} />
           )}
         </div>
       </div>

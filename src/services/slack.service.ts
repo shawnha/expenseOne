@@ -366,6 +366,38 @@ export async function notifySlackApproved(params: {
 }
 
 /**
+ * 승인 번복 → 요청자 멘션. 이미 게시된 '입금 완료' 메시지에 대한 정정 알림.
+ */
+export async function notifySlackApprovalReverted(params: {
+  submitterEmail: string;
+  submitterName: string;
+  title: string;
+  amount: number;
+  expenseUrl: string;
+  companyId?: string;
+  currency?: string | null;
+  amountOriginal?: number | null;
+}): Promise<{ ts: string; channel: string } | null> {
+  const [mention, companyName] = await Promise.all([
+    mentionUser(params.submitterEmail, params.submitterName),
+    getCompanyName(params.companyId),
+  ]);
+
+  const lines = [
+    `⚠️ ${mention} 입금요청 승인이 취소되었습니다`,
+  ];
+  if (companyName) lines.push(`• 회사: ${companyName}`);
+  lines.push(
+    `• 제목: ${params.title}`,
+    `• 금액: ${formatExpenseAmount(params.amount, params.currency, params.amountOriginal)}`,
+    `• 상태: 승인 대기로 변경`,
+  );
+  lines.push(`<${params.expenseUrl}|상세 보기>`);
+
+  return sendSlackMessage(lines.join("\n"), params.companyId);
+}
+
+/**
  * 비용 수정 시 기존 Slack 메시지 업데이트
  */
 export async function updateSlackExpenseMessage(params: {
