@@ -52,19 +52,23 @@ export async function createExpense(
   userCompanyId?: string | null,
 ) {
   const isCorporateCard = input.type === "CORPORATE_CARD";
-  // 코리아 소속은 다른 회사(리테일, HOI) 비용 제출 가능
-  // 그 외 소속은 자기 회사만 허용
+  // 폼에서 고른 회사를 그대로 사용한다. 소속과 비용 귀속 법인이 다른 경우가
+  // 실제로 존재하므로(코리아가 리테일/HOI 업무를 대행하는 등) 소속으로 제한하지
+  // 않는다. 수정(updateExpense) 경로도 companyId를 그대로 통과시키므로 등록/수정
+  // 동작이 일치한다. 다만 존재하지 않거나 비활성인 회사는 거부한다 — 예전처럼
+  // 조용히 프로필 회사로 덮어쓰면 제출자가 잘못된 법인에 기록된 걸 알 수 없다.
   let companyId = userCompanyId;
   if (input.companyId && input.companyId !== userCompanyId) {
-    // 코리아 소속만 다른 회사 선택 허용 — slug 조회 없이 DB에서 확인
-    const [userCompany] = await db
-      .select({ slug: companies.slug })
+    const [selected] = await db
+      .select({ id: companies.id })
       .from(companies)
-      .where(eq(companies.id, userCompanyId ?? ""));
-    if (userCompany?.slug === "korea") {
-      companyId = input.companyId;
+      .where(
+        and(eq(companies.id, input.companyId), eq(companies.isActive, true)),
+      );
+    if (!selected) {
+      throw new AppError("VALIDATION_ERROR", "선택한 회사를 찾을 수 없습니다.");
     }
-    // 코리아 아니면 무시하고 유저 프로필 회사 사용
+    companyId = selected.id;
   }
 
   if (!companyId) {
@@ -644,7 +648,7 @@ export async function getFreelancerWithholdingSummary(
 
   // 예금주명(공백 trim)으로 그룹핑. 미입력은 별도 버킷(null)으로.
   const groupMap = new Map<string, FreelancerWithholdingGroup>();
-  const NO_HOLDER = " __no_holder__";
+  const NO_HOLDER = "\u0000__no_holder__";
 
   for (const row of rows) {
     const holder = row.accountHolder?.trim() || null;

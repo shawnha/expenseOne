@@ -64,10 +64,8 @@ export function CompanySelector({
   // Render nothing while loading, or if 0–1 companies
   if (loading || companies.length <= 1) return null;
 
-  // 한아원코리아 소속만 회사 선택 가능 (리테일은 코리아 작업을 할 일이 없음)
-  const userCompany = companies.find((c) => c.id === userCompanyId);
-  if (userCompany && userCompany.slug !== "korea") return null;
-
+  // 소속과 무관하게 모든 활성 회사를 선택할 수 있다. 소속 외 회사를 고르면
+  // 아래 주황색 힌트로 경고하고, 서버(createExpense)가 활성 회사인지 검증한다.
   const showHint = value && userCompanyId && value !== userCompanyId;
 
   return (
