@@ -175,6 +175,10 @@ export const expenses = expenseSchema.table(
       .defaultNow(),
     slackMessageTs: varchar("slack_message_ts", { length: 50 }),
     slackChannelId: varchar("slack_channel_id", { length: 50 }),
+    // 별도 Slack 워크스페이스에 미러 게시된 메시지의 좌표 (리테일 등).
+    // 수정/삭제 시 원본과 함께 갱신·제거해야 유령 메시지가 남지 않는다.
+    mirrorSlackMessageTs: varchar("mirror_slack_message_ts", { length: 50 }),
+    mirrorSlackChannelId: varchar("mirror_slack_channel_id", { length: 50 }),
     autoClassified: boolean("auto_classified").notNull().default(false),
     autoClassifiedSource: varchar("auto_classified_source", { length: 32 }),
     autoClassifiedAccountId: integer("auto_classified_account_id"),

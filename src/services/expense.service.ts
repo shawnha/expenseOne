@@ -174,11 +174,13 @@ export async function createExpense(
         console.error("[Push] 법카사용 알림 실패:", err);
       }),
     ]);
-    // Save Slack message ts
+    // Save Slack message ts (primary + mirror)
     if (slackResult.status === "fulfilled" && slackResult.value) {
       await db.update(expenses).set({
-        slackMessageTs: slackResult.value.ts,
-        slackChannelId: slackResult.value.channel,
+        slackMessageTs: slackResult.value.primary?.ts ?? null,
+        slackChannelId: slackResult.value.primary?.channel ?? null,
+        mirrorSlackMessageTs: slackResult.value.mirror?.ts ?? null,
+        mirrorSlackChannelId: slackResult.value.mirror?.channel ?? null,
       }).where(eq(expenses.id, expense.id)).catch(() => {});
     }
   } else {
@@ -211,11 +213,13 @@ export async function createExpense(
         description: expense.description,
       }),
     ]);
-    // Save Slack message ts
+    // Save Slack message ts (primary + mirror)
     if (slackResult.status === "fulfilled" && slackResult.value) {
       await db.update(expenses).set({
-        slackMessageTs: slackResult.value.ts,
-        slackChannelId: slackResult.value.channel,
+        slackMessageTs: slackResult.value.primary?.ts ?? null,
+        slackChannelId: slackResult.value.primary?.channel ?? null,
+        mirrorSlackMessageTs: slackResult.value.mirror?.ts ?? null,
+        mirrorSlackChannelId: slackResult.value.mirror?.channel ?? null,
       }).where(eq(expenses.id, expense.id)).catch(() => {});
     }
   }
@@ -1038,8 +1042,12 @@ export async function updateExpense(
     SLACK_RELEVANT_FIELDS.includes(k),
   );
 
-  // Update Slack message if we have the ts
-  if (touchesSlack && updated.slackMessageTs && updated.slackChannelId) {
+  // Update Slack message if we posted one anywhere. 미러만 남아 있는 경우도
+  // (원본 게시 실패 등) 재게시해야 리테일 채널이 옛 내용으로 남지 않는다.
+  const hasPostedSlackMessage =
+    (updated.slackMessageTs && updated.slackChannelId) ||
+    (updated.mirrorSlackMessageTs && updated.mirrorSlackChannelId);
+  if (touchesSlack && hasPostedSlackMessage) {
     // Look up submitter info
     const [submitter] = await db
       .select({ name: users.name, email: users.email })
@@ -1052,6 +1060,8 @@ export async function updateExpense(
         const newSlack = await updateSlackExpenseMessage({
           slackMessageTs: updated.slackMessageTs,
           slackChannelId: updated.slackChannelId,
+          mirrorSlackMessageTs: updated.mirrorSlackMessageTs,
+          mirrorSlackChannelId: updated.mirrorSlackChannelId,
           submitterEmail: submitter.email,
           submitterName: submitter.name,
           type: updated.type as "CORPORATE_CARD" | "DEPOSIT_REQUEST",
@@ -1069,12 +1079,15 @@ export async function updateExpense(
           isPrePaid: updated.isPrePaid,
           prePaidPercentage: updated.prePaidPercentage,
         });
-        if (newSlack) {
-          await db.update(expenses).set({
-            slackMessageTs: newSlack.ts,
-            slackChannelId: newSlack.channel,
-          }).where(eq(expenses.id, updated.id)).catch(() => {});
-        }
+        // 재게시 결과로 좌표를 항상 덮어쓴다. 한쪽이 실패해 null이 되면
+        // 그 좌표는 지워져야 한다 — 이미 삭제된 메시지를 가리키게 두면
+        // 다음 수정 때 존재하지 않는 ts로 chat.delete를 호출하게 된다.
+        await db.update(expenses).set({
+          slackMessageTs: newSlack.primary?.ts ?? null,
+          slackChannelId: newSlack.primary?.channel ?? null,
+          mirrorSlackMessageTs: newSlack.mirror?.ts ?? null,
+          mirrorSlackChannelId: newSlack.mirror?.channel ?? null,
+        }).where(eq(expenses.id, updated.id)).catch(() => {});
       } catch (err) {
         console.error("[Slack] 메시지 수정 실패:", err);
       }
@@ -1160,12 +1173,13 @@ export async function deleteExpense(
     );
   }
 
-  // Delete Slack message on delete
-  if (deleted.slackMessageTs && deleted.slackChannelId) {
-    await deleteSlackExpenseMessage(deleted.slackChannelId, deleted.slackMessageTs).catch(
-      (err) => console.error("[Slack] 삭제 메시지 제거 실패:", err),
-    );
-  }
+  // Delete Slack message on delete (primary + mirror)
+  await deleteSlackExpenseMessage({
+    slackMessageTs: deleted.slackMessageTs,
+    slackChannelId: deleted.slackChannelId,
+    mirrorSlackMessageTs: deleted.mirrorSlackMessageTs,
+    mirrorSlackChannelId: deleted.mirrorSlackChannelId,
+  }).catch((err) => console.error("[Slack] 삭제 메시지 제거 실패:", err));
 
   return deleted;
 }
@@ -1226,12 +1240,13 @@ export async function cancelExpense(expenseId: string, userId: string) {
     throw new AppError("FORBIDDEN", "비용 상태가 변경되었습니다. 페이지를 새로고침해주세요.");
   }
 
-  // Delete Slack message on cancel
-  if (updated.slackMessageTs && updated.slackChannelId) {
-    await deleteSlackExpenseMessage(updated.slackChannelId, updated.slackMessageTs).catch(
-      (err) => console.error("[Slack] 취소 메시지 삭제 실패:", err),
-    );
-  }
+  // Delete Slack message on cancel (primary + mirror)
+  await deleteSlackExpenseMessage({
+    slackMessageTs: updated.slackMessageTs,
+    slackChannelId: updated.slackChannelId,
+    mirrorSlackMessageTs: updated.mirrorSlackMessageTs,
+    mirrorSlackChannelId: updated.mirrorSlackChannelId,
+  }).catch((err) => console.error("[Slack] 취소 메시지 삭제 실패:", err));
 
   return updated;
 }
