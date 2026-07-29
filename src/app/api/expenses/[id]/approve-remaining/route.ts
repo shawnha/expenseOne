@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { requireAdmin, errorResponse, handleError, validateOrigin, validateUUID } from "@/lib/api-utils";
 import { db } from "@/lib/db";
-import { expenses } from "@/lib/db/schema";
+import { expenses, users } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { createNotification } from "@/services/notification.service";
 import { sendPushToUser } from "@/services/push.service";
+import { notifySlackRemainingPaymentApproved } from "@/services/slack.service";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -89,14 +90,38 @@ export async function POST(request: NextRequest, context: RouteContext) {
       relatedExpenseId: expense.id,
     });
 
-    // Fire-and-forget Web Push notification
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    sendPushToUser(
-      expense.submittedById,
-      "후지급 승인",
-      `"${expense.title}" 건의 후지급(${remainingAmount.toLocaleString()}원)이 승인되었습니다.`,
-      `${appUrl}/expenses/${expense.id}`,
-    ).catch((err) => console.error("[Push] 후지급 승인 알림 실패:", err));
+
+    // Slack + Web Push. Vercel serverless가 백그라운드 작업을 끊지 않도록 await하되,
+    // 알림 실패가 승인 처리를 되돌리지 않도록 allSettled로 격리한다.
+    const [submitter] = await db
+      .select({ name: users.name, email: users.email })
+      .from(users)
+      .where(eq(users.id, expense.submittedById));
+
+    await Promise.allSettled([
+      sendPushToUser(
+        expense.submittedById,
+        "후지급 승인",
+        `"${expense.title}" 건의 후지급(${remainingAmount.toLocaleString()}원)이 승인되었습니다.`,
+        `${appUrl}/expenses/${expense.id}`,
+      ).catch((err) => console.error("[Push] 후지급 승인 알림 실패:", err)),
+      submitter
+        ? notifySlackRemainingPaymentApproved({
+            submitterEmail: submitter.email,
+            submitterName: submitter.name,
+            title: expense.title,
+            amount: expense.amount,
+            prePaidPercentage: expense.prePaidPercentage ?? 0,
+            expenseUrl: `${appUrl}/expenses/${expense.id}`,
+            companyId: expense.companyId,
+            currency: expense.currency,
+            amountOriginal: expense.amountOriginal,
+            accountHolder: expense.accountHolder,
+            dueDate: expense.dueDate,
+          }).catch((err) => console.error("[Slack] 후지급 승인 알림 실패:", err))
+        : Promise.resolve(null),
+    ]);
 
     revalidatePath("/");
     revalidatePath("/expenses");
