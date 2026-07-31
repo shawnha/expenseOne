@@ -70,9 +70,13 @@ export function CompanySelector({
 
   return (
     <div className="flex flex-col gap-1.5">
+      {/* 회사가 4개 이상이면 모바일 화면 폭을 넘긴다. 가로 스크롤로 담아
+          페이지 전체가 가로로 밀리는 것을 막는다. py/-my는 선택된 pill의
+          그림자가 overflow에 잘리지 않도록 확보하는 여백(레이아웃 영향 없음). */}
+      <div className="max-w-full overflow-x-auto py-2 -my-2">
       <div
         className={cn(
-          "inline-flex self-start p-1 rounded-full",
+          "inline-flex p-1 rounded-full",
           "bg-[var(--apple-system-grouped-background)]",
           "border border-[var(--glass-border)]"
         )}
@@ -102,6 +106,7 @@ export function CompanySelector({
             </button>
           );
         })}
+      </div>
       </div>
       {showHint && (
         <p className="text-footnote text-[var(--apple-orange)] font-medium ml-1">
