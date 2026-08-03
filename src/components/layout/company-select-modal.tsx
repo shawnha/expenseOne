@@ -106,17 +106,30 @@ export function CompanySelectModal() {
             등록된 회사가 없습니다. 관리자에게 문의해주세요.
           </p>
         ) : (
+          // 회사가 4개 이상이면 한 줄(flex-1)에 눌러 담을 때 pill 폭이 이름보다
+          // 좁아져 텍스트가 컨테이너 밖으로 삐져나온다. 첫 진입 시 반드시 하나를
+          // 골라야 하는 화면이라 가로 스크롤로 숨길 수 없으므로 2열 그리드로 접는다.
+          // 홀수 개면 마지막 항목이 두 칸을 차지해 빈 칸을 남기지 않는다.
           <div
             className={cn(
-              "inline-flex w-full p-1 rounded-xl",
+              "grid gap-1 p-1 rounded-xl",
               "bg-[var(--apple-system-grouped-background)]",
               "border border-[var(--glass-border)]"
             )}
+            style={{
+              gridTemplateColumns: `repeat(${
+                companies.length <= 3 ? companies.length : 2
+              }, minmax(0, 1fr))`,
+            }}
             role="radiogroup"
             aria-label="회사 선택"
           >
-            {companies.map((company) => {
+            {companies.map((company, index) => {
               const isSelected = selectedId === company.id;
+              const spansFullRow =
+                companies.length > 3 &&
+                companies.length % 2 === 1 &&
+                index === companies.length - 1;
               return (
                 <button
                   key={company.id}
@@ -125,7 +138,8 @@ export function CompanySelectModal() {
                   aria-checked={isSelected}
                   onClick={() => setSelectedId(company.id)}
                   className={cn(
-                    "flex-1 px-4 py-2 text-[13px] font-medium rounded-[10px] transition-all duration-200 whitespace-nowrap",
+                    "px-3 py-2 text-[13px] font-medium rounded-[10px] transition-all duration-200 truncate",
+                    spansFullRow && "col-span-2",
                     isSelected
                       ? "bg-[var(--apple-blue)] text-white shadow-[0_2px_8px_rgba(0,122,255,0.25)]"
                       : "text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)]"

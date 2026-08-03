@@ -69,6 +69,10 @@ export function AdminCompanyFilter({ paramName = "company" }: AdminCompanyFilter
   }
 
   return (
+    // "전체" + 회사 4개 = pill 5개라 모바일 폭을 넘긴다. pill 바 안에서만 가로
+    // 스크롤시켜 페이지 전체가 밀리는 것을 막는다(CompanySelector와 동일).
+    // min-w-0은 부서 관리처럼 flex row 안에 놓였을 때 줄어들 수 있게 한다.
+    <div className="max-w-full min-w-0 overflow-x-auto py-2 -my-2">
     <div
       className={cn(
         "inline-flex p-1 rounded-full",
@@ -98,6 +102,7 @@ export function AdminCompanyFilter({ paramName = "company" }: AdminCompanyFilter
           </button>
         );
       })}
+    </div>
     </div>
   );
 }
