@@ -214,6 +214,56 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
     (isOwner || isAdmin) &&
     refundableRemaining > 0;
 
+  // 부분 선지급 건의 금액 표시.
+  // 상단에 총액만 크게 띄우면 실제 송금 담당자가 얼마를 보내야 하는지 헷갈린다
+  // (50% 선지급인데 총액 509,080원만 보고 전액 송금할 위험). 그래서 히어로에는
+  // "지금 보내야 할 금액"을 두고 총액은 바로 아래 캡션으로 내린다.
+  const isPartialPrePaid =
+    isDepositRequest &&
+    expense.isPrePaid &&
+    expense.prePaidPercentage != null &&
+    expense.prePaidPercentage < 100;
+  const prePaidAmount = isPartialPrePaid
+    ? Math.round((expense.amount * expense.prePaidPercentage!) / 100)
+    : 0;
+  const remainingAmount = isPartialPrePaid ? expense.amount - prePaidAmount : 0;
+
+  // 단계별로 히어로에 들어갈 금액이 바뀐다. 그러지 않으면 후지급 차례에서
+  // 똑같은 혼란(총액을 보고 전액 송금)이 반복된다.
+  let heroLabel = isRefund ? "환불 금액" : "금액";
+  let heroAmount = expense.amount;
+  // USD 건(HOI)은 "$X (₩Y)"로 표시되므로 원화만 쪼개면 원문 금액과 어긋난다.
+  // 히어로가 부분 금액일 때는 원문 금액도 같은 비율로 쪼갠다.
+  let heroAmountOriginal = expense.amountOriginal;
+  let heroCaption: string | null = null;
+  if (isPartialPrePaid) {
+    const pct = expense.prePaidPercentage!;
+    // amountOriginal은 센트 정수라 원화와 똑같이 반올림 후 차감해야 합이 맞는다.
+    const prePaidOriginal =
+      expense.amountOriginal != null
+        ? Math.round((expense.amountOriginal * pct) / 100)
+        : null;
+    const remainingOriginal =
+      expense.amountOriginal != null && prePaidOriginal != null
+        ? expense.amountOriginal - prePaidOriginal
+        : null;
+    if (expense.remainingPaymentApproved) {
+      // 전액 지급이 끝난 뒤에는 총액이 다시 기준 금액이 된다.
+      heroLabel = "총 금액 (지급 완료)";
+      heroCaption = `선지급 ${formatAmount(prePaidAmount)}원 + 후지급 ${formatAmount(remainingAmount)}원`;
+    } else if (expense.remainingPaymentRequested) {
+      heroLabel = `후지급 금액 (${100 - pct}%)`;
+      heroAmount = remainingAmount;
+      heroAmountOriginal = remainingOriginal;
+      heroCaption = `총 ${formatAmount(expense.amount)}원 · 선지급 ${formatAmount(prePaidAmount)}원 지급 완료`;
+    } else {
+      heroLabel = `선지급 금액 (${pct}%)`;
+      heroAmount = prePaidAmount;
+      heroAmountOriginal = prePaidOriginal;
+      heroCaption = `총 ${formatAmount(expense.amount)}원 · 후지급 ${formatAmount(remainingAmount)}원 예정`;
+    }
+  }
+
   return (
     <div className="flex flex-col gap-5 max-w-3xl">
       {/* Breadcrumb (desktop) */}
@@ -241,16 +291,17 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
               percentage={expense.prePaidPercentage}
               className="animate-spring-pop"
             />
-            {/* 부분 선지급 건은 '승인'만으로는 후지급 완료 여부를 알 수 없어 별도 배지로 표시 */}
-            {isDepositRequest &&
-              expense.isPrePaid &&
-              expense.prePaidPercentage != null &&
-              expense.prePaidPercentage < 100 &&
+            {/* 부분 선지급 건은 '승인'만으로는 후지급 완료 여부를 알 수 없어 별도 배지로 표시.
+                목록(ExpenseTable)과 같은 3단계·같은 색을 쓴다 — 요청 전 회색(할 일 없음),
+                요청됨 주황(승인 필요), 완료 초록. */}
+            {isPartialPrePaid &&
               expense.status === "APPROVED" &&
               (expense.remainingPaymentApproved ? (
                 <span className={cn("glass-badge glass-badge-green", "animate-spring-pop")}>후지급 완료</span>
+              ) : expense.remainingPaymentRequested ? (
+                <span className={cn("glass-badge glass-badge-orange", "animate-spring-pop")}>후지급 요청</span>
               ) : (
-                <span className={cn("glass-badge glass-badge-orange", "animate-spring-pop")}>후지급 대기</span>
+                <span className={cn("glass-badge glass-badge-gray", "animate-spring-pop")}>후지급 대기</span>
               ))}
           </div>
           <h1 className="text-title3 text-[var(--apple-label)]">{expense.title}</h1>
@@ -288,6 +339,8 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
               expenseAmount={expense.amount}
               expenseCurrency={expense.currency}
               expenseAmountOriginal={expense.amountOriginal}
+              isPrePaid={expense.isPrePaid}
+              prePaidPercentage={expense.prePaidPercentage}
             />
           )}
           {canRevertApproval && (
@@ -310,11 +363,16 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
 
         {/* Amount */}
         <div className="mb-5 p-4 rounded-xl bg-[rgba(0,0,0,0.04)] dark:bg-[rgba(255,255,255,0.06)]">
-          <span className="text-[13px] text-[var(--apple-secondary-label)]">{isRefund ? "환불 금액" : "금액"}</span>
+          <span className="text-[13px] text-[var(--apple-secondary-label)]">{heroLabel}</span>
           <p className={`text-xl sm:text-2xl font-semibold tabular-nums ${isRefund ? "text-[var(--apple-red)]" : "text-[var(--apple-label)]"}`}>
             {isRefund && "-"}
-            {formatExpenseAmount(expense.amount, expense.currency, expense.amountOriginal)}
+            {formatExpenseAmount(heroAmount, expense.currency, heroAmountOriginal)}
           </p>
+          {heroCaption && (
+            <p className="text-[12px] text-[var(--apple-secondary-label)] mt-1 tabular-nums">
+              {heroCaption}
+            </p>
+          )}
           {expense.currency === "USD" && expense.exchangeRate && (
             <p className="text-[12px] text-[var(--apple-tertiary-label)] mt-1">적용 환율: 1 USD = {Number(expense.exchangeRate).toLocaleString("ko-KR")}원</p>
           )}
@@ -365,24 +423,37 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
         )}
 
         {/* Prepayment breakdown */}
-        {isDepositRequest && expense.isPrePaid && expense.prePaidPercentage != null && expense.prePaidPercentage < 100 && (() => {
-          const prePaidAmount = Math.round(expense.amount * expense.prePaidPercentage / 100);
-          const remainingAmount = expense.amount - prePaidAmount;
-          return (
+        {isPartialPrePaid && (
             <div className="mt-4 pt-4 border-t border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)]">
               <h3 className="text-footnote font-semibold text-[var(--apple-label)] mb-3">선지급 내역</h3>
+              {/* 회차별 지급 상태를 같이 적는다. 금액만 있으면 "이미 보낸 돈인지
+                  지금 보낼 돈인지"를 상세 화면만 보고 판단할 수 없다. */}
               <div className="px-3 py-2.5 text-[13px] text-[var(--apple-secondary-label)] space-y-1 border border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)] rounded-xl">
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-3">
                   <span>총 금액</span>
-                  <span className="font-medium text-[var(--apple-label)]">{formatAmount(expense.amount)}원</span>
+                  <span className="font-medium text-[var(--apple-label)] tabular-nums">{formatAmount(expense.amount)}원</span>
                 </div>
-                <div className="flex justify-between text-[var(--apple-blue)]">
-                  <span>선지급금 ({expense.prePaidPercentage}%)</span>
-                  <span className="font-medium">{formatAmount(prePaidAmount)}원</span>
+                <div className="flex justify-between gap-3 text-[var(--apple-blue)]">
+                  <span>
+                    선지급금 ({expense.prePaidPercentage}%)
+                    <span className="ml-1.5 text-[var(--apple-tertiary-label)]">
+                      {expense.status === "APPROVED" ? "지급완료" : "승인 대기"}
+                    </span>
+                  </span>
+                  <span className="font-medium tabular-nums">{formatAmount(prePaidAmount)}원</span>
                 </div>
-                <div className="flex justify-between">
-                  <span>후지급금 ({100 - expense.prePaidPercentage}%)</span>
-                  <span className="font-medium text-[var(--apple-label)]">{formatAmount(remainingAmount)}원</span>
+                <div className="flex justify-between gap-3">
+                  <span>
+                    후지급금 ({100 - expense.prePaidPercentage!}%)
+                    <span className="ml-1.5 text-[var(--apple-tertiary-label)]">
+                      {expense.remainingPaymentApproved
+                        ? "지급완료"
+                        : expense.remainingPaymentRequested
+                          ? "승인 대기"
+                          : "요청 전"}
+                    </span>
+                  </span>
+                  <span className="font-medium text-[var(--apple-label)] tabular-nums">{formatAmount(remainingAmount)}원</span>
                 </div>
               </div>
 
@@ -396,7 +467,7 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
                     ) : isOwner ? (
                       <span className="text-sm text-[var(--apple-secondary-label)]">후지급 요청됨 - 승인 대기 중</span>
                     ) : (
-                      <span className="glass-badge glass-badge-green">후지급 요청됨</span>
+                      <span className="glass-badge glass-badge-orange">후지급 요청됨</span>
                     )}
                   </>
                 ) : (
@@ -406,8 +477,7 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
                 )}
               </div>
             </div>
-          );
-        })()}
+        )}
         {/* 반품 건 → 원거래 링크 */}
         {isRefund && originalExpense && (
           <div className="mt-4 pt-4 border-t border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)]">

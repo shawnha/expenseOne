@@ -572,8 +572,21 @@ export async function notifySlackApproved(params: {
   isUrgent?: boolean;
   dueDate?: string | null;
   description?: string | null;
+  isPrePaid?: boolean;
+  prePaidPercentage?: number | null;
 }): Promise<SlackPostResult> {
   const companyName = await getCompanyName(params.companyId);
+
+  // 부분 선지급 건은 승인 시점에 실제로 나가는 돈이 총액이 아니라 선지급분이다.
+  // 총액을 "• 금액"으로 올리면 Slack만 보고 전액 송금하는 사고가 난다.
+  const isPartialPrePaid =
+    params.isPrePaid === true &&
+    params.prePaidPercentage != null &&
+    params.prePaidPercentage < 100;
+  const prePaidAmount = isPartialPrePaid
+    ? Math.round((params.amount * params.prePaidPercentage!) / 100)
+    : params.amount;
+  const remainingAmount = params.amount - prePaidAmount;
 
   return sendToTargets({
     companyId: params.companyId,
@@ -582,11 +595,18 @@ export async function notifySlackApproved(params: {
     buildText: (mention) => {
       const lines = [`✅ ${mention} 입금이 완료되었습니다`];
       lines.push(`• 회사: ${companyName ?? "-"}`);
-      lines.push(
-        `• 제목: ${params.title}`,
-        `• 금액: ${formatExpenseAmount(params.amount, params.currency, params.amountOriginal)}`,
-        `• 예금주: ${params.accountHolder ?? "-"}`,
-      );
+      lines.push(`• 제목: ${params.title}`);
+      if (isPartialPrePaid) {
+        lines.push(
+          `• 금액: ${formatExpenseAmount(prePaidAmount, params.currency, null)} (선지급 ${params.prePaidPercentage}%)`,
+          `• 총 금액: ${formatExpenseAmount(params.amount, params.currency, params.amountOriginal)} (후지급 ${formatExpenseAmount(remainingAmount, params.currency, null)} 예정)`,
+        );
+      } else {
+        lines.push(
+          `• 금액: ${formatExpenseAmount(params.amount, params.currency, params.amountOriginal)}`,
+        );
+      }
+      lines.push(`• 예금주: ${params.accountHolder ?? "-"}`);
       if (params.dueDate) {
         lines.push(`• 납부기일: ${params.dueDate.replace(/-/g, ".")}`);
       }

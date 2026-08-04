@@ -1327,6 +1327,8 @@ export async function approveExpense(
       isUrgent: expense.isUrgent,
       dueDate: expense.dueDate,
       description: expense.description,
+      isPrePaid: expense.isPrePaid,
+      prePaidPercentage: expense.prePaidPercentage,
     },
   );
 

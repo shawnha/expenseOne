@@ -29,9 +29,9 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { formatAmount } from "@/lib/validations/expense-form";
 import { getCategoryLabel, formatExpenseAmount } from "@/lib/utils/expense-utils";
 import { PrePaidBadge } from "@/components/expenses/pre-paid-badge";
+import { ApproveAmountSummary } from "@/components/expenses/approve-amount-summary";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -455,7 +455,15 @@ export function PendingTable({ expenses }: PendingTableProps) {
             <DialogDescription>
               &quot;{approveTarget?.title}&quot; 요청을 승인하시겠습니까?
               <br />
-              금액: {approveTarget ? formatExpenseAmount(approveTarget.amount, approveTarget.currency, approveTarget.amountOriginal) : formatAmount(0) + "원"}
+              {approveTarget && (
+                <ApproveAmountSummary
+                  amount={approveTarget.amount}
+                  currency={approveTarget.currency}
+                  amountOriginal={approveTarget.amountOriginal}
+                  isPrePaid={approveTarget.isPrePaid}
+                  prePaidPercentage={approveTarget.prePaidPercentage}
+                />
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

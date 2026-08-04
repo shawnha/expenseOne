@@ -40,10 +40,13 @@ interface ExpenseRow {
   companySlug?: string | null;
   isPrePaid?: boolean;
   prePaidPercentage?: number | null;
+  remainingPaymentRequested?: boolean;
   remainingPaymentApproved?: boolean;
 }
 
-// 부분 선지급 입금요청은 '승인'만으로 후지급 완료 여부를 알 수 없어 별도 배지로 표시
+// 부분 선지급 입금요청은 '승인'만으로 후지급 완료 여부를 알 수 없어 별도 배지로 표시.
+// 3단계로 나눈다 — 요청 전(대기)은 관리자가 할 일이 없고, 요청됨은 승인이 필요하다.
+// 예전엔 둘 다 "후지급 대기" 주황이라 요청이 왔는지 목록에서 알 수 없었다.
 function RemainingPaymentBadge({ expense }: { expense: ExpenseRow }) {
   if (
     expense.type !== "DEPOSIT_REQUEST" ||
@@ -54,11 +57,13 @@ function RemainingPaymentBadge({ expense }: { expense: ExpenseRow }) {
   ) {
     return null;
   }
-  return expense.remainingPaymentApproved ? (
-    <span className="glass-badge glass-badge-green shrink-0">후지급 완료</span>
-  ) : (
-    <span className="glass-badge glass-badge-orange shrink-0">후지급 대기</span>
-  );
+  if (expense.remainingPaymentApproved) {
+    return <span className="glass-badge glass-badge-green shrink-0">후지급 완료</span>;
+  }
+  if (expense.remainingPaymentRequested) {
+    return <span className="glass-badge glass-badge-orange shrink-0">후지급 요청</span>;
+  }
+  return <span className="glass-badge glass-badge-gray shrink-0">후지급 대기</span>;
 }
 
 interface ExpenseTableProps {

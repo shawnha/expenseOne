@@ -74,6 +74,7 @@ async function getAdminExpensesData(searchParams: Record<string, string | string
     autoClassified: item.autoClassified ?? false,
     isPrePaid: item.isPrePaid ?? false,
     prePaidPercentage: item.prePaidPercentage ?? null,
+    remainingPaymentRequested: item.remainingPaymentRequested ?? false,
     remainingPaymentApproved: item.remainingPaymentApproved ?? false,
   }));
 

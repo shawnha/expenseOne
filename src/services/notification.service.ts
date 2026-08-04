@@ -214,6 +214,8 @@ export async function notifyExpenseApproved(
     isUrgent?: boolean;
     dueDate?: string | null;
     description?: string | null;
+    isPrePaid?: boolean;
+    prePaidPercentage?: number | null;
   },
 ) {
   const notification = await createNotification({
@@ -241,6 +243,8 @@ export async function notifyExpenseApproved(
         isUrgent: extra.isUrgent,
         dueDate: extra.dueDate,
         description: extra.description,
+        isPrePaid: extra.isPrePaid,
+        prePaidPercentage: extra.prePaidPercentage,
       }).catch((err) => console.error("[Slack] 승인 알림 실패:", err)),
     );
   }

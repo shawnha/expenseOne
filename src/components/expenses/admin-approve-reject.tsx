@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { formatExpenseAmount } from "@/lib/utils/expense-utils";
+import { ApproveAmountSummary } from "@/components/expenses/approve-amount-summary";
 
 interface AdminApproveRejectProps {
   expenseId: string;
@@ -22,9 +22,11 @@ interface AdminApproveRejectProps {
   expenseAmount: number;
   expenseCurrency?: string | null;
   expenseAmountOriginal?: number | null;
+  isPrePaid?: boolean;
+  prePaidPercentage?: number | null;
 }
 
-export function AdminApproveReject({ expenseId, expenseTitle, expenseAmount, expenseCurrency, expenseAmountOriginal }: AdminApproveRejectProps) {
+export function AdminApproveReject({ expenseId, expenseTitle, expenseAmount, expenseCurrency, expenseAmountOriginal, isPrePaid, prePaidPercentage }: AdminApproveRejectProps) {
   const router = useRouter();
   const [approveOpen, setApproveOpen] = useState(false);
   const [approving, setApproving] = useState(false);
@@ -104,7 +106,13 @@ export function AdminApproveReject({ expenseId, expenseTitle, expenseAmount, exp
             <DialogDescription>
               &quot;{expenseTitle}&quot; 요청을 승인하시겠습니까?
               <br />
-              금액: {formatExpenseAmount(expenseAmount, expenseCurrency, expenseAmountOriginal)}
+              <ApproveAmountSummary
+                amount={expenseAmount}
+                currency={expenseCurrency}
+                amountOriginal={expenseAmountOriginal}
+                isPrePaid={isPrePaid}
+                prePaidPercentage={prePaidPercentage}
+              />
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
