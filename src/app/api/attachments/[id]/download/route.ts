@@ -9,6 +9,22 @@ type RouteContext = { params: Promise<{ id: string }> };
 
 const STORAGE_BUCKET = "attachments";
 
+/**
+ * 서명 URL의 `download` 파라미터에 넣을 파일명.
+ *
+ * storage-js가 값을 URL 인코딩해 붙이고 Supabase가 한 번 디코딩하므로
+ * **직접 인코딩하면 안 된다** (이중 인코딩되어 `%E1%84%8F...`가 그대로 저장된다).
+ * 한글은 raw로 넘기면 `filename*=UTF-8''`로 정확히 내려온다.
+ *
+ * 다만 쿼리스트링을 깨는 ASCII 문자는 인코딩을 거치지 않고 통과해버린다.
+ * 쿠팡 영수증(`...orderId=151&vendorIds=...`)처럼 `&`가 들어 있으면 거기서
+ * 잘려 `...orderId=151`로 저장된다. 이 문자들만 밑줄로 바꾼다 — 미리
+ * 퍼센트 인코딩하는 방식은 위의 이중 인코딩 문제 때문에 쓸 수 없다.
+ */
+function toDownloadName(fileName: string): string {
+  return fileName.replace(/[&#%+?]/g, "_");
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/attachments/[id]/download -- download an attachment via signed URL
 //
@@ -67,13 +83,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       .createSignedUrl(
         attachment.fileKey,
         60,
-        inline
-          ? undefined
-          : // storage-js는 이 값을 인코딩 없이 `&download=`에 그대로 붙인다.
-            // 쿠팡 영수증처럼 파일명에 `&`가 들어 있으면 거기서 잘리므로
-            // (`...orderId=151&vendorIds=...` → `...orderId=151`) 미리 인코딩한다.
-            // Supabase가 한 번 디코딩하므로 이중 인코딩되지 않는다.
-            { download: encodeURIComponent(attachment.fileName) },
+        inline ? undefined : { download: toDownloadName(attachment.fileName) },
       );
 
     if (signedUrlError || !signedUrlData?.signedUrl) {
