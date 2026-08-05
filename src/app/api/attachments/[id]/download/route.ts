@@ -11,11 +11,25 @@ const STORAGE_BUCKET = "attachments";
 
 // ---------------------------------------------------------------------------
 // GET /api/attachments/[id]/download -- download an attachment via signed URL
+//
+// 기본은 '저장' 동작: 서명 URL에 download 파라미터를 붙여 Supabase가
+// `Content-Disposition: attachment`를 내려주게 한다. 이유가 두 가지다.
+//
+//  1) 예전엔 이 헤더가 없어서 브라우저가 렌더 가능한 파일(PDF/이미지)은 탭에
+//     띄우고, 렌더 못 하는 파일(HEIC 등)은 새 탭을 열자마자 닫으며 다운로드만
+//     했다. 사용자에겐 "탭이 켜지지도 않고 바로 꺼지는" 것으로 보인다.
+//  2) 스토리지 키는 업로드 때 한글이 밑줄로 치환된다
+//     (예: `..._260804_glph____________________.pdf`). 헤더가 없으면 브라우저가
+//     URL 경로에서 파일명을 뽑아 이 깨진 이름으로 저장한다. download 파라미터에
+//     DB의 원본 파일명을 넘기면 Supabase가 RFC 5987로 인코딩해 돌려준다.
+//
+// ?inline=1 이면 예전처럼 브라우저에서 바로 열리게 둔다(미리보기용).
 // ---------------------------------------------------------------------------
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
     const user = await requireAuth();
     const id = validateUUID((await context.params).id);
+    const inline = request.nextUrl.searchParams.get("inline") === "1";
 
     // 1. Find the attachment
     const [attachment] = await db
@@ -50,7 +64,17 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const supabase = await createClient();
     const { data: signedUrlData, error: signedUrlError } = await supabase.storage
       .from(STORAGE_BUCKET)
-      .createSignedUrl(attachment.fileKey, 60);
+      .createSignedUrl(
+        attachment.fileKey,
+        60,
+        inline
+          ? undefined
+          : // storage-js는 이 값을 인코딩 없이 `&download=`에 그대로 붙인다.
+            // 쿠팡 영수증처럼 파일명에 `&`가 들어 있으면 거기서 잘리므로
+            // (`...orderId=151&vendorIds=...` → `...orderId=151`) 미리 인코딩한다.
+            // Supabase가 한 번 디코딩하므로 이중 인코딩되지 않는다.
+            { download: encodeURIComponent(attachment.fileName) },
+      );
 
     if (signedUrlError || !signedUrlData?.signedUrl) {
       console.error("Signed URL error:", signedUrlError);

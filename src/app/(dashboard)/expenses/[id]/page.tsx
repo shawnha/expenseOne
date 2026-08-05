@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
   Download,
+  Eye,
   Undo2,
 } from "lucide-react";
 import { getCachedCurrentUser } from "@/lib/supabase/cached";
@@ -69,6 +70,18 @@ const STATUS_LABELS: Record<ExpenseStatus, { label: string; className: string }>
 
 function getDocTypeLabel(docType: DocumentType): string {
   return DOCUMENT_TYPE_OPTIONS.find((d) => d.value === docType)?.label ?? docType;
+}
+
+/**
+ * 브라우저가 새 탭에서 그대로 그릴 수 있는 형식인지.
+ * HEIC는 Chrome이 못 그려서 탭이 열리자마자 닫히고 다운로드로 넘어간다 —
+ * '보기'를 주면 고장난 것처럼 보이므로 제외한다.
+ */
+function isViewableInBrowser(mimeType: string | null): boolean {
+  if (!mimeType) return false;
+  if (mimeType === "application/pdf") return true;
+  if (!mimeType.startsWith("image/")) return false;
+  return !/hei[cf]/i.test(mimeType);
 }
 
 function formatDateKR(dateStr: string | null): string {
@@ -605,10 +618,24 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
                     </span>
                   </div>
                 </div>
+                {/* 브라우저가 그릴 수 있는 형식만 '보기'를 준다. HEIC처럼 못 그리는
+                    형식은 새 탭이 열리자마자 닫혀 고장난 것처럼 보인다. */}
+                {isViewableInBrowser(attachment.mimeType) && (
+                  <a
+                    href={`/api/attachments/${attachment.id}/download?inline=1`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-sm text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)] transition-colors font-medium apple-press"
+                    aria-label={`${attachment.fileName} 보기`}
+                  >
+                    <Eye className="size-3.5" />
+                    보기
+                  </a>
+                )}
+                {/* target="_blank"를 쓰지 않는다. 응답이 Content-Disposition:
+                    attachment라 페이지 이동 없이 다운로드만 시작된다. */}
                 <a
                   href={`/api/attachments/${attachment.id}/download`}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   className="flex items-center gap-1 text-sm text-[var(--apple-blue)] hover:text-[color-mix(in_srgb,var(--apple-blue)_85%,black)] transition-colors font-medium apple-press"
                   aria-label={`${attachment.fileName} 다운로드`}
                 >

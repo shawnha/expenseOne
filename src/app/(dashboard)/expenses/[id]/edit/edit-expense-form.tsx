@@ -132,10 +132,10 @@ function ExistingAttachmentItem({
       </div>
 
       <div className="flex items-center gap-1">
+        {/* target="_blank" 없음 — 응답이 Content-Disposition: attachment라
+            페이지 이동 없이 다운로드만 시작된다(빈 탭이 깜빡이지 않음). */}
         <a
           href={`/api/attachments/${attachment.id}/download`}
-          target="_blank"
-          rel="noopener noreferrer"
           aria-label={`${attachment.fileName} 다운로드`}
         >
           <Button
