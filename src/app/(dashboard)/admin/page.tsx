@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { DollarSign, Clock, CheckCircle2, XCircle } from "lucide-react";
@@ -64,7 +64,7 @@ const STAT_CONFIGS = [
 // Page Component
 // ---------------------------------------------------------------------------
 
-export default function AdminDashboardPage() {
+function AdminDashboardContent() {
   const searchParams = useSearchParams();
   const company = searchParams.get("company") ?? "";
   const [period, setPeriod] = useState(getCurrentMonthKey);
@@ -214,6 +214,19 @@ export default function AdminDashboardPage() {
         <BarSection title="팀원별 비용 상위 5명" data={submitterData} />
       </div>
     </div>
+  );
+}
+
+// useSearchParams()를 쓰는 클라이언트 컴포넌트는 Suspense 경계 안에 있어야 한다.
+// 없으면 이 페이지 subtree가 하이드레이션되지 않아 useEffect가 아예 실행되지
+// 않는다 — 새로고침하면 통계가 전부 0원이고 회사 필터도 안 뜨는 증상이 났다.
+// (레이아웃은 정상 하이드레이션돼서 사이드바/알림은 멀쩡해 보인다.)
+// login/auth 콜백 페이지는 원래 이 패턴을 쓰고 있었고 여기만 빠져 있었다.
+export default function AdminDashboardPage() {
+  return (
+    <Suspense fallback={<div className="min-h-dvh" />}>
+      <AdminDashboardContent />
+    </Suspense>
   );
 }
 
