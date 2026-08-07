@@ -195,9 +195,6 @@ export function SettingsForm({ user }: SettingsFormProps) {
               <Label className="text-[13px] text-[var(--apple-secondary-label)]">
                 소속 회사
               </Label>
-              {/* 회사가 4개 이상이면 모바일 폭을 넘긴다. pill 바 안에서만 가로
-                  스크롤시켜 페이지 전체가 밀리는 것을 막는다(CompanySelector와 동일).
-                  py/-my는 선택된 pill 그림자가 잘리지 않게 확보한 여백. */}
               <CompanyPillGroup
                 options={companies.map((c) => ({ key: c.id, label: c.name }))}
                 value={companyId}
