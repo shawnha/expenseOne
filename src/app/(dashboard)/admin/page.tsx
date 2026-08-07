@@ -217,14 +217,30 @@ function AdminDashboardContent() {
   );
 }
 
-// useSearchParams()를 쓰는 클라이언트 컴포넌트는 Suspense 경계 안에 있어야 한다.
-// 없으면 이 페이지 subtree가 하이드레이션되지 않아 useEffect가 아예 실행되지
-// 않는다 — 새로고침하면 통계가 전부 0원이고 회사 필터도 안 뜨는 증상이 났다.
-// (레이아웃은 정상 하이드레이션돼서 사이드바/알림은 멀쩡해 보인다.)
-// login/auth 콜백 페이지는 원래 이 패턴을 쓰고 있었고 여기만 빠져 있었다.
+// useSearchParams()를 쓰므로 Suspense 경계가 필요하다(login/auth 콜백도 같은 패턴).
+//
+// ⚠️ 미해결 버그: 이 페이지를 새로고침하면 경계가 클라이언트에서 완료되지 않아
+// 내용이 안 나오는 경우가 있다(로컬 프로덕션 빌드에서 3회 중 2회 재현).
+// 원인은 특정 컴포넌트가 아니다 — 아이콘/Link/차트/필터를 전부 걷어내고 순수
+// <div> 400개만 렌더해도 같은 비율로 재현된다. 페이지 전체가 "use client"이고
+// 내용이 커서 늦은 flush로 스트리밍될 때 발생한다. 서비스워커·Supabase 지연·
+// 브라우저 확장은 각각 배제했다.
+//
+// 진짜 해결책은 이 페이지를 서버 컴포넌트로 바꿔 데이터를 서버에서 렌더하는 것.
+// (/ 와 /expenses가 그 구조라 같은 증상이 없다.)
+// 그전까지는 fallback을 빈 화면이 아니라 '불러오는 중'으로 둔다. 멈춰도
+// 로딩으로 읽히지, 비용이 0원이라고 오해할 여지는 없어야 한다.
 export default function AdminDashboardPage() {
   return (
-    <Suspense fallback={<div className="min-h-dvh" />}>
+    <Suspense
+      fallback={
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <p className="text-sm text-[var(--apple-secondary-label)]">
+            불러오는 중…
+          </p>
+        </div>
+      }
+    >
       <AdminDashboardContent />
     </Suspense>
   );
