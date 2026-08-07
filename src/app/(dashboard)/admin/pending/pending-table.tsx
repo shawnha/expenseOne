@@ -32,6 +32,7 @@ import { toast } from "sonner";
 import { getCategoryLabel, formatExpenseAmount } from "@/lib/utils/expense-utils";
 import { PrePaidBadge } from "@/components/expenses/pre-paid-badge";
 import { ApproveAmountSummary } from "@/components/expenses/approve-amount-summary";
+import { CompanyBadge } from "@/components/companies/company-badge";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -55,20 +56,6 @@ export interface PendingExpense {
   prePaidPercentage?: number | null;
   companyName?: string | null;
   companySlug?: string | null;
-}
-
-const COMPANY_BADGE_STYLES: Record<string, string> = {
-  korea: "bg-[rgba(0,122,255,0.1)] text-[#007AFF] dark:bg-[rgba(0,122,255,0.2)]",
-  retail: "bg-[rgba(52,199,89,0.1)] text-[#34C759] dark:bg-[rgba(52,199,89,0.2)]",
-};
-
-function CompanyBadge({ name, slug }: { name: string; slug: string }) {
-  const style = COMPANY_BADGE_STYLES[slug] ?? "bg-[rgba(142,142,147,0.1)] text-[var(--apple-secondary-label)]";
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium whitespace-nowrap ${style}`}>
-      {name}
-    </span>
-  );
 }
 
 function formatDate(dateStr: string): string {

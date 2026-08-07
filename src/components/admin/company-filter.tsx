@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { cn } from "@/lib/utils";
+import { CompanyPillGroup } from "@/components/companies/company-pill-group";
 
 interface CompanyOption {
   id: string;
@@ -69,40 +69,11 @@ export function AdminCompanyFilter({ paramName = "company" }: AdminCompanyFilter
   }
 
   return (
-    // "전체" + 회사 4개 = pill 5개라 모바일 폭을 넘긴다. pill 바 안에서만 가로
-    // 스크롤시켜 페이지 전체가 밀리는 것을 막는다(CompanySelector와 동일).
-    // min-w-0은 부서 관리처럼 flex row 안에 놓였을 때 줄어들 수 있게 한다.
-    <div className="max-w-full min-w-0 overflow-x-auto py-2 -my-2">
-    <div
-      className={cn(
-        "inline-flex p-1 rounded-full",
-        "bg-[var(--apple-system-grouped-background)]",
-        "border border-[var(--glass-border)]",
-      )}
-      role="radiogroup"
-      aria-label="회사 필터"
-    >
-      {options.map((opt) => {
-        const isSelected = currentSlug === opt.slug;
-        return (
-          <button
-            key={opt.slug}
-            type="button"
-            role="radio"
-            aria-checked={isSelected}
-            onClick={() => handleChange(opt.slug)}
-            className={cn(
-              "relative px-4 py-1.5 text-[13px] font-medium rounded-full transition-all duration-200 whitespace-nowrap",
-              isSelected
-                ? "bg-[var(--apple-blue)] text-white shadow-[0_2px_8px_rgba(0,122,255,0.25)]"
-                : "text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)]",
-            )}
-          >
-            {opt.name}
-          </button>
-        );
-      })}
-    </div>
-    </div>
+    <CompanyPillGroup
+      options={options.map((o) => ({ key: o.slug, label: o.name }))}
+      value={currentSlug}
+      onChange={handleChange}
+      ariaLabel="회사 필터"
+    />
   );
 }

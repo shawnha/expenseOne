@@ -20,7 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
+import { CompanyBadge } from "@/components/companies/company-badge";
 
 interface Department {
   id: string;
@@ -30,20 +30,6 @@ interface Department {
   companyId: string | null;
   companyName: string | null;
   companySlug: string | null;
-}
-
-const COMPANY_BADGE_STYLES: Record<string, string> = {
-  korea: "bg-[rgba(0,122,255,0.1)] text-[#007AFF] dark:bg-[rgba(0,122,255,0.2)]",
-  retail: "bg-[rgba(52,199,89,0.1)] text-[#34C759] dark:bg-[rgba(52,199,89,0.2)]",
-};
-
-function CompanyBadge({ name, slug }: { name: string; slug: string }) {
-  const style = COMPANY_BADGE_STYLES[slug] ?? "bg-[rgba(142,142,147,0.1)] text-[var(--apple-secondary-label)]";
-  return (
-    <span className={cn("inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium whitespace-nowrap", style)}>
-      {name}
-    </span>
-  );
 }
 
 interface DepartmentManagerProps {

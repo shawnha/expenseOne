@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CompanyPillGroup } from "@/components/companies/company-pill-group";
 import type { UserRole } from "@/types";
 
 interface Department {
@@ -197,33 +198,12 @@ export function SettingsForm({ user }: SettingsFormProps) {
               {/* 회사가 4개 이상이면 모바일 폭을 넘긴다. pill 바 안에서만 가로
                   스크롤시켜 페이지 전체가 밀리는 것을 막는다(CompanySelector와 동일).
                   py/-my는 선택된 pill 그림자가 잘리지 않게 확보한 여백. */}
-              <div className="max-w-full min-w-0 overflow-x-auto py-2 -my-2">
-              <div
-                className="inline-flex p-1 rounded-full bg-[var(--apple-system-grouped-background)] border border-[var(--glass-border)]"
-                role="radiogroup"
-                aria-label="소속 회사 선택"
-              >
-                {companies.map((c) => {
-                  const isSelected = companyId === c.id;
-                  return (
-                    <button
-                      key={c.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={isSelected}
-                      onClick={() => setCompanyId(c.id)}
-                      className={`relative px-4 py-1.5 text-[13px] font-medium rounded-full transition-all duration-200 whitespace-nowrap ${
-                        isSelected
-                          ? "bg-[var(--apple-blue)] text-white shadow-[0_2px_8px_rgba(0,122,255,0.25)]"
-                          : "text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)]"
-                      }`}
-                    >
-                      {c.name}
-                    </button>
-                  );
-                })}
-              </div>
-              </div>
+              <CompanyPillGroup
+                options={companies.map((c) => ({ key: c.id, label: c.name }))}
+                value={companyId}
+                onChange={setCompanyId}
+                ariaLabel="소속 회사 선택"
+              />
             </div>
           )}
 

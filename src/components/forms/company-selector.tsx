@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { cn } from "@/lib/utils";
+import { CompanyPillGroup } from "@/components/companies/company-pill-group";
 
 interface Company {
   id: string;
@@ -70,44 +70,16 @@ export function CompanySelector({
 
   return (
     <div className="flex flex-col gap-1.5">
-      {/* 회사가 4개 이상이면 모바일 화면 폭을 넘긴다. 가로 스크롤로 담아
-          페이지 전체가 가로로 밀리는 것을 막는다. py/-my는 선택된 pill의
-          그림자가 overflow에 잘리지 않도록 확보하는 여백(레이아웃 영향 없음). */}
-      <div className="max-w-full overflow-x-auto py-2 -my-2">
-      <div
-        className={cn(
-          "inline-flex p-1 rounded-full",
-          "bg-[var(--apple-system-grouped-background)]",
-          "border border-[var(--glass-border)]"
-        )}
-        role="radiogroup"
-        aria-label="회사 선택"
-      >
-        {companies.map((company) => {
-          const isSelected = value === company.id;
-          const isOtherCompany = isSelected && showHint;
-          return (
-            <button
-              key={company.id}
-              type="button"
-              role="radio"
-              aria-checked={isSelected}
-              onClick={() => onChange(company.id, company.currency)}
-              className={cn(
-                "relative px-4 py-1.5 text-[13px] font-medium rounded-full transition-all duration-200 whitespace-nowrap",
-                isSelected
-                  ? isOtherCompany
-                    ? "bg-[var(--apple-orange)] text-white shadow-[0_2px_8px_rgba(255,149,0,0.3)]"
-                    : "bg-[var(--apple-blue)] text-white shadow-[0_2px_8px_rgba(0,122,255,0.25)]"
-                  : "text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)]"
-              )}
-            >
-              {company.name}
-            </button>
-          );
-        })}
-      </div>
-      </div>
+      <CompanyPillGroup
+        options={companies.map((c) => ({ key: c.id, label: c.name }))}
+        value={value ?? ""}
+        onChange={(id) => {
+          const company = companies.find((c) => c.id === id);
+          if (company) onChange(company.id, company.currency);
+        }}
+        ariaLabel="회사 선택"
+        selectedTone={showHint ? "orange" : "blue"}
+      />
       {showHint && (
         <p className="text-footnote text-[var(--apple-orange)] font-medium ml-1">
           소속 외 회사가 선택되었습니다
