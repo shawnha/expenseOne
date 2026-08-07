@@ -7,12 +7,41 @@ export interface GowidCompanyConfig {
   companyId?: string;
 }
 
+/** 규칙: `GOWID_API_KEY_<SLUG 대문자>` → 그 회사의 법카 계정. */
+const GOWID_KEY_PREFIX = "GOWID_API_KEY_";
+
+/**
+ * 동기화할 GoWid 계정 목록을 환경변수에서 읽는다.
+ *
+ * 법인이 늘어날 때 **코드를 고치지 않아도 되도록** 회사 slug를 하드코딩하지
+ * 않고 환경변수 이름 규칙으로 찾는다. 예: 한아원파트너스(slug `partners`)는
+ * `GOWID_API_KEY_PARTNERS` 하나만 Vercel에 넣으면 다음 동기화부터 포함된다.
+ *
+ * 코리아만 예외다. 단일 법인 시절부터 쓰던 이름이라 접미사가 없다. 기존
+ * 환경변수를 그대로 살리기 위해 `GOWID_API_KEY`를 우선 보고, 나중에 규칙대로
+ * 이름을 바꾸더라도 깨지지 않게 `GOWID_API_KEY_KOREA`도 받는다.
+ *
+ * 여기서는 slug가 실제 회사인지 검증하지 않는다(DB 접근이 없다). 매칭되는
+ * 회사가 없으면 syncGowidTransactions가 경고를 남기고 그 계정을 건너뛴다.
+ */
 export function getGowidConfigs(): GowidCompanyConfig[] {
   const configs: GowidCompanyConfig[] = [];
-  const koreaKey = process.env.GOWID_API_KEY;
-  if (koreaKey) configs.push({ apiKey: koreaKey, companySlug: "korea" });
-  const retailKey = process.env.GOWID_API_KEY_RETAIL;
-  if (retailKey) configs.push({ apiKey: retailKey, companySlug: "retail" });
+  const seen = new Set<string>();
+
+  const koreaKey = process.env.GOWID_API_KEY ?? process.env[`${GOWID_KEY_PREFIX}KOREA`];
+  if (koreaKey) {
+    configs.push({ apiKey: koreaKey, companySlug: "korea" });
+    seen.add("korea");
+  }
+
+  for (const [name, value] of Object.entries(process.env)) {
+    if (!name.startsWith(GOWID_KEY_PREFIX) || !value) continue;
+    const slug = name.slice(GOWID_KEY_PREFIX.length).toLowerCase();
+    if (seen.has(slug)) continue;
+    configs.push({ apiKey: value, companySlug: slug });
+    seen.add(slug);
+  }
+
   return configs;
 }
 

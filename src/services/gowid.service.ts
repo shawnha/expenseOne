@@ -99,11 +99,23 @@ export async function syncGowidTransactions(): Promise<{
     return { fetched: 0, newStaged: 0, notified: 0, autoClassified: 0 };
   }
 
-  // Resolve company IDs for each config
+  // Resolve company IDs for each config.
+  //
+  // config의 slug는 환경변수 이름(GOWID_API_KEY_<SLUG>)에서 왔으므로 오타가
+  // 있을 수 있다. 매칭 실패해도 거래는 그대로 스테이징한다 — 회사 미지정으로
+  // /admin/gowid에 남아 관리자가 고칠 수 있는 편이, 아예 안 보이는 것보다 낫다.
+  // 대신 로그로 오타를 드러낸다.
   const allCompanyRows = await db.select({ id: companies.id, slug: companies.slug }).from(companies);
   const slugToId = new Map(allCompanyRows.map((c) => [c.slug, c.id]));
   for (const config of configs) {
     config.companyId = slugToId.get(config.companySlug) ?? undefined;
+    if (!config.companyId) {
+      console.warn(
+        `[gowid] GOWID_API_KEY_${config.companySlug.toUpperCase()}의 slug "${config.companySlug}"와 ` +
+          `일치하는 회사가 없습니다. 거래는 회사 미지정으로 저장됩니다. ` +
+          `등록된 slug: ${allCompanyRows.map((c) => c.slug).join(", ")}`,
+      );
+    }
   }
 
   // 1. Fetch all not-submitted from all GoWid accounts (paginate)

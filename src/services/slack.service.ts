@@ -4,7 +4,8 @@
 // 한 비용은 최대 두 곳에 게시된다:
 //  - primary: 코리아 워크스페이스(Hanah One Co.) 채널. 회사별 slackChannelId가
 //    있으면 그것을, 없으면 SLACK_CHANNEL_ID로 폴백.
-//  - mirror:  회사 slug가 MIRROR_TARGETS에 있으면 그 회사의 *별도 워크스페이스*
+//  - mirror:  회사 slug로 만든 환경변수(SLACK_BOT_TOKEN_<SLUG> +
+//    SLACK_CHANNEL_ID_<SLUG>)가 채워져 있으면 그 회사의 *별도 워크스페이스*
 //    채널에도 같은 내용을 게시. 리테일은 코리아와 다른 Slack 워크스페이스라
 //    봇 토큰이 따로 필요하다.
 // 미러 전송 실패는 원본 게시에 영향을 주지 않는다(로그만 남김).
@@ -16,17 +17,23 @@ import { companies } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
-// Mirror 설정 — 회사 slug → 별도 워크스페이스 봇 토큰/채널 환경변수 이름.
-// 환경변수가 하나라도 비어 있으면 미러를 조용히 건너뛴다. 덕분에 토큰 발급
-// 전에도 코드를 안전하게 배포할 수 있다.
-// 다른 법인(HOI 등)을 추가하려면 여기에 slug 한 줄 + 환경변수 2개만 넣으면 된다.
+// Mirror 설정 — 회사 slug에서 환경변수 이름을 규칙으로 만든다.
+//   slug "retail" → SLACK_BOT_TOKEN_RETAIL + SLACK_CHANNEL_ID_RETAIL
+//
+// 법인이 늘어날 때 **코드를 고치지 않아도 되도록** slug 목록을 하드코딩하지
+// 않는다. 새 법인은 환경변수 2개만 넣으면 미러가 켜지고, 빼면 꺼진다.
+// 둘 중 하나라도 비어 있으면 조용히 건너뛰므로 토큰 발급 전에 배포해도 안전하다.
+//
+// 코리아는 primary 워크스페이스다. 접미사 없는 SLACK_BOT_TOKEN을 쓰므로
+// SLACK_BOT_TOKEN_KOREA를 만들지 않는 한 자기 자신에게 미러되지 않는다.
 // ---------------------------------------------------------------------------
-const MIRROR_TARGETS: Record<string, { tokenEnv: string; channelEnv: string }> = {
-  retail: {
-    tokenEnv: "SLACK_BOT_TOKEN_RETAIL",
-    channelEnv: "SLACK_CHANNEL_ID_RETAIL",
-  },
-};
+const MIRROR_TOKEN_PREFIX = "SLACK_BOT_TOKEN_";
+const MIRROR_CHANNEL_PREFIX = "SLACK_CHANNEL_ID_";
+
+/** slug(소문자 영숫자) → 환경변수 접미사(대문자). */
+function toEnvSuffix(slug: string): string {
+  return slug.toUpperCase().replace(/[^A-Z0-9]/g, "_");
+}
 
 /** 하나의 전송 대상. key는 사용자 조회 캐시를 워크스페이스별로 분리하는 용도. */
 interface SlackTarget {
@@ -139,12 +146,12 @@ async function resolveTargets(
     token && channel ? { key: "default", token, channel } : null;
 
   let mirror: SlackTarget | null = null;
-  const config = slug ? MIRROR_TARGETS[slug] : undefined;
-  if (config) {
-    const mirrorToken = process.env[config.tokenEnv];
-    const mirrorChannel = process.env[config.channelEnv];
+  if (slug) {
+    const suffix = toEnvSuffix(slug);
+    const mirrorToken = process.env[`${MIRROR_TOKEN_PREFIX}${suffix}`];
+    const mirrorChannel = process.env[`${MIRROR_CHANNEL_PREFIX}${suffix}`];
     if (mirrorToken && mirrorChannel) {
-      mirror = { key: slug!, token: mirrorToken, channel: mirrorChannel };
+      mirror = { key: slug, token: mirrorToken, channel: mirrorChannel };
     }
   }
 
@@ -160,12 +167,11 @@ async function resolveTargets(
  * 토큰을 찾는다.
  */
 function resolveMirrorTargetByChannel(channelId: string): SlackTarget | null {
-  for (const [slug, config] of Object.entries(MIRROR_TARGETS)) {
-    const token = process.env[config.tokenEnv];
-    const channel = process.env[config.channelEnv];
-    if (token && channel === channelId) {
-      return { key: slug, token, channel };
-    }
+  for (const [name, value] of Object.entries(process.env)) {
+    if (!name.startsWith(MIRROR_CHANNEL_PREFIX) || value !== channelId) continue;
+    const suffix = name.slice(MIRROR_CHANNEL_PREFIX.length);
+    const token = process.env[`${MIRROR_TOKEN_PREFIX}${suffix}`];
+    if (token) return { key: suffix.toLowerCase(), token, channel: channelId };
   }
   return null;
 }
