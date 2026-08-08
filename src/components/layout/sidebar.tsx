@@ -16,6 +16,7 @@ import {
   CreditCard,
   UserCheck,
   ShoppingBag,
+  Landmark,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ExpenseOneLogo } from "@/components/layout/expense-one-logo";
@@ -40,6 +41,7 @@ const adminNavItems: NavItem[] = [
   { label: "사업소득", href: "/admin/freelancers", icon: <UserCheck className="size-[18px] [stroke-width:1.8]" /> },
   { label: "마트/약국", href: "/admin/mart-pharmacy", icon: <ShoppingBag className="size-[18px] [stroke-width:1.8]" /> },
   { label: "사용자 관리", href: "/admin/users", icon: <Users className="size-[18px] [stroke-width:1.8]" /> },
+  { label: "회사 관리", href: "/admin/companies", icon: <Landmark className="size-[18px] [stroke-width:1.8]" /> },
   { label: "부서 관리", href: "/admin/departments", icon: <Building2 className="size-[18px] [stroke-width:1.8]" /> },
   { label: "고위드 카드", href: "/admin/gowid", icon: <CreditCard className="size-[18px] [stroke-width:1.8]" /> },
 ];

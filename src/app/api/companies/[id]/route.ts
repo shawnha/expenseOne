@@ -7,7 +7,7 @@ import {
   validateUUID,
 } from "@/lib/api-utils";
 import { updateCompanySchema } from "@/lib/validations/company";
-import { updateCompany } from "@/services/company.service";
+import { updateCompany, CompanyUpdateBlockedError } from "@/services/company.service";
 
 // ---------------------------------------------------------------------------
 // PATCH /api/companies/[id] — update company (ADMIN only)
@@ -49,7 +49,7 @@ export async function PATCH(
       },
     });
   } catch (err: unknown) {
-    if (err instanceof Error && err.message === "최소 1개의 활성 회사가 필요합니다.") {
+    if (err instanceof CompanyUpdateBlockedError) {
       return errorResponse("VALIDATION_ERROR", err.message);
     }
     if (err && typeof err === "object" && "code" in err && (err as { code: string }).code === "23505") {
