@@ -202,7 +202,14 @@ function CompanyDropdown({
         <span className="truncate">{selected?.label ?? "회사 선택"}</span>
         <ChevronDown className="size-3.5 shrink-0 opacity-70" />
       </PopoverTrigger>
-      <PopoverContent className="w-[240px] p-0" align="start">
+      {/* 첫 진입 모달(z-[9999]) 안에서도 쓰인다. 기본 z-50이면 모달 뒤에 깔려
+          항목이 보이기만 하고 클릭이 모달에 먹힌다 — 회사가 9개를 넘는 순간
+          모달이 grid에서 드롭다운으로 바뀌면서 선택 자체가 막힌다. */}
+      <PopoverContent
+        className="w-[240px] p-0"
+        positionerClassName="z-[10000]"
+        align="start"
+      >
         <Command>
           {showSearch && <CommandInput placeholder="회사 검색..." />}
           <CommandList>

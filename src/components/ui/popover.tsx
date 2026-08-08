@@ -19,12 +19,23 @@ function PopoverContent({
   alignOffset = 0,
   side = "bottom",
   sideOffset = 4,
+  positionerClassName,
   ...props
 }: PopoverPrimitive.Popup.Props &
   Pick<
     PopoverPrimitive.Positioner.Props,
     "align" | "alignOffset" | "side" | "sideOffset"
-  >) {
+  > & {
+    /**
+     * Positioner(바깥 래퍼)에 얹을 클래스.
+     *
+     * Positioner는 `isolate`라 자체 쌓임 맥락을 만든다. 그래서 z-50보다 위에
+     * 있는 오버레이(예: 회사 선택 모달 z-[9999]) 안에서 팝오버를 열면 안쪽
+     * className으로 z를 올려도 소용없고 오버레이 뒤에 깔린다. 그런 경우에만
+     * 여기로 z를 올린다.
+     */
+    positionerClassName?: string;
+  }) {
   return (
     <PopoverPrimitive.Portal>
       <PopoverPrimitive.Positioner
@@ -32,7 +43,7 @@ function PopoverContent({
         alignOffset={alignOffset}
         side={side}
         sideOffset={sideOffset}
-        className="isolate z-50"
+        className={cn("isolate z-50", positionerClassName)}
       >
         <PopoverPrimitive.Popup
           data-slot="popover-content"
