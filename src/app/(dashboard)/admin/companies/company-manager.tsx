@@ -52,8 +52,11 @@ function suggestSlug(name: string): string {
 
 export function CompanyManager({
   initialCompanies,
+  orphanEnvNames = [],
 }: {
   initialCompanies: CompanyRow[];
+  /** 어느 회사에도 대응하지 않는 연동 환경변수 이름 (값 아님) */
+  orphanEnvNames?: string[];
 }) {
   const router = useRouter();
   const [addOpen, setAddOpen] = useState(false);
@@ -61,6 +64,30 @@ export function CompanyManager({
 
   return (
     <div className="flex flex-col gap-4">
+      {/* 키를 교체하고 옛 변수를 안 지웠거나 slug에 오타가 나면, 대응하는 회사가
+          없는 GoWid 계정이 조용히 계속 동기화된다. 여기서 눈에 띄게 만든다. */}
+      {orphanEnvNames.length > 0 && (
+        <div className="glass rounded-xl border border-[rgba(255,149,0,0.3)] bg-[rgba(255,149,0,0.08)] p-4">
+          <p className="text-sm font-medium text-[var(--apple-orange)]">
+            대응하는 회사가 없는 연동 환경변수 {orphanEnvNames.length}개
+          </p>
+          <p className="mt-1 text-[12px] text-[var(--apple-secondary-label)]">
+            slug 오타이거나 폐기 후 남은 값일 수 있습니다. GoWid 키라면 그 계정의
+            카드 거래가 회사 미지정으로 계속 들어옵니다. 확인 후 Vercel에서 지우세요.
+          </p>
+          <ul className="mt-2 flex flex-wrap gap-1.5">
+            {orphanEnvNames.map((n) => (
+              <li
+                key={n}
+                className="rounded-md bg-[rgba(255,149,0,0.12)] px-2 py-0.5 font-mono text-[11px] text-[var(--apple-orange)]"
+              >
+                {n}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="flex justify-end">
         <Button
           onClick={() => setAddOpen(true)}

@@ -8,7 +8,10 @@ import { getActiveCompanies } from "@/services/company.service";
 
 export default async function AdminUsersPage() {
   // DEV ONLY: mock data
-  if (process.env.BYPASS_AUTH === 'true') {
+  // BYPASS_AUTH는 개발 편의용이다. NODE_ENV 가드가 없으면 이 변수가 배포 환경에
+  // 잘못 들어갔을 때 인증 검사 앞에서 목 데이터를 반환한다.
+  if (process.env.BYPASS_AUTH === 'true' &&
+      process.env.NODE_ENV === 'development') {
     const mockUsers = [
       { id: "dev-user-id", name: "개발자", email: "dev@company.com", role: "ADMIN", isActive: true, createdAt: "2026-01-01T00:00:00Z", cardLastFour: "1234", companyId: "c1", companyName: "한아원코리아", companySlug: "korea" },
       { id: "user-2", name: "김철수", email: "kim@company.com", role: "MEMBER", isActive: true, createdAt: "2026-01-15T00:00:00Z", cardLastFour: "5678", companyId: "c2", companyName: "한아원리테일", companySlug: "retail" },

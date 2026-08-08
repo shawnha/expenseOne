@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { getCachedCurrentUser } from "@/lib/supabase/cached";
 import { db } from "@/lib/db";
 import { companies, expenses, users, departments } from "@/lib/db/schema";
 import { asc, count } from "drizzle-orm";
@@ -30,6 +32,30 @@ function integrationStatus(slug: string) {
   return { gowid, slackMirror };
 }
 
+/**
+ * 어느 회사에도 속하지 않는 연동 환경변수 이름을 찾는다.
+ *
+ * GoWid 동기화는 `GOWID_API_KEY_*`를 **열거해서** 계정을 찾는다. 그래서 키를
+ * 교체하고 옛 변수를 안 지웠거나 slug에 오타가 나면, 대응하는 회사가 없는
+ * 계정이 조용히 계속 동기화된다. 로그 경고만으로는 아무도 모른다.
+ * 여기서 이름만 드러내면 관리자가 화면에서 바로 알아챈다(값은 보내지 않는다).
+ */
+function orphanIntegrationEnvNames(slugs: string[]): string[] {
+  const known = new Set(slugs.map(envSuffix));
+  const orphans: string[] = [];
+  for (const name of Object.keys(process.env)) {
+    for (const prefix of [
+      "GOWID_API_KEY_",
+      "SLACK_BOT_TOKEN_",
+      "SLACK_CHANNEL_ID_",
+    ]) {
+      if (!name.startsWith(prefix) || !process.env[name]) continue;
+      if (!known.has(name.slice(prefix.length))) orphans.push(name);
+    }
+  }
+  return orphans.sort();
+}
+
 /** 회사별 사용 건수. 스칼라 서브쿼리는 Drizzle에서 상관관계가 깨져 0이 나와서
  *  회사별 GROUP BY로 따로 집계한 뒤 합친다. */
 async function countsByCompany() {
@@ -59,6 +85,13 @@ async function countsByCompany() {
 }
 
 export default async function AdminCompaniesPage() {
+  // 권한을 admin/layout.tsx에만 맡기지 않는다. Next는 클라이언트가 보낸
+  // 라우터 상태 트리를 보고 이미 렌더된 세그먼트를 건너뛸 수 있어서, 레이아웃
+  // 하나에만 의존하면 조작된 RSC 요청에서 검사가 통째로 생략될 여지가 있다.
+  // 형제 관리자 페이지(expenses/pending/users/gowid 등)도 같은 이유로 재확인한다.
+  const currentUser = await getCachedCurrentUser();
+  if (!currentUser || currentUser.role !== "ADMIN") redirect("/");
+
   const [rows, counts] = await Promise.all([
     db
       .select()
@@ -90,7 +123,10 @@ export default async function AdminCompaniesPage() {
           법인을 추가하고 통화·표시 순서·연동 상태를 관리하세요.
         </p>
       </div>
-      <CompanyManager initialCompanies={initial} />
+      <CompanyManager
+        initialCompanies={initial}
+        orphanEnvNames={orphanIntegrationEnvNames(rows.map((r) => r.slug))}
+      />
     </div>
   );
 }

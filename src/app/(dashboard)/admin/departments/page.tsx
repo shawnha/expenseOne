@@ -25,7 +25,10 @@ export default async function AdminDepartmentsPage({ searchParams }: PageProps) 
   }
 
   // DEV ONLY: mock data
-  if (process.env.BYPASS_AUTH === "true") {
+  // BYPASS_AUTH는 개발 편의용이다. NODE_ENV 가드가 없으면 이 변수가 배포 환경에
+  // 잘못 들어갔을 때 인증 검사 앞에서 목 데이터를 반환한다.
+  if (process.env.BYPASS_AUTH === "true" &&
+      process.env.NODE_ENV === 'development') {
     const mockDepartments = [
       { id: "1", name: "경영지원", sortOrder: 1, createdAt: "2026-01-01T00:00:00Z", companyId: null, companyName: null, companySlug: null },
       { id: "2", name: "개발팀", sortOrder: 2, createdAt: "2026-01-01T00:00:00Z", companyId: null, companyName: null, companySlug: null },
