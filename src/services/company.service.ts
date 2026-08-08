@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { companies, expenses } from "@/lib/db/schema";
+import { companies } from "@/lib/db/schema";
 import { eq, asc, and, ne, count } from "drizzle-orm";
 import type {
   CreateCompanyInput,
@@ -70,8 +70,8 @@ export class CompanyUpdateBlockedError extends Error {}
 /**
  * Update a company.
  * - isActive=false로 바꿀 땐 다른 활성 회사가 최소 1개 남아야 한다.
- * - 통화는 비용이 하나도 없을 때만 바꿀 수 있다.
- * - slug는 아예 바꿀 수 없다(스키마에서 제외).
+ * - 통화는 바꿀 수 있다. 새 비용의 기본 통화만 바뀌고 기존 행은 그대로다.
+ * - slug는 아예 바꿀 수 없다(스키마에서 제외 — 환경변수 이름이자 조회 키).
  */
 export async function updateCompany(id: string, input: UpdateCompanyInput) {
   // Guard: cannot deactivate if it's the last active company
@@ -86,30 +86,16 @@ export async function updateCompany(id: string, input: UpdateCompanyInput) {
     }
   }
 
-  // Guard: 비용이 이미 있으면 통화를 못 바꾼다.
+  // 통화 변경은 막지 않는다 — 과거 데이터를 건드리지 않기 때문이다.
   //
-  // amount는 회사 통화 기준으로 저장돼 있다(USD는 센트 정수). 통화만 바꾸면
-  // 과거 금액이 조용히 다른 뜻이 되어 집계·리포트·세무 CSV가 전부 틀어진다.
-  // 되돌릴 방법도 없으므로 아예 막는다.
-  if (input.currency !== undefined) {
-    const [current] = await db
-      .select({ currency: companies.currency })
-      .from(companies)
-      .where(eq(companies.id, id));
-
-    if (current && current.currency !== input.currency) {
-      const [used] = await db
-        .select({ count: count() })
-        .from(expenses)
-        .where(eq(expenses.companyId, id));
-
-      if (used && used.count > 0) {
-        throw new CompanyUpdateBlockedError(
-          `이미 비용 ${used.count}건이 등록된 회사는 통화를 바꿀 수 없습니다.`,
-        );
-      }
-    }
-  }
+  // 처음엔 "비용이 있으면 차단"으로 넣었는데 근거가 틀렸다. expenses.amount는
+  // **항상 KRW**로 저장되고(expense.service.ts가 USD를 환산해 넣고 원본 센트는
+  // amountOriginal에 둔다), 행마다 자기 currency를 갖는다. 표시도 행의 값을
+  // 읽는다. companies.currency는 **새 비용을 등록할 때의 기본값**으로만 쓰인다
+  // (expense.service.ts의 companyCurrency). 그래서 바꿔도 기존 행은 그대로다.
+  //
+  // 차단해두면 오히려 이 기능을 만든 이유(HOI가 USD인데 UI로는 KRW만 만들 수
+  // 있었다)와 같은 함정을 비용 1건 뒤에 다시 만든다.
 
   const updateData: Record<string, unknown> = {};
   if (input.name !== undefined) updateData.name = input.name.trim();

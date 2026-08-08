@@ -22,13 +22,30 @@ const GOWID_KEY_PREFIX = "GOWID_API_KEY_";
  * 이름을 바꾸더라도 깨지지 않게 `GOWID_API_KEY_KOREA`도 받는다.
  *
  * 여기서는 slug가 실제 회사인지 검증하지 않는다(DB 접근이 없다). 매칭되는
- * 회사가 없으면 syncGowidTransactions가 경고를 남기고 그 계정을 건너뛴다.
+ * 회사가 없어도 **거래는 그대로 스테이징된다** — 회사 미지정으로 남겨
+ * /admin/gowid에서 고칠 수 있는 편이 아예 안 보이는 것보다 낫기 때문이다.
+ * syncGowidTransactions가 경고를 남기고, /admin/companies가 그런 환경변수
+ * 이름을 배너로 드러낸다. (건너뛰지 않는다는 점에 주의)
+ *
+ * slug에 하이픈이 없어야 이 되돌리기가 맞는다 — validations/company.ts에서
+ * 영숫자만 허용하는 이유다.
  */
 export function getGowidConfigs(): GowidCompanyConfig[] {
   const configs: GowidCompanyConfig[] = [];
   const seen = new Set<string>();
 
-  const koreaKey = process.env.GOWID_API_KEY ?? process.env[`${GOWID_KEY_PREFIX}KOREA`];
+  const koreaLegacy = process.env.GOWID_API_KEY;
+  const koreaConvention = process.env[`${GOWID_KEY_PREFIX}KOREA`];
+  // 이름을 규칙대로 바꿀 땐 둘 다 세팅한 상태를 거치게 된다. 그때 접미사 없는
+  // 쪽이 조용히 이기면, 새로 넣은 키가 무시된 걸 아무도 모른 채 옛 키를 계속
+  // 쓴다(교체 직후 폐기되면 그때 터진다). 값이 다르면 드러낸다.
+  if (koreaLegacy && koreaConvention && koreaLegacy !== koreaConvention) {
+    console.warn(
+      "[gowid] GOWID_API_KEY와 GOWID_API_KEY_KOREA가 둘 다 설정됐고 값이 다릅니다. " +
+        "GOWID_API_KEY를 사용합니다. 교체 중이라면 옛 변수를 지우세요.",
+    );
+  }
+  const koreaKey = koreaLegacy ?? koreaConvention;
   if (koreaKey) {
     configs.push({ apiKey: koreaKey, companySlug: "korea" });
     seen.add("korea");

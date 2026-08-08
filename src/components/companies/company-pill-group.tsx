@@ -187,19 +187,30 @@ function CompanyDropdown({
   const selected = options.find((o) => o.key === value);
   const showSearch = options.length >= SEARCH_MIN;
 
+  // value가 목록에 없을 수 있다. 관리자 필터는 URL에서 slug를 읽는데 목록은
+  // **활성 회사만** 내려오므로, 비활성화된 회사로 필터된 링크를 열면 매칭이
+  // 안 된다. 이때 "회사 선택"을 미선택 스타일로 보여주면 필터가 안 걸린 것처럼
+  // 보이는데 서버는 여전히 그 회사로 걸러낸다 — 숫자만 이상해 보인다.
+  // 그래서 값 자체를 선택된 모양으로 드러낸다.
+  const hasUnknownValue = !selected && value !== "";
+  const triggerLabel = selected?.label ?? (hasUnknownValue ? value : "회사 선택");
+  const looksSelected = Boolean(selected) || hasUnknownValue;
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        aria-label={ariaLabel}
+        // 트리거에 aria-label을 그대로 두면 그 이름이 내용을 덮어써서 스크린
+        // 리더가 현재 선택을 못 읽는다. 라벨에 선택값을 함께 넣는다.
+        aria-label={`${ariaLabel}: ${triggerLabel}`}
         className={cn(
           "inline-flex max-w-full items-center gap-1.5 rounded-full px-4 py-1.5 text-[13px] font-medium transition-all duration-200",
-          selected
+          looksSelected
             ? TONE_CLASS[selectedTone]
             : cn(CONTAINER_CLASS, UNSELECTED_CLASS),
           className,
         )}
       >
-        <span className="truncate">{selected?.label ?? "회사 선택"}</span>
+        <span className="truncate">{triggerLabel}</span>
         <ChevronDown className="size-3.5 shrink-0 opacity-70" />
       </PopoverTrigger>
       {/* 첫 진입 모달(z-[9999]) 안에서도 쓰인다. 기본 z-50이면 모달 뒤에 깔려

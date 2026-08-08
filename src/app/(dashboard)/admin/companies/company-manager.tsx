@@ -42,12 +42,13 @@ function envSuffix(slug: string): string {
   return slug.toUpperCase().replace(/[^A-Z0-9]/g, "_");
 }
 
-/** 회사명에서 slug 후보를 만든다. 한글은 영문으로 못 바꾸므로 비워둔다. */
+/**
+ * 회사명에서 slug 후보를 만든다. 한글은 영문으로 못 바꾸므로 비워둔다.
+ * 하이픈을 쓰지 않는 이유는 validations/company.ts 참고 — 환경변수 이름
+ * 왕복이 깨져서 연동이 조용히 끊긴다.
+ */
 function suggestSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
 export function CompanyManager({
@@ -266,16 +267,18 @@ function CompanyDialog({
   const [isActive, setIsActive] = useState(company?.isActive ?? true);
   const [saving, setSaving] = useState(false);
 
-  // 비용이 있으면 통화를 바꿀 수 없다(서버에서도 막지만 미리 알려준다).
-  const currencyLocked = isEdit && company.expenseCount > 0;
+  // 통화는 잠그지 않는다. 기존 비용 행은 각자 자기 currency를 갖고 금액도
+  // KRW로 저장돼 있어서, 회사 통화를 바꿔도 과거 데이터는 변하지 않는다.
+  // 바뀌는 건 **새로 등록할 때의 기본 통화**뿐이라 그 점만 안내한다.
+  const currencyAffectsExisting = isEdit && company.expenseCount > 0;
 
   const handleSubmit = async () => {
     if (!name.trim()) {
       toast.error("회사명을 입력해주세요.");
       return;
     }
-    if (!isEdit && !/^[a-z0-9-]+$/.test(slug)) {
-      toast.error("slug는 영문 소문자, 숫자, 하이픈만 가능합니다.");
+    if (!isEdit && !/^[a-z0-9]+$/.test(slug)) {
+      toast.error("slug는 영문 소문자와 숫자만 가능합니다 (하이픈 불가).");
       return;
     }
 
@@ -288,7 +291,7 @@ function CompanyDialog({
       };
       if (isEdit) {
         body.isActive = isActive;
-        if (!currencyLocked) body.currency = currency;
+        body.currency = currency;
       } else {
         body.slug = slug.trim();
         body.currency = currency;
@@ -370,23 +373,22 @@ function CompanyDialog({
                 <button
                   key={c}
                   type="button"
-                  disabled={currencyLocked}
                   onClick={() => setCurrency(c)}
                   className={cn(
                     "flex-1 rounded-full px-3 py-1.5 text-[13px] font-medium transition-all duration-200",
                     currency === c
                       ? "bg-[var(--apple-blue)] text-white shadow-[0_2px_8px_rgba(0,122,255,0.25)]"
                       : "text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)]",
-                    currencyLocked && "cursor-not-allowed opacity-50",
                   )}
                 >
                   {c}
                 </button>
               ))}
             </div>
-            {currencyLocked && (
+            {currencyAffectsExisting && (
               <p className="text-[11px] text-[var(--apple-secondary-label)]">
-                비용 {company.expenseCount}건이 이 통화로 저장돼 있어 변경할 수 없습니다.
+                새로 등록하는 비용의 기본 통화만 바뀝니다. 기존 {company.expenseCount}건은
+                각자 등록 당시 통화 그대로입니다.
               </p>
             )}
           </div>
