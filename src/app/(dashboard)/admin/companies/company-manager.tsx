@@ -71,12 +71,14 @@ export function CompanyManager({
         </Button>
       </div>
 
-      <div className="flex flex-col gap-3">
+      {/* 카드 하나가 가로를 다 먹으면 데스크톱에서 오른쪽이 통째로 빈다.
+          내용이 세로로 짧은 카드라 2열로 채우는 편이 낫다. */}
+      <div className="grid gap-3 lg:grid-cols-2">
         {initialCompanies.map((c) => (
           <CompanyCard key={c.id} company={c} onEdit={() => setEditing(c)} />
         ))}
         {initialCompanies.length === 0 && (
-          <p className="glass p-6 text-center text-sm text-[var(--apple-secondary-label)]">
+          <p className="glass p-6 text-center text-sm text-[var(--apple-secondary-label)] lg:col-span-2">
             등록된 회사가 없습니다.
           </p>
         )}
