@@ -178,10 +178,17 @@ async function getExpenseDetail(id: string) {
 
 interface ExpenseDetailPageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string }>;
 }
 
-export default async function ExpenseDetailPage({ params }: ExpenseDetailPageProps) {
+export default async function ExpenseDetailPage({
+  params,
+  searchParams,
+}: ExpenseDetailPageProps) {
   const { id } = await params;
+  // 수정 페이지가 거부하면 여기로 되돌려보낸다. 예전엔 이 값을 아무도 읽지
+  // 않아서 화면이 그냥 다시 뜨기만 했고, 사용자에겐 "새로고침만 된다"로 보였다.
+  const editBlocked = (await searchParams).error === "edit_not_allowed";
   const result = await getExpenseDetail(id);
 
   if (!result) {
@@ -289,6 +296,23 @@ export default async function ExpenseDetailPage({ params }: ExpenseDetailPagePro
           <BackToListButton />
         </div>
       </div>
+
+      {/* 수정 페이지에서 되돌려보낸 경우 — 이유 없이 화면만 다시 뜨면
+          "새로고침만 된다"로 보인다 */}
+      {editBlocked && (
+        <div className="glass rounded-xl border border-[rgba(255,149,0,0.3)] bg-[rgba(255,149,0,0.08)] p-4 animate-fade-up">
+          <p className="text-sm font-medium text-[var(--apple-orange)]">
+            이 비용은 수정할 수 없습니다
+          </p>
+          <p className="mt-1 text-[13px] text-[var(--apple-secondary-label)]">
+            {isRefund
+              ? "반품 건은 수정할 수 없습니다. 삭제 후 다시 등록해주세요."
+              : expense.status === "REJECTED" || expense.status === "CANCELLED"
+                ? "반려·취소된 건은 수정할 수 없습니다."
+                : "본인이 등록한 비용만 수정할 수 있습니다."}
+          </p>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between animate-fade-up-1">
