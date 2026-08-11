@@ -62,11 +62,6 @@ interface EditExpenseFormProps {
   expense: ExpenseEditData;
   existingAttachments: ExistingAttachment[];
   initialCompanies: CompanyOption[];
-  /**
-   * 첨부만 수정 가능 (법카사용 7일 초과).
-   * 거래 정보는 잠그고 영수증만 붙이거나 뗄 수 있게 한다.
-   */
-  attachmentsOnly?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -77,17 +72,8 @@ export function EditExpenseForm({
   expense,
   existingAttachments,
   initialCompanies,
-  attachmentsOnly = false,
 }: EditExpenseFormProps) {
   if (expense.type === "CORPORATE_CARD") {
-    if (attachmentsOnly) {
-      return (
-        <AttachmentsOnlyEditForm
-          expense={expense}
-          existingAttachments={existingAttachments}
-        />
-      );
-    }
     return (
       <CorporateCardEditForm
         expense={expense}
@@ -979,172 +965,6 @@ function DepositRequestEditForm({
           </Button>
         </div>
       </form>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// 첨부 전용 수정 — 법카사용 등록 7일 초과
-//
-// 거래 정보(금액·날짜·가맹점)는 카드 실제 사용 기록이라 나중에 바꾸면 안 되지만,
-// 영수증은 나중에 받는 경우가 흔하다. 그래서 첨부만 손댈 수 있는 화면을 따로 둔다.
-// 예전엔 이 경우 수정 페이지를 아예 거부하고 상세로 되돌려보냈는데, 상세 화면은
-// 수정 버튼을 계속 띄우고 있어서 "눌러도 새로고침만 된다"로 보였다.
-// ---------------------------------------------------------------------------
-
-function AttachmentsOnlyEditForm({
-  expense,
-  existingAttachments,
-}: {
-  expense: ExpenseEditData;
-  existingAttachments: ExistingAttachment[];
-}) {
-  const router = useRouter();
-  const [newFiles, setNewFiles] = useState<FileWithPreview[]>([]);
-  const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const keptAttachments = existingAttachments.filter(
-    (a) => !removedAttachmentIds.includes(a.id),
-  );
-  const hasChanges = newFiles.length > 0 || removedAttachmentIds.length > 0;
-  useUnsavedChanges(hasChanges);
-
-  const handleSave = async () => {
-    if (!hasChanges) {
-      toast.info("변경된 첨부파일이 없습니다.");
-      return;
-    }
-    setIsSubmitting(true);
-    try {
-      // 비용 자체는 PATCH하지 않는다. 첨부만 더하고 뺀다.
-      if (removedAttachmentIds.length > 0) {
-        await Promise.allSettled(
-          removedAttachmentIds.map((attachmentId) =>
-            fetch(`/api/attachments/${attachmentId}`, { method: "DELETE" }),
-          ),
-        );
-      }
-
-      if (newFiles.length > 0) {
-        const results = await Promise.allSettled(
-          newFiles.map((fileItem) => {
-            const formData = new FormData();
-            formData.append("file", fileItem.file);
-            formData.append("expenseId", expense.id);
-            formData.append("documentType", fileItem.documentType || "RECEIPT");
-            return fetch("/api/attachments/upload", {
-              method: "POST",
-              body: formData,
-            }).then(async (res) => {
-              if (!res.ok) {
-                const json = await res.json().catch(() => null);
-                throw new Error(json?.error?.message ?? "업로드 실패");
-              }
-            });
-          }),
-        );
-        const failed = results.filter((r) => r.status === "rejected");
-        if (failed.length > 0) {
-          throw new Error(
-            `${failed.length}개 파일 업로드에 실패했습니다. 잠시 후 다시 시도해주세요.`,
-          );
-        }
-      }
-
-      toast.success("영수증이 저장되었습니다.");
-      router.push(`/expenses/${expense.id}`);
-      router.refresh();
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "저장에 실패했습니다.",
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="mx-auto max-w-2xl space-y-5">
-      <div className="flex items-center gap-3">
-        <Link
-          href={`/expenses/${expense.id}`}
-          className="flex items-center justify-center size-8 rounded-full glass-subtle text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)] transition-colors"
-        >
-          <ArrowLeft className="size-4" />
-        </Link>
-        <div>
-          <h1 className="text-title3 text-[var(--apple-label)]">영수증 첨부</h1>
-          <p className="text-sm text-[var(--apple-secondary-label)] mt-0.5">
-            등록 후 7일이 지나 거래 정보는 수정할 수 없습니다.
-          </p>
-        </div>
-      </div>
-
-      {/* 어떤 건인지 확인할 수 있게 읽기 전용 요약 */}
-      <div className="glass p-5">
-        <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-3">
-          {expense.title}
-        </h2>
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[13px]">
-          <dt className="text-[var(--apple-secondary-label)]">금액</dt>
-          <dd className="text-right tabular-nums text-[var(--apple-label)]">
-            {formatAmount(expense.amount)}원
-          </dd>
-          <dt className="text-[var(--apple-secondary-label)]">거래일</dt>
-          <dd className="text-right tabular-nums text-[var(--apple-label)]">
-            {expense.transactionDate?.replace(/-/g, ".")}
-          </dd>
-          {expense.merchantName && (
-            <>
-              <dt className="text-[var(--apple-secondary-label)]">가맹점</dt>
-              <dd className="text-right text-[var(--apple-label)]">
-                {expense.merchantName}
-              </dd>
-            </>
-          )}
-        </dl>
-      </div>
-
-      <div className="glass p-6 space-y-4">
-        <h2 className="text-subheadline font-semibold text-[var(--apple-label)]">
-          영수증
-        </h2>
-
-        {keptAttachments.length > 0 && (
-          <div className="space-y-2">
-            {keptAttachments.map((attachment) => (
-              <ExistingAttachmentItem
-                key={attachment.id}
-                attachment={attachment}
-                onRemove={() =>
-                  setRemovedAttachmentIds((prev) => [...prev, attachment.id])
-                }
-              />
-            ))}
-          </div>
-        )}
-
-        <FileUpload files={newFiles} onFilesChange={setNewFiles} />
-      </div>
-
-      <div className="flex gap-3">
-        <Link
-          href={`/expenses/${expense.id}`}
-          className="flex-1 h-11 rounded-full glass-subtle flex items-center justify-center text-[15px] font-medium text-[var(--apple-label)]"
-        >
-          취소
-        </Link>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={isSubmitting || !hasChanges}
-          className="flex-1 h-11 rounded-full bg-[var(--apple-blue)] text-white text-[15px] font-medium disabled:opacity-50 flex items-center justify-center gap-2"
-        >
-          {isSubmitting && <Loader2 className="size-4 animate-spin" />}
-          저장
-        </button>
-      </div>
     </div>
   );
 }

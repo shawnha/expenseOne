@@ -58,8 +58,6 @@ export interface ExpenseEditData {
 async function getExpenseForEdit(id: string): Promise<{
   expense: ExpenseEditData;
   attachments: ExistingAttachment[];
-  /** true면 첨부만 손댈 수 있다 (법카사용 7일 초과) */
-  attachmentsOnly: boolean;
 } | null> {
   const supabase = await getCachedClient();
   const authUser = await getAuthUser();
@@ -91,23 +89,19 @@ async function getExpenseForEdit(id: string): Promise<{
     return null;
   }
 
-  // 법카사용: 등록 7일이 지나면 거래 정보(금액·날짜·가맹점 등) 수정을 막는다.
+  // 법카사용: 등록 후 기간 제한 없이 수정 가능. 상세 화면의 수정 버튼 조건과
+  // 동일하게 맞춘다(APPROVED / SUBMITTED).
   //
-  // 단 **영수증 첨부는 계속 허용한다.** 예전엔 7일이 지나면 수정 페이지 자체를
-  // 거부하고 상세로 되돌려보냈는데, 상세 페이지는 수정 버튼을 그대로 띄우고
-  // 있어서 누르면 아무 설명 없이 튕겨나왔다. 사용자에겐 "새로고침만 된다"로
-  // 보였고, 실제로 막힌 건 승인/제출 상태 법카 553건 중 504건이었다.
+  // 예전엔 "등록 7일 이내"만 허용했는데, 상세 화면은 그 조건을 안 보고 버튼을
+  // 띄워서 누르면 아무 설명 없이 되돌아왔다 — 사용자에겐 "새로고침만 된다"로
+  // 보였고 승인/제출 상태 법카 553건 중 504건이 그 상태였다. 영수증을 나중에
+  // 붙이는 일이 흔해서 실무가 막혔다.
   //
-  // 첨부는 금액·날짜를 바꾸지 않아 원장 무결성과 무관하고, 영수증을 나중에
-  // 받는 건 회계에서 흔하다. 입금요청이 승인 후에도 '영수증 보충'을 위해
-  // 수정 가능한 것과 같은 이유다.
-  let attachmentsOnly = false;
+  // 한쪽에만 조건을 두면 같은 문제가 재발한다. 조건을 바꿀 땐 상세 화면의
+  // canEdit(`[id]/page.tsx`)도 같이 볼 것.
   if (expenseType === "CORPORATE_CARD") {
-    const createdAt = new Date(expense.created_at);
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    if (createdAt < sevenDaysAgo) {
-      attachmentsOnly = true;
+    if (expenseStatus !== "SUBMITTED" && expenseStatus !== "APPROVED") {
+      return null;
     }
   }
 
@@ -127,7 +121,6 @@ async function getExpenseForEdit(id: string): Promise<{
     .eq("expense_id", id);
 
   return {
-    attachmentsOnly,
     expense: {
       id: expense.id,
       type: expenseType,
@@ -200,7 +193,6 @@ export default async function EditExpensePage({ params }: EditExpensePageProps) 
       expense={result.expense}
       existingAttachments={result.attachments}
       initialCompanies={initialCompanies}
-      attachmentsOnly={result.attachmentsOnly}
     />
   );
 }
