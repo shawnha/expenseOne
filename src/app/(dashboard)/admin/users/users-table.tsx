@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { Loader2, Trash2, ChevronDown, Check, Shield, ShieldOff, UserX, UserCheck, Building2, Pencil } from "lucide-react";
+import { Loader2, Trash2, ChevronDown, Check, Shield, ShieldOff, UserX, UserCheck, Building2, Pencil, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -644,6 +644,47 @@ export function UsersTable({ users: initialUsers, currentUserId, companies = [],
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [unmappedCards, setUnmappedCards] = useState(initialUnmapped);
 
+  // 카드 번호 직접 입력 대상 사용자 (null이면 닫힘)
+  const [addCardFor, setAddCardFor] = useState<{ id: string; name: string } | null>(null);
+
+  // 아직 동기화되지 않은 카드를 관리자가 직접 등록한다.
+  // GoWid 키가 없는 법인(파트너스 등)이나 갓 발급된 카드는 동기화로 안 들어온다.
+  const handleCreateCard = async (userId: string, cardLastFour: string) => {
+    setUpdatingId(userId);
+    try {
+      const res = await fetch("/api/gowid/card-mappings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cardLastFour, userId }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        toast.error(json?.error?.message ?? "카드 추가에 실패했습니다.");
+        return false;
+      }
+      setUserList((prev) =>
+        prev.map((u) =>
+          u.id === userId
+            ? {
+                ...u,
+                gowidCards: [
+                  ...(u.gowidCards ?? []),
+                  { id: json.data.id, cardLastFour, cardAlias: null },
+                ],
+              }
+            : u,
+        ),
+      );
+      toast.success(`카드 ${cardLastFour}가 추가되었습니다.`);
+      return true;
+    } catch {
+      toast.error("카드 추가에 실패했습니다.");
+      return false;
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   // Assign a GoWid card to a user
   const handleAssignCard = async (userId: string, mappingId: string) => {
     setUpdatingId(userId);
@@ -911,7 +952,7 @@ export function UsersTable({ users: initialUsers, currentUserId, companies = [],
                       {(user.gowidCards ?? []).length === 0 && !unmappedCards.length && (
                         <span className="text-[11px] text-[var(--apple-tertiary-label)]">미등록</span>
                       )}
-                      {!isSelf && unmappedCards.length > 0 && (
+                      {!isSelf && (
                         <DropdownMenu>
                           <DropdownMenuTrigger
                             render={<button type="button" />}
@@ -934,6 +975,15 @@ export function UsersTable({ users: initialUsers, currentUserId, companies = [],
                                 )}
                               </DropdownMenuItem>
                             ))}
+                            {/* 동기화로 안 들어온 카드(신규 발급, GoWid 키 없는 법인)는
+                                여기서 번호를 직접 넣는다. 예전엔 이 경로가 없어서
+                                목록에 없는 카드는 아예 등록할 수 없었다. */}
+                            <DropdownMenuItem
+                              onClick={() => setAddCardFor({ id: user.id, name: user.name })}
+                            >
+                              <Plus className="size-3.5" />
+                              카드번호 직접 입력
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       )}
@@ -1030,6 +1080,81 @@ export function UsersTable({ users: initialUsers, currentUserId, companies = [],
           onClose={() => setContextMenu(null)}
         />
       )}
+
+      {/* 카드번호 직접 입력 — 동기화로 안 들어온 카드용 */}
+      <AddCardDialog
+        key={addCardFor?.id ?? "none"}
+        target={addCardFor}
+        busy={updatingId === addCardFor?.id}
+        onClose={() => setAddCardFor(null)}
+        onSubmit={async (lastFour) => {
+          if (!addCardFor) return;
+          const ok = await handleCreateCard(addCardFor.id, lastFour);
+          if (ok) setAddCardFor(null);
+        }}
+      />
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 카드번호 직접 입력 다이얼로그
+// ---------------------------------------------------------------------------
+
+function AddCardDialog({
+  target,
+  busy,
+  onClose,
+  onSubmit,
+}: {
+  target: { id: string; name: string } | null;
+  busy: boolean;
+  onClose: () => void;
+  onSubmit: (cardLastFour: string) => void | Promise<void>;
+}) {
+  // 대상이 바뀌면 부모가 key로 리마운트시키므로 입력값이 자동으로 비워진다.
+  const [value, setValue] = useState("");
+
+  const valid = /^\d{4}$/.test(value);
+
+  return (
+    <AlertDialog open={target !== null} onOpenChange={(o) => !o && onClose()}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>카드번호 추가</AlertDialogTitle>
+          <AlertDialogDescription>
+            {target?.name}님에게 매핑할 법인카드 끝 4자리를 입력하세요.
+            고위드 동기화로 아직 들어오지 않은 카드도 여기서 등록할 수 있습니다.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <input
+          autoFocus
+          inputMode="numeric"
+          maxLength={4}
+          value={value}
+          onChange={(e) => setValue(e.target.value.replace(/\D/g, "").slice(0, 4))}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && valid && !busy) onSubmit(value);
+          }}
+          placeholder="1234"
+          className="w-full rounded-xl border border-[var(--apple-separator)] bg-[var(--apple-secondary-system-background)] px-3 py-2 text-center text-lg tracking-[0.3em] tabular-nums outline-none focus:border-[var(--apple-blue)]"
+        />
+
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={busy}>취소</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={!valid || busy}
+            onClick={(e) => {
+              e.preventDefault();
+              onSubmit(value);
+            }}
+          >
+            {busy && <Loader2 className="size-4 animate-spin" />}
+            추가
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
