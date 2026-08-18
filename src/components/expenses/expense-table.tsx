@@ -15,6 +15,15 @@ import { getCategoryLabel, formatExpenseAmount } from "@/lib/utils/expense-utils
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Pencil, Trash2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { AdminQuickEditDialog } from "@/components/expenses/admin-quick-edit-dialog";
 import { PrePaidBadge } from "@/components/expenses/pre-paid-badge";
 import { CompanyBadge } from "@/components/companies/company-badge";
@@ -121,6 +130,10 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [editExpense] = useState<ExpenseRow | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  // 일괄 승인 확인 다이얼로그. 예전엔 네이티브 confirm()이라 '알림 보내지 않기'
+  // 같은 옵션을 넣을 자리가 없었다(승인 대기 화면과 동작이 갈렸다).
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const [bulkSkipNotification, setBulkSkipNotification] = useState(false);
 
   // ── Bulk approve state (admin only, deposit-request SUBMITTED only) ──
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -175,9 +188,6 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
 
   const handleBulkApprove = useCallback(async () => {
     if (selectedCount === 0 || bulkApproving) return;
-    if (!confirm(`${selectedCount}건 (${selectedTotal.toLocaleString()}원)을 일괄 승인하시겠습니까?`)) {
-      return;
-    }
     setBulkApproving(true);
     try {
       const res = await fetch("/api/expenses/bulk-action", {
@@ -186,6 +196,7 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
         body: JSON.stringify({
           action: "approve",
           expenseIds: Array.from(selectedIds),
+          skipNotification: bulkSkipNotification,
         }),
       });
       const json = await res.json().catch(() => null);
@@ -200,13 +211,15 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
         toast.success(`${success}건 일괄 승인 완료`);
       }
       setSelectedIds(new Set());
+      setBulkConfirmOpen(false);
+      setBulkSkipNotification(false);
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "승인 요청에 실패했습니다.");
     } finally {
       setBulkApproving(false);
     }
-  }, [selectedIds, selectedCount, selectedTotal, bulkApproving, router]);
+  }, [selectedIds, selectedCount, bulkApproving, bulkSkipNotification, router]);
 
   const handleAdminDelete = useCallback(async (expenseId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -261,7 +274,7 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
           </label>
           <button
             type="button"
-            onClick={handleBulkApprove}
+            onClick={() => setBulkConfirmOpen(true)}
             disabled={selectedCount === 0 || bulkApproving}
             className={cn(
               "px-4 py-1.5 rounded-full text-sm font-semibold transition-colors apple-press",
@@ -439,6 +452,62 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
           onOpenChange={setEditDialogOpen}
         />
       )}
+
+      {/* 일괄 승인 확인 — 승인 대기 화면과 같은 옵션을 제공한다 */}
+      <Dialog
+        open={bulkConfirmOpen}
+        onOpenChange={(open) => {
+          if (!open && !bulkApproving) {
+            setBulkConfirmOpen(false);
+            setBulkSkipNotification(false);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>일괄 승인 확인</DialogTitle>
+            <DialogDescription>
+              {selectedCount}건 ({selectedTotal.toLocaleString()}원)을 모두
+              승인하시겠습니까?
+            </DialogDescription>
+          </DialogHeader>
+
+          <label className="flex items-start gap-2.5 rounded-xl bg-[var(--apple-secondary-system-background)] p-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={bulkSkipNotification}
+              onChange={(e) => setBulkSkipNotification(e.target.checked)}
+              disabled={bulkApproving}
+              className="mt-0.5 size-4 shrink-0 accent-[var(--apple-blue)]"
+            />
+            <span className="text-[13px] leading-relaxed">
+              <span className="font-medium text-[var(--apple-label)]">알림 보내지 않기</span>
+              <span className="block text-[var(--apple-secondary-label)]">
+                요청자 알림·푸시·Slack을 모두 건너뜁니다. 이미 입금을 마치고
+                밀린 건을 정리할 때 사용하세요.
+              </span>
+            </span>
+          </label>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => { setBulkConfirmOpen(false); setBulkSkipNotification(false); }}
+              disabled={bulkApproving}
+              className="rounded-full"
+            >
+              취소
+            </Button>
+            <Button
+              onClick={handleBulkApprove}
+              disabled={bulkApproving}
+              className="rounded-full bg-[var(--apple-green)] hover:bg-[color-mix(in_srgb,var(--apple-green)_85%,black)]"
+            >
+              {bulkApproving ? "승인 중..." : `${selectedCount}건 승인`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
