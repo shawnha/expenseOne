@@ -1257,6 +1257,17 @@ export async function cancelExpense(expenseId: string, userId: string) {
 export async function approveExpense(
   expenseId: string,
   adminId: string,
+  options?: {
+    /**
+     * 승인 알림(인앱·푸시·Slack)을 보내지 않는다.
+     *
+     * 오래 밀린 건을 한꺼번에 입금하고 몰아서 승인할 때 쓴다. 그때는 이미
+     * 입금이 끝난 뒤라 요청자에게 알릴 내용이 없고, 건수만큼 알림과 Slack
+     * 메시지가 쏟아져 오히려 실제 알림이 묻힌다.
+     * 기본값은 보내는 쪽이다 — 조용히 넘어가는 게 기본이면 안 된다.
+     */
+    skipNotification?: boolean;
+  },
 ) {
   const [expense] = await db
     .select()
@@ -1304,6 +1315,10 @@ export async function approveExpense(
       "FORBIDDEN",
       "이미 처리된 요청입니다. 페이지를 새로고침해주세요.",
     );
+  }
+
+  if (options?.skipNotification) {
+    return updated;
   }
 
   // Look up names and emails for Slack mention

@@ -90,6 +90,9 @@ export function PendingTable({ expenses }: PendingTableProps) {
   const [bulkAction, setBulkAction] = useState<"approve" | "reject" | null>(null);
   const [bulkRejectionReason, setBulkRejectionReason] = useState("");
   const [bulkProcessing, setBulkProcessing] = useState(false);
+  // 밀린 건을 한꺼번에 입금하고 몰아서 승인할 때 쓴다. 이미 입금이 끝난 뒤라
+  // 알릴 내용이 없고, 건수만큼 알림이 쏟아지면 진짜 알림이 묻힌다.
+  const [bulkSkipNotification, setBulkSkipNotification] = useState(false);
 
   const allSelected = expenses.length > 0 && selectedIds.size === expenses.length;
   const someSelected = selectedIds.size > 0;
@@ -181,6 +184,7 @@ export function PendingTable({ expenses }: PendingTableProps) {
         body: JSON.stringify({
           action: bulkAction,
           expenseIds: Array.from(selectedIds),
+          ...(bulkAction === "approve" ? { skipNotification: bulkSkipNotification } : {}),
           ...(bulkAction === "reject" ? { rejectionReason: bulkRejectionReason.trim() } : {}),
         }),
       });
@@ -510,7 +514,7 @@ export function PendingTable({ expenses }: PendingTableProps) {
       {/* Bulk Approve Confirmation Dialog */}
       <Dialog
         open={bulkAction === "approve"}
-        onOpenChange={(open) => { if (!open) setBulkAction(null); }}
+        onOpenChange={(open) => { if (!open) { setBulkAction(null); setBulkSkipNotification(false); } }}
       >
         <DialogContent>
           <DialogHeader>
@@ -519,8 +523,26 @@ export function PendingTable({ expenses }: PendingTableProps) {
               선택한 {selectedIds.size}건의 요청을 모두 승인하시겠습니까?
             </DialogDescription>
           </DialogHeader>
+
+          <label className="flex items-start gap-2.5 rounded-xl bg-[var(--apple-secondary-system-background)] p-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={bulkSkipNotification}
+              onChange={(e) => setBulkSkipNotification(e.target.checked)}
+              disabled={bulkProcessing}
+              className="mt-0.5 size-4 shrink-0 accent-[var(--apple-blue)]"
+            />
+            <span className="text-[13px] leading-relaxed">
+              <span className="font-medium text-[var(--apple-label)]">알림 보내지 않기</span>
+              <span className="block text-[var(--apple-secondary-label)]">
+                요청자 알림·푸시·Slack을 모두 건너뜁니다. 이미 입금을 마치고
+                밀린 건을 정리할 때 사용하세요.
+              </span>
+            </span>
+          </label>
+
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkAction(null)} disabled={bulkProcessing} className="rounded-full">
+            <Button variant="outline" onClick={() => { setBulkAction(null); setBulkSkipNotification(false); }} disabled={bulkProcessing} className="rounded-full">
               취소
             </Button>
             <Button
