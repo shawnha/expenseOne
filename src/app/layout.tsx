@@ -50,6 +50,25 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){
+/* 스트리밍 리빌 워치독.
+   React는 늦게 도착한 Suspense 경계의 첫 리빌을 requestAnimationFrame으로
+   예약한다($RC가 $RB에 쌓고 $RV가 드러냄). 창이 가려지거나 백그라운드인
+   상태로 로드되면 그 rAF 콜백이 발화하지 않아, 서버가 내용을 다 보냈는데도
+   화면이 로딩 스켈레톤에 그대로 갇힌다(실제 내용은 div[hidden] 안에 있다).
+
+   1초 간격으로 보다가 **3회 연속** 대기 중이면 React 자신의 리빌 함수를 부른다.
+   React가 스스로 미루는 최대치가 약 2.3초라 그보다 뒤에서만 개입한다.
+   화면이 보이는지는 따지지 않는다 — 안 보이는 동안 드러내도 해가 없고,
+   오히려 사용자가 창을 볼 때 이미 그려져 있어야 한다.
+   이미 드러났으면 $RB가 비어 있어 아무 일도 하지 않는다. */
+(function(){var streak=0,n=0,iv=setInterval(function(){try{
+  var q=window.$RB;if(!q||typeof window.$RV!=="function"){return}
+  if(q.length>0){if(++streak>=3){window.$RV(q);streak=0}}else{streak=0}
+}catch(e){}finally{if(++n>30){clearInterval(iv)}}},1000);
+document.addEventListener("visibilitychange",function(){
+  if(document.visibilityState!=="visible"){return}
+  setTimeout(function(){try{var q=window.$RB;
+    if(q&&q.length>0&&typeof window.$RV==="function"){window.$RV(q)}}catch(e){}},300)})})();
 try{var t=localStorage.getItem('theme');if(t==='dark')document.documentElement.classList.add('dark');else if(t!=='light'&&window.matchMedia('(prefers-color-scheme:dark)').matches)document.documentElement.classList.add('dark')}catch(e){}
 if('serviceWorker'in navigator){navigator.serviceWorker.register('/sw.js',{updateViaCache:'none'}).then(function(reg){if(reg)reg.update()}).catch(function(){})}
 if(sessionStorage.getItem('splash-shown')){return}
