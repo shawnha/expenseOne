@@ -165,15 +165,22 @@ async function resolveTargets(
  * resolveTargets는 mirror=null을 주므로 예전 워크스페이스에 게시된 메시지를
  * 지울 토큰을 찾지 못한다. 저장된 채널 ID로 역방향 조회해서 해당 워크스페이스
  * 토큰을 찾는다.
+ *
+ * 같은 채널을 두 법인이 공유할 수 있으므로 후보를 **전부** 돌려준다.
+ * 토큰이 같은 항목은 한 번만 담는다(같은 봇이면 결과가 같다).
  */
-function resolveMirrorTargetByChannel(channelId: string): SlackTarget | null {
+function resolveMirrorTargetsByChannel(channelId: string): SlackTarget[] {
+  const targets: SlackTarget[] = [];
+  const seenTokens = new Set<string>();
   for (const [name, value] of Object.entries(process.env)) {
     if (!name.startsWith(MIRROR_CHANNEL_PREFIX) || value !== channelId) continue;
     const suffix = name.slice(MIRROR_CHANNEL_PREFIX.length);
     const token = process.env[`${MIRROR_TOKEN_PREFIX}${suffix}`];
-    if (token) return { key: suffix.toLowerCase(), token, channel: channelId };
+    if (!token || seenTokens.has(token)) continue;
+    seenTokens.add(token);
+    targets.push({ key: suffix.toLowerCase(), token, channel: channelId });
   }
-  return null;
+  return targets;
 }
 
 // ---------------------------------------------------------------------------
@@ -258,15 +265,23 @@ async function deletePostedMessages(params: {
   }
 
   if (params.mirrorSlackMessageTs && params.mirrorSlackChannelId) {
-    const target = resolveMirrorTargetByChannel(params.mirrorSlackChannelId);
-    if (target) {
+    const ts = params.mirrorSlackMessageTs;
+    const channel = params.mirrorSlackChannelId;
+    const candidates = resolveMirrorTargetsByChannel(channel);
+
+    // 두 법인이 **같은 채널**을 미러 대상으로 쓰면 후보가 여러 개다. chat.delete는
+    // 그 메시지를 실제로 게시한 봇 토큰으로만 지울 수 있는데, 어느 쪽이 게시했는지는
+    // 저장돼 있지 않다(ts + 채널만 남긴다). 예전엔 env 순회 순서상 먼저 걸린 토큰
+    // 하나만 써서, 다른 봇이 올린 메시지면 조용히 안 지워졌다.
+    // 성공할 때까지 후보를 차례로 시도한다. 후보가 하나면 동작은 그대로다.
+    if (candidates.length > 0) {
       tasks.push(
-        deleteMessage(
-          target.token,
-          params.mirrorSlackChannelId,
-          params.mirrorSlackMessageTs,
-          target.key,
-        ),
+        (async () => {
+          for (const target of candidates) {
+            if (await deleteMessage(target.token, channel, ts, target.key)) return true;
+          }
+          return false;
+        })(),
       );
     }
   }

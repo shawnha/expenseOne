@@ -6,7 +6,7 @@ import {
   companies,
   expenses,
 } from "@/lib/db/schema";
-import { eq, and, inArray, sql } from "drizzle-orm";
+import { eq, and, inArray, sql, isNull } from "drizzle-orm";
 import {
   fetchGowidNotSubmitted,
   fetchGowidExpenses,
@@ -42,6 +42,21 @@ export async function listCardMappings() {
     .orderBy(gowidCardMappings.cardAlias);
 }
 
+/** 회사 범위 안에서 끝 4자리로 매핑을 찾는다. 회사 미지정은 그 자체가 한 범위. */
+function sameCard(companyId: string | null) {
+  return companyId
+    ? eq(gowidCardMappings.companyId, companyId)
+    : isNull(gowidCardMappings.companyId);
+}
+
+/**
+ * 카드 매핑 생성/갱신. 같은 카드인지는 **(회사, 끝 4자리)**로 판단한다.
+ *
+ * ON CONFLICT를 쓰지 않고 조회 후 분기하는 이유: 대상 unique 인덱스가
+ * 0014 마이그레이션으로 바뀌는데, ON CONFLICT는 인덱스가 없으면 쿼리 자체가
+ * 실패한다. 이 방식은 옛 인덱스 상태에서도 동작한다(동기화는 순차 실행이라
+ * 경합이 없고, 만약 있어도 unique 인덱스가 최종 방어선이다).
+ */
 export async function upsertCardMapping(data: {
   cardLastFour: string;
   cardAlias?: string | null;
@@ -49,27 +64,41 @@ export async function upsertCardMapping(data: {
   userId?: string | null;
   companyId?: string | null;
 }) {
-  const [result] = await db
+  const companyId = data.companyId ?? null;
+
+  const [existing] = await db
+    .select({ id: gowidCardMappings.id })
+    .from(gowidCardMappings)
+    .where(
+      and(eq(gowidCardMappings.cardLastFour, data.cardLastFour), sameCard(companyId)),
+    )
+    .limit(1);
+
+  if (existing) {
+    const [updated] = await db
+      .update(gowidCardMappings)
+      .set({
+        cardAlias: data.cardAlias ?? undefined,
+        issuer: data.issuer ?? undefined,
+        userId: data.userId ?? undefined,
+        updatedAt: new Date(),
+      })
+      .where(eq(gowidCardMappings.id, existing.id))
+      .returning();
+    return updated;
+  }
+
+  const [created] = await db
     .insert(gowidCardMappings)
     .values({
       cardLastFour: data.cardLastFour,
       cardAlias: data.cardAlias ?? null,
       issuer: data.issuer ?? null,
       userId: data.userId ?? null,
-      companyId: data.companyId ?? null,
-    })
-    .onConflictDoUpdate({
-      target: gowidCardMappings.cardLastFour,
-      set: {
-        cardAlias: data.cardAlias ?? undefined,
-        issuer: data.issuer ?? undefined,
-        userId: data.userId ?? undefined,
-        companyId: data.companyId ?? undefined,
-        updatedAt: new Date(),
-      },
+      companyId,
     })
     .returning();
-  return result;
+  return created;
 }
 
 export async function updateCardMappingUser(
@@ -87,6 +116,35 @@ export async function updateCardMappingUser(
 // ---------------------------------------------------------------------------
 // Sync Logic
 // ---------------------------------------------------------------------------
+
+/**
+ * 카드 등록 중 한 장이 실패해도 동기화 전체를 죽이지 않는다.
+ *
+ * 0014 마이그레이션 전에는 끝 4자리가 아직 전역 unique라, 다른 법인의 같은
+ * 4자리 카드를 등록하려 하면 23505로 던진다. 그걸 그대로 두면 그 시점 이후의
+ * 카드 등록이 전부 중단되고 거래 스테이징 결과까지 예외로 날아간다.
+ * 로그로 드러내고 다음 카드로 넘어간다.
+ */
+async function registerCard(data: Parameters<typeof upsertCardMapping>[0]) {
+  try {
+    return await upsertCardMapping(data);
+  } catch (err) {
+    console.error(
+      `[gowid] 카드 등록 실패 (끝 4자리 ${data.cardLastFour}, 회사 ${data.companyId ?? "미지정"}). ` +
+        `끝 4자리가 아직 전역 unique면 drizzle/0014를 적용해야 한다.`,
+      err,
+    );
+    return undefined;
+  }
+}
+
+/**
+ * 카드 하나를 가리키는 키. 끝 4자리는 회사 안에서만 유일하므로 회사를 함께 묶는다.
+ * 회사 미지정(null)도 하나의 범위로 취급한다.
+ */
+function cardKey(companyId: string | null | undefined, lastFour: string): string {
+  return `${companyId ?? ""}|${lastFour}`;
+}
 
 export async function syncGowidTransactions(): Promise<{
   fetched: number;
@@ -152,6 +210,11 @@ export async function syncGowidTransactions(): Promise<{
   const existingSet = new Set(existing.map((e) => e.gowidExpenseId));
 
   // 3. Get card mappings
+  //
+  // 카드를 **(회사, 끝 4자리)**로 식별한다. 4자리만으로 찾으면 서로 다른 법인의
+  // 카드가 같은 4자리로 끝나는 순간 한 매핑에 몰려서, 엉뚱한 사람에게 알림이 가고
+  // 엉뚱한 법인 비용으로 잡힌다. 4자리는 10,000가지뿐이라 카드가 40장만 돼도
+  // 겹칠 확률이 8%쯤 된다.
   const mappings = await db
     .select()
     .from(gowidCardMappings)
@@ -159,14 +222,38 @@ export async function syncGowidTransactions(): Promise<{
   const cardToUser = new Map(
     mappings
       .filter((m) => m.userId)
-      .map((m) => [m.cardLastFour, { userId: m.userId!, companyId: m.companyId }]),
+      .map((m) => [
+        cardKey(m.companyId, m.cardLastFour),
+        { userId: m.userId!, companyId: m.companyId },
+      ]),
   );
+  const mappedCards = new Set(mappings.map((m) => cardKey(m.companyId, m.cardLastFour)));
+
+  // 회사를 모르는 거래를 위한 폴백 색인.
+  //
+  // config의 slug가 회사와 매칭되지 않으면(오타 등) 거래의 회사가 undefined다.
+  // 그러면 (회사, 4자리) 조회가 전부 빗나가 **이미 매핑된 카드까지 미매핑으로
+  // 떨어진다** — 전역 키를 쓰던 예전보다 나빠진다. 그런 경우에만 4자리로
+  // 물러서되, 후보가 **정확히 하나**일 때만 인정한다. 둘 이상이면 어느 회사
+  // 것인지 알 수 없으므로 추측하지 않는다.
+  const byLastFour = new Map<string, typeof mappings>();
+  for (const m of mappings) {
+    const list = byLastFour.get(m.cardLastFour) ?? [];
+    list.push(m);
+    byLastFour.set(m.cardLastFour, list);
+  }
+  /** 회사가 확정되지 않은 거래의 유일한 후보. 없거나 모호하면 null. */
+  const soleMappingFor = (lastFour: string) => {
+    const list = byLastFour.get(lastFour);
+    return list && list.length === 1 ? list[0] : null;
+  };
 
   // 4. Insert new transactions + auto-discover cards
   let newStaged = 0;
   let notified = 0;
   let autoClassifiedCount = 0;
-  const newCardLastFours = new Set<string>();
+  /** 아직 매핑이 없는 카드. cardKey(회사, 4자리) 형식. */
+  const newCards = new Set<string>();
 
   // companyId → companySlug for entity lookup (classifier wants entity id)
   const companyIdToSlug = new Map<string, string>();
@@ -178,10 +265,16 @@ export async function syncGowidTransactions(): Promise<{
     if (existingSet.has(expense.expenseId)) continue;
 
     const lastFour = extractCardLastFour(expense.shortCardNumber);
-    const mapping = cardToUser.get(lastFour);
+    const key = cardKey(expense._companyId, lastFour);
 
-    if (!mappings.find((m) => m.cardLastFour === lastFour)) {
-      newCardLastFours.add(lastFour);
+    // 회사를 아는 거래는 (회사, 4자리)로만 찾는다. 회사를 모를 때만 폴백.
+    const fallback = expense._companyId ? null : soleMappingFor(lastFour);
+    const mapping =
+      cardToUser.get(key) ??
+      (fallback?.userId ? { userId: fallback.userId, companyId: fallback.companyId } : undefined);
+
+    if (!mappedCards.has(key) && !fallback) {
+      newCards.add(key);
     }
 
     const [inserted] = await db.insert(gowidTransactions).values({
@@ -320,30 +413,36 @@ export async function syncGowidTransactions(): Promise<{
 
   // Merge cards from not-submitted + all expenses. We capture the issuer
   // here too so existing mappings can be back-filled in the next loop.
+  //
+  // 키가 cardKey(회사, 4자리)여야 한다. 4자리만으로 묶으면 두 법인이 같은 4자리
+  // 카드를 가질 때 **먼저 본 쪽만 남고 나머지 회사 카드는 영영 발견되지 않는다.**
   const allCards = new Map<
     string,
-    { alias: string | null; companyId: string | undefined; issuer: string | null }
+    {
+      lastFour: string;
+      alias: string | null;
+      companyId: string | undefined;
+      issuer: string | null;
+    }
   >();
   for (const e of [...allExpenses, ...allForDiscovery]) {
     const lf = extractCardLastFour(e.shortCardNumber);
     const iss = extractCardIssuer(e.shortCardNumber);
-    if (!allCards.has(lf)) {
-      allCards.set(lf, {
-        alias: e.cardAlias,
-        companyId: (e as { _companyId?: string })._companyId,
-        issuer: iss,
-      });
-    } else if (iss && !allCards.get(lf)!.issuer) {
+    const companyId = (e as { _companyId?: string })._companyId;
+    const key = cardKey(companyId, lf);
+    if (!allCards.has(key)) {
+      allCards.set(key, { lastFour: lf, alias: e.cardAlias, companyId, issuer: iss });
+    } else if (iss && !allCards.get(key)!.issuer) {
       // Fill in issuer from a later expense if the first one we saw didn't
       // have a clean prefix.
-      allCards.get(lf)!.issuer = iss;
+      allCards.get(key)!.issuer = iss;
     }
   }
 
   // Back-fill issuer on existing mappings whose `issuer` column is NULL.
   for (const m of mappings) {
     if (m.issuer) continue;
-    const found = allCards.get(m.cardLastFour);
+    const found = allCards.get(cardKey(m.companyId, m.cardLastFour));
     if (!found?.issuer) continue;
     await db
       .update(gowidCardMappings)
@@ -352,9 +451,12 @@ export async function syncGowidTransactions(): Promise<{
   }
 
   // Register any cards not yet in mappings
-  for (const [lastFour, info] of allCards) {
-    if (mappings.find((m) => m.cardLastFour === lastFour)) continue;
-    if (newCardLastFours.has(lastFour)) continue;
+  for (const [key, info] of allCards) {
+    const lastFour = info.lastFour;
+    if (mappedCards.has(key)) continue;
+    if (newCards.has(key)) continue;
+    // 회사를 모르는 카드가 이미 유일한 매핑을 갖고 있으면 중복 등록하지 않는다.
+    if (!info.companyId && soleMappingFor(lastFour)) continue;
 
     let autoUserId: string | null = null;
     if (info.alias) {
@@ -365,7 +467,7 @@ export async function syncGowidTransactions(): Promise<{
         .limit(1);
       if (matchedUser) autoUserId = matchedUser.id;
     }
-    await upsertCardMapping({
+    await registerCard({
       cardLastFour: lastFour,
       cardAlias: info.alias ?? null,
       issuer: info.issuer,
@@ -375,12 +477,14 @@ export async function syncGowidTransactions(): Promise<{
   }
 
   // Also register cards from not-submitted that were new
-  for (const lastFour of newCardLastFours) {
+  for (const key of newCards) {
     const matchingExpense = allExpenses.find(
-      (e) => extractCardLastFour(e.shortCardNumber) === lastFour,
+      (e) => cardKey(e._companyId, extractCardLastFour(e.shortCardNumber)) === key,
     );
+    if (!matchingExpense) continue;
+    const lastFour = extractCardLastFour(matchingExpense.shortCardNumber);
     let autoUserId: string | null = null;
-    if (matchingExpense?.cardAlias) {
+    if (matchingExpense.cardAlias) {
       const [matchedUser] = await db
         .select({ id: users.id })
         .from(users)
@@ -388,11 +492,11 @@ export async function syncGowidTransactions(): Promise<{
         .limit(1);
       if (matchedUser) autoUserId = matchedUser.id;
     }
-    await upsertCardMapping({
+    await registerCard({
       cardLastFour: lastFour,
-      cardAlias: matchingExpense?.cardAlias ?? null,
+      cardAlias: matchingExpense.cardAlias ?? null,
       userId: autoUserId,
-      companyId: (matchingExpense as { _companyId?: string })?._companyId ?? null,
+      companyId: matchingExpense._companyId ?? null,
     });
   }
 
@@ -443,12 +547,21 @@ export async function getPendingGowidTransaction(txId: string, userId: string) {
   // Resolve which company the card belongs to so the corporate-card form can
   // prefill the right entity. Without this, multi-company users could file
   // a card expense under the wrong company by accident.
+  //
+  // 끝 4자리는 회사별로만 유일하므로 **소유자까지 함께** 걸어야 한다. 4자리만
+  // 보면 다른 법인의 같은 4자리 카드를 집어 회사가 뒤바뀔 수 있다. 이 거래는
+  // 이미 userId로 잠겨 있으니(위 where) 그 사용자의 카드로 좁히면 유일해진다.
   let mappedCompanyId: string | null = null;
   if (tx.cardLastFour) {
     const [mapping] = await db
       .select({ companyId: gowidCardMappings.companyId })
       .from(gowidCardMappings)
-      .where(eq(gowidCardMappings.cardLastFour, tx.cardLastFour))
+      .where(
+        and(
+          eq(gowidCardMappings.cardLastFour, tx.cardLastFour),
+          eq(gowidCardMappings.userId, userId),
+        ),
+      )
       .limit(1);
     mappedCompanyId = mapping?.companyId ?? null;
   }

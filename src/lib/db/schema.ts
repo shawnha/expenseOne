@@ -349,7 +349,10 @@ export const gowidCardMappings = expenseSchema.table(
   "gowid_card_mappings",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    cardLastFour: varchar("card_last_four", { length: 4 }).notNull().unique(),
+    // 끝 4자리는 **회사 안에서만** 유일하다. 전역 unique였을 때는 서로 다른
+    // 법인의 카드가 같은 4자리로 끝나면 두 번째 카드를 등록할 수 없었고,
+    // 동기화가 두 회사의 거래를 한 매핑에 몰아넣었다. → drizzle/0014
+    cardLastFour: varchar("card_last_four", { length: 4 }).notNull(),
     cardAlias: varchar("card_alias", { length: 100 }),
     // Issuing bank (롯데, 우리, 신한, ...). GoWid returns this as a prefix
     // in shortCardNumber (e.g. "롯데 9884"); the sync code parses it
@@ -364,6 +367,13 @@ export const gowidCardMappings = expenseSchema.table(
   (table) => [
     index("idx_gowid_card_user").on(table.userId),
     index("idx_gowid_card_issuer").on(table.issuer),
+    // 실제 인덱스(drizzle/0014)는 NULLS NOT DISTINCT로 만들어져 회사 미지정
+    // 행끼리도 4자리 중복을 막는다. drizzle-kit이 그 옵션을 표현하지 못해
+    // 여기서는 컬럼만 선언한다 — push로 다시 만들지 말 것.
+    uniqueIndex("gowid_card_mappings_company_card_key").on(
+      table.companyId,
+      table.cardLastFour,
+    ),
   ],
 );
 

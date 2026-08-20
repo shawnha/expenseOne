@@ -4,7 +4,7 @@ import { getAuthUser, getCachedClient } from "@/lib/supabase/cached";
 import { listCardMappings, updateCardMappingUser } from "@/services/gowid.service";
 import { db } from "@/lib/db";
 import { gowidCardMappings, companies, users } from "@/lib/db/schema";
-import { eq, isNull } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 // GET — list card mappings
 // Admin: all mappings; Member: own cards + unmapped cards
@@ -165,7 +165,7 @@ export async function PATCH(request: Request) {
 // GoWid 키가 없는 법인(예: 파트너스)의 카드는 **어디서도 추가할 수 없었다.**
 // 사용자 관리에서 번호를 직접 넣을 수 있게 열어준다.
 //
-// 동기화는 이미 존재하는 cardLastFour를 건너뛰므로(gowid.service.ts) 수동으로
+// 동기화는 (회사, 끝 4자리)가 이미 있으면 건너뛰므로(gowid.service.ts) 수동으로
 // 만든 행을 덮어쓰거나 중복 생성하지 않는다.
 // ---------------------------------------------------------------------------
 export async function POST(request: Request) {
@@ -209,15 +209,35 @@ export async function POST(request: Request) {
     );
   }
 
-  // 뒷 4자리는 전역 unique다. 이미 있으면 누구 것인지 알려줘서 관리자가
-  // '+ 카드'로 매핑하면 되는지, 다른 사람 카드인지 판단할 수 있게 한다.
+  // 회사를 안 넘기면 대상 사용자의 소속을 따른다. 회사가 지정돼야 그 카드
+  // 거래가 해당 법인 비용으로 잡힌다.
+  let resolvedCompanyId = body.companyId ?? null;
+  if (!resolvedCompanyId && body.userId) {
+    const [target] = await db
+      .select({ companyId: users.companyId })
+      .from(users)
+      .where(eq(users.id, body.userId));
+    resolvedCompanyId = target?.companyId ?? null;
+  }
+
+  // 뒷 4자리는 **회사 안에서만** 유일하다. 다른 법인이 같은 4자리 카드를 갖고
+  // 있어도 막지 않는다 — 예전엔 전역 unique라 그 카드를 아예 등록할 수 없었다.
+  // 같은 회사에 이미 있으면 누구 것인지 알려줘서 관리자가 '+ 카드'로 매핑하면
+  // 되는지, 다른 사람 카드인지 판단할 수 있게 한다.
   const [existing] = await db
     .select({
       id: gowidCardMappings.id,
       userId: gowidCardMappings.userId,
     })
     .from(gowidCardMappings)
-    .where(eq(gowidCardMappings.cardLastFour, cardLastFour));
+    .where(
+      and(
+        eq(gowidCardMappings.cardLastFour, cardLastFour),
+        resolvedCompanyId
+          ? eq(gowidCardMappings.companyId, resolvedCompanyId)
+          : isNull(gowidCardMappings.companyId),
+      ),
+    );
 
   if (existing) {
     if (!existing.userId) {
@@ -225,7 +245,7 @@ export async function POST(request: Request) {
         {
           error: {
             code: "ALREADY_EXISTS",
-            message: `끝 4자리 ${cardLastFour} 카드는 이미 등록돼 있습니다. '+ 카드'에서 선택해 매핑하세요.`,
+            message: `끝 4자리 ${cardLastFour} 카드는 같은 법인에 이미 등록돼 있습니다. '+ 카드'에서 선택해 매핑하세요.`,
           },
         },
         { status: 409 },
@@ -239,34 +259,52 @@ export async function POST(request: Request) {
       {
         error: {
           code: "ALREADY_EXISTS",
-          message: `끝 4자리 ${cardLastFour} 카드는 이미 ${owner?.name ?? "다른 사용자"}에게 매핑돼 있습니다.`,
+          message: `끝 4자리 ${cardLastFour} 카드는 같은 법인에서 이미 ${owner?.name ?? "다른 사용자"}에게 매핑돼 있습니다.`,
         },
       },
       { status: 409 },
     );
   }
 
-  // 회사를 안 넘기면 대상 사용자의 소속을 따른다. 회사가 지정돼야 그 카드
-  // 거래가 해당 법인 비용으로 잡힌다.
-  let resolvedCompanyId = body.companyId ?? null;
-  if (!resolvedCompanyId && body.userId) {
-    const [target] = await db
-      .select({ companyId: users.companyId })
-      .from(users)
-      .where(eq(users.id, body.userId));
-    resolvedCompanyId = target?.companyId ?? null;
+  try {
+    const [created] = await db
+      .insert(gowidCardMappings)
+      .values({
+        cardLastFour,
+        cardAlias: body.cardAlias?.trim() || null,
+        userId: body.userId ?? null,
+        companyId: resolvedCompanyId,
+        isActive: true,
+      })
+      .returning();
+
+    return NextResponse.json({ data: created }, { status: 201 });
+  } catch (err) {
+    // 0014 마이그레이션 전에는 끝 4자리가 아직 전역 unique다. 그 상태에서
+    // 다른 법인의 같은 4자리 카드를 넣으면 여기서 걸린다 — 500 대신 무엇을
+    // 해야 하는지 알려준다.
+    if (isUniqueViolation(err)) {
+      return NextResponse.json(
+        {
+          error: {
+            code: "ALREADY_EXISTS",
+            message:
+              `끝 4자리 ${cardLastFour} 카드가 다른 법인에 등록돼 있습니다. ` +
+              `DB 마이그레이션(0014) 적용 후 다시 시도해주세요.`,
+          },
+        },
+        { status: 409 },
+      );
+    }
+    throw err;
   }
+}
 
-  const [created] = await db
-    .insert(gowidCardMappings)
-    .values({
-      cardLastFour,
-      cardAlias: body.cardAlias?.trim() || null,
-      userId: body.userId ?? null,
-      companyId: resolvedCompanyId,
-      isActive: true,
-    })
-    .returning();
-
-  return NextResponse.json({ data: created }, { status: 201 });
+/** Postgres unique_violation(23505) 여부. */
+function isUniqueViolation(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    (err as { code?: string }).code === "23505"
+  );
 }

@@ -82,8 +82,13 @@ export function CompanyPillGroup({
   if (options.length === 0) return null;
 
   // 개수가 많아지면 pill을 포기하고 드롭다운으로 바꾼다.
+  //
+  // 세는 대상은 **회사 개수**다. 필터의 "전체"(key === "")는 두 글자짜리라
+  // 폭을 거의 안 먹는데, 이걸 같이 세면 회사 5개짜리 조직에서 등록 폼은 pill,
+  // 관리자 필터는 드롭다운이 돼 같은 화면 흐름 안에서 형태가 달라진다.
+  const companyCount = options.filter((o) => o.key !== "").length;
   const pillMax = layout === "grid" ? PILL_MAX_GRID : PILL_MAX_SCROLL;
-  if (options.length > pillMax) {
+  if (companyCount > pillMax) {
     return (
       <CompanyDropdown
         options={options}
