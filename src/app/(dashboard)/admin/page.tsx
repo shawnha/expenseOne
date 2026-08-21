@@ -16,6 +16,8 @@ import { getCategoryLabel } from "@/lib/utils/expense-utils";
 interface DashboardStats {
   totalAmount: number;
   pendingCount: number;
+  /** 후지급 요청 대기 — status가 APPROVED라 pendingCount엔 안 잡힌다(별도 축). */
+  remainingRequestCount?: number;
   approvedCount: number;
   rejectedCount: number;
 }
@@ -101,6 +103,7 @@ function AdminDashboardContent() {
   const stats = data?.stats ?? {
     totalAmount: 0,
     pendingCount: 0,
+    remainingRequestCount: 0,
     approvedCount: 0,
     rejectedCount: 0,
   };
@@ -120,9 +123,18 @@ function AdminDashboardContent() {
     value: s.amount,
   }));
 
-  const statCards = [
+  const remainingCount = stats.remainingRequestCount ?? 0;
+  const statCards: { title: string; value: string; href: string; hint?: string }[] = [
     { title: "총 비용", value: `${formatAmount(stats.totalAmount)}원`, href: "/admin/expenses" },
-    { title: "승인 대기", value: `${stats.pendingCount}건`, href: "/admin/pending" },
+    // ★«승인 대기»는 내가 처리할 일의 총량이어야 한다 — 후지급 요청도 내가 송금하고 승인해야 하는데
+    //   status가 APPROVED라 예전 숫자엔 통째로 빠져 있었다(Shawn 2026-08-21 「목록상에서 잘 안 보인다」).
+    //   합치되 무엇이 섞였는지는 밑줄로 밝힌다 — 숫자만 키우면 어디를 봐야 할지 모른다.
+    {
+      title: "승인 대기",
+      value: `${stats.pendingCount + remainingCount}건`,
+      href: "/admin/pending",
+      hint: remainingCount > 0 ? `제출 ${stats.pendingCount} · 후지급 ${remainingCount}` : undefined,
+    },
     { title: "승인 완료", value: `${stats.approvedCount}건`, href: "/admin/expenses?status=APPROVED" },
     { title: "반려", value: `${stats.rejectedCount}건`, href: "/admin/expenses?status=REJECTED" },
   ];
@@ -198,6 +210,9 @@ function AdminDashboardContent() {
             </div>
             <p className="text-xl sm:text-2xl lg:text-[28px] font-bold tabular-nums tracking-[-0.02em] text-[var(--apple-label)] leading-tight">{card.value}</p>
             <p className="text-[11px] sm:text-xs lg:text-[13px] font-medium text-[var(--apple-secondary-label)] mt-1">{card.title}</p>
+            {card.hint ? (
+              <p className="text-[10px] sm:text-[11px] tabular-nums text-[var(--apple-tertiary-label)] mt-0.5">{card.hint}</p>
+            ) : null}
           </Link>
         ))}
       </div>

@@ -80,6 +80,14 @@ export async function GET(request: NextRequest) {
       .select({
         totalAmount: sql<string>`coalesce(sum(${signedAmount}), 0)`,
         pendingCount: sql<number>`count(*) filter (where ${expenses.status} = 'SUBMITTED')`,
+        // 후지급 요청 대기 — 관리자가 «송금하고 승인»해야 할 건. status는 이미 APPROVED라
+        // pendingCount(SUBMITTED)에 절대 안 잡힌다 → 「승인 대기」 숫자가 실제 할 일보다 적게 나왔다.
+        remainingRequestCount: sql<number>`count(*) filter (
+          where ${expenses.status} = 'APPROVED'
+            and ${expenses.isPrePaid} = true
+            and ${expenses.remainingPaymentRequested} = true
+            and ${expenses.remainingPaymentApproved} = false
+        )`,
         approvedCount: sql<number>`count(*) filter (where ${expenses.status} = 'APPROVED')`,
         rejectedCount: sql<number>`count(*) filter (where ${expenses.status} = 'REJECTED')`,
       })
@@ -146,6 +154,7 @@ export async function GET(request: NextRequest) {
         stats: {
           totalAmount: Number(statsResult?.totalAmount ?? 0),
           pendingCount: Number(statsResult?.pendingCount ?? 0),
+          remainingRequestCount: Number(statsResult?.remainingRequestCount ?? 0),
           approvedCount: Number(statsResult?.approvedCount ?? 0),
           rejectedCount: Number(statsResult?.rejectedCount ?? 0),
         },
