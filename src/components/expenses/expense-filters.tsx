@@ -206,14 +206,32 @@ export function ExpenseFilters({ showAdminFilters = false }: ExpenseFiltersProps
     });
   }, [createQueryString, freelancerActive, pathname, router]);
 
-  const prePaidActive = searchParams.get("prePaid") === "true";
+  // 선지급 필터는 한 파라미터로 3단계다: 없음 / "true"(전부) / "remaining"(잔금만).
+  // 잔금만 보기는 선지급의 부분집합이라 별도 파라미터를 두지 않는다.
+  const prePaidParam = searchParams.get("prePaid");
+  const prePaidActive = prePaidParam === "true" || prePaidParam === "remaining";
+  const remainingOnly = prePaidParam === "remaining";
 
-  const handlePrePaidToggle = useCallback(() => {
-    startTransition(() => {
-      const qs = createQueryString({ prePaid: prePaidActive ? null : "true" });
-      router.push(`${pathname}${qs ? `?${qs}` : ""}`);
-    });
-  }, [createQueryString, prePaidActive, pathname, router]);
+  const setPrePaid = useCallback(
+    (value: string | null) => {
+      startTransition(() => {
+        const qs = createQueryString({ prePaid: value });
+        router.push(`${pathname}${qs ? `?${qs}` : ""}`);
+      });
+    },
+    [createQueryString, pathname, router],
+  );
+
+  // 끄면 '잔금만'까지 같이 꺼진다. 부모를 끈 채 자식만 남으면 목록과 화면이 어긋난다.
+  const handlePrePaidToggle = useCallback(
+    () => setPrePaid(prePaidActive ? null : "true"),
+    [setPrePaid, prePaidActive],
+  );
+
+  const handleRemainingToggle = useCallback(
+    () => setPrePaid(remainingOnly ? "true" : "remaining"),
+    [setPrePaid, remainingOnly],
+  );
 
   const hasActiveFilters = !!(
     searchParams.get("type") ||
@@ -349,6 +367,31 @@ export function ExpenseFilters({ showAdminFilters = false }: ExpenseFiltersProps
           <span className="tabular-nums">선지급</span>
           {prePaidActive && <span aria-hidden className="text-xs leading-none">×</span>}
         </button>
+
+        {/*
+          '잔금만'은 선지급의 **부분집합**이라 선지급이 켜져 있을 때만 나타난다.
+          항상 띄워두면 꺼진 선지급 옆에서 무슨 뜻인지 알 수 없고, 필터 줄만
+          길어진다. 켜져 있을 때 바로 옆에 나오면 관계가 그대로 읽힌다.
+          테두리만 인디고로 둬서 부모 칩(꽉 찬 인디고)보다 한 단계 약하게 보인다.
+        */}
+        {prePaidActive && (
+          <button
+            type="button"
+            onClick={handleRemainingToggle}
+            aria-pressed={remainingOnly}
+            aria-label="잔금 남은 건만 보기"
+            title="부분 선지급 중 후지급이 아직 승인되지 않은 건"
+            className={cn(
+              "h-11 sm:h-8 w-full sm:w-auto rounded-full px-3.5 inline-flex items-center justify-center gap-1.5 text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(88,86,214,0.4)]",
+              remainingOnly
+                ? "bg-[var(--apple-indigo)]/12 text-[var(--apple-indigo)] border border-[var(--apple-indigo)]"
+                : "glass-input text-[var(--apple-secondary-label)] hover:bg-white",
+            )}
+          >
+            <span className="tabular-nums">잔금만</span>
+            {remainingOnly && <span aria-hidden className="text-xs leading-none">×</span>}
+          </button>
+        )}
 
         {showAdminFilters && (
           <Select

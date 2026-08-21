@@ -178,8 +178,12 @@ export const expenseQuerySchema = z.object({
   company: z.string().max(50).optional(),
   autoClassified: z.enum(["all", "auto", "manual"]).optional(),
   freelancer: z.enum(["all", "true"]).optional(),
-  /** 선지급(isPrePaid) 건만 보기. 프리랜서 필터와 같은 on/off 토글. */
-  prePaid: z.enum(["all", "true"]).optional(),
+  /**
+   * 선지급 필터.
+   *  - "true"      선지급 건 전부
+   *  - "remaining" 그중 **잔금이 남은 건**(부분 선지급인데 후지급 미승인)
+   */
+  prePaid: z.enum(["all", "true", "remaining"]).optional(),
 });
 
 export type ExpenseQueryInput = z.infer<typeof expenseQuerySchema>;

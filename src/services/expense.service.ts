@@ -13,6 +13,7 @@ import {
   asc,
   gte,
   lte,
+  lt,
   ilike,
   count,
   sum,
@@ -441,6 +442,23 @@ export async function getExpenses(
   }
   if (query.prePaid === "true") {
     conditions.push(eq(expenses.isPrePaid, true));
+  } else if (query.prePaid === "remaining") {
+    // 잔금이 남은 선지급 건 = 아직 보낼 돈이 남은 건.
+    //
+    // 비율이 100이거나 NULL이면 잔금이 없다. NULL을 100과 같이 보는 건
+    // PrePaidBadge와 같은 규칙이다 — 거기서도 `percentage != null &&
+    // percentage < 100`일 때만 "선지급 N%"를 붙이고, 아니면 그냥 "선지급"이다.
+    // (`<` 비교는 NULL이면 결과가 NULL이라 자연스럽게 빠진다.)
+    //
+    // 후지급이 승인됐으면 잔금까지 나간 것이므로 제외한다. '요청됨'은 아직
+    // 안 나갔으니 남겨둔다 — 오히려 관리자가 처리해야 할 건이다.
+    conditions.push(
+      and(
+        eq(expenses.isPrePaid, true),
+        lt(expenses.prePaidPercentage, 100),
+        eq(expenses.remainingPaymentApproved, false),
+      )!,
+    );
   }
 
   const whereClause =

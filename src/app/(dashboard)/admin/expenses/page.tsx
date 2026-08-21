@@ -37,7 +37,9 @@ async function getAdminExpensesData(searchParams: Record<string, string | string
       ? (autoClassifiedParam as "all" | "auto" | "manual")
       : undefined;
   const freelancer = searchParams.freelancer === "true" ? "true" : undefined;
-  const prePaid = searchParams.prePaid === "true" ? "true" : undefined;
+  const prePaidParam = searchParams.prePaid;
+  const prePaid =
+    prePaidParam === "true" || prePaidParam === "remaining" ? prePaidParam : undefined;
   const pageStr = typeof searchParams.page === "string" ? searchParams.page : "1";
   const page = Math.max(1, parseInt(pageStr, 10) || 1);
 
