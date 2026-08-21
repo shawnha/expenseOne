@@ -206,12 +206,22 @@ export function ExpenseFilters({ showAdminFilters = false }: ExpenseFiltersProps
     });
   }, [createQueryString, freelancerActive, pathname, router]);
 
+  const prePaidActive = searchParams.get("prePaid") === "true";
+
+  const handlePrePaidToggle = useCallback(() => {
+    startTransition(() => {
+      const qs = createQueryString({ prePaid: prePaidActive ? null : "true" });
+      router.push(`${pathname}${qs ? `?${qs}` : ""}`);
+    });
+  }, [createQueryString, prePaidActive, pathname, router]);
+
   const hasActiveFilters = !!(
     searchParams.get("type") ||
     searchParams.get("status") ||
     searchParams.get("category") ||
     (searchParams.get("autoClassified") && searchParams.get("autoClassified") !== "all") ||
-    freelancerActive
+    freelancerActive ||
+    prePaidActive
   );
 
   return (
@@ -317,6 +327,27 @@ export function ExpenseFilters({ showAdminFilters = false }: ExpenseFiltersProps
         >
           <span className="tabular-nums">프리랜서</span>
           {freelancerActive && <span aria-hidden className="text-xs leading-none">×</span>}
+        </button>
+
+        {/*
+          선지급 토글. 켜면 보라색 — 목록의 선지급 칩(glass-badge-purple)과 같은
+          색이라 "이 필터가 저 칩을 거른다"가 바로 읽힌다. 프리랜서 토글과 형태는
+          동일하게 두되 색만 다르게 해서 둘을 구분한다.
+        */}
+        <button
+          type="button"
+          onClick={handlePrePaidToggle}
+          aria-pressed={prePaidActive}
+          aria-label="선지급 필터"
+          className={cn(
+            "h-11 sm:h-8 w-full sm:w-auto rounded-full px-3.5 inline-flex items-center justify-center gap-1.5 text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(88,86,214,0.4)]",
+            prePaidActive
+              ? "bg-[var(--apple-indigo)] text-white border border-[var(--apple-indigo)]"
+              : "glass-input text-[var(--apple-label)] hover:bg-white",
+          )}
+        >
+          <span className="tabular-nums">선지급</span>
+          {prePaidActive && <span aria-hidden className="text-xs leading-none">×</span>}
         </button>
 
         {showAdminFilters && (

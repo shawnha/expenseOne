@@ -178,6 +178,8 @@ export const expenseQuerySchema = z.object({
   company: z.string().max(50).optional(),
   autoClassified: z.enum(["all", "auto", "manual"]).optional(),
   freelancer: z.enum(["all", "true"]).optional(),
+  /** 선지급(isPrePaid) 건만 보기. 프리랜서 필터와 같은 on/off 토글. */
+  prePaid: z.enum(["all", "true"]).optional(),
 });
 
 export type ExpenseQueryInput = z.infer<typeof expenseQuerySchema>;

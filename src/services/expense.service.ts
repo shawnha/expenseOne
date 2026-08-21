@@ -439,6 +439,9 @@ export async function getExpenses(
   if (query.freelancer === "true") {
     conditions.push(eq(expenses.hasFreelancerWithholding, true));
   }
+  if (query.prePaid === "true") {
+    conditions.push(eq(expenses.isPrePaid, true));
+  }
 
   const whereClause =
     conditions.length > 0 ? and(...conditions) : undefined;
