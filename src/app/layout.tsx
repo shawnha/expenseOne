@@ -45,11 +45,45 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko" suppressHydrationWarning>
+    <html lang="ko" suppressHydrationWarning data-build={process.env.NEXT_PUBLIC_BUILD_HASH}>
       <head>
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){
+/* 배포 스큐 자동 복구 — 사라진 JS 청크를 만나면 한 번 새로고침한다.
+
+   Vercel은 원자적으로 배포한다. 새 배포가 뜨면 옛 빌드의
+   /_next/static/chunks/<해시>.js 는 **404가 된다**(확인함). 그런데 PWA 창은
+   며칠씩 열려 있어서, 그 안의 페이지는 옛 청크 주소를 계속 들고 있다.
+   사이드바를 눌러 클라이언트 이동을 하는 순간 그 화면의 청크를 못 받아오고,
+   Suspense 경계가 영영 안 풀려 **로딩 스켈레톤에 갇힌다.**
+   (워치독은 이때 무력하다 — 내용이 도착조차 안 해서 $RB가 비어 있다.)
+
+   근본 해결은 Vercel Skew Protection이지만 프로젝트 설정이라 여기서 못 켠다.
+   앱 차원의 안전망으로, 청크 로드 실패를 감지하면 하드 리로드해서 새 빌드를
+   통째로 받는다 — 사용자가 우클릭→Reload로 하던 걸 자동으로 한다.
+
+   루프 방지: 세션당 최대 2회, 60초에 1회. 10초간 무사하면 카운터를 지워
+   나중에 진짜 배포가 또 일어나도 다시 구제할 수 있게 한다. */
+(function(){
+  var K="eo-chunk-reload",N=K+"-n";
+  function recover(){try{
+    var last=+(sessionStorage.getItem(K)||0),n=+(sessionStorage.getItem(N)||0),t=Date.now();
+    if(n>=2||t-last<60000){return}
+    sessionStorage.setItem(K,String(t));sessionStorage.setItem(N,String(n+1));
+    location.reload();
+  }catch(e){}}
+  window.addEventListener("error",function(e){
+    var t=e&&e.target;
+    if(t&&t.tagName==="SCRIPT"&&/\\/_next\\/static\\//.test(t.src||"")){recover()}
+  },true);
+  window.addEventListener("unhandledrejection",function(e){
+    var r=e&&e.reason,m=((r&&r.name)||"")+" "+((r&&r.message)||"");
+    if(/ChunkLoadError|Loading chunk|dynamically imported module/i.test(m)){recover()}
+  });
+  window.addEventListener("load",function(){setTimeout(function(){
+    try{sessionStorage.removeItem(N)}catch(e){}},10000)});
+})();
 /* 스트리밍 리빌 워치독.
    React는 늦게 도착한 Suspense 경계의 첫 리빌을 requestAnimationFrame으로
    예약한다($RC가 $RB에 쌓고 $RV가 드러냄). 창이 가려지거나 백그라운드인
