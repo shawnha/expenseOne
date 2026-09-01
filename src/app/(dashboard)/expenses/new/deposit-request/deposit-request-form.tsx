@@ -32,6 +32,12 @@ import {
 } from "@/components/ui/command";
 
 import { FileUploadWithDocType } from "@/components/forms/file-upload";
+import {
+  PurchaseFields,
+  emptyPurchaseFields,
+  toPurchasePayload,
+  type PurchaseFieldValues,
+} from "@/components/forms/purchase-fields";
 import { CompanySelector } from "@/components/forms/company-selector";
 import dynamic from "next/dynamic";
 const SubmitSuccessDialog = dynamic(() => import("@/components/forms/submit-success-dialog").then(m => m.SubmitSuccessDialog), { ssr: false });
@@ -136,6 +142,7 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
   const [amountDisplay, setAmountDisplay] = useState("");
   const [vatIncluded, setVatIncluded] = useState(false);
   const [freelancerDeduction, setFreelancerDeduction] = useState(false);
+  const [purchase, setPurchase] = useState<PurchaseFieldValues>(emptyPurchaseFields);
   const [supplyAmount, setSupplyAmount] = useState(0);
   const [bankOpen, setBankOpen] = useState(false);
   const [dueDateOpen, setDueDateOpen] = useState(false);
@@ -412,6 +419,7 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
           dueDate: data.dueDate ? formatDateISO(data.dueDate) : null,
           companyId: companyId || undefined,
           hasFreelancerWithholding: freelancerDeduction,
+          ...toPurchasePayload(purchase),
         }),
       });
 
@@ -1070,6 +1078,14 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
             </div>
 
           </div>
+        </div>
+
+        {/* 사입 — 약국 납품이면 체크. 세금계산서 발행 관리로 이어진다. */}
+        <div className="glass p-6 mt-4">
+          <PurchaseFields
+            value={purchase}
+            onChange={(patch) => setPurchase((prev) => ({ ...prev, ...patch }))}
+          />
         </div>
 
         {/* 파일 첨부 (필수) */}

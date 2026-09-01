@@ -5,6 +5,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { sendPushToAdmins } from "@/services/push.service";
 import { formatExpenseAmount } from "@/lib/utils/expense-utils";
 import { verifyCronAuth } from "@/lib/cron-auth";
+import { runInvoiceReminder } from "@/services/purchase-invoice-reminder.service";
 
 // ---------------------------------------------------------------------------
 // Cron — 납입 기일 임박 알림
@@ -122,10 +123,24 @@ export async function GET(request: Request) {
     }
   }
 
+  // 사입 세금계산서 미발행 알림도 같이 처리한다.
+  //
+  // 별도 cron 항목을 만들지 않은 이유: Vercel은 요금제별로 cron 개수가 제한되고
+  // (이미 2개), 어차피 매일 같은 시각에 도는 검사라 한 번에 처리하는 게 맞다.
+  // 실패해도 납입 기일 알림 결과에는 영향을 주지 않는다.
+  let invoiceReminder: unknown = null;
+  try {
+    invoiceReminder = await runInvoiceReminder();
+  } catch (err) {
+    console.error("[DueDateCron] 사입 계산서 알림 실패:", err);
+    invoiceReminder = { error: true };
+  }
+
   return NextResponse.json({
     ok: true,
     checkedAt: today.toISOString(),
     notifiedCount,
     results,
+    invoiceReminder,
   });
 }

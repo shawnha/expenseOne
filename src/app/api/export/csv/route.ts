@@ -87,6 +87,10 @@ export async function GET(request: NextRequest) {
     if (query.freelancer === "true") {
       conditions.push(eq(expenses.hasFreelancerWithholding, true));
     }
+    // 사입 계산서 화면에서 넘어오는 필터. 발행 근거만 뽑아 세무에 넘길 때 쓴다.
+    if (query.purchase === "true") {
+      conditions.push(eq(expenses.isPurchase, true));
+    }
     if (query.branch === "none") {
       conditions.push(isNull(expenses.branch));
     } else if (query.branch === "STORE_1" || query.branch === "STORE_2") {
@@ -132,6 +136,24 @@ export async function GET(request: NextRequest) {
       "긴급": row.expense.isUrgent ? "Y" : "N",
       "원거래ID": row.expense.originalExpenseId ?? "",
       "프리랜서원천징수": row.expense.hasFreelancerWithholding ? "Y" : "N",
+      // 사입(약국 납품) — 세무 전달 시 계산서 발행 근거가 되는 열들.
+      // 부가세·합계는 저장하지 않고 공급가액에서 계산한다(화면과 같은 규칙).
+      "사입": row.expense.isPurchase ? "Y" : "N",
+      "납품약국": row.expense.pharmacyName ?? "",
+      "약국사업자번호": row.expense.pharmacyBizNo ?? "",
+      "공급가액(원)": row.expense.supplyAmount ?? "",
+      "부가세(원)": row.expense.supplyAmount
+        ? Math.round(row.expense.supplyAmount * 0.1)
+        : "",
+      "계산서합계(원)": row.expense.supplyAmount
+        ? row.expense.supplyAmount + Math.round(row.expense.supplyAmount * 0.1)
+        : "",
+      "품목수량": row.expense.purchaseItems ?? "",
+      "계산서발행": row.expense.isPurchase
+        ? row.expense.invoiceIssuedAt
+          ? "발행완료"
+          : "미발행"
+        : "",
       "선지급": row.expense.isPrePaid ? "Y" : "N",
       "선지급비율": row.expense.prePaidPercentage ?? "",
       "후지급승인": row.expense.remainingPaymentApproved ? "Y" : "N",

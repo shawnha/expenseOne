@@ -22,6 +22,7 @@ import {
   isNull,
   sql,
 } from "drizzle-orm";
+import { normalizeBizNo } from "@/lib/validations/expense";
 import type {
   CreateExpenseInput,
   RefundSubmitInput,
@@ -119,6 +120,19 @@ export async function createExpense(
     companyId,
     hasFreelancerWithholding: input.hasFreelancerWithholding ?? false,
   };
+
+  // 사입(약국 납품 → 세금계산서 발행 대상). 법카·입금요청 양쪽에서 쓸 수 있다.
+  // 체크 안 했으면 나머지 값은 저장하지 않는다 — 체크를 껐다 켰다 하다가
+  // 남은 값이 미발행 목록에 유령처럼 뜨는 걸 막는다.
+  if (input.isPurchase) {
+    baseData.isPurchase = true;
+    baseData.pharmacyName = input.pharmacyName?.trim() || null;
+    baseData.pharmacyBizNo = input.pharmacyBizNo
+      ? normalizeBizNo(input.pharmacyBizNo)
+      : null;
+    baseData.supplyAmount = input.supplyAmount ?? null;
+    baseData.purchaseItems = input.purchaseItems?.trim() || null;
+  }
 
   if (isCorporateCard) {
     baseData.merchantName = input.merchantName || null;
@@ -1019,6 +1033,20 @@ export async function updateExpense(
     updatedAt: new Date(),
   };
 
+  // 사입 관련 정리. 등록(createExpense)과 같은 규칙을 유지한다.
+  if (restInput.pharmacyBizNo) {
+    updateSet.pharmacyBizNo = normalizeBizNo(restInput.pharmacyBizNo);
+  }
+  if (restInput.isPurchase === false) {
+    // 사입을 해제하면 딸린 값도 같이 비운다. 안 그러면 남은 약국명·공급가액이
+    // 나중에 다시 체크될 때 되살아나고, 발행 목록의 근거가 흐려진다.
+    updateSet.pharmacyName = null;
+    updateSet.pharmacyBizNo = null;
+    updateSet.supplyAmount = null;
+    updateSet.purchaseItems = null;
+    updateSet.invoiceIssuedAt = null;
+  }
+
   // Admin can explicitly set status. Non-admin edits no longer auto-reset
   // an APPROVED deposit request back to SUBMITTED — the common case is the
   // submitter attaching a late receipt or fixing a typo, and forcing
@@ -1511,5 +1539,163 @@ export async function rejectExpense(
     rejectionReason,
   );
 
+  return updated;
+}
+
+// ---------------------------------------------------------------------------
+// 사입 → 약국 세금계산서 발행 관리
+//
+// 사용자가 발행을 두 번 놓쳤다. 그래서 "어디에 적어두느냐"보다 **미발행이
+// 남아 있다는 걸 계속 드러내는 것**이 이 기능의 핵심이다.
+//
+// 달을 묶는 기준은 거래일(transactionDate)이다. 납품일을 따로 받지 않기로 했고,
+// 사입 등록 시점의 거래일이 곧 매입 시점이라 월 단위 정산과 어긋나지 않는다.
+// ---------------------------------------------------------------------------
+
+/** 부가세율. 약국 납품은 일반과세 10%. */
+const VAT_RATE = 0.1;
+
+/** 공급가액에서 부가세·합계를 파생한다. 저장하지 않고 항상 여기서 계산한다. */
+export function deriveInvoiceAmounts(supplyAmount: number) {
+  const vat = Math.round(supplyAmount * VAT_RATE);
+  return { supply: supplyAmount, vat, total: supplyAmount + vat };
+}
+
+/**
+ * 발행 기한. 월말 일괄 → **익월 10일**까지.
+ * 예: 2026-09 매입분 → 2026-10-10.
+ */
+export function invoiceDueDate(yearMonth: string): string {
+  const [y, m] = yearMonth.split("-").map(Number);
+  const dueY = m === 12 ? y + 1 : y;
+  const dueM = m === 12 ? 1 : m + 1;
+  return `${dueY}-${String(dueM).padStart(2, "0")}-10`;
+}
+
+export interface PurchaseInvoiceRow {
+  id: string;
+  transactionDate: string;
+  title: string;
+  pharmacyName: string | null;
+  pharmacyBizNo: string | null;
+  supplyAmount: number;
+  vat: number;
+  total: number;
+  purchaseItems: string | null;
+  invoiceIssuedAt: Date | null;
+  companyName: string | null;
+  submitterName: string | null;
+  /** 매입 원가(비용 금액). 마진 확인용. */
+  cost: number;
+}
+
+export interface PurchaseInvoiceMonth {
+  yearMonth: string;
+  dueDate: string;
+  rows: PurchaseInvoiceRow[];
+  issuedCount: number;
+  unissuedCount: number;
+  /** 미발행 건의 합계 — 실제로 발행해야 할 금액. */
+  unissuedTotal: number;
+  totalSupply: number;
+  totalVat: number;
+  totalAmount: number;
+}
+
+/**
+ * 사입 건을 **월별로 묶어** 돌려준다. 미발행이 남은 달이 위로 온다 —
+ * 할 일이 있는 달을 먼저 보여주는 게 이 화면의 목적이기 때문이다.
+ */
+export async function getPurchaseInvoiceSummary(filter: {
+  startDate?: string;
+  endDate?: string;
+  company?: string;
+  /** "unissued"면 미발행 건만. */
+  status?: "all" | "unissued" | "issued";
+}): Promise<PurchaseInvoiceMonth[]> {
+  const conditions: ReturnType<typeof eq>[] = [
+    eq(expenses.isPurchase, true),
+    // 반려·취소는 실제 매입이 아니므로 발행 대상이 아니다.
+    inArray(expenses.status, ["SUBMITTED", "APPROVED"]),
+  ];
+
+  if (filter.startDate) conditions.push(gte(expenses.transactionDate, filter.startDate));
+  if (filter.endDate) conditions.push(lte(expenses.transactionDate, filter.endDate));
+  if (filter.status === "unissued") conditions.push(isNull(expenses.invoiceIssuedAt));
+  if (filter.status === "issued") {
+    conditions.push(sql`${expenses.invoiceIssuedAt} is not null` as ReturnType<typeof eq>);
+  }
+  if (filter.company) {
+    const { getCompanyBySlug } = await import("@/services/company.service");
+    const company = await getCompanyBySlug(filter.company);
+    if (company) conditions.push(eq(expenses.companyId, company.id));
+  }
+
+  const rows = await db
+    .select({
+      id: expenses.id,
+      transactionDate: expenses.transactionDate,
+      title: expenses.title,
+      pharmacyName: expenses.pharmacyName,
+      pharmacyBizNo: expenses.pharmacyBizNo,
+      supplyAmount: expenses.supplyAmount,
+      purchaseItems: expenses.purchaseItems,
+      invoiceIssuedAt: expenses.invoiceIssuedAt,
+      cost: expenses.amount,
+      companyName: companies.name,
+      submitterName: users.name,
+    })
+    .from(expenses)
+    .leftJoin(companies, eq(expenses.companyId, companies.id))
+    .leftJoin(users, eq(expenses.submittedById, users.id))
+    .where(and(...conditions))
+    .orderBy(desc(expenses.transactionDate));
+
+  const byMonth = new Map<string, PurchaseInvoiceRow[]>();
+  for (const r of rows) {
+    const ym = r.transactionDate.slice(0, 7);
+    // supplyAmount는 사입 저장 시 필수라 원칙적으로 null이 아니지만, 0014 이전
+    // 데이터나 수동 수정으로 비어 있을 수 있어 0으로 막는다.
+    const supply = r.supplyAmount ?? 0;
+    const { vat, total } = deriveInvoiceAmounts(supply);
+    const list = byMonth.get(ym) ?? [];
+    list.push({ ...r, supplyAmount: supply, vat, total });
+    byMonth.set(ym, list);
+  }
+
+  const months: PurchaseInvoiceMonth[] = [...byMonth.entries()].map(([ym, list]) => {
+    const unissued = list.filter((r) => !r.invoiceIssuedAt);
+    return {
+      yearMonth: ym,
+      dueDate: invoiceDueDate(ym),
+      rows: list,
+      issuedCount: list.length - unissued.length,
+      unissuedCount: unissued.length,
+      unissuedTotal: unissued.reduce((a, r) => a + r.total, 0),
+      totalSupply: list.reduce((a, r) => a + r.supplyAmount, 0),
+      totalVat: list.reduce((a, r) => a + r.vat, 0),
+      totalAmount: list.reduce((a, r) => a + r.total, 0),
+    };
+  });
+
+  // 미발행이 있는 달을 먼저, 그 안에서는 최근 달부터.
+  months.sort((a, b) => {
+    if ((a.unissuedCount > 0) !== (b.unissuedCount > 0)) return a.unissuedCount > 0 ? -1 : 1;
+    return b.yearMonth.localeCompare(a.yearMonth);
+  });
+  return months;
+}
+
+/** 발행 완료 표시(또는 해제). ADMIN 전용 — 라우트에서 권한을 건다. */
+export async function setInvoiceIssued(expenseId: string, issued: boolean) {
+  const [updated] = await db
+    .update(expenses)
+    .set({ invoiceIssuedAt: issued ? new Date() : null, updatedAt: new Date() })
+    .where(and(eq(expenses.id, expenseId), eq(expenses.isPurchase, true)))
+    .returning({ id: expenses.id, invoiceIssuedAt: expenses.invoiceIssuedAt });
+
+  if (!updated) {
+    throw new AppError("NOT_FOUND", "사입 건을 찾을 수 없습니다.");
+  }
   return updated;
 }

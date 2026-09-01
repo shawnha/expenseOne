@@ -18,6 +18,7 @@ import {
   CreditCard,
   UserCheck,
   ShoppingBag,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRealtimeNotifications } from "@/hooks/use-realtime-notifications";
@@ -54,6 +55,7 @@ function getTabItems(isAdmin: boolean, badge: number): TabItem[] {
             { label: "리포트", href: "/admin/reports", icon: BarChart3 },
             { label: "사업소득", href: "/admin/freelancers", icon: UserCheck },
             { label: "마트/약국", href: "/admin/mart-pharmacy", icon: ShoppingBag },
+            { label: "사입 계산서", href: "/admin/purchase-invoice", icon: FileText },
             { label: "사용자 관리", href: "/admin/users", icon: Users },
             { label: "부서 관리", href: "/admin/departments", icon: Building2 },
             { label: "고위드 카드", href: "/admin/gowid", icon: CreditCard },

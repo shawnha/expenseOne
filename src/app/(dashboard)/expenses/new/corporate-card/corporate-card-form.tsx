@@ -15,6 +15,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
+import {
+  PurchaseFields,
+  emptyPurchaseFields,
+  toPurchasePayload,
+  type PurchaseFieldValues,
+} from "@/components/forms/purchase-fields";
 import { CompanySelector } from "@/components/forms/company-selector";
 import { FileUpload } from "@/components/forms/file-upload";
 import dynamic from "next/dynamic";
@@ -106,6 +112,7 @@ export default function CorporateCardForm({ initialCompanies, prefillData }: Cor
   // VAT / 프리랜서 원천징수
   const [vatIncluded, setVatIncluded] = useState(false);
   const [freelancerDeduction, setFreelancerDeduction] = useState(false);
+  const [purchase, setPurchase] = useState<PurchaseFieldValues>(emptyPurchaseFields);
   const [supplyAmount, setSupplyAmount] = useState(0);
 
   // Optional receipt attachments
@@ -277,6 +284,7 @@ export default function CorporateCardForm({ initialCompanies, prefillData }: Cor
           isUrgent: false,
           companyId: companyId || undefined,
           hasFreelancerWithholding: freelancerDeduction,
+          ...toPurchasePayload(purchase),
         }),
       });
 
@@ -724,6 +732,14 @@ export default function CorporateCardForm({ initialCompanies, prefillData }: Cor
               )}
             </div>
           </div>
+        </div>
+
+        {/* 사입 — 약국 납품이면 체크. 세금계산서 발행 관리로 이어진다. */}
+        <div className="glass p-6 mt-4">
+          <PurchaseFields
+            value={purchase}
+            onChange={(patch) => setPurchase((prev) => ({ ...prev, ...patch }))}
+          />
         </div>
 
         {/* 파일 첨부 (선택) */}

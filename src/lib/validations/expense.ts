@@ -26,11 +26,74 @@ const baseExpenseFields = {
 };
 
 // ---------------------------------------------------------------------------
+// 사입 (약국 납품 → 세금계산서 발행 대상)
+//
+// 체크만으로는 계산서를 못 만든다. **누구에게 얼마를** 청구할지가 있어야 한다.
+// 그래서 체크했을 때만 약국명과 공급가액을 필수로 건다 — 체크 안 했으면
+// 전부 선택. refine을 쓰는 이유는 필드끼리 얽힌 조건이라 개별 필드로는
+// 표현할 수 없기 때문이다.
+//
+// 공급가액은 비용 금액(사입가)과 **다르다**. 마진이 붙어서 약국에 청구하는
+// 금액이므로 따로 받는다. 부가세·합계는 저장하지 않고 여기서 파생한다.
+// ---------------------------------------------------------------------------
+
+/** 사업자등록번호 000-00-00000. 입력 편의를 위해 하이픈 없이 10자리도 받는다. */
+export const BIZ_NO_RE = /^\d{3}-?\d{2}-?\d{5}$/;
+
+/** 하이픈 없는 10자리를 표준 표기로 맞춘다. */
+export function normalizeBizNo(v: string): string {
+  const d = v.replace(/\D/g, "");
+  return d.length === 10 ? `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}` : v;
+}
+
+const purchaseFields = {
+  isPurchase: z.boolean().optional().default(false),
+  pharmacyName: z.string().max(100, "약국명은 100자 이내로 입력해주세요").optional().nullable(),
+  pharmacyBizNo: z
+    .string()
+    .regex(BIZ_NO_RE, "사업자등록번호는 000-00-00000 형식으로 입력해주세요")
+    .optional()
+    .nullable()
+    .or(z.literal("")),
+  supplyAmount: z
+    .number()
+    .int("공급가액은 정수여야 합니다")
+    .positive("공급가액은 0보다 커야 합니다")
+    .optional()
+    .nullable(),
+  purchaseItems: z.string().max(1000, "품목은 1000자 이내로 입력해주세요").optional().nullable(),
+};
+
+/** 사입 관련 필드만 본 형태. refine 콜백이 union·object 어느 쪽에서도 통하게 한다. */
+type PurchaseShape = {
+  isPurchase?: boolean;
+  pharmacyName?: string | null;
+  supplyAmount?: number | null;
+};
+
+/** 사입을 체크했으면 약국명과 공급가액이 있어야 한다. */
+function requirePurchaseFields<T extends z.ZodTypeAny>(schema: T) {
+  return schema
+    .refine((d) => {
+      const p = d as PurchaseShape;
+      return !p.isPurchase || !!p.pharmacyName?.trim();
+    }, { message: "납품처 약국명을 입력해주세요", path: ["pharmacyName"] })
+    .refine((d) => {
+      const p = d as PurchaseShape;
+      return !p.isPurchase || (p.supplyAmount ?? 0) > 0;
+    }, { message: "약국에 청구할 공급가액을 입력해주세요", path: ["supplyAmount"] });
+}
+
+// ---------------------------------------------------------------------------
 // 1. Corporate Card submission schema (법카사용 제출)
 // ---------------------------------------------------------------------------
 
-export const corporateCardSubmitSchema = z.object({
+// discriminatedUnion은 **순수 ZodObject만** 받는다. refine을 붙이면 ZodEffects가
+// 돼서 union에 못 넣는다. 그래서 base(object)와 refine을 씌운 것을 나눠 둔다 —
+// union은 base를 쓰고, 폼 resolver는 refine이 붙은 쪽을 쓴다.
+const corporateCardSubmitBase = z.object({
   ...baseExpenseFields,
+  ...purchaseFields,
   type: z.literal("CORPORATE_CARD"),
   merchantName: z
     .string()
@@ -41,14 +104,17 @@ export const corporateCardSubmitSchema = z.object({
   hasFreelancerWithholding: z.boolean().optional().default(false),
 });
 
+export const corporateCardSubmitSchema = requirePurchaseFields(corporateCardSubmitBase);
+
 export type CorporateCardSubmitInput = z.infer<typeof corporateCardSubmitSchema>;
 
 // ---------------------------------------------------------------------------
 // 2. Deposit Request submission schema (입금요청 제출)
 // ---------------------------------------------------------------------------
 
-export const depositRequestSubmitSchema = z.object({
+const depositRequestSubmitBase = z.object({
   ...baseExpenseFields,
+  ...purchaseFields,
   type: z.literal("DEPOSIT_REQUEST"),
   bankName: z
     .string()
@@ -73,6 +139,8 @@ export const depositRequestSubmitSchema = z.object({
   hasFreelancerWithholding: z.boolean().optional().default(false),
 });
 
+export const depositRequestSubmitSchema = requirePurchaseFields(depositRequestSubmitBase);
+
 export type DepositRequestSubmitInput = z.infer<typeof depositRequestSubmitSchema>;
 
 // ---------------------------------------------------------------------------
@@ -96,11 +164,13 @@ export type RefundSubmitInput = z.infer<typeof refundSubmitSchema>;
 // 3. Unified expense creation schema (discriminated union)
 // ---------------------------------------------------------------------------
 
-export const createExpenseSchema = z.discriminatedUnion("type", [
-  corporateCardSubmitSchema,
-  depositRequestSubmitSchema,
-  refundSubmitSchema,
-]);
+export const createExpenseSchema = requirePurchaseFields(
+  z.discriminatedUnion("type", [
+    corporateCardSubmitBase,
+    depositRequestSubmitBase,
+    refundSubmitSchema,
+  ]),
+);
 
 export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;
 
@@ -134,6 +204,7 @@ export const updateExpenseSchema = z.object({
   status: z.enum(["SUBMITTED", "APPROVED", "REJECTED", "CANCELLED"]).optional(),
   companyId: z.string().uuid().optional(),
   hasFreelancerWithholding: z.boolean().optional(),
+  ...purchaseFields,
   // 호점 구분 (마트/약국 실비 정리용). null 이면 미지정으로 해제.
   branch: z.enum(["STORE_1", "STORE_2"]).nullable().optional(),
 });
@@ -206,6 +277,8 @@ export const csvExportQuerySchema = z.object({
     .optional(),
   company: z.string().max(50).optional(),
   freelancer: z.enum(["all", "true"]).optional(),
+  /** 사입 건만 — 약국 세금계산서 발행 근거 export. */
+  purchase: z.enum(["true"]).optional(),
   // 호점 필터: STORE_1 / STORE_2 / none(미지정만)
   branch: z.enum(["STORE_1", "STORE_2", "none"]).optional(),
   // true 이면 제출·승인 건만(반려·취소 제외) — 화면 집계와 일치시키는 정산용 export

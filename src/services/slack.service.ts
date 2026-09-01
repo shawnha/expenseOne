@@ -753,3 +753,19 @@ export async function deleteSlackExpenseMessage(params: {
 }): Promise<void> {
   await deletePostedMessages(params);
 }
+
+/**
+ * 회사와 무관한 관리자용 공지를 primary 채널에 그대로 올린다.
+ *
+ * 비용 알림들과 달리 멘션·회사 미러가 필요 없는 경우를 위한 최소 경로다
+ * (예: 사입 세금계산서 미발행 리마인더 — 특정 제출자가 아니라 관리 업무다).
+ * primary가 없으면 조용히 넘어간다.
+ */
+export async function notifySlackText(text: string): Promise<SlackMessageRef | null> {
+  const { primary } = await resolveTargets(null);
+  if (!primary) {
+    console.warn("[Slack] primary 채널이 없어 공지를 건너뜁니다.");
+    return null;
+  }
+  return postMessage(primary, text);
+}
