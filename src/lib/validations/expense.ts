@@ -46,9 +46,12 @@ export function normalizeBizNo(v: string): string {
   return d.length === 10 ? `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}` : v;
 }
 
-const purchaseFields = {
-  isPurchase: z.boolean().optional().default(false),
-  pharmacyName: z.string().max(100, "약국명은 100자 이내로 입력해주세요").optional().nullable(),
+/** 약국 한 곳 = 계산서 한 줄. */
+export const purchaseLineSchema = z.object({
+  pharmacyName: z
+    .string()
+    .min(1, "약국명을 입력해주세요")
+    .max(100, "약국명은 100자 이내로 입력해주세요"),
   pharmacyBizNo: z
     .string()
     .regex(BIZ_NO_RE, "사업자등록번호는 000-00-00000 형식으로 입력해주세요")
@@ -58,30 +61,30 @@ const purchaseFields = {
   supplyAmount: z
     .number()
     .int("공급가액은 정수여야 합니다")
-    .positive("공급가액은 0보다 커야 합니다")
-    .optional()
-    .nullable(),
+    .positive("공급가액을 입력해주세요"),
   purchaseItems: z.string().max(1000, "품목은 1000자 이내로 입력해주세요").optional().nullable(),
+});
+
+export type PurchaseLineInput = z.infer<typeof purchaseLineSchema>;
+
+const purchaseFields = {
+  isPurchase: z.boolean().optional().default(false),
+  /** 약국별 줄. 사입을 체크했으면 최소 1줄이 있어야 한다. */
+  purchaseLines: z.array(purchaseLineSchema).max(50, "약국은 최대 50곳까지입니다").optional(),
 };
 
 /** 사입 관련 필드만 본 형태. refine 콜백이 union·object 어느 쪽에서도 통하게 한다. */
 type PurchaseShape = {
   isPurchase?: boolean;
-  pharmacyName?: string | null;
-  supplyAmount?: number | null;
+  purchaseLines?: PurchaseLineInput[];
 };
 
-/** 사입을 체크했으면 약국명과 공급가액이 있어야 한다. */
+/** 사입을 체크했으면 약국 줄이 최소 하나 있어야 한다. */
 function requirePurchaseFields<T extends z.ZodTypeAny>(schema: T) {
-  return schema
-    .refine((d) => {
-      const p = d as PurchaseShape;
-      return !p.isPurchase || !!p.pharmacyName?.trim();
-    }, { message: "납품처 약국명을 입력해주세요", path: ["pharmacyName"] })
-    .refine((d) => {
-      const p = d as PurchaseShape;
-      return !p.isPurchase || (p.supplyAmount ?? 0) > 0;
-    }, { message: "약국에 청구할 공급가액을 입력해주세요", path: ["supplyAmount"] });
+  return schema.refine((d) => {
+    const p = d as PurchaseShape;
+    return !p.isPurchase || (p.purchaseLines?.length ?? 0) > 0;
+  }, { message: "납품처 약국을 최소 한 곳 입력해주세요", path: ["purchaseLines"] });
 }
 
 // ---------------------------------------------------------------------------
@@ -277,8 +280,6 @@ export const csvExportQuerySchema = z.object({
     .optional(),
   company: z.string().max(50).optional(),
   freelancer: z.enum(["all", "true"]).optional(),
-  /** 사입 건만 — 약국 세금계산서 발행 근거 export. */
-  purchase: z.enum(["true"]).optional(),
   // 호점 필터: STORE_1 / STORE_2 / none(미지정만)
   branch: z.enum(["STORE_1", "STORE_2", "none"]).optional(),
   // true 이면 제출·승인 건만(반려·취소 제외) — 화면 집계와 일치시키는 정산용 export

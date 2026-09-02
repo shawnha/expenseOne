@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { expenses } from "@/lib/db/schema";
+import { expenses, purchaseInvoiceLines } from "@/lib/db/schema";
 import { and, eq, isNull, lte, inArray } from "drizzle-orm";
 import { sendPushToAdmins } from "@/services/push.service";
 import { notifySlackText } from "@/services/slack.service";
@@ -110,16 +110,16 @@ export async function runInvoiceReminder() {
   const [ey, em] = stage.ym.split("-").map(Number);
   const monthEnd = new Date(Date.UTC(ey, em, 0)).toISOString().slice(0, 10);
 
+  // 미발행 **줄**을 센다. 한 사입에 약국이 여럿이면 계산서도 여러 장이라
+  // 건수가 아니라 줄 수가 실제 할 일의 크기다.
   const rows = await db
-    .select({
-      supplyAmount: expenses.supplyAmount,
-      transactionDate: expenses.transactionDate,
-    })
-    .from(expenses)
+    .select({ supplyAmount: purchaseInvoiceLines.supplyAmount })
+    .from(purchaseInvoiceLines)
+    .innerJoin(expenses, eq(expenses.id, purchaseInvoiceLines.expenseId))
     .where(
       and(
         eq(expenses.isPurchase, true),
-        isNull(expenses.invoiceIssuedAt),
+        isNull(purchaseInvoiceLines.invoiceIssuedAt),
         inArray(expenses.status, ["SUBMITTED", "APPROVED"]),
         lte(expenses.transactionDate, monthEnd),
       ),
@@ -130,7 +130,7 @@ export async function runInvoiceReminder() {
   }
 
   const total = rows.reduce(
-    (acc, r) => acc + deriveInvoiceAmounts(r.supplyAmount ?? 0).total,
+    (acc, r) => acc + deriveInvoiceAmounts(r.supplyAmount).total,
     0,
   );
   const msg = buildMessage(stage, rows.length, total);

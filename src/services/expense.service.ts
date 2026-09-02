@@ -4,6 +4,7 @@ import {
   attachments,
   users,
   companies,
+  purchaseInvoiceLines,
 } from "@/lib/db/schema";
 import {
   eq,
@@ -23,6 +24,7 @@ import {
   sql,
 } from "drizzle-orm";
 import { normalizeBizNo } from "@/lib/validations/expense";
+import type { PurchaseLineInput } from "@/lib/validations/expense";
 import type {
   CreateExpenseInput,
   RefundSubmitInput,
@@ -122,16 +124,9 @@ export async function createExpense(
   };
 
   // 사입(약국 납품 → 세금계산서 발행 대상). 법카·입금요청 양쪽에서 쓸 수 있다.
-  // 체크 안 했으면 나머지 값은 저장하지 않는다 — 체크를 껐다 켰다 하다가
-  // 남은 값이 미발행 목록에 유령처럼 뜨는 걸 막는다.
+  // 약국별 정보는 비용을 만든 뒤 purchase_invoice_lines에 넣는다(아래).
   if (input.isPurchase) {
     baseData.isPurchase = true;
-    baseData.pharmacyName = input.pharmacyName?.trim() || null;
-    baseData.pharmacyBizNo = input.pharmacyBizNo
-      ? normalizeBizNo(input.pharmacyBizNo)
-      : null;
-    baseData.supplyAmount = input.supplyAmount ?? null;
-    baseData.purchaseItems = input.purchaseItems?.trim() || null;
   }
 
   if (isCorporateCard) {
@@ -161,6 +156,11 @@ export async function createExpense(
     .insert(expenses)
     .values(baseData as NewExpense)
     .returning();
+
+  // 약국 줄. 한 번 들여온 물건을 여러 약국에 나눠 납품할 수 있어서 배열이다.
+  if (input.isPurchase && input.purchaseLines?.length) {
+    await replacePurchaseLines(expense.id, input.purchaseLines);
+  }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
@@ -1033,19 +1033,9 @@ export async function updateExpense(
     updatedAt: new Date(),
   };
 
-  // 사입 관련 정리. 등록(createExpense)과 같은 규칙을 유지한다.
-  if (restInput.pharmacyBizNo) {
-    updateSet.pharmacyBizNo = normalizeBizNo(restInput.pharmacyBizNo);
-  }
-  if (restInput.isPurchase === false) {
-    // 사입을 해제하면 딸린 값도 같이 비운다. 안 그러면 남은 약국명·공급가액이
-    // 나중에 다시 체크될 때 되살아나고, 발행 목록의 근거가 흐려진다.
-    updateSet.pharmacyName = null;
-    updateSet.pharmacyBizNo = null;
-    updateSet.supplyAmount = null;
-    updateSet.purchaseItems = null;
-    updateSet.invoiceIssuedAt = null;
-  }
+  // 약국 줄은 별도 테이블이라 updateSet에 섞이면 안 된다. 아래에서 따로 처리한다.
+  const purchaseLines = (restInput as { purchaseLines?: PurchaseLineInput[] }).purchaseLines;
+  delete (updateSet as { purchaseLines?: unknown }).purchaseLines;
 
   // Admin can explicitly set status. Non-admin edits no longer auto-reset
   // an APPROVED deposit request back to SUBMITTED — the common case is the
@@ -1068,6 +1058,17 @@ export async function updateExpense(
       "FORBIDDEN",
       "비용 상태가 변경되었습니다. 페이지를 새로고침해주세요.",
     );
+  }
+
+  // 사입 줄 갱신.
+  //  - 사입 해제 → 줄 전부 삭제(발행 이력도 함께 사라진다. 해제란 곧 "사입이
+  //    아니었다"는 뜻이라 발행 대상도 아니다)
+  //  - 줄을 보냈으면 통째로 교체. **이미 발행 완료로 표시된 줄의 상태는 유지**한다 —
+  //    품목 오타 하나 고쳤다고 발행 기록이 날아가면 그 건을 다시 발행하게 된다.
+  if (restInput.isPurchase === false) {
+    await db.delete(purchaseInvoiceLines).where(eq(purchaseInvoiceLines.expenseId, expenseId));
+  } else if (purchaseLines) {
+    await replacePurchaseLines(expenseId, purchaseLines);
   }
 
   // Update Slack message only when a field that actually appears in the Slack
@@ -1548,8 +1549,12 @@ export async function rejectExpense(
 // 사용자가 발행을 두 번 놓쳤다. 그래서 "어디에 적어두느냐"보다 **미발행이
 // 남아 있다는 걸 계속 드러내는 것**이 이 기능의 핵심이다.
 //
-// 달을 묶는 기준은 거래일(transactionDate)이다. 납품일을 따로 받지 않기로 했고,
-// 사입 등록 시점의 거래일이 곧 매입 시점이라 월 단위 정산과 어긋나지 않는다.
+// 사입 한 건 = 약국 여러 줄. 한 번 들여온 물건을 여러 약국에 나눠 납품하는
+// 경우가 있어서다. 세금계산서는 공급받는자가 한 명이라 보통 약국 수만큼
+// 발행하므로, 발행 여부도 줄마다 갖는다.
+//
+// 달을 묶는 기준은 비용의 거래일(transactionDate)이다. 납품일을 따로 받지
+// 않기로 했고, 사입 시점이 곧 매입 시점이라 월 단위 정산과 어긋나지 않는다.
 // ---------------------------------------------------------------------------
 
 /** 부가세율. 약국 납품은 일반과세 10%. */
@@ -1572,30 +1577,82 @@ export function invoiceDueDate(yearMonth: string): string {
   return `${dueY}-${String(dueM).padStart(2, "0")}-10`;
 }
 
-export interface PurchaseInvoiceRow {
+/**
+ * 약국 줄을 통째로 교체한다.
+ *
+ * **이미 발행 완료로 표시된 줄의 상태는 살린다.** 품목 오타 하나 고쳤다고
+ * 발행 기록이 날아가면 그 건을 다시 발행하게 되고, 그게 이 기능이 막으려는
+ * 실수다. 같은 줄인지는 (약국명, 사업자번호)로 판단한다 — 금액은 수정 대상이라
+ * 키로 쓸 수 없다.
+ */
+async function replacePurchaseLines(expenseId: string, lines: PurchaseLineInput[]) {
+  const existing = await db
+    .select({
+      pharmacyName: purchaseInvoiceLines.pharmacyName,
+      pharmacyBizNo: purchaseInvoiceLines.pharmacyBizNo,
+      invoiceIssuedAt: purchaseInvoiceLines.invoiceIssuedAt,
+    })
+    .from(purchaseInvoiceLines)
+    .where(eq(purchaseInvoiceLines.expenseId, expenseId));
+
+  const issuedBefore = new Map(
+    existing
+      .filter((r) => r.invoiceIssuedAt)
+      .map((r) => [`${r.pharmacyName}|${r.pharmacyBizNo ?? ""}`, r.invoiceIssuedAt!]),
+  );
+
+  await db.delete(purchaseInvoiceLines).where(eq(purchaseInvoiceLines.expenseId, expenseId));
+  if (lines.length === 0) return;
+
+  await db.insert(purchaseInvoiceLines).values(
+    lines.map((l, i) => {
+      const bizNo = l.pharmacyBizNo ? normalizeBizNo(l.pharmacyBizNo) : null;
+      const name = l.pharmacyName.trim();
+      return {
+        expenseId,
+        pharmacyName: name,
+        pharmacyBizNo: bizNo,
+        supplyAmount: l.supplyAmount,
+        purchaseItems: l.purchaseItems?.trim() || null,
+        invoiceIssuedAt: issuedBefore.get(`${name}|${bizNo ?? ""}`) ?? null,
+        sortOrder: i,
+      };
+    }),
+  );
+}
+
+export interface PurchaseInvoiceLineRow {
   id: string;
-  transactionDate: string;
-  title: string;
-  pharmacyName: string | null;
+  expenseId: string;
+  pharmacyName: string;
   pharmacyBizNo: string | null;
   supplyAmount: number;
   vat: number;
   total: number;
   purchaseItems: string | null;
   invoiceIssuedAt: Date | null;
-  companyName: string | null;
-  submitterName: string | null;
+}
+
+export interface PurchaseInvoiceExpense {
+  id: string;
+  transactionDate: string;
+  title: string;
   /** 매입 원가(비용 금액). 마진 확인용. */
   cost: number;
+  companyName: string | null;
+  submitterName: string | null;
+  lines: PurchaseInvoiceLineRow[];
+  unissuedCount: number;
 }
 
 export interface PurchaseInvoiceMonth {
   yearMonth: string;
   dueDate: string;
-  rows: PurchaseInvoiceRow[];
+  expenses: PurchaseInvoiceExpense[];
+  lineCount: number;
   issuedCount: number;
   unissuedCount: number;
-  /** 미발행 건의 합계 — 실제로 발행해야 할 금액. */
+  /** 미발행 줄의 합계 — 실제로 발행해야 할 금액. */
   unissuedTotal: number;
   totalSupply: number;
   totalVat: number;
@@ -1603,14 +1660,13 @@ export interface PurchaseInvoiceMonth {
 }
 
 /**
- * 사입 건을 **월별로 묶어** 돌려준다. 미발행이 남은 달이 위로 온다 —
- * 할 일이 있는 달을 먼저 보여주는 게 이 화면의 목적이기 때문이다.
+ * 사입 건을 **월별로** 묶어 돌려준다. 각 건 안에 약국 줄이 들어 있다.
+ * 미발행이 남은 달이 위로 온다 — 할 일이 있는 달을 먼저 보여주는 게 목적이다.
  */
 export async function getPurchaseInvoiceSummary(filter: {
   startDate?: string;
   endDate?: string;
   company?: string;
-  /** "unissued"면 미발행 건만. */
   status?: "all" | "unissued" | "issued";
 }): Promise<PurchaseInvoiceMonth[]> {
   const conditions: ReturnType<typeof eq>[] = [
@@ -1618,13 +1674,8 @@ export async function getPurchaseInvoiceSummary(filter: {
     // 반려·취소는 실제 매입이 아니므로 발행 대상이 아니다.
     inArray(expenses.status, ["SUBMITTED", "APPROVED"]),
   ];
-
   if (filter.startDate) conditions.push(gte(expenses.transactionDate, filter.startDate));
   if (filter.endDate) conditions.push(lte(expenses.transactionDate, filter.endDate));
-  if (filter.status === "unissued") conditions.push(isNull(expenses.invoiceIssuedAt));
-  if (filter.status === "issued") {
-    conditions.push(sql`${expenses.invoiceIssuedAt} is not null` as ReturnType<typeof eq>);
-  }
   if (filter.company) {
     const { getCompanyBySlug } = await import("@/services/company.service");
     const company = await getCompanyBySlug(filter.company);
@@ -1633,52 +1684,86 @@ export async function getPurchaseInvoiceSummary(filter: {
 
   const rows = await db
     .select({
-      id: expenses.id,
+      expenseId: expenses.id,
       transactionDate: expenses.transactionDate,
       title: expenses.title,
-      pharmacyName: expenses.pharmacyName,
-      pharmacyBizNo: expenses.pharmacyBizNo,
-      supplyAmount: expenses.supplyAmount,
-      purchaseItems: expenses.purchaseItems,
-      invoiceIssuedAt: expenses.invoiceIssuedAt,
       cost: expenses.amount,
       companyName: companies.name,
       submitterName: users.name,
+      lineId: purchaseInvoiceLines.id,
+      pharmacyName: purchaseInvoiceLines.pharmacyName,
+      pharmacyBizNo: purchaseInvoiceLines.pharmacyBizNo,
+      supplyAmount: purchaseInvoiceLines.supplyAmount,
+      purchaseItems: purchaseInvoiceLines.purchaseItems,
+      invoiceIssuedAt: purchaseInvoiceLines.invoiceIssuedAt,
+      sortOrder: purchaseInvoiceLines.sortOrder,
     })
     .from(expenses)
+    // inner join — 약국 줄이 없는 사입 건은 발행할 게 없으므로 이 화면에 안 나온다.
+    .innerJoin(purchaseInvoiceLines, eq(purchaseInvoiceLines.expenseId, expenses.id))
     .leftJoin(companies, eq(expenses.companyId, companies.id))
     .leftJoin(users, eq(expenses.submittedById, users.id))
     .where(and(...conditions))
-    .orderBy(desc(expenses.transactionDate));
+    .orderBy(desc(expenses.transactionDate), asc(purchaseInvoiceLines.sortOrder));
 
-  const byMonth = new Map<string, PurchaseInvoiceRow[]>();
-  for (const r of rows) {
+  // 상태 필터는 **줄 단위**로 건다. 한 건 안에 발행/미발행이 섞일 수 있어서다.
+  const filtered = rows.filter((r) => {
+    if (filter.status === "unissued") return !r.invoiceIssuedAt;
+    if (filter.status === "issued") return !!r.invoiceIssuedAt;
+    return true;
+  });
+
+  const byMonth = new Map<string, Map<string, PurchaseInvoiceExpense>>();
+  for (const r of filtered) {
     const ym = r.transactionDate.slice(0, 7);
-    // supplyAmount는 사입 저장 시 필수라 원칙적으로 null이 아니지만, 0014 이전
-    // 데이터나 수동 수정으로 비어 있을 수 있어 0으로 막는다.
-    const supply = r.supplyAmount ?? 0;
-    const { vat, total } = deriveInvoiceAmounts(supply);
-    const list = byMonth.get(ym) ?? [];
-    list.push({ ...r, supplyAmount: supply, vat, total });
-    byMonth.set(ym, list);
+    const monthMap = byMonth.get(ym) ?? new Map<string, PurchaseInvoiceExpense>();
+    const exp =
+      monthMap.get(r.expenseId) ??
+      {
+        id: r.expenseId,
+        transactionDate: r.transactionDate,
+        title: r.title,
+        cost: r.cost,
+        companyName: r.companyName,
+        submitterName: r.submitterName,
+        lines: [],
+        unissuedCount: 0,
+      };
+    const { vat, total } = deriveInvoiceAmounts(r.supplyAmount);
+    exp.lines.push({
+      id: r.lineId,
+      expenseId: r.expenseId,
+      pharmacyName: r.pharmacyName,
+      pharmacyBizNo: r.pharmacyBizNo,
+      supplyAmount: r.supplyAmount,
+      vat,
+      total,
+      purchaseItems: r.purchaseItems,
+      invoiceIssuedAt: r.invoiceIssuedAt,
+    });
+    if (!r.invoiceIssuedAt) exp.unissuedCount++;
+    monthMap.set(r.expenseId, exp);
+    byMonth.set(ym, monthMap);
   }
 
-  const months: PurchaseInvoiceMonth[] = [...byMonth.entries()].map(([ym, list]) => {
-    const unissued = list.filter((r) => !r.invoiceIssuedAt);
+  const months: PurchaseInvoiceMonth[] = [...byMonth.entries()].map(([ym, expMap]) => {
+    const list = [...expMap.values()];
+    const allLines = list.flatMap((e) => e.lines);
+    const unissued = allLines.filter((l) => !l.invoiceIssuedAt);
     return {
       yearMonth: ym,
       dueDate: invoiceDueDate(ym),
-      rows: list,
-      issuedCount: list.length - unissued.length,
+      expenses: list,
+      lineCount: allLines.length,
+      issuedCount: allLines.length - unissued.length,
       unissuedCount: unissued.length,
-      unissuedTotal: unissued.reduce((a, r) => a + r.total, 0),
-      totalSupply: list.reduce((a, r) => a + r.supplyAmount, 0),
-      totalVat: list.reduce((a, r) => a + r.vat, 0),
-      totalAmount: list.reduce((a, r) => a + r.total, 0),
+      unissuedTotal: unissued.reduce((a, l) => a + l.total, 0),
+      totalSupply: allLines.reduce((a, l) => a + l.supplyAmount, 0),
+      totalVat: allLines.reduce((a, l) => a + l.vat, 0),
+      totalAmount: allLines.reduce((a, l) => a + l.total, 0),
     };
   });
 
-  // 미발행이 있는 달을 먼저, 그 안에서는 최근 달부터.
   months.sort((a, b) => {
     if ((a.unissuedCount > 0) !== (b.unissuedCount > 0)) return a.unissuedCount > 0 ? -1 : 1;
     return b.yearMonth.localeCompare(a.yearMonth);
@@ -1686,16 +1771,22 @@ export async function getPurchaseInvoiceSummary(filter: {
   return months;
 }
 
-/** 발행 완료 표시(또는 해제). ADMIN 전용 — 라우트에서 권한을 건다. */
-export async function setInvoiceIssued(expenseId: string, issued: boolean) {
-  const [updated] = await db
-    .update(expenses)
+/**
+ * 발행 완료 표시(또는 해제). ADMIN 전용 — 라우트에서 권한을 건다.
+ *
+ * lineIds를 배열로 받는 이유: 계산서 한 장으로 여러 약국을 처리한 경우
+ * (같은 사업자의 여러 지점 등) 한 번에 체크해야 한다.
+ */
+export async function setInvoiceIssued(lineIds: string[], issued: boolean) {
+  if (lineIds.length === 0) return [];
+  const updated = await db
+    .update(purchaseInvoiceLines)
     .set({ invoiceIssuedAt: issued ? new Date() : null, updatedAt: new Date() })
-    .where(and(eq(expenses.id, expenseId), eq(expenses.isPurchase, true)))
-    .returning({ id: expenses.id, invoiceIssuedAt: expenses.invoiceIssuedAt });
+    .where(inArray(purchaseInvoiceLines.id, lineIds))
+    .returning({ id: purchaseInvoiceLines.id, invoiceIssuedAt: purchaseInvoiceLines.invoiceIssuedAt });
 
-  if (!updated) {
-    throw new AppError("NOT_FOUND", "사입 건을 찾을 수 없습니다.");
+  if (updated.length === 0) {
+    throw new AppError("NOT_FOUND", "발행 대상을 찾을 수 없습니다.");
   }
   return updated;
 }

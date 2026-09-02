@@ -187,24 +187,11 @@ export const expenses = expenseSchema.table(
     // -----------------------------------------------------------------------
     // 사입 → 약국 세금계산서 발행
     //
-    // 사입은 **우리가 물건을 사서 약국에 납품**하는 건이다. 비용 자체(amount)는
-    // 나간 돈이지만, 발행할 계산서는 **약국에 청구할 돈**이라 금액이 다르다
-    // (마진). 그래서 청구 기준 금액을 따로 받는다.
-    //
-    // 부가세와 합계는 저장하지 않는다 — supplyAmount에서 계산한다.
-    // 셋을 다 저장하면 수정 때 어긋날 수 있고, 어긋나면 어느 게 맞는지 알 수 없다.
+    // 사입은 **우리가 물건을 사서 약국에 납품**하는 건이다. 한 번 들여온 물건을
+    // **여러 약국에 나눠 납품**할 수 있어서, 약국별 정보는 별도 테이블
+    // (purchaseInvoiceLines)에 줄 단위로 둔다. 여기엔 사입 여부만 남긴다.
     // -----------------------------------------------------------------------
     isPurchase: boolean("is_purchase").notNull().default(false),
-    /** 납품처 약국명. */
-    pharmacyName: varchar("pharmacy_name", { length: 100 }),
-    /** 약국 사업자등록번호. 하이픈 포함 표기(000-00-00000). */
-    pharmacyBizNo: varchar("pharmacy_biz_no", { length: 12 }),
-    /** 약국에 청구할 공급가액(원). 부가세 10%와 합계는 여기서 파생된다. */
-    supplyAmount: integer("supply_amount"),
-    /** 품목·수량. 자유 입력 — 품목 구조를 잡기엔 아직 형태가 안 정해졌다. */
-    purchaseItems: text("purchase_items"),
-    /** 세금계산서 발행 완료 시각. null이면 **미발행**(알림 대상). */
-    invoiceIssuedAt: timestamp("invoice_issued_at", { withTimezone: true }),
 
     // 호점 구분 (마트/약국 실비 정리용). null = 미지정. 코드값: STORE_1, STORE_2.
     branch: varchar("branch", { length: 20 }),
@@ -244,16 +231,56 @@ export const expenses = expenseSchema.table(
     index("idx_expenses_has_freelancer_withholding")
       .on(table.hasFreelancerWithholding)
       .where(sql`has_freelancer_withholding = true`),
-    // 미발행 사입 건만 훑는 인덱스. 매일 도는 알림 cron이 이 조건으로만 조회한다.
-    index("idx_expenses_purchase_unissued")
+    // 사입 건만 훑는 인덱스. 발행 여부는 purchaseInvoiceLines 쪽에서 본다.
+    index("idx_expenses_is_purchase")
       .on(table.transactionDate)
-      .where(sql`is_purchase = true and invoice_issued_at is null`),
+      .where(sql`is_purchase = true`),
     index("idx_expenses_original_expense_id")
       .on(table.originalExpenseId)
       .where(sql`original_expense_id IS NOT NULL`),
     index("idx_expenses_branch")
       .on(table.branch)
       .where(sql`branch IS NOT NULL`),
+  ],
+);
+
+/**
+ * purchase_invoice_lines -- 사입 건의 약국별 납품/발행 줄
+ *
+ * 사입 한 번으로 들여온 물건을 **여러 약국에 나눠 납품**할 수 있다. 세금계산서는
+ * 공급받는자가 한 명이라 보통 약국 수만큼 발행하고, 같은 사업자의 여러 지점이면
+ * 한 장에 납품처만 여럿일 수도 있다. 둘 다 담으려면 약국을 줄로 두고 발행 여부를
+ * **줄마다** 갖는 게 맞다 (한 장으로 처리했다면 관련 줄을 한꺼번에 체크한다).
+ *
+ * 부가세·합계는 저장하지 않는다 — supplyAmount에서 계산한다. 셋을 다 저장하면
+ * 수정 때 어긋나고, 어긋나면 어느 게 맞는지 알 수 없다.
+ */
+export const purchaseInvoiceLines = expenseSchema.table(
+  "purchase_invoice_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    expenseId: uuid("expense_id")
+      .notNull()
+      .references(() => expenses.id, { onDelete: "cascade" }),
+    pharmacyName: varchar("pharmacy_name", { length: 100 }).notNull(),
+    /** 사업자등록번호. 하이픈 포함 표기(000-00-00000). */
+    pharmacyBizNo: varchar("pharmacy_biz_no", { length: 12 }),
+    /** 이 약국에 청구할 공급가액(원). */
+    supplyAmount: integer("supply_amount").notNull(),
+    purchaseItems: text("purchase_items"),
+    /** 발행 완료 시각. null이면 **미발행**(알림 대상). */
+    invoiceIssuedAt: timestamp("invoice_issued_at", { withTimezone: true }),
+    /** 입력 순서. 같은 사입 안에서 순서가 뒤바뀌면 대조하기 어렵다. */
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check("supply_amount_positive", sql`${table.supplyAmount} > 0`),
+    index("idx_purchase_lines_expense").on(table.expenseId),
+    index("idx_purchase_lines_unissued")
+      .on(table.expenseId)
+      .where(sql`invoice_issued_at is null`),
   ],
 );
 
@@ -439,6 +466,8 @@ export const gowidTransactions = expenseSchema.table(
   ],
 );
 
+export type PurchaseInvoiceLine = typeof purchaseInvoiceLines.$inferSelect;
+export type NewPurchaseInvoiceLine = typeof purchaseInvoiceLines.$inferInsert;
 export type GowidCardMapping = typeof gowidCardMappings.$inferSelect;
 export type NewGowidCardMapping = typeof gowidCardMappings.$inferInsert;
 export type GowidTransaction = typeof gowidTransactions.$inferSelect;

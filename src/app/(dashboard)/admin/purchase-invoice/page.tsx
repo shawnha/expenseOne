@@ -44,7 +44,7 @@ async function Content({ searchParams }: PageProps) {
 
   const csvParams = new URLSearchParams();
   if (company) csvParams.set("company", company);
-  csvParams.set("purchase", "true");
+  if (status !== "all") csvParams.set("status", status);
 
   return (
     <div className="flex flex-col gap-4 sm:gap-5">
@@ -58,7 +58,7 @@ async function Content({ searchParams }: PageProps) {
           </p>
         </div>
         <Link
-          href={`/api/export/csv?${csvParams.toString()}`}
+          href={`/api/export/purchase-invoice?${csvParams.toString()}`}
           className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[var(--apple-separator)] px-3.5 text-[13px] text-[var(--apple-label)]"
         >
           <Download className="size-4" /> CSV
@@ -82,7 +82,7 @@ async function Content({ searchParams }: PageProps) {
             }`}
           />
           <p className="text-sm font-medium text-[var(--apple-label)]">
-            발행할 계산서 {unissuedCount}건 · {won(unissuedTotal)}
+            발행할 계산서 {unissuedCount}장 · {won(unissuedTotal)}
           </p>
           {overdueMonths.length > 0 && (
             <p className="text-sm font-semibold text-[var(--apple-red)]">

@@ -736,10 +736,7 @@ export default function CorporateCardForm({ initialCompanies, prefillData }: Cor
 
         {/* 사입 — 약국 납품이면 체크. 세금계산서 발행 관리로 이어진다. */}
         <div className="glass p-6 mt-4">
-          <PurchaseFields
-            value={purchase}
-            onChange={(patch) => setPurchase((prev) => ({ ...prev, ...patch }))}
-          />
+          <PurchaseFields value={purchase} onChange={setPurchase} />
         </div>
 
         {/* 파일 첨부 (선택) */}
