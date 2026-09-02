@@ -10,8 +10,23 @@ const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "";
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "";
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT || "mailto:shawn@hanah1.com";
 
-if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+const VAPID_CONFIGURED = Boolean(VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY);
+
+if (VAPID_CONFIGURED) {
   webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+}
+
+/**
+ * VAPID 키가 없으면 전송을 아예 시도하지 않는다.
+ *
+ * 키 없이 보내면 구독 엔드포인트마다 실제 네트워크 요청이 나가고 전부 401로
+ * 실패한다 — 느리고, 에러 로그만 쌓이고, 성공할 가능성은 0이다.
+ * (검증 스크립트를 키 없이 돌릴 때 이 왕복 때문에 몇 분씩 걸렸다.)
+ */
+function pushDisabled(): boolean {
+  if (VAPID_CONFIGURED) return false;
+  console.warn("[Push] VAPID 키가 없어 푸시 전송을 건너뜁니다.");
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -23,6 +38,7 @@ export async function sendPushToUser(
   body: string,
   url?: string,
 ) {
+  if (pushDisabled()) return;
   try {
     const subs = await db
       .select()
@@ -78,6 +94,7 @@ export async function sendPushToAdmins(
   body: string,
   url?: string,
 ) {
+  if (pushDisabled()) return;
   try {
     const admins = await db
       .select({ id: users.id })

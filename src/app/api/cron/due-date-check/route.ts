@@ -6,6 +6,7 @@ import { sendPushToAdmins } from "@/services/push.service";
 import { formatExpenseAmount } from "@/lib/utils/expense-utils";
 import { verifyCronAuth } from "@/lib/cron-auth";
 import { runInvoiceReminder } from "@/services/purchase-invoice-reminder.service";
+import { generateDueRecurringExpenses } from "@/services/recurring-expense.service";
 
 // ---------------------------------------------------------------------------
 // Cron — 납입 기일 임박 알림
@@ -123,6 +124,15 @@ export async function GET(request: Request) {
     }
   }
 
+  // 반복 입금요청 생성. 실패해도 나머지 알림에는 영향을 주지 않는다.
+  let recurring: unknown = null;
+  try {
+    recurring = await generateDueRecurringExpenses();
+  } catch (err) {
+    console.error("[DueDateCron] 반복 입금요청 생성 실패:", err);
+    recurring = { error: true };
+  }
+
   // 사입 세금계산서 미발행 알림도 같이 처리한다.
   //
   // 별도 cron 항목을 만들지 않은 이유: Vercel은 요금제별로 cron 개수가 제한되고
@@ -141,6 +151,7 @@ export async function GET(request: Request) {
     checkedAt: today.toISOString(),
     notifiedCount,
     results,
+    recurring,
     invoiceReminder,
   });
 }

@@ -298,3 +298,52 @@ export const attachmentUploadSchema = z.object({
 });
 
 export type AttachmentUploadInput = z.infer<typeof attachmentUploadSchema>;
+
+// ---------------------------------------------------------------------------
+// 9. 반복 입금요청 (정기 지출 템플릿)
+// ---------------------------------------------------------------------------
+
+export const recurringFrequencies = ["WEEKLY", "MONTHLY", "YEARLY"] as const;
+
+const recurringBase = z.object({
+  title: z.string().min(1, "제목을 입력해주세요").max(200, "제목은 200자 이내로 입력해주세요"),
+  description: z.string().max(2000).optional().nullable(),
+  amount: z.number().int("금액은 정수여야 합니다").positive("금액은 0보다 커야 합니다"),
+  currency: z.enum(["KRW", "USD"]).optional().default("KRW"),
+  category: z.string().min(1, "카테고리를 선택해주세요").max(100),
+  bankName: z.string().min(1, "은행명을 입력해주세요").max(50),
+  accountHolder: z.string().min(1, "예금주를 입력해주세요").max(100),
+  accountNumber: z.string().min(1, "계좌번호를 입력해주세요").max(50),
+  companyId: z.string().uuid("회사를 선택해주세요"),
+
+  frequency: z.enum(recurringFrequencies),
+  intervalCount: z.number().int().min(1).max(12).optional().default(1),
+  dayOfMonth: z.number().int().min(1).max(31).optional().nullable(),
+  monthOfYear: z.number().int().min(1).max(12).optional().nullable(),
+  weekday: z.number().int().min(0).max(6).optional().nullable(),
+
+  /** 납입 기일을 생성일로부터 며칠 뒤로. null이면 기일 없음. */
+  dueDateOffsetDays: z.number().int().min(0).max(90).optional().nullable(),
+  attachFiles: z.boolean().optional().default(false),
+  isActive: z.boolean().optional().default(true),
+});
+
+/**
+ * 주기별로 필요한 값이 채워져 있어야 한다. 없으면 다음 날짜를 계산할 수 없고,
+ * DB CHECK에서 거부되면 사용자에게 무슨 값이 빠졌는지 안 보인다.
+ */
+export const recurringExpenseSchema = recurringBase
+  .refine((d) => d.frequency !== "WEEKLY" || d.weekday != null, {
+    message: "요일을 선택해주세요",
+    path: ["weekday"],
+  })
+  .refine((d) => d.frequency === "WEEKLY" || d.dayOfMonth != null, {
+    message: "며칠에 등록할지 선택해주세요",
+    path: ["dayOfMonth"],
+  })
+  .refine((d) => d.frequency !== "YEARLY" || d.monthOfYear != null, {
+    message: "몇 월에 등록할지 선택해주세요",
+    path: ["monthOfYear"],
+  });
+
+export type RecurringExpenseInput = z.infer<typeof recurringExpenseSchema>;

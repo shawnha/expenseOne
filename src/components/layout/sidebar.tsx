@@ -18,6 +18,7 @@ import {
   ShoppingBag,
   Landmark,
   FileText,
+  Repeat,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ExpenseOneLogo } from "@/components/layout/expense-one-logo";
@@ -32,6 +33,7 @@ interface NavItem {
 const mainNavItems: NavItem[] = [
   { label: "홈", href: "/", icon: <Home className="size-[18px] [stroke-width:1.8]" /> },
   { label: "비용 관리", href: "/expenses", icon: <Receipt className="size-[18px] [stroke-width:1.8]" /> },
+  { label: "반복 입금요청", href: "/expenses/recurring", icon: <Repeat className="size-[18px] [stroke-width:1.8]" /> },
 ];
 
 const adminNavItems: NavItem[] = [

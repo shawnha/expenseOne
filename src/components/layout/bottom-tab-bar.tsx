@@ -19,6 +19,7 @@ import {
   UserCheck,
   ShoppingBag,
   FileText,
+  Repeat,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRealtimeNotifications } from "@/hooks/use-realtime-notifications";
@@ -49,6 +50,7 @@ function getTabItems(isAdmin: boolean, badge: number): TabItem[] {
       icon: LayoutGrid,
       quickActions: isAdmin
         ? [
+            { label: "반복 입금요청", href: "/expenses/recurring", icon: Repeat },
             { label: "대시보드", href: "/admin", icon: LayoutDashboard },
             { label: "전체 비용", href: "/admin/expenses", icon: Receipt },
             { label: "승인 대기", href: "/admin/pending", icon: Clock },
@@ -61,7 +63,10 @@ function getTabItems(isAdmin: boolean, badge: number): TabItem[] {
             { label: "고위드 카드", href: "/admin/gowid", icon: CreditCard },
             { label: "설정", href: "/settings", icon: Settings },
           ]
-        : undefined,
+        : [
+            { label: "반복 입금요청", href: "/expenses/recurring", icon: Repeat },
+            { label: "설정", href: "/settings", icon: Settings },
+          ],
     },
   ];
 }

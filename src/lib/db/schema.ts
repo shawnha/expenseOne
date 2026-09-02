@@ -245,6 +245,99 @@ export const expenses = expenseSchema.table(
 );
 
 /**
+ * recurring_expenses -- 반복 입금요청 템플릿
+ *
+ * 월세·구독료처럼 매번 같은 내용으로 올리는 입금요청을 등록해두면 예정일에
+ * cron이 실제 입금요청을 만든다.
+ *
+ * 주기는 (frequency, intervalCount)로 표현한다. 격월·분기를 따로 두지 않고
+ * MONTHLY + interval 2/3으로 처리하면 다음 날짜 계산 규칙이 하나로 유지된다.
+ */
+export const recurringExpenses = expenseSchema.table(
+  "recurring_expenses",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+
+    title: varchar("title", { length: 200 }).notNull(),
+    description: text("description"),
+    amount: integer("amount").notNull(),
+    currency: varchar("currency", { length: 3 }).notNull().default("KRW"),
+    category: varchar("category", { length: 100 }).notNull(),
+    bankName: varchar("bank_name", { length: 50 }).notNull(),
+    accountHolder: varchar("account_holder", { length: 100 }).notNull(),
+    accountNumber: varchar("account_number", { length: 50 }).notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    /** 이 사람이 제출한 것으로 만들어진다. 생성 알림도 이 사람에게 간다. */
+    submittedById: uuid("submitted_by_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+
+    /** WEEKLY | MONTHLY | YEARLY */
+    frequency: varchar("frequency", { length: 10 }).notNull(),
+    /** N주기마다. 격월=MONTHLY 2, 분기=MONTHLY 3. */
+    intervalCount: integer("interval_count").notNull().default(1),
+    /** MONTHLY/YEARLY: 1~31. 그 달에 없는 날이면 말일로 대체한다. */
+    dayOfMonth: integer("day_of_month"),
+    /** YEARLY: 1~12 */
+    monthOfYear: integer("month_of_year"),
+    /** WEEKLY: 0(일)~6(토) */
+    weekday: integer("weekday"),
+
+    /** 납입 기일을 생성일로부터 며칠 뒤로 잡을지. null이면 기일 없음. */
+    dueDateOffsetDays: integer("due_date_offset_days"),
+    /** 켜면 템플릿 첨부를 **복사**해서 붙인다. */
+    attachFiles: boolean("attach_files").notNull().default(false),
+
+    isActive: boolean("is_active").notNull().default(true),
+    /**
+     * 다음 생성 예정일. cron은 이 값만 보고 고른다 — 조회가 단순하고,
+     * 생성 후 다음 값으로 밀기 때문에 같은 날 두 번 돌아도 중복 생성되지 않는다.
+     */
+    nextRunDate: date("next_run_date", { mode: "string" }).notNull(),
+    lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+    lastExpenseId: uuid("last_expense_id").references(() => expenses.id, {
+      onDelete: "set null",
+    }),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check("recurring_amount_positive", sql`${table.amount} > 0`),
+    index("idx_recurring_due").on(table.nextRunDate).where(sql`is_active = true`),
+    index("idx_recurring_submitter").on(table.submittedById),
+  ],
+);
+
+/**
+ * recurring_expense_attachments -- 반복 입금요청의 템플릿 증빙
+ *
+ * 생성 시 **스토리지 파일을 복사**해서 새 attachments 행을 만든다. 같은 파일을
+ * 여러 비용이 공유하면 한 건에서 첨부를 지울 때 스토리지 원본이 사라져 나머지
+ * 건의 첨부가 깨진다(deleteAttachment/deleteExpense가 fileKey로 원본을 지운다).
+ */
+export const recurringExpenseAttachments = expenseSchema.table(
+  "recurring_expense_attachments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    recurringExpenseId: uuid("recurring_expense_id")
+      .notNull()
+      .references(() => recurringExpenses.id, { onDelete: "cascade" }),
+    documentType: varchar("document_type", { length: 100 }).notNull(),
+    fileName: varchar("file_name", { length: 255 }).notNull(),
+    fileKey: varchar("file_key", { length: 500 }).notNull(),
+    fileUrl: text("file_url").notNull(),
+    fileSize: integer("file_size").notNull(),
+    mimeType: varchar("mime_type", { length: 100 }).notNull(),
+    uploadedById: uuid("uploaded_by_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_recurring_attachments_parent").on(table.recurringExpenseId),
+  ],
+);
+
+/**
  * purchase_invoice_lines -- 사입 건의 약국별 납품/발행 줄
  *
  * 사입 한 번으로 들여온 물건을 **여러 약국에 나눠 납품**할 수 있다. 세금계산서는
@@ -466,6 +559,8 @@ export const gowidTransactions = expenseSchema.table(
   ],
 );
 
+export type RecurringExpense = typeof recurringExpenses.$inferSelect;
+export type NewRecurringExpense = typeof recurringExpenses.$inferInsert;
 export type PurchaseInvoiceLine = typeof purchaseInvoiceLines.$inferSelect;
 export type NewPurchaseInvoiceLine = typeof purchaseInvoiceLines.$inferInsert;
 export type GowidCardMapping = typeof gowidCardMappings.$inferSelect;
