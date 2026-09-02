@@ -1557,12 +1557,15 @@ export async function rejectExpense(
 // 않기로 했고, 사입 시점이 곧 매입 시점이라 월 단위 정산과 어긋나지 않는다.
 // ---------------------------------------------------------------------------
 
-/** 부가세율. 약국 납품은 일반과세 10%. */
-const VAT_RATE = 0.1;
-
-/** 공급가액에서 부가세·합계를 파생한다. 저장하지 않고 항상 여기서 계산한다. */
-export function deriveInvoiceAmounts(supplyAmount: number) {
-  const vat = Math.round(supplyAmount * VAT_RATE);
+/**
+ * 계산서 금액. 부가세는 **저장된 값**을 쓰고 합계는 둘의 합이다.
+ *
+ * 예전엔 공급가액에서 round(×0.1)로 파생했는데, 사용자가 총액으로 입력하면
+ * 그 방식으로는 총액의 약 9%가 표현되지 않는다(drizzle/0018 참고).
+ * vatAmount가 없는 옛 데이터만 파생으로 폴백한다.
+ */
+export function deriveInvoiceAmounts(supplyAmount: number, vatAmount?: number | null) {
+  const vat = vatAmount ?? Math.round(supplyAmount * 0.1);
   return { supply: supplyAmount, vat, total: supplyAmount + vat };
 }
 
@@ -1613,6 +1616,7 @@ async function replacePurchaseLines(expenseId: string, lines: PurchaseLineInput[
         pharmacyName: name,
         pharmacyBizNo: bizNo,
         supplyAmount: l.supplyAmount,
+        vatAmount: l.vatAmount ?? Math.round(l.supplyAmount * 0.1),
         purchaseItems: l.purchaseItems?.trim() || null,
         invoiceIssuedAt: issuedBefore.get(`${name}|${bizNo ?? ""}`) ?? null,
         sortOrder: i,
@@ -1694,6 +1698,7 @@ export async function getPurchaseInvoiceSummary(filter: {
       pharmacyName: purchaseInvoiceLines.pharmacyName,
       pharmacyBizNo: purchaseInvoiceLines.pharmacyBizNo,
       supplyAmount: purchaseInvoiceLines.supplyAmount,
+      vatAmount: purchaseInvoiceLines.vatAmount,
       purchaseItems: purchaseInvoiceLines.purchaseItems,
       invoiceIssuedAt: purchaseInvoiceLines.invoiceIssuedAt,
       sortOrder: purchaseInvoiceLines.sortOrder,
@@ -1729,7 +1734,7 @@ export async function getPurchaseInvoiceSummary(filter: {
         lines: [],
         unissuedCount: 0,
       };
-    const { vat, total } = deriveInvoiceAmounts(r.supplyAmount);
+    const { vat, total } = deriveInvoiceAmounts(r.supplyAmount, r.vatAmount);
     exp.lines.push({
       id: r.lineId,
       expenseId: r.expenseId,

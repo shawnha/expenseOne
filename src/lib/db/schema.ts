@@ -360,6 +360,12 @@ export const purchaseInvoiceLines = expenseSchema.table(
     pharmacyBizNo: varchar("pharmacy_biz_no", { length: 12 }),
     /** 이 약국에 청구할 공급가액(원). */
     supplyAmount: integer("supply_amount").notNull(),
+    /**
+     * 부가세(원). **파생하지 않고 저장한다.**
+     * round(공급가액*0.1)로 다시 구하면 총액의 약 9%가 표현되지 않는다(0018 참고).
+     * 합계는 오직 supplyAmount + vatAmount 다.
+     */
+    vatAmount: integer("vat_amount").notNull().default(0),
     purchaseItems: text("purchase_items"),
     /** 발행 완료 시각. null이면 **미발행**(알림 대상). */
     invoiceIssuedAt: timestamp("invoice_issued_at", { withTimezone: true }),
@@ -370,6 +376,7 @@ export const purchaseInvoiceLines = expenseSchema.table(
   },
   (table) => [
     check("supply_amount_positive", sql`${table.supplyAmount} > 0`),
+    check("vat_amount_non_negative", sql`${table.vatAmount} >= 0`),
     index("idx_purchase_lines_expense").on(table.expenseId),
     index("idx_purchase_lines_unissued")
       .on(table.expenseId)

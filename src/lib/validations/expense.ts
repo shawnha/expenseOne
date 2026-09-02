@@ -61,7 +61,9 @@ export const purchaseLineSchema = z.object({
   supplyAmount: z
     .number()
     .int("공급가액은 정수여야 합니다")
-    .positive("공급가액을 입력해주세요"),
+    .positive("금액을 입력해주세요"),
+  /** 부가세. 화면에서 총액/별도 모드로 계산해 함께 보낸다. */
+  vatAmount: z.number().int().min(0).optional().default(0),
   purchaseItems: z.string().max(1000, "품목은 1000자 이내로 입력해주세요").optional().nullable(),
 });
 

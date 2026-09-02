@@ -38,6 +38,7 @@ import {
   toPurchasePayload,
   type PurchaseFieldValues,
 } from "@/components/forms/purchase-fields";
+import { VatModeSelect } from "@/components/forms/vat-mode-select";
 import { CompanySelector } from "@/components/forms/company-selector";
 import dynamic from "next/dynamic";
 const SubmitSuccessDialog = dynamic(() => import("@/components/forms/submit-success-dialog").then(m => m.SubmitSuccessDialog), { ssr: false });
@@ -673,17 +674,14 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
                   ) : null}
                 </div>
               )}
-              <div className="flex flex-wrap gap-x-4 gap-y-1">
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={vatIncluded}
-                    onChange={(e) => handleVatToggle(e.target.checked)}
-                    className="size-5 rounded-md border-2 border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] accent-[var(--apple-blue)] cursor-pointer transition-colors"
-                  />
-                  <span className="text-[13px] text-[var(--apple-secondary-label)]">VAT 포함 (+10%)</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer select-none">
+              {/* 입력 금액의 성격. 「VAT 포함」 체크박스가 켜면 10%를 더하는데
+                  글자는 정반대로 읽혀 혼동을 샀다(제보 2026-09-02). */}
+              <div className="flex flex-wrap items-start gap-x-5 gap-y-2">
+                <VatModeSelect
+                  value={vatIncluded ? "EXCLUSIVE" : "INCLUSIVE"}
+                  onChange={(m) => handleVatToggle(m === "EXCLUSIVE")}
+                />
+                <label className="flex items-center gap-2 cursor-pointer select-none pt-7">
                   <input
                     type="checkbox"
                     checked={freelancerDeduction}
@@ -693,7 +691,7 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
                   <span className="text-[13px] text-[var(--apple-secondary-label)]">프리랜서 원천징수 (-3.3%)</span>
                 </label>
               </div>
-              {(vatIncluded || freelancerDeduction) && supplyAmount > 0 && (() => {
+              {supplyAmount > 0 && (() => {
                 // For USD, apply VAT/deduction to KRW-converted amount for display
                 const baseKRW = currency === "USD" && exchangeRate ? Math.round(supplyAmount * exchangeRate.rate) : supplyAmount;
                 let afterVat = baseKRW;

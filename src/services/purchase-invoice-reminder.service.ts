@@ -113,7 +113,7 @@ export async function runInvoiceReminder() {
   // 미발행 **줄**을 센다. 한 사입에 약국이 여럿이면 계산서도 여러 장이라
   // 건수가 아니라 줄 수가 실제 할 일의 크기다.
   const rows = await db
-    .select({ supplyAmount: purchaseInvoiceLines.supplyAmount })
+    .select({ supplyAmount: purchaseInvoiceLines.supplyAmount, vatAmount: purchaseInvoiceLines.vatAmount })
     .from(purchaseInvoiceLines)
     .innerJoin(expenses, eq(expenses.id, purchaseInvoiceLines.expenseId))
     .where(
@@ -130,7 +130,7 @@ export async function runInvoiceReminder() {
   }
 
   const total = rows.reduce(
-    (acc, r) => acc + deriveInvoiceAmounts(r.supplyAmount).total,
+    (acc, r) => acc + deriveInvoiceAmounts(r.supplyAmount, r.vatAmount).total,
     0,
   );
   const msg = buildMessage(stage, rows.length, total);

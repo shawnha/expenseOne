@@ -21,6 +21,7 @@ import {
   toPurchasePayload,
   type PurchaseFieldValues,
 } from "@/components/forms/purchase-fields";
+import { VatModeSelect } from "@/components/forms/vat-mode-select";
 import { CompanySelector } from "@/components/forms/company-selector";
 import { FileUpload } from "@/components/forms/file-upload";
 import dynamic from "next/dynamic";
@@ -636,20 +637,15 @@ export default function CorporateCardForm({ initialCompanies, prefillData }: Cor
                 </div>
               )}
 
-              {/* VAT + 프리랜서 원천징수 체크박스 */}
-              <div className="flex flex-wrap gap-x-4 gap-y-1">
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={vatIncluded}
-                    onChange={(e) => handleVatToggle(e.target.checked)}
-                    className="size-4 rounded border-[rgba(0,0,0,0.15)] dark:border-[rgba(255,255,255,0.2)] text-[var(--apple-blue)] focus:ring-[var(--apple-blue)] cursor-pointer"
-                  />
-                  <span className="text-[13px] text-[var(--apple-secondary-label)]">
-                    VAT 포함 (+10%)
-                  </span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer select-none">
+              {/* 입력 금액의 성격 + 프리랜서 원천징수
+                  「VAT 포함」 체크박스는 켜면 10%를 더하는데 글자는 정반대로
+                  읽혀서 혼동을 샀다(제보 2026-09-02). 두 선택지로 바꿨다. */}
+              <div className="flex flex-wrap items-start gap-x-5 gap-y-2">
+                <VatModeSelect
+                  value={vatIncluded ? "EXCLUSIVE" : "INCLUSIVE"}
+                  onChange={(m) => handleVatToggle(m === "EXCLUSIVE")}
+                />
+                <label className="flex items-center gap-2 cursor-pointer select-none pt-7">
                   <input
                     type="checkbox"
                     checked={freelancerDeduction}
@@ -663,7 +659,7 @@ export default function CorporateCardForm({ initialCompanies, prefillData }: Cor
               </div>
 
               {/* 금액 내역 */}
-              {supplyAmount > 0 && (vatIncluded || freelancerDeduction) && (
+              {supplyAmount > 0 && (
                 <div className="mt-2 p-3 rounded-lg bg-[rgba(0,122,255,0.06)] text-[13px] space-y-1">
                   <div className="flex justify-between">
                     <span className="text-[var(--apple-secondary-label)]">공급가액</span>
