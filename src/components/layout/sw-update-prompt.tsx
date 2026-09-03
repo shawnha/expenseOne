@@ -90,8 +90,17 @@ export function SwUpdatePrompt() {
 
       // 5) Poll for reg.waiting every 3s as a fallback
       //    (catches edge cases where events are missed in iframe/PWA contexts)
+      // 이벤트를 놓치는 경우(iframe/PWA)를 위한 폴백. **업데이트가 없으면
+      // foundRef가 계속 false라 예전엔 이 3초 폴링이 영원히 돌았다.**
+      // 놓친 이벤트는 초반에 잡히므로 1분(20회)만 보고 멈춘다 — 그 뒤는
+      // 아래 30초 주기 update() 검사가 맡는다.
+      let polls = 0;
       pollId = setInterval(async () => {
         if (foundRef.current || isInCooldown()) return;
+        if (++polls > 20) {
+          clearInterval(pollId);
+          return;
+        }
         const r = await navigator.serviceWorker.getRegistration();
         if (r?.waiting) {
           markFound(r.waiting);
@@ -142,7 +151,6 @@ export function SwUpdatePrompt() {
   }, [markFound]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- async SW update check; setState only fires when new SW found
     checkForUpdate();
   }, [pathname, checkForUpdate]);
 

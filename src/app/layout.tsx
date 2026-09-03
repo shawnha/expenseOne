@@ -90,36 +90,46 @@ export default function RootLayout({
    상태로 로드되면 그 rAF 콜백이 발화하지 않아, 서버가 내용을 다 보냈는데도
    화면이 로딩 스켈레톤에 그대로 갇힌다(실제 내용은 div[hidden] 안에 있다).
 
-   큐가 **3초 넘게** 비지 않으면 React 자신의 리빌 함수를 부른다. React가
-   스스로 미루는 최대치가 약 2.3초라 그보다 뒤에서만 개입한다. 틱 횟수가
-   아니라 시각을 재므로 간격을 바꿔도 기준이 흔들리지 않는다.
-   화면이 보이는지는 따지지 않는다 — 안 보이는 동안 드러내도 해가 없고,
-   오히려 사용자가 창을 볼 때 이미 그려져 있어야 한다.
-   이미 드러났으면 $RB가 비어 있어 아무 일도 하지 않는다.
+   **rAF가 살아 있는지 먼저 확인한다.** 큐가 찼을 때 rAF를 하나 걸어보고,
+   그게 발화하면 React가 알아서 드러낼 것이므로 **개입하지 않는다.**
+   발화하지 않으면(가려진 창·백그라운드) rAF가 멈춘 것이므로 0.6초 만에 드러낸다.
 
-   ⚠️ 예전엔 30틱(30초) 뒤 clearInterval로 스스로 멈췄다. 그런데 콜드 스타트
-   등으로 **내용이 30초 뒤에 도착하면** 구해줄 게 남아 있지 않아 영영 갇혔다.
-   이제 멈추지 않는다 — 60초까지는 1초, 이후에는 5초 간격으로 계속 지켜본다
-   (길이 하나 읽는 게 전부라 비용이 사실상 없다).
+   ⚠️ 예전엔 rAF 상태와 무관하게 **무조건 3초를 기다렸다.** React 자체 최대
+   지연(약 2.3초)보다 뒤에서 개입하려던 건데, rAF가 멈춘 PWA에서는 모든 화면이
+   정확히 3초씩 늦게 떠서 "앱이 느려졌다"로 체감됐다(제보 2026-09-03).
+   이제 정상일 땐 0ms 개입, 멈췄을 땐 0.6초다.
+
+   ⚠️ 그 전엔 30틱(30초) 뒤 clearInterval로 스스로 멈췄다. 콜드 스타트 등으로
+   내용이 30초 뒤에 도착하면 구해줄 게 없어 영영 갇혔다. 이제 멈추지 않는다 —
+   처음 10초는 0.25초, 이후 1초, 60초 뒤부터 5초 간격으로 계속 지켜본다.
 
    focus까지 듣는 이유: 창이 **다른 창에 가려지기만 하면** macOS는 rAF를
-   멈추지만 visibilityState는 "visible" 그대로라 visibilitychange가 안 울린다.
-   사용자가 창을 다시 누를 때 잡아내려면 focus가 필요하다. */
+   멈추지만 visibilityState는 "visible" 그대로라 visibilitychange가 안 울린다. */
 (function(){
-  var since=0,n=0,iv=null,fast=true;
+  var since=0,rafSeen=false,rafAsked=false,n=0,iv=null,phase=0;
   function sweep(){try{
     var q=window.$RB;if(!q||typeof window.$RV!=="function"){return}
-    if(q.length>0){
-      var t=Date.now();
-      if(!since){since=t;return}
-      if(t-since>=3000){window.$RV(q);since=0}
-    }else{since=0}
+    if(q.length===0){since=0;rafAsked=false;return}
+    var t=Date.now();
+    if(!since){
+      since=t;rafSeen=false;
+      if(!rafAsked&&typeof requestAnimationFrame==="function"){
+        rafAsked=true;requestAnimationFrame(function(){rafSeen=true})
+      }
+      return
+    }
+    /* rAF가 발화했다 = React의 리빌 경로가 살아 있다. 건드리지 않는다. */
+    if(rafSeen){since=0;rafAsked=false;return}
+    if(t-since>=600){window.$RV(q);since=0;rafAsked=false}
   }catch(e){}}
   function run(ms){if(iv)clearInterval(iv);iv=setInterval(function(){
-    sweep();if(fast&&++n>60){fast=false;run(5000)}},ms)}
-  run(1000);
+    sweep();n++;
+    if(phase===0&&n>40){phase=1;run(1000)}
+    else if(phase===1&&n>100){phase=2;run(5000)}
+  },ms)}
+  run(250);
   function kick(){setTimeout(function(){try{var q=window.$RB;
-    if(q&&q.length>0&&typeof window.$RV==="function"){window.$RV(q)}}catch(e){}},300)}
+    if(q&&q.length>0&&typeof window.$RV==="function"){window.$RV(q)}}catch(e){}},200)}
   document.addEventListener("visibilitychange",function(){
     if(document.visibilityState==="visible"){kick()}});
   window.addEventListener("focus",kick);
