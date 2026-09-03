@@ -1,7 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { validateOrigin } from "@/lib/api-utils";
 import { getAuthUser, getCachedCurrentUser } from "@/lib/supabase/cached";
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  // Slack에 메시지를 실제로 보내는 엔드포인트라 Origin 검증을 건다.
+  const csrfError = validateOrigin(request);
+  if (csrfError) return csrfError;
+
   const authUser = await getAuthUser();
   if (!authUser) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
