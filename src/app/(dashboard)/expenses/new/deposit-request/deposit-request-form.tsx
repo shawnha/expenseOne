@@ -39,6 +39,7 @@ import {
   type PurchaseFieldValues,
 } from "@/components/forms/purchase-fields";
 import { VatModeSelect } from "@/components/forms/vat-mode-select";
+import { BranchSelectField, shouldAskBranch } from "@/components/forms/branch-select-field";
 import { CompanySelector } from "@/components/forms/company-selector";
 import dynamic from "next/dynamic";
 const SubmitSuccessDialog = dynamic(() => import("@/components/forms/submit-success-dialog").then(m => m.SubmitSuccessDialog), { ssr: false });
@@ -144,6 +145,8 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
   const [vatIncluded, setVatIncluded] = useState(false);
   const [freelancerDeduction, setFreelancerDeduction] = useState(false);
   const [purchase, setPurchase] = useState<PurchaseFieldValues>(emptyPurchaseFields);
+  const [branch, setBranch] = useState<string | null>(null);
+
   const [supplyAmount, setSupplyAmount] = useState(0);
   const [bankOpen, setBankOpen] = useState(false);
   const [dueDateOpen, setDueDateOpen] = useState(false);
@@ -218,6 +221,12 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
       dueDate: null,
     },
   });
+
+  // 호점은 **리테일의 마트/약국**일 때만 묻는다. 회사 slug는 서버가 내려준
+  // 목록에서 찾는다(선택값은 id뿐이라 slug를 따로 들고 있지 않다).
+  const selectedCompanySlug =
+    initialCompanies?.find((c) => c.id === companyId)?.slug ?? null;
+  const askBranch = shouldAskBranch(selectedCompanySlug, watch("category"));
 
   // Handle company change — only update companyId (currency is independent)
   const handleCompanyChange = useCallback((newCompanyId: string, _newCurrency?: string) => {
@@ -421,6 +430,7 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
           companyId: companyId || undefined,
           hasFreelancerWithholding: freelancerDeduction,
           ...toPurchasePayload(purchase),
+          branch: askBranch ? branch : null,
         }),
       });
 
@@ -577,6 +587,11 @@ export default function DepositRequestForm({ initialCompanies }: DepositRequestF
                 </p>
               )}
             </div>
+
+            {/* 호점 — 리테일 마트/약국일 때만. 다른 경우엔 의미 없는 칸이라 숨긴다. */}
+            {askBranch && (
+              <BranchSelectField value={branch} onChange={setBranch} />
+            )}
 
             {/* 제목 */}
             <div className="space-y-1.5">

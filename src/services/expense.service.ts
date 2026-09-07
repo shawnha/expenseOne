@@ -121,6 +121,8 @@ export async function createExpense(
     submittedById: userId,
     companyId,
     hasFreelancerWithholding: input.hasFreelancerWithholding ?? false,
+    // 호점 — 리테일 마트/약국 실비 구분. 폼에서 해당 조건일 때만 값이 온다.
+    branch: input.branch ?? null,
   };
 
   // 사입(약국 납품 → 세금계산서 발행 대상). 법카·입금요청 양쪽에서 쓸 수 있다.

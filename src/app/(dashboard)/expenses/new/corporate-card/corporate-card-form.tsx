@@ -22,6 +22,7 @@ import {
   type PurchaseFieldValues,
 } from "@/components/forms/purchase-fields";
 import { VatModeSelect } from "@/components/forms/vat-mode-select";
+import { BranchSelectField, shouldAskBranch } from "@/components/forms/branch-select-field";
 import { CompanySelector } from "@/components/forms/company-selector";
 import { FileUpload } from "@/components/forms/file-upload";
 import dynamic from "next/dynamic";
@@ -114,6 +115,8 @@ export default function CorporateCardForm({ initialCompanies, prefillData }: Cor
   const [vatIncluded, setVatIncluded] = useState(false);
   const [freelancerDeduction, setFreelancerDeduction] = useState(false);
   const [purchase, setPurchase] = useState<PurchaseFieldValues>(emptyPurchaseFields);
+  const [branch, setBranch] = useState<string | null>(null);
+
   const [supplyAmount, setSupplyAmount] = useState(0);
 
   // Optional receipt attachments
@@ -124,6 +127,7 @@ export default function CorporateCardForm({ initialCompanies, prefillData }: Cor
     handleSubmit,
     control,
     setValue,
+    watch,
     formState: { errors, isDirty },
   } = useForm<CorporateCardFormData>({
     resolver: zodResolver(corporateCardFormSchema),
@@ -135,6 +139,12 @@ export default function CorporateCardForm({ initialCompanies, prefillData }: Cor
       isUrgent: false,
     },
   });
+
+  // 호점은 **리테일의 마트/약국**일 때만 묻는다. 회사 slug는 서버가 내려준
+  // 목록에서 찾는다(선택값은 id뿐이라 slug를 따로 들고 있지 않다).
+  const selectedCompanySlug =
+    initialCompanies?.find((c) => c.id === companyId)?.slug ?? null;
+  const askBranch = shouldAskBranch(selectedCompanySlug, watch("category"));
 
   // Warn on unsaved changes (browser close / refresh)
   useUnsavedChanges(isDirty || files.length > 0);
@@ -286,6 +296,7 @@ export default function CorporateCardForm({ initialCompanies, prefillData }: Cor
           companyId: companyId || undefined,
           hasFreelancerWithholding: freelancerDeduction,
           ...toPurchasePayload(purchase),
+          branch: askBranch ? branch : null,
         }),
       });
 
@@ -480,6 +491,11 @@ export default function CorporateCardForm({ initialCompanies, prefillData }: Cor
                 </p>
               )}
             </div>
+
+            {/* 호점 — 리테일 마트/약국일 때만. 다른 경우엔 의미 없는 칸이라 숨긴다. */}
+            {askBranch && (
+              <BranchSelectField value={branch} onChange={setBranch} />
+            )}
 
             {/* 가맹점명 — GoWid prefill 시 읽기전용, 아니면 버튼 토글 + 직접 입력 */}
             <div className="space-y-1.5">

@@ -69,6 +69,15 @@ export const purchaseLineSchema = z.object({
 
 export type PurchaseLineInput = z.infer<typeof purchaseLineSchema>;
 
+/**
+ * 호점 — 리테일의 마트/약국 실비를 1호점/2호점으로 나눠 정리한다.
+ * 지금까지 관리자가 /admin/mart-pharmacy에서 사후 지정했는데, 쓴 사람이
+ * 제출할 때 고르는 게 정확하다(나중엔 누가 어느 점에서 썼는지 알기 어렵다).
+ */
+const branchField = {
+  branch: z.enum(["STORE_1", "STORE_2"]).nullable().optional(),
+};
+
 const purchaseFields = {
   isPurchase: z.boolean().optional().default(false),
   /** 약국별 줄. 사입을 체크했으면 최소 1줄이 있어야 한다. */
@@ -99,6 +108,7 @@ function requirePurchaseFields<T extends z.ZodTypeAny>(schema: T) {
 const corporateCardSubmitBase = z.object({
   ...baseExpenseFields,
   ...purchaseFields,
+  ...branchField,
   type: z.literal("CORPORATE_CARD"),
   merchantName: z
     .string()
@@ -120,6 +130,7 @@ export type CorporateCardSubmitInput = z.infer<typeof corporateCardSubmitSchema>
 const depositRequestSubmitBase = z.object({
   ...baseExpenseFields,
   ...purchaseFields,
+  ...branchField,
   type: z.literal("DEPOSIT_REQUEST"),
   bankName: z
     .string()
