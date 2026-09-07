@@ -150,6 +150,7 @@ async function getExpenseDetail(id: string) {
         createdAt: result.createdAt?.toISOString() ?? null,
         updatedAt: result.updatedAt?.toISOString() ?? null,
         companyId: result.companyId ?? null,
+        companyName: result.company?.name ?? null,
         submitter: result.submitter,
         originalExpenseId: result.originalExpenseId ?? null,
       },
@@ -416,6 +417,9 @@ export default async function ExpenseDetailPage({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
+          {/* 회사는 어느 법인의 지출인지를 정하는 값이라 상세에 반드시 보여야 한다.
+              지금까지 조회조차 안 해서(companyId만 있고 이름이 없었다) 빠져 있었다. */}
+          <InfoRow label="회사" value={expense.companyName ?? "-"} />
           <InfoRow label="카테고리" value={getCategoryLabel(expense.category)} />
           <InfoRow label="거래일" value={formatDateKR(expense.transactionDate)} />
           <InfoRow label="제출자" value={expense.submitter?.name ?? "-"} />

@@ -898,9 +898,16 @@ export async function getExpenseById(
         name: users.name,
         email: users.email,
       },
+      // 상세 화면에 회사를 띄우려면 이름이 필요하다. companyId만으로는 못 쓴다.
+      company: {
+        id: companies.id,
+        name: companies.name,
+        slug: companies.slug,
+      },
     })
     .from(expenses)
     .leftJoin(users, eq(expenses.submittedById, users.id))
+    .leftJoin(companies, eq(expenses.companyId, companies.id))
     .where(eq(expenses.id, expenseId));
 
   if (!result) {
@@ -963,6 +970,7 @@ export async function getExpenseById(
   return {
     ...result.expense,
     submitter: result.submitter,
+    company: result.company,
     attachments: expenseAttachments,
     originalExpense,
     refunds,
