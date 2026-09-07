@@ -203,6 +203,151 @@ function cardKey(companyId: string | null | undefined, lastFour: string): string
   return `${companyId ?? ""}|${lastFour}`;
 }
 
+// ---------------------------------------------------------------------------
+// 스테이징된 카드 거래 1건 처리 — 중복 판정 → 식비 자동분류 → 알림
+//
+// GoWid 동기화와 ERP(코데프) 동기화가 **같은 코드를 쓴다.** 예전엔 이 로직이
+// gowid.service와 codef-notify.service에 복제돼 있어서, 한쪽만 고치면 다른 쪽이
+// 조용히 옛 동작으로 남았다.
+// ---------------------------------------------------------------------------
+
+export type CardTxOutcome = "consumed" | "auto-classified" | "notified";
+
+export async function processStagedCardTransaction(opts: {
+  /** expenseone.gowid_transactions 의 행 id */
+  stagedTxId: string;
+  userId: string;
+  companyId: string | null;
+  /** 회사 slug — 식비 분류에서 FinanceOne 엔티티를 찾는 데 쓴다. */
+  companySlug: string | null;
+  amountKRW: number;
+  currency: string;
+  storeName: string | null;
+  /** yyyy-mm-dd */
+  transactionDate: string;
+  cardLastFour: string;
+}): Promise<CardTxOutcome> {
+  const {
+    stagedTxId, userId, companyId, companySlug,
+    amountKRW, currency, storeName, transactionDate, cardLastFour,
+  } = opts;
+
+  // 중복 판정 — 사용자가 이미 같은 비용을 올렸는가.
+  // (사용자 + 법카 + 금액 + 카드4자리 + 거래일 ±2일)
+  const [alreadyExists] = await db
+    .select({ id: expenses.id })
+    .from(expenses)
+    .where(
+      and(
+        eq(expenses.submittedById, userId),
+        eq(expenses.type, "CORPORATE_CARD"),
+        eq(expenses.amount, amountKRW),
+        eq(expenses.cardLastFour, cardLastFour),
+        sql`${expenses.status} != 'CANCELLED'`,
+        sql`${expenses.transactionDate}::date BETWEEN (${transactionDate}::date - INTERVAL '2 days') AND (${transactionDate}::date + INTERVAL '2 days')`,
+        // **이미 다른 거래가 소비한 비용은 다시 쓰지 않는다.**
+        // 없으면 자동 등록된 식비 1건이 같은 카드·같은 금액의 **다른 날 거래**까지
+        // 삼켜서 그 거래가 영영 사라진다(실측 46건). 비용 1건은 거래 1건만 상쇄한다.
+        sql`NOT EXISTS (
+          SELECT 1 FROM ${gowidTransactions} g
+          WHERE g.consumed_expense_id = ${expenses.id}
+        )`,
+      ),
+    )
+    .limit(1);
+
+  if (alreadyExists) {
+    // 무엇이 무엇을 삼켰는지 남긴다 — 예전엔 status만 바꿔 추적이 불가능했다.
+    await db
+      .update(gowidTransactions)
+      .set({ status: "consumed", consumedExpenseId: alreadyExists.id, consumedAt: new Date() })
+      .where(eq(gowidTransactions.id, stagedTxId));
+    return "consumed";
+  }
+
+  // 식비 자동분류 — FinanceOne 룰로 식비면 APPROVED 비용을 자동 생성한다.
+  if (companyId) {
+    const entityId = companySlug ? (COMPANY_TO_ENTITY[companySlug] ?? null) : null;
+    const mealMatch = await classifyMealExpense(storeName, entityId);
+
+    if (mealMatch) {
+      const [autoExp] = await db
+        .insert(expenses)
+        .values({
+          type: "CORPORATE_CARD",
+          status: "APPROVED",
+          title: storeName ?? "법카 사용",
+          amount: amountKRW,
+          currency,
+          category: mealMatch.accountName,
+          merchantName: storeName,
+          transactionDate,
+          cardLastFour,
+          companyId,
+          submittedById: userId,
+          approvedAt: new Date(),
+          autoClassified: true,
+          autoClassifiedSource: mealMatch.source,
+          autoClassifiedAccountId: mealMatch.internalAccountId,
+        })
+        .returning();
+
+      await db
+        .update(gowidTransactions)
+        .set({ status: "consumed", consumedExpenseId: autoExp?.id ?? null, consumedAt: new Date() })
+        .where(eq(gowidTransactions.id, stagedTxId));
+
+      // 자동 등록됐다는 사실은 **알려준다.**
+      //
+      // 예전엔 알림을 통째로 건너뛰었다(2026-04-29 배포). 사용자에게 할 일이 없으니
+      // 조용히 넘긴 것인데, 실제로는 "내 카드가 쓰인 걸 시스템이 봤다"는 확인이
+      // 사라져 **"알림이 안 뜬다"는 제보**로 돌아왔다(황은상 20건 중 18건).
+      //
+      // 등록 요청이 아니라 **확인 알림**이라 문구가 다르고, 푸시는 보내지 않는다 —
+      // 한 사람당 월 18건까지 나와 OS 알림으로는 과하다. 인앱 알림이 들어가면
+      // Realtime 토스트(팝업)도 함께 뜬다.
+      if (autoExp) {
+        await createNotification({
+          recipientId: userId,
+          type: "GOWID_NEW_TRANSACTION",
+          title: "법카 사용이 자동 등록되었습니다",
+          message: `${storeName ?? "법카 사용"} ${amountKRW.toLocaleString()}원 — ${mealMatch.accountName}(으)로 자동 등록됐습니다.`,
+          linkUrl: `/expenses/${autoExp.id}`,
+        });
+        await db
+          .update(gowidTransactions)
+          .set({ notifiedAt: new Date() })
+          .where(eq(gowidTransactions.id, stagedTxId));
+      }
+      return "auto-classified";
+    }
+  }
+
+  // 일반 알림 — 사용자가 직접 등록해야 하는 건.
+  const amountStr = amountKRW.toLocaleString();
+  await createNotification({
+    recipientId: userId,
+    type: "GOWID_NEW_TRANSACTION",
+    title: "법카 사용 내역 등록해주세요",
+    message: `${storeName} ${amountStr}원 — 비용으로 등록해주세요.`,
+    linkUrl: `/expenses/new/corporate-card?gowidTxId=${stagedTxId}`,
+  });
+
+  await db
+    .update(gowidTransactions)
+    .set({ notifiedAt: new Date() })
+    .where(eq(gowidTransactions.id, stagedTxId));
+
+  sendPushToUser(
+    userId,
+    "법카 사용 내역 등록해주세요",
+    `${storeName} ${amountStr}원`,
+    `/expenses/new/corporate-card?gowidTxId=${stagedTxId}`,
+  ).catch((err) => console.error("[Push] 카드 거래 알림 실패:", err));
+
+  return "notified";
+}
+
 export async function syncGowidTransactions(): Promise<{
   fetched: number;
   newStaged: number;
@@ -351,145 +496,20 @@ export async function syncGowidTransactions(): Promise<{
     newStaged++;
 
     if (mapping?.userId && inserted) {
-      // Dedup before notifying. Tight match prevents an unrelated same-amount
-      // expense from swallowing a real GoWid transaction:
-      // user + type + amount + card last 4 + transactionDate within 2 days
-      // of the GoWid expenseDate. Matching on the staged transaction's
-      // gowidTxId is even tighter, but the prefill flow only writes that
-      // when the form was opened from a notification — so the date+card
-      // window covers both "filed from prefill" and "filed manually".
-      const expenseDateStr = expense.expenseDate; // yyyy-mm-dd
-      const [alreadyExists] = await db
-        .select({ id: expenses.id })
-        .from(expenses)
-        .where(
-          and(
-            eq(expenses.submittedById, mapping.userId),
-            eq(expenses.type, "CORPORATE_CARD"),
-            eq(expenses.amount, Math.round(expense.krwAmount)),
-            eq(expenses.cardLastFour, lastFour),
-            sql`${expenses.status} != 'CANCELLED'`,
-            sql`${expenses.transactionDate}::date BETWEEN (${expenseDateStr}::date - INTERVAL '2 days') AND (${expenseDateStr}::date + INTERVAL '2 days')`,
-            // **이미 다른 GoWid 거래가 소비한 비용은 다시 쓰지 않는다.**
-            // 없으면 자동 등록된 식비 1건이, 같은 카드·같은 금액의 **다른 날
-            // 거래**까지 삼켜서 그 거래가 영영 사라진다(실제로 46건 발생).
-            // 비용 1건은 거래 1건만 상쇄할 수 있다.
-            sql`NOT EXISTS (
-              SELECT 1 FROM ${gowidTransactions} g
-              WHERE g.consumed_expense_id = ${expenses.id}
-            )`,
-          ),
-        )
-        .limit(1);
-
-      if (alreadyExists) {
-        // 사용자가 이미 제출한 건. **무엇이 무엇을 삼켰는지 남긴다** — 예전엔
-        // status만 바꿔서 어느 화면에서도 추적할 수 없었다.
-        await db
-          .update(gowidTransactions)
-          .set({
-            status: "consumed",
-            consumedExpenseId: alreadyExists.id,
-            consumedAt: new Date(),
-          })
-          .where(eq(gowidTransactions.id, inserted.id));
-        continue;
-      }
-
-      // ---------------------------------------------------------------
-      // Meal auto-classification: if FinanceOne classifies this merchant
-      // as a meal-leaf account, create an APPROVED expense automatically
-      // and skip the user-facing notification.
-      // ---------------------------------------------------------------
-      if (mapping.companyId) {
-        const slug = companyIdToSlug.get(mapping.companyId);
-        const entityId = slug ? (COMPANY_TO_ENTITY[slug] ?? null) : null;
-        const mealMatch = await classifyMealExpense(expense.storeName, entityId);
-
-        if (mealMatch) {
-          const txDate = `${expense.expenseDate.slice(0, 4)}-${expense.expenseDate.slice(4, 6)}-${expense.expenseDate.slice(6, 8)}`;
-          const [autoExp] = await db
-            .insert(expenses)
-            .values({
-              type: "CORPORATE_CARD",
-              status: "APPROVED",
-              title: expense.storeName ?? "법카 사용",
-              amount: Math.round(expense.krwAmount),
-              currency: expense.currency,
-              category: mealMatch.accountName,
-              merchantName: expense.storeName,
-              transactionDate: txDate,
-              cardLastFour: lastFour,
-              companyId: mapping.companyId,
-              submittedById: mapping.userId,
-              approvedAt: new Date(),
-              autoClassified: true,
-              autoClassifiedSource: mealMatch.source,
-              autoClassifiedAccountId: mealMatch.internalAccountId,
-            })
-            .returning();
-
-          await db
-            .update(gowidTransactions)
-            .set({
-              status: "consumed",
-              consumedExpenseId: autoExp?.id ?? null,
-              consumedAt: new Date(),
-            })
-            .where(eq(gowidTransactions.id, inserted.id));
-
-          // 자동 등록됐다는 사실은 **알려준다.**
-          //
-          // 예전엔 알림을 통째로 건너뛰었다(2026-04-29 배포). 사용자에게 할 일이
-          // 없으니 조용히 넘긴 것인데, 실제로는 "내 카드가 쓰인 걸 시스템이 봤다"는
-          // 확인이 사라져 **"알림이 안 뜬다"는 제보**로 돌아왔다
-          // (황은상 20건 중 18건, 이동현 2/2가 이 경로로 무음이었다).
-          //
-          // 등록 요청이 아니라 **확인 알림**이라 문구가 다르고, 푸시는 보내지 않는다 —
-          // 한 사람당 월 18건까지 나오므로 OS 알림으로는 과하다. 인앱 알림이
-          // 들어가면 Realtime 토스트(팝업)도 함께 뜬다.
-          if (autoExp) {
-            const autoAmount = Math.round(expense.krwAmount).toLocaleString();
-            await createNotification({
-              recipientId: mapping.userId,
-              type: "GOWID_NEW_TRANSACTION",
-              title: "법카 사용이 자동 등록되었습니다",
-              message: `${expense.storeName ?? "법카 사용"} ${autoAmount}원 — ${mealMatch.accountName}(으)로 자동 등록됐습니다.`,
-              linkUrl: `/expenses/${autoExp.id}`,
-            });
-            await db
-              .update(gowidTransactions)
-              .set({ notifiedAt: new Date() })
-              .where(eq(gowidTransactions.id, inserted.id));
-          }
-
-          autoClassifiedCount++;
-          continue;
-        }
-      }
-
-      const amountStr = Math.round(expense.krwAmount).toLocaleString();
-      await createNotification({
-        recipientId: mapping.userId,
-        type: "GOWID_NEW_TRANSACTION",
-        title: "법카 사용 내역 등록해주세요",
-        message: `${expense.storeName} ${amountStr}원 — 비용으로 등록해주세요.`,
-        linkUrl: `/expenses/new/corporate-card?gowidTxId=${inserted.id}`,
+      const txDate = `${expense.expenseDate.slice(0, 4)}-${expense.expenseDate.slice(4, 6)}-${expense.expenseDate.slice(6, 8)}`;
+      const outcome = await processStagedCardTransaction({
+        stagedTxId: inserted.id,
+        userId: mapping.userId,
+        companyId: mapping.companyId,
+        companySlug: mapping.companyId ? (companyIdToSlug.get(mapping.companyId) ?? null) : null,
+        amountKRW: Math.round(expense.krwAmount),
+        currency: expense.currency,
+        storeName: expense.storeName,
+        transactionDate: txDate,
+        cardLastFour: lastFour,
       });
-
-      await db
-        .update(gowidTransactions)
-        .set({ notifiedAt: new Date() })
-        .where(eq(gowidTransactions.id, inserted.id));
-
-      sendPushToUser(
-        mapping.userId,
-        "법카 사용 내역 등록해주세요",
-        `${expense.storeName} ${amountStr}원`,
-        `/expenses/new/corporate-card?gowidTxId=${inserted.id}`,
-      ).catch((err) => console.error("[Push] GoWid 알림 실패:", err));
-
-      notified++;
+      if (outcome === "auto-classified") autoClassifiedCount++;
+      else if (outcome === "notified") notified++;
     }
   }
 

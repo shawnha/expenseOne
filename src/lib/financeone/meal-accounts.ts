@@ -13,6 +13,7 @@ export const COMPANY_TO_ENTITY: Record<string, number> = {
   hoi: 1,
   korea: 2,
   retail: 3,
+  partners: 16, // HOP — 주식회사 한아원파트너스
 };
 
 /** 자동분류 대상으로 인정할 internal_accounts.code 화이트리스트. */

@@ -1,10 +1,16 @@
 /**
- * Codef Notify Service
+ * ⚠️ 사용하지 않음 (2026-09-07) — `erp-card-sync.service.ts`로 대체됐다.
  *
- * FinanceOne의 financeone.transactions 테이블에서 새 카드 거래를 읽어
- * 매핑된 사용자에게 알림을 보냅니다.
+ * 이 서비스는 `financeone.transactions`를 읽는데, 그 스키마는 **2026-06-24에
+ * 유입이 끊겼다.** 이 경로로 익스펜스원에 들어온 거래는 **한 건도 없다**
+ * (gowid_transactions는 전부 source='gowid'였다). FinanceOne이 webhook으로
+ * 호출하는 구조인데 vercel.json cron에 등록된 적도 없다.
  *
- * FinanceOne이 Codef sync 완료 후 webhook으로 호출합니다.
+ * 살아 있는 데이터는 `hanahone_erp.transactions`에 있고, ERP의 코데프 워커가
+ * 매일 채운다. 새 코드는 `syncErpCardTransactions()`를 쓸 것.
+ *
+ * 지우지 않고 남겨둔 이유: 참조 구현으로서의 가치와, 되살릴 일이 생겼을 때
+ * 여기가 왜 죽었는지 알 수 있게 하기 위해서다. **다시 배선하지 말 것.**
  */
 
 import { db } from "@/lib/db";
