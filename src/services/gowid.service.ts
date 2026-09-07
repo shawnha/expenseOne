@@ -85,6 +85,9 @@ export async function upsertCardMapping(data: {
       })
       .where(eq(gowidCardMappings.id, existing.id))
       .returning();
+    if (updated && data.userId) {
+      await claimUnownedTransactions(companyId, data.cardLastFour, data.userId);
+    }
     return updated;
   }
 
@@ -98,7 +101,52 @@ export async function upsertCardMapping(data: {
       companyId,
     })
     .returning();
+
+  // 카드 발견은 거래 스테이징 **뒤**에 돈다. 그래서 새 카드의 첫 사용분은
+  // 이미 user_id NULL로 들어가 있다 — 여기서 되찾는다.
+  if (created && data.userId) {
+    await claimUnownedTransactions(companyId, data.cardLastFour, data.userId);
+  }
   return created;
+}
+
+/**
+ * 이 카드의 **주인 없는 기존 거래**에 소유자를 붙인다.
+ *
+ * 동기화는 거래를 스테이징할 때의 매핑으로 user_id를 정한다. 그래서
+ *  - 카드를 나중에 매핑하거나
+ *  - 카드가 자동 발견되기 **전에** 그 카드 거래가 먼저 스테이징되면
+ * 그 거래들은 user_id가 NULL인 채 영영 남아 **사용자 화면에 안 보인다.**
+ * (실측: 전체 4,150건 중 1,925건이 주인 없음. 그중 30건은 지금 매핑된 카드 것)
+ *
+ * 알림은 보내지 않는다 — 몇 달 지난 거래로 알림이 쏟아지면 소음이고,
+ * 목적은 "보이게 만드는 것"이지 "지금 등록하라"가 아니다.
+ */
+async function claimUnownedTransactions(
+  companyId: string | null,
+  cardLastFour: string,
+  userId: string,
+): Promise<number> {
+  const claimed = await db
+    .update(gowidTransactions)
+    .set({ userId })
+    .where(
+      and(
+        eq(gowidTransactions.cardLastFour, cardLastFour),
+        isNull(gowidTransactions.userId),
+        // 회사가 다른 같은 4자리 카드의 거래를 가져오면 안 된다.
+        companyId
+          ? sql`exists (
+              select 1 from ${gowidCardMappings} m
+              where m.card_last_four = ${cardLastFour}
+                and m.company_id = ${companyId}
+                and m.user_id = ${userId}
+            )`
+          : sql`true`,
+      ),
+    )
+    .returning({ id: gowidTransactions.id });
+  return claimed.length;
 }
 
 export async function updateCardMappingUser(
@@ -110,6 +158,15 @@ export async function updateCardMappingUser(
     .set({ userId, updatedAt: new Date() })
     .where(eq(gowidCardMappings.id, mappingId))
     .returning();
+
+  // 매핑을 붙이는 순간 **그 카드의 밀린 거래도 함께 되찾는다.**
+  if (result && userId) {
+    const n = await claimUnownedTransactions(result.companyId, result.cardLastFour, userId);
+    if (n > 0) {
+      console.log(`[gowid] 카드 ${result.cardLastFour} 매핑 → 기존 거래 ${n}건에 소유자 지정`);
+    }
+  }
+
   return result;
 }
 
@@ -313,13 +370,29 @@ export async function syncGowidTransactions(): Promise<{
             eq(expenses.cardLastFour, lastFour),
             sql`${expenses.status} != 'CANCELLED'`,
             sql`${expenses.transactionDate}::date BETWEEN (${expenseDateStr}::date - INTERVAL '2 days') AND (${expenseDateStr}::date + INTERVAL '2 days')`,
+            // **이미 다른 GoWid 거래가 소비한 비용은 다시 쓰지 않는다.**
+            // 없으면 자동 등록된 식비 1건이, 같은 카드·같은 금액의 **다른 날
+            // 거래**까지 삼켜서 그 거래가 영영 사라진다(실제로 46건 발생).
+            // 비용 1건은 거래 1건만 상쇄할 수 있다.
+            sql`NOT EXISTS (
+              SELECT 1 FROM ${gowidTransactions} g
+              WHERE g.consumed_expense_id = ${expenses.id}
+            )`,
           ),
         )
         .limit(1);
 
       if (alreadyExists) {
-        // Mark as consumed — user already submitted
-        await db.update(gowidTransactions).set({ status: "consumed" }).where(eq(gowidTransactions.id, inserted.id));
+        // 사용자가 이미 제출한 건. **무엇이 무엇을 삼켰는지 남긴다** — 예전엔
+        // status만 바꿔서 어느 화면에서도 추적할 수 없었다.
+        await db
+          .update(gowidTransactions)
+          .set({
+            status: "consumed",
+            consumedExpenseId: alreadyExists.id,
+            consumedAt: new Date(),
+          })
+          .where(eq(gowidTransactions.id, inserted.id));
         continue;
       }
 
@@ -364,6 +437,31 @@ export async function syncGowidTransactions(): Promise<{
               consumedAt: new Date(),
             })
             .where(eq(gowidTransactions.id, inserted.id));
+
+          // 자동 등록됐다는 사실은 **알려준다.**
+          //
+          // 예전엔 알림을 통째로 건너뛰었다(2026-04-29 배포). 사용자에게 할 일이
+          // 없으니 조용히 넘긴 것인데, 실제로는 "내 카드가 쓰인 걸 시스템이 봤다"는
+          // 확인이 사라져 **"알림이 안 뜬다"는 제보**로 돌아왔다
+          // (황은상 20건 중 18건, 이동현 2/2가 이 경로로 무음이었다).
+          //
+          // 등록 요청이 아니라 **확인 알림**이라 문구가 다르고, 푸시는 보내지 않는다 —
+          // 한 사람당 월 18건까지 나오므로 OS 알림으로는 과하다. 인앱 알림이
+          // 들어가면 Realtime 토스트(팝업)도 함께 뜬다.
+          if (autoExp) {
+            const autoAmount = Math.round(expense.krwAmount).toLocaleString();
+            await createNotification({
+              recipientId: mapping.userId,
+              type: "GOWID_NEW_TRANSACTION",
+              title: "법카 사용이 자동 등록되었습니다",
+              message: `${expense.storeName ?? "법카 사용"} ${autoAmount}원 — ${mealMatch.accountName}(으)로 자동 등록됐습니다.`,
+              linkUrl: `/expenses/${autoExp.id}`,
+            });
+            await db
+              .update(gowidTransactions)
+              .set({ notifiedAt: new Date() })
+              .where(eq(gowidTransactions.id, inserted.id));
+          }
 
           autoClassifiedCount++;
           continue;
