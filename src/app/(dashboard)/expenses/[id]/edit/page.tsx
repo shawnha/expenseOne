@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getAuthUser, getCachedClient } from "@/lib/supabase/cached";
 import { getActiveCompanies } from "@/services/company.service";
+import { getMyCustomCategories } from "@/services/category.service";
 import type {
   ExpenseType,
   ExpenseStatus,
@@ -180,7 +181,13 @@ export default async function EditExpensePage({ params }: EditExpensePageProps) 
     redirect(`/expenses/${id}?error=edit_not_allowed`);
   }
 
-  const companies = await getActiveCompanies();
+  // 수정 화면도 본인 화면이다 — getAuthUser는 캐시되므로 위 권한 확인과
+  // 같은 요청을 다시 때리지 않는다.
+  const authUser = await getAuthUser();
+  const [companies, myCategories] = await Promise.all([
+    getActiveCompanies(),
+    authUser ? getMyCustomCategories(authUser.id) : Promise.resolve<string[]>([]),
+  ]);
   const initialCompanies: CompanyOption[] = companies.map((c) => ({
     id: c.id,
     name: c.name,
@@ -193,6 +200,7 @@ export default async function EditExpensePage({ params }: EditExpensePageProps) 
       expense={result.expense}
       existingAttachments={result.attachments}
       initialCompanies={initialCompanies}
+      myCategories={myCategories}
     />
   );
 }

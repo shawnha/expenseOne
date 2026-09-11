@@ -57,7 +57,8 @@ export const MAX_TOTAL_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 // 클라이언트 사이드 폼 스키마 (Date 객체 사용)
 // ============================================================
 
-const categoryField = z.string().min(1, "카테고리를 선택해주세요").max(100, "카테고리는 100자 이내로 입력해주세요");
+// trim 먼저 — 공백만 입력한 경우도 "선택해주세요"로 걸린다.
+const categoryField = z.string().trim().min(1, "카테고리를 선택해주세요").max(100, "카테고리는 100자 이내로 입력해주세요");
 
 // 법카사용 폼 스키마
 export const corporateCardFormSchema = z.object({

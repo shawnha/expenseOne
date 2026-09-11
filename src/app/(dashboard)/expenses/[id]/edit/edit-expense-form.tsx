@@ -37,13 +37,13 @@ import {
 
 import { FileUpload, FileUploadWithDocType } from "@/components/forms/file-upload";
 import { CompanySelector } from "@/components/forms/company-selector";
+import { CategorySelectField } from "@/components/forms/category-select-field";
 import {
   corporateCardFormSchema,
   depositRequestFormSchema,
   type CorporateCardFormData,
   type DepositRequestFormData,
   type FileWithPreview,
-  CATEGORY_OPTIONS,
   DOCUMENT_TYPE_OPTIONS,
   formatAmount,
   formatDateISO,
@@ -62,6 +62,8 @@ interface EditExpenseFormProps {
   expense: ExpenseEditData;
   existingAttachments: ExistingAttachment[];
   initialCompanies: CompanyOption[];
+  /** 본인이 예전에 직접 입력한 카테고리 (최근순). */
+  myCategories?: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -72,6 +74,7 @@ export function EditExpenseForm({
   expense,
   existingAttachments,
   initialCompanies,
+  myCategories = [],
 }: EditExpenseFormProps) {
   if (expense.type === "CORPORATE_CARD") {
     return (
@@ -79,6 +82,7 @@ export function EditExpenseForm({
         expense={expense}
         existingAttachments={existingAttachments}
         initialCompanies={initialCompanies}
+        myCategories={myCategories}
       />
     );
   }
@@ -88,6 +92,7 @@ export function EditExpenseForm({
       expense={expense}
       existingAttachments={existingAttachments}
       initialCompanies={initialCompanies}
+      myCategories={myCategories}
     />
   );
 }
@@ -170,6 +175,7 @@ function CorporateCardEditForm({
   expense,
   existingAttachments,
   initialCompanies,
+  myCategories = [],
 }: EditExpenseFormProps) {
   const router = useRouter();
   const [newFiles, setNewFiles] = useState<FileWithPreview[]>([]);
@@ -181,9 +187,6 @@ function CorporateCardEditForm({
     formatAmount(expense.amount)
   );
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [showCustomCategory, setShowCustomCategory] = useState(
-    !CATEGORY_OPTIONS.some((opt) => opt.value === expense.category)
-  );
   const [companyId, setCompanyId] = useState<string>(expense.companyId ?? "");
   const [userCompanyId, setUserCompanyId] = useState<string | null>(null);
 
@@ -375,46 +378,15 @@ function CorporateCardEditForm({
               </InputGroup>
               {errors.amount && <p className="text-xs text-[var(--apple-red)]">{errors.amount.message}</p>}
             </div>
-            <div className="space-y-1.5">
-              <Label>카테고리 <span className="text-[var(--apple-red)]">*</span></Label>
-              <Controller name="category" control={control} render={({ field }) => (
-                <div className="space-y-2">
-                  <div className="flex flex-wrap gap-2">
-                    {CATEGORY_OPTIONS.map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => { field.onChange(option.value); setShowCustomCategory(false); }}
-                        className={cn(
-                          "px-4 py-2 rounded-full text-sm font-medium transition-all",
-                          field.value === option.value && !showCustomCategory
-                            ? "bg-[var(--apple-blue)] text-white shadow-sm"
-                            : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]"
-                        )}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => { setShowCustomCategory(true); field.onChange(""); }}
-                      className={cn(
-                        "px-4 py-2 rounded-full text-sm font-medium transition-all",
-                        showCustomCategory
-                          ? "bg-[var(--apple-blue)] text-white shadow-sm"
-                          : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]"
-                      )}
-                    >
-                      + 직접 입력
-                    </button>
-                  </div>
-                  {showCustomCategory && (
-                    <Input placeholder="카테고리를 직접 입력하세요" value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value)} aria-invalid={!!errors.category} />
-                  )}
-                </div>
-              )} />
-              {errors.category && <p className="text-xs text-[var(--apple-red)]">{errors.category.message}</p>}
-            </div>
+            {/* 카테고리 — 프리셋 + 내가 쓰던 것 + 직접 입력 */}
+            <Controller name="category" control={control} render={({ field }) => (
+              <CategorySelectField
+                value={field.value ?? ""}
+                onChange={field.onChange}
+                myCategories={myCategories}
+                error={errors.category?.message}
+              />
+            )} />
             <div className="space-y-1.5">
               <Label htmlFor="merchantName">가맹점명</Label>
               <Input id="merchantName" placeholder="예: 교보문고" {...register("merchantName")} />
@@ -482,6 +454,7 @@ function DepositRequestEditForm({
   expense,
   existingAttachments,
   initialCompanies,
+  myCategories = [],
 }: EditExpenseFormProps) {
   const router = useRouter();
   const [newFiles, setNewFiles] = useState<FileWithPreview[]>([]);
@@ -499,9 +472,6 @@ function DepositRequestEditForm({
   );
   const [fileError, setFileError] = useState<string | null>(null);
   const [docTypeErrors, setDocTypeErrors] = useState<Record<string, boolean>>({});
-  const [showCustomCategory, setShowCustomCategory] = useState(
-    !CATEGORY_OPTIONS.some((opt) => opt.value === expense.category)
-  );
   const [dueDateOpen, setDueDateOpen] = useState(false);
   const [companyId, setCompanyId] = useState<string>(expense.companyId ?? "");
   const [userCompanyId, setUserCompanyId] = useState<string | null>(null);
@@ -815,46 +785,15 @@ function DepositRequestEditForm({
                 </div>
               </label>
             </div>
-            <div className="space-y-1.5">
-              <Label>카테고리 <span className="text-[var(--apple-red)]">*</span></Label>
-              <Controller name="category" control={control} render={({ field }) => (
-                <div className="space-y-2">
-                  <div className="flex flex-wrap gap-2">
-                    {CATEGORY_OPTIONS.map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => { field.onChange(option.value); setShowCustomCategory(false); }}
-                        className={cn(
-                          "px-4 py-2 rounded-full text-sm font-medium transition-all",
-                          field.value === option.value && !showCustomCategory
-                            ? "bg-[var(--apple-blue)] text-white shadow-sm"
-                            : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]"
-                        )}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => { setShowCustomCategory(true); field.onChange(""); }}
-                      className={cn(
-                        "px-4 py-2 rounded-full text-sm font-medium transition-all",
-                        showCustomCategory
-                          ? "bg-[var(--apple-blue)] text-white shadow-sm"
-                          : "glass-subtle text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]"
-                      )}
-                    >
-                      + 직접 입력
-                    </button>
-                  </div>
-                  {showCustomCategory && (
-                    <Input placeholder="카테고리를 직접 입력하세요" value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value)} aria-invalid={!!errors.category} />
-                  )}
-                </div>
-              )} />
-              {errors.category && <p className="text-xs text-[var(--apple-red)]">{errors.category.message}</p>}
-            </div>
+            {/* 카테고리 — 프리셋 + 내가 쓰던 것 + 직접 입력 */}
+            <Controller name="category" control={control} render={({ field }) => (
+              <CategorySelectField
+                value={field.value ?? ""}
+                onChange={field.onChange}
+                myCategories={myCategories}
+                error={errors.category?.message}
+              />
+            )} />
             <div className="space-y-1.5">
               <Label htmlFor="description">설명</Label>
               <Textarea id="description" placeholder="추가 설명을 입력해주세요 (선택사항)" rows={3} {...register("description")} />

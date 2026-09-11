@@ -4,6 +4,7 @@ import { getCachedCurrentUser } from "@/lib/supabase/cached";
 import { listRecurringExpenses } from "@/services/recurring-expense.service";
 import { getActiveCompanies } from "@/services/company.service";
 import { CATEGORY_OPTIONS } from "@/lib/validations/expense-form";
+import { getMyCustomCategories } from "@/services/category.service";
 import { RecurringManager } from "./recurring-manager";
 
 // ---------------------------------------------------------------------------
@@ -18,10 +19,18 @@ async function Content() {
   const user = await getCachedCurrentUser();
   if (!user) redirect("/login");
 
-  const [rows, companies] = await Promise.all([
+  const [rows, companies, myCategories] = await Promise.all([
     listRecurringExpenses(user.id, user.role === "ADMIN"),
     getActiveCompanies(),
+    getMyCustomCategories(user.id),
   ]);
+
+  // 반복 등록은 "한 번 만들어두고 계속 쓰는" 화면이다. 여기서만 프리셋으로
+  // 제한하면 평소 쓰던 카테고리로는 반복 등록을 아예 못 만든다.
+  const categoryOptions = [
+    ...CATEGORY_OPTIONS.map((c) => ({ value: c.value, label: c.label })),
+    ...myCategories.map((c) => ({ value: c, label: c })),
+  ];
 
   return (
     <div className="flex flex-col gap-4 sm:gap-5">
@@ -38,7 +47,7 @@ async function Content() {
       <RecurringManager
         rows={rows}
         companies={companies.map((c) => ({ id: c.id, name: c.name }))}
-        categories={CATEGORY_OPTIONS.map((c) => ({ value: c.value, label: c.label }))}
+        categories={categoryOptions}
         defaultCompanyId={user.companyId ?? null}
       />
     </div>

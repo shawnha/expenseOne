@@ -23,6 +23,7 @@ import {
 } from "@/components/forms/purchase-fields";
 import { VatModeSelect } from "@/components/forms/vat-mode-select";
 import { BranchSelectField, shouldAskBranch } from "@/components/forms/branch-select-field";
+import { CategorySelectField } from "@/components/forms/category-select-field";
 import { CompanySelector } from "@/components/forms/company-selector";
 import { FileUpload } from "@/components/forms/file-upload";
 import dynamic from "next/dynamic";
@@ -31,7 +32,6 @@ import {
   corporateCardFormSchema,
   type CorporateCardFormData,
   type FileWithPreview,
-  CATEGORY_OPTIONS,
   formatAmount,
   formatAmountUSD,
   parseAmountUSD,
@@ -44,6 +44,8 @@ import { Breadcrumb } from "@/components/layout/breadcrumb";
 
 interface CorporateCardFormProps {
   initialCompanies?: { id: string; name: string; slug: string; currency: string }[];
+  /** 본인이 예전에 직접 입력한 카테고리 (최근순). 매번 다시 타이핑하지 않게 버튼으로 띄운다. */
+  myCategories?: string[];
   prefillData?: {
     amount: number;
     merchantName: string | null;
@@ -53,11 +55,10 @@ interface CorporateCardFormProps {
   };
 }
 
-export default function CorporateCardForm({ initialCompanies, prefillData }: CorporateCardFormProps) {
+export default function CorporateCardForm({ initialCompanies, prefillData, myCategories = [] }: CorporateCardFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [amountDisplay, setAmountDisplay] = useState("");
-  const [showCustomCategory, setShowCustomCategory] = useState(false);
   const [showCustomMerchant, setShowCustomMerchant] = useState(false);
 
   // Company selection
@@ -429,68 +430,19 @@ export default function CorporateCardForm({ initialCompanies, prefillData }: Cor
               )}
             </div>
 
-            {/* 카테고리 — 버튼 토글 + 직접 입력 */}
-            <div className="space-y-1.5">
-              <Label>
-                카테고리 <span className="text-[var(--apple-red)]">*</span>
-              </Label>
-              <Controller
-                name="category"
-                control={control}
-                render={({ field }) => (
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap gap-2">
-                      {CATEGORY_OPTIONS.map((opt) => (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          onClick={() => {
-                            field.onChange(opt.value);
-                            setShowCustomCategory(false);
-                          }}
-                          className={cn(
-                            "px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors border",
-                            field.value === opt.value && !showCustomCategory
-                              ? "bg-[var(--apple-blue)] text-white border-[var(--apple-blue)]"
-                              : "glass-subtle border-[var(--apple-separator)] text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]"
-                          )}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowCustomCategory(true);
-                          field.onChange("");
-                        }}
-                        className={cn(
-                          "px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors border",
-                          showCustomCategory
-                            ? "bg-[var(--apple-blue)] text-white border-[var(--apple-blue)]"
-                            : "glass-subtle border-[var(--apple-separator)] text-[var(--apple-secondary-label)] hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]"
-                        )}
-                      >
-                        + 직접 입력
-                      </button>
-                    </div>
-                    {showCustomCategory && (
-                      <Input
-                        placeholder="카테고리를 직접 입력하세요"
-                        value={field.value ?? ""}
-                        onChange={(e) => field.onChange(e.target.value)}
-                        className="mt-1"
-                      />
-                    )}
-                  </div>
-                )}
-              />
-              {errors.category && (
-                <p className="text-xs text-[var(--apple-red)]">
-                  {errors.category.message}
-                </p>
+            {/* 카테고리 — 프리셋 + 내가 쓰던 것 + 직접 입력 */}
+            <Controller
+              name="category"
+              control={control}
+              render={({ field }) => (
+                <CategorySelectField
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  myCategories={myCategories}
+                  error={errors.category?.message}
+                />
               )}
-            </div>
+            />
 
             {/* 호점 — 리테일 마트/약국일 때만. 다른 경우엔 의미 없는 칸이라 숨긴다. */}
             {askBranch && (
