@@ -2,6 +2,7 @@ import { getActiveCompanies } from "@/services/company.service";
 import { getAuthUser } from "@/lib/supabase/cached";
 import { getPendingGowidTransaction } from "@/services/gowid.service";
 import { getMyCustomCategories } from "@/services/category.service";
+import { getMyMerchantCategories } from "@/services/autofill.service";
 import CorporateCardForm from "./corporate-card-form";
 
 export const dynamic = "force-dynamic";
@@ -20,9 +21,10 @@ export default async function CorporateCardPage({
   searchParams: Promise<{ gowidTxId?: string }>;
 }) {
   const authUser = await getAuthUser();
-  const [companies, myCategories] = await Promise.all([
+  const [companies, myCategories, myMerchantCategories] = await Promise.all([
     getActiveCompanies(),
     authUser ? getMyCustomCategories(authUser.id) : Promise.resolve<string[]>([]),
+    authUser ? getMyMerchantCategories(authUser.id) : Promise.resolve({}),
   ]);
   const serialized = companies.map((c) => ({
     id: c.id,
@@ -56,6 +58,7 @@ export default async function CorporateCardPage({
       initialCompanies={serialized}
       prefillData={prefillData}
       myCategories={myCategories}
+      myMerchantCategories={myMerchantCategories}
     />
   );
 }

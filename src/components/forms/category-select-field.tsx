@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CATEGORY_OPTIONS } from "@/lib/validations/expense-form";
+import { getCategoryLabel } from "@/lib/utils/expense-utils";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
@@ -29,6 +30,11 @@ interface CategorySelectFieldProps {
   myCategories?: string[];
   error?: string;
   required?: boolean;
+  /**
+   * 비슷한 지난 건에서 가져온 추천 — 같은 가맹점, 같은 예금주 등.
+   * 한 번 눌러야 적용된다(말없이 바꾸지 않는다). `from`은 "지난번 ○○" 표시용.
+   */
+  suggestion?: { category: string; from: string } | null;
 }
 
 /** 버튼으로 이미 떠 있는 값인가 — 그러면 입력칸을 열 이유가 없다. */
@@ -44,6 +50,7 @@ export function CategorySelectField({
   myCategories = [],
   error,
   required = true,
+  suggestion = null,
 }: CategorySelectFieldProps) {
   // 수정 화면처럼 값이 이미 있는 경우: 버튼에 없는 값일 때만 입력칸을 연다.
   // 버튼에 있는 값이면 그 버튼이 선택된 상태로 보이는 게 맞다.
@@ -83,6 +90,14 @@ export function CategorySelectField({
     CATEGORY_OPTIONS.flatMap((o) => [o.value, o.label]),
   );
   const mine = myCategories.filter((c) => !presetStrings.has(c));
+  // 선택된 값이 프리셋에도 내 목록에도 없으면(예: 추천으로 적용한 "식비") 선택된
+  // 버튼이 하나도 안 보인다. **현재 값**에 묶어 버튼을 세운다 — 추천에 묶으면
+  // 가맹점을 바꾸는 순간 추천이 사라지면서 버튼도 사라지는데, 값은 그대로
+  // 제출된다. 입력칸이 열려 있을 땐 입력칸이 값을 보여주니 세우지 않는다.
+  if (value && !showCustom && !presetStrings.has(value) && !mine.includes(value)) {
+    mine.push(value);
+  }
+  const showSuggestion = !!suggestion && value !== suggestion.category;
 
   return (
     <div className="space-y-1.5">
@@ -91,6 +106,20 @@ export function CategorySelectField({
       </Label>
 
       <div className="space-y-2">
+        {showSuggestion && suggestion && (
+          <button
+            type="button"
+            onClick={() => select(suggestion.category)}
+            className="flex min-h-11 w-full items-center gap-2 rounded-2xl px-3.5 py-2 text-left glass-input sm:min-h-9"
+          >
+            <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--apple-secondary-label)]">
+              지난번 <span className="font-medium text-[var(--apple-label)]">{suggestion.from}</span>
+              {" → "}
+              <span className="font-medium text-[var(--apple-label)]">{getCategoryLabel(suggestion.category)}</span>
+            </span>
+            <span className="shrink-0 text-[13px] font-semibold text-[var(--apple-blue)]">적용</span>
+          </button>
+        )}
         <div className="flex flex-wrap gap-2" role="group" aria-label="카테고리 선택">
           {CATEGORY_OPTIONS.map((opt) => (
             <button

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -41,6 +41,9 @@ import {
 import { VatModeSelect } from "@/components/forms/vat-mode-select";
 import { BranchSelectField, shouldAskBranch } from "@/components/forms/branch-select-field";
 import { CategorySelectField } from "@/components/forms/category-select-field";
+import type { PayeeSuggestion } from "@/services/autofill.service";
+import { accountKey, holderKey } from "@/lib/utils/autofill";
+import { getCategoryLabel } from "@/lib/utils/expense-utils";
 import { CompanySelector } from "@/components/forms/company-selector";
 import dynamic from "next/dynamic";
 const SubmitSuccessDialog = dynamic(() => import("@/components/forms/submit-success-dialog").then(m => m.SubmitSuccessDialog), { ssr: false });
@@ -93,53 +96,18 @@ const BANK_LIST = [
   "저축은행",
 ];
 
-// ============================================================
-// 최근 계좌 관리 (localStorage)
-// ============================================================
-interface RecentAccount {
-  bankName: string;
-  accountHolder: string;
-  accountNumber: string;
-  usedAt: number; // timestamp
-}
-
-const RECENT_ACCOUNTS_KEY = "expense-recent-accounts";
-const MAX_RECENT_ACCOUNTS = 5;
-
-function getRecentAccounts(): RecentAccount[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(RECENT_ACCOUNTS_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveRecentAccount(account: Omit<RecentAccount, "usedAt">) {
-  const accounts = getRecentAccounts();
-  // Remove duplicate
-  const filtered = accounts.filter(
-    (a) =>
-      !(
-        a.bankName === account.bankName &&
-        a.accountNumber === account.accountNumber
-      )
-  );
-  // Add to front
-  filtered.unshift({ ...account, usedAt: Date.now() });
-  // Keep max
-  const trimmed = filtered.slice(0, MAX_RECENT_ACCOUNTS);
-  localStorage.setItem(RECENT_ACCOUNTS_KEY, JSON.stringify(trimmed));
-}
-
 interface DepositRequestFormProps {
   initialCompanies?: { id: string; name: string; slug: string; currency: string }[];
   /** 본인이 예전에 직접 입력한 카테고리 (최근순). */
   myCategories?: string[];
+  /**
+   * 내가 예전에 보낸 계좌 (최근순, 서버 기록). 예전엔 localStorage에 5개만 두어서
+   * 폰 PWA와 PC가 따로 놀았고 새 기기에선 비어 있었다.
+   */
+  myPayees?: PayeeSuggestion[];
 }
 
-export default function DepositRequestForm({ initialCompanies, myCategories = [] }: DepositRequestFormProps) {
+export default function DepositRequestForm({ initialCompanies, myCategories = [], myPayees = [] }: DepositRequestFormProps) {
   const [files, setFiles] = useState<FileWithPreview[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [amountDisplay, setAmountDisplay] = useState("");
@@ -151,7 +119,6 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
   const [supplyAmount, setSupplyAmount] = useState(0);
   const [bankOpen, setBankOpen] = useState(false);
   const [dueDateOpen, setDueDateOpen] = useState(false);
-  const [recentAccounts, setRecentAccounts] = useState<RecentAccount[]>([]);
   const [showSuccess, setShowSuccess] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [docTypeErrors, setDocTypeErrors] = useState<Record<string, boolean>>(
@@ -174,7 +141,9 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
         const cid = json?.data?.companyId;
         if (cid) {
           setUserCompanyId(cid);
-          setCompanyId(cid);
+          // 응답이 오기 전에 사용자가 회사를 눌렀거나 지난번 계좌로 회사가
+          // 채워졌으면 덮어쓰지 않는다. 비어 있을 때만 기본값을 넣는다.
+          setCompanyId((prev) => prev || cid);
         }
       })
       .catch(() => {});
@@ -205,6 +174,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
     handleSubmit,
     control,
     setValue,
+    getValues,
     watch,
     formState: { errors, isDirty },
   } = useForm<DepositRequestFormData>({
@@ -230,8 +200,12 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
   const askBranch = shouldAskBranch(selectedCompanySlug, watch("category"));
 
   // Handle company change — only update companyId (currency is independent)
+  // 사용자가 회사를 **직접 눌렀는지**. 눌렀으면 계좌를 불러와도 회사는 건드리지
+  // 않는다(CompanySelector는 사용자가 누를 때만 onChange를 부른다).
+  const companyTouchedRef = useRef(false);
   const handleCompanyChange = useCallback((newCompanyId: string, _newCurrency?: string) => {
     void _newCurrency;
+    companyTouchedRef.current = true;
     setCompanyId(newCompanyId);
   }, []);
 
@@ -251,19 +225,59 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
   const watchedPrePaidPercentage = watch("prePaidPercentage");
   const [prePaidMode, setPrePaidMode] = useState<"full" | "partial">("full");
 
-  useEffect(() => {
-    setRecentAccounts(getRecentAccounts());
-  }, []);
+  // 지난번 계좌 불러오기. 채우는 칸은 데이터로 정했다(autofill.service 참고):
+  // 계좌·은행은 항상, 카테고리는 **비어 있을 때만**, 회사는 **직접 고르지 않았을
+  // 때만**. 제목·금액은 절대 채우지 않는다 — 재제출 중 금액이 같은 건 8%뿐이다.
+  const applyPayee = useCallback(
+    (p: PayeeSuggestion) => {
+      const opts = { shouldValidate: true, shouldDirty: true } as const;
+      setValue("bankName", p.bankName, opts);
+      setValue("accountHolder", p.accountHolder, opts);
+      setValue("accountNumber", accountKey(p.accountNumber), opts);
 
-  const applyRecentAccount = useCallback(
-    (account: RecentAccount) => {
-      setValue("bankName", account.bankName, { shouldValidate: true });
-      setValue("accountHolder", account.accountHolder, { shouldValidate: true });
-      setValue("accountNumber", account.accountNumber, { shouldValidate: true });
-      toast.success("계좌 정보가 입력되었습니다.");
+      const filled = ["계좌"];
+      if (!getValues("category")?.trim() && p.category) {
+        setValue("category", p.category, opts);
+        filled.push("카테고리");
+      }
+      if (
+        !companyTouchedRef.current &&
+        p.companyId &&
+        p.companyId !== companyId &&
+        initialCompanies?.some((c) => c.id === p.companyId)
+      ) {
+        setCompanyId(p.companyId);
+        filled.push("회사");
+      }
+      toast.success(`지난번 ${filled.join("·")} 정보를 채웠습니다. 금액은 직접 입력해주세요.`);
     },
-    [setValue]
+    [setValue, getValues, companyId, initialCompanies]
   );
+
+  // 예금주를 직접 쳤는데 예전에 보낸 적 있는 사람이면, 지난번 계좌를 제안한다.
+  // 이미 그 계좌가 들어 있으면 제안하지 않는다.
+  const typedHolder = watch("accountHolder");
+  const typedAccount = watch("accountNumber");
+  const typedBank = watch("bankName");
+  //
+  // 한 예금주에게 계좌가 여럿인 경우가 실제로 있다(같은 이름에 계좌 3~4개).
+  // 지금 입력된 계좌가 그중 **어느 하나와** 같으면 이미 채워진 것으로 본다 —
+  // 첫 번째 것만 보면 오래된 계좌를 골랐을 때 최신 계좌로 바꾸라고 조르고,
+  // 누르면 계좌와 회사가 엉뚱하게 바뀐다.
+  const sameHolder = typedHolder?.trim()
+    ? myPayees.filter((p) => holderKey(p.accountHolder) === holderKey(typedHolder))
+    : [];
+  const exactPayee = sameHolder.find(
+    (p) => p.bankName === typedBank && accountKey(p.accountNumber) === accountKey(typedAccount)
+  );
+  const holderMatch = exactPayee ?? sameHolder[0];
+  const holderMatchApplied = !!exactPayee;
+
+  // 지금 입력된 계좌가 예전 계좌와 같으면, 그때 카테고리를 추천한다.
+  const payeeForCategory = holderMatchApplied ? holderMatch : undefined;
+  const categorySuggestion = payeeForCategory
+    ? { category: payeeForCategory.category, from: payeeForCategory.accountHolder }
+    : null;
 
   const calcFinalAmount = useCallback(
     (base: number, vat: boolean, freelancer: boolean) => {
@@ -466,13 +480,6 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
         }
       }
 
-      // Save to recent accounts
-      saveRecentAccount({
-        bankName: data.bankName,
-        accountHolder: data.accountHolder,
-        accountNumber: data.accountNumber,
-      });
-
       setShowSuccess(true);
     } catch (error) {
       toast.error(
@@ -535,6 +542,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
                   value={field.value ?? ""}
                   onChange={field.onChange}
                   myCategories={myCategories}
+                  suggestion={categorySuggestion}
                   error={errors.category?.message}
                 />
               )}
@@ -864,29 +872,48 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
           <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-5">입금 정보</h2>
 
           <div className="space-y-5">
-            {/* 최근 계좌 */}
-            {recentAccounts.length > 0 && (
+            {/* 최근 계좌 — 내가 보냈던 계좌(서버 기록). 고르면 계좌·카테고리·회사를 채운다. */}
+            {myPayees.length > 0 && (
               <div className="space-y-2">
                 <div className="flex items-center gap-1.5">
                   <Clock className="size-3.5 text-[var(--apple-secondary-label)]" />
-                  <span className="text-[13px] font-medium text-[var(--apple-secondary-label)]">최근 계좌</span>
+                  <span className="text-[13px] font-medium text-[var(--apple-secondary-label)]">최근 보낸 계좌</span>
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  {recentAccounts.map((account, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => applyRecentAccount(account)}
-                      className="flex items-center justify-between px-3 py-2.5 rounded-xl glass-subtle text-left hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)] transition-colors group"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-[13px] font-medium text-[var(--apple-blue)] shrink-0">{account.bankName}</span>
-                        <span className="text-[13px] text-[var(--apple-label)] truncate">{account.accountHolder}</span>
-                        <span className="text-[13px] text-[var(--apple-secondary-label)] truncate">{account.accountNumber}</span>
-                      </div>
-                      <span className="text-[11px] text-[var(--apple-secondary-label)] group-hover:text-[var(--apple-blue)] shrink-0 ml-2">선택</span>
-                    </button>
-                  ))}
+                  {myPayees.map((p) => {
+                    const active =
+                      holderKey(typedHolder) === holderKey(p.accountHolder) &&
+                      typedBank === p.bankName &&
+                      accountKey(typedAccount) === accountKey(p.accountNumber);
+                    return (
+                      <button
+                        key={`${holderKey(p.accountHolder)}|${p.bankName}|${accountKey(p.accountNumber)}`}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => applyPayee(p)}
+                        className={cn(
+                          "flex min-h-11 items-center justify-between gap-2 rounded-xl px-3 py-2 text-left transition-colors",
+                          active
+                            ? "bg-[rgba(0,122,255,0.10)] ring-1 ring-[var(--apple-blue)]"
+                            : "glass-input hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]"
+                        )}
+                      >
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="shrink-0 text-[13px] font-medium text-[var(--apple-blue)]">{p.bankName}</span>
+                          <span className="truncate text-[13px] text-[var(--apple-label)]">{p.accountHolder}</span>
+                          <span className="truncate text-[13px] text-[var(--apple-secondary-label)]">{p.accountNumber}</span>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span className="hidden max-w-[120px] truncate text-[11px] text-[var(--apple-secondary-label)] sm:inline">
+                            {getCategoryLabel(p.category)}
+                          </span>
+                          <span className="text-[12px] font-medium text-[var(--apple-blue)]">
+                            {active ? "선택됨" : "불러오기"}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -958,6 +985,21 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
                 aria-invalid={!!errors.accountHolder}
                 {...register("accountHolder")}
               />
+              {holderMatch && !holderMatchApplied && (
+                <button
+                  type="button"
+                  onClick={() => applyPayee(holderMatch)}
+                  className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2 text-left glass-input sm:min-h-9"
+                >
+                  <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--apple-secondary-label)]">
+                    지난번 계좌{" "}
+                    <span className="font-medium text-[var(--apple-label)]">
+                      {holderMatch.bankName} {holderMatch.accountNumber}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-[13px] font-semibold text-[var(--apple-blue)]">불러오기</span>
+                </button>
+              )}
               {errors.accountHolder && (
                 <p className="text-xs text-[var(--apple-red)]">
                   {errors.accountHolder.message}

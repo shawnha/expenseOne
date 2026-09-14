@@ -24,6 +24,8 @@ import {
 import { VatModeSelect } from "@/components/forms/vat-mode-select";
 import { BranchSelectField, shouldAskBranch } from "@/components/forms/branch-select-field";
 import { CategorySelectField } from "@/components/forms/category-select-field";
+import type { MerchantSuggestion } from "@/services/autofill.service";
+import { merchantKey } from "@/lib/utils/autofill";
 import { CompanySelector } from "@/components/forms/company-selector";
 import { FileUpload } from "@/components/forms/file-upload";
 import dynamic from "next/dynamic";
@@ -46,6 +48,8 @@ interface CorporateCardFormProps {
   initialCompanies?: { id: string; name: string; slug: string; currency: string }[];
   /** 본인이 예전에 직접 입력한 카테고리 (최근순). 매번 다시 타이핑하지 않게 버튼으로 띄운다. */
   myCategories?: string[];
+  /** 내가 예전에 쓴 가맹점 → 그때 카테고리 (키: merchantKey). 같은 가맹점이면 추천한다. */
+  myMerchantCategories?: Record<string, MerchantSuggestion>;
   prefillData?: {
     amount: number;
     merchantName: string | null;
@@ -55,7 +59,7 @@ interface CorporateCardFormProps {
   };
 }
 
-export default function CorporateCardForm({ initialCompanies, prefillData, myCategories = [] }: CorporateCardFormProps) {
+export default function CorporateCardForm({ initialCompanies, prefillData, myCategories = [], myMerchantCategories = {} }: CorporateCardFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [amountDisplay, setAmountDisplay] = useState("");
@@ -146,6 +150,17 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
   const selectedCompanySlug =
     initialCompanies?.find((c) => c.id === companyId)?.slug ?? null;
   const askBranch = shouldAskBranch(selectedCompanySlug, watch("category"));
+
+  // 같은 가맹점에서 예전에 쓴 적이 있으면 그때 카테고리를 추천한다.
+  // 고위드 알림으로 들어온 경우 가맹점이 이미 채워져 있어서 바로 뜬다.
+  const mKey = merchantKey(watch("merchantName"));
+  // Object.hasOwn — 가맹점명이 "constructor" 같은 글자면 객체 기본 속성이 걸린다.
+  const merchantHit = mKey && Object.hasOwn(myMerchantCategories, mKey)
+    ? myMerchantCategories[mKey]
+    : undefined;
+  const categorySuggestion = merchantHit
+    ? { category: merchantHit.category, from: merchantHit.merchantName }
+    : null;
 
   // Warn on unsaved changes (browser close / refresh)
   useUnsavedChanges(isDirty || files.length > 0);
@@ -439,6 +454,7 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
                   value={field.value ?? ""}
                   onChange={field.onChange}
                   myCategories={myCategories}
+                  suggestion={categorySuggestion}
                   error={errors.category?.message}
                 />
               )}
