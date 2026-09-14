@@ -10,9 +10,10 @@ import { processStagedCardTransaction, upsertCardMapping } from "./gowid.service
 // 쌓는다(같은 DB, 다른 스키마). 고위드를 안 쓰는 법인은 그 데이터를 여기로
 // 끌어와야 사용자가 자기 카드 사용을 볼 수 있다.
 //
-// ⚠️ **아무 법인이나 끌어오면 안 된다.** ERP의 `lotte_card`는 고위드가 주는
+// ⚠️ **아무 소스나 끌어오면 안 된다.** ERP의 `lotte_card`는 고위드가 주는
 // 것과 **같은 거래**다(한아원코리아 3626·3669·0742… 동일 카드 확인). 둘 다
-// 넣으면 같은 사용이 두 번 뜬다. 그래서 대상을 명시적으로 선언한다.
+// 넣으면 같은 사용이 두 번 뜬다. 그래서 법인별로 **소스까지** 명시적으로 선언한다.
+// 고위드는 롯데카드만 준다 — 같은 법인이라도 우리카드는 ERP에서만 들어온다.
 //
 // 옛 `codef-notify.service.ts`는 죽은 `financeone.transactions`를 읽었다
 // (그 스키마는 2026-06-24에 유입이 끊겼고, 그 경로로 들어온 거래는 0건이다).
@@ -22,14 +23,18 @@ import { processStagedCardTransaction, upsertCardMapping } from "./gowid.service
 /**
  * ExpenseOne 회사 slug → 어느 ERP 법인의 어떤 카드 소스를 가져올지.
  *
- * **고위드로 이미 들어오는 법인은 넣지 말 것**(중복 등록된다).
- * 현재 고위드 대상: korea, retail.
+ * **고위드로 이미 들어오는 소스는 넣지 말 것**(중복 등록된다).
+ * 고위드 대상: korea·retail의 **롯데카드**. 그래서 두 법인은 우리카드만 가져온다.
+ * (2026-09-14 확인: 우리카드 7장 모두 고위드 매핑과 끝 4자리가 겹치지 않음)
  */
 export const ERP_CARD_SOURCES: Record<
   string,
   { entityId: number; sources: string[] }
 > = {
-  // 한아원파트너스 — 고위드 계정이 없다. 우리카드를 코데프로 받는다.
+  // 한아원코리아·리테일 — 롯데는 고위드, 우리카드는 여기서.
+  korea: { entityId: 2, sources: ["codef_woori_card"] },
+  retail: { entityId: 3, sources: ["codef_woori_card"] },
+  // 한아원파트너스 — 고위드 계정이 없다. 카드 전부 코데프로 받는다.
   partners: {
     entityId: 16,
     sources: ["codef_woori_card", "codef_shinhan_card", "codef_lotte_card"],
@@ -53,6 +58,28 @@ interface ErpCardRow {
 function toUpstreamId(id: string): number | null {
   const n = Number(id);
   return Number.isSafeInteger(n) && n > 0 ? n : null;
+}
+
+/**
+ * 코데프 소스 → 카드 관리 화면의 발급사 이름. 화면의 발급사 목록이 한글
+ * ("롯데","우리"…)이라, 영어로 넣으면 "woori"라는 별도 그룹으로 떨어진다.
+ */
+const ISSUER_LABEL: Record<string, string> = {
+  woori: "우리",
+  shinhan: "신한",
+  lotte: "롯데",
+  kb: "국민",
+  kookmin: "국민",
+  hana: "하나",
+  hyundai: "현대",
+  samsung: "삼성",
+  bc: "BC",
+  nh: "NH",
+};
+
+export function issuerFromSource(sourceType: string): string {
+  const key = sourceType.replace(/^codef_/, "").replace(/_card$/, "");
+  return ISSUER_LABEL[key] ?? key;
 }
 
 function lastFourOf(cardNumber: string | null): string | null {
@@ -156,15 +183,18 @@ export async function syncErpCardTransactions(): Promise<{
       const mapping = byLastFour.get(lastFour);
 
       // 처음 보는 카드는 등록해둔다 — 관리자가 /admin/gowid에서 소유자를 지정한다.
+      // 한 번 등록한 카드는 같은 실행 안에서 다시 등록하지 않는다(거래마다 하면
+      // 카드 3장·거래 43건에 등록 쿼리가 43번 돈다).
       if (!mapping) {
         unmappedCards.add(lastFour);
-        await upsertCardMapping({
+        const created = await upsertCardMapping({
           cardLastFour: lastFour,
           cardAlias: null,
-          issuer: row.source_type.replace(/^codef_/, "").replace(/_card$/, ""),
+          issuer: issuerFromSource(row.source_type),
           userId: null,
           companyId,
         });
+        if (created) byLastFour.set(lastFour, created);
       }
 
       const [inserted] = await db
