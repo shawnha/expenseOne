@@ -1,7 +1,10 @@
 /**
- * 식비 자동분류에 사용되는 FinanceOne 메타데이터.
+ * 식비 자동분류에 쓰는 ERP 계정 메타데이터.
  *
- * - COMPANY_TO_ENTITY: ExpenseOne 회사 slug → financeone.entities.id
+ * 원래 FinanceOne 것이었고 2026-08-21 ERP로 컷오버됐다. 계정 id·코드는 양쪽이
+ * 같아서 기존에 쌓인 auto_classified_account_id 기록도 그대로 유효하다.
+ *
+ * - COMPANY_TO_ENTITY: ExpenseOne 회사 slug → ERP 법인 id (hanahone_erp.mapping_rules.entity_id)
  * - MEAL_LEAF_CODES: 자동분류 대상으로 인정하는 internal_accounts.code 목록
  *   (entity별로 같은 code가 다른 의미일 수 있어 entity_id와 함께 조회한다)
  *

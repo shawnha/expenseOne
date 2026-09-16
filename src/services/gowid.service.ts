@@ -17,8 +17,8 @@ import {
 } from "@/lib/gowid/client";
 import { createNotification } from "./notification.service";
 import { sendPushToUser } from "./push.service";
-import { classifyMealExpense } from "./financeone-classifier.service";
-import { COMPANY_TO_ENTITY } from "@/lib/financeone/meal-accounts";
+import { classifyMealExpense } from "./meal-classifier.service";
+import { COMPANY_TO_ENTITY } from "@/lib/erp/meal-accounts";
 
 // ---------------------------------------------------------------------------
 // Card Mapping CRUD
