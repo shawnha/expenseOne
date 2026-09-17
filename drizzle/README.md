@@ -26,6 +26,8 @@ psql "$SUPABASE_DB_URL" -f drizzle/000X_<name>.sql
 
 ## Why not `drizzle-kit push` / `drizzle-kit migrate`?
 
+> `drizzle.config.ts`가 `drizzle-kit push`·`migrate` 실행을 한국어 오류로 막는다(.env.local을 읽기 전에). `generate`는 그대로 된다.
+
 Production was bootstrapped manually before journal hygiene caught up, so
 `drizzle-kit generate` produces conflicting plans (e.g. it sees the same
 enum belonging to two schemas at once because of the migration sequence).
