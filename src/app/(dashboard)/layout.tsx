@@ -63,6 +63,10 @@ export default async function DashboardLayout({
   try {
     supabase = await getCachedClient();
   } catch (e) {
+    // Next 내부 신호(redirect·notFound·동적 렌더 전환)는 삼키지 않는다.
+    // 없으면 프리렌더 중 DYNAMIC_SERVER_USAGE가 여기서 잡혀 "로그인으로 보내기"로
+    // 처리된다 — 빌드 로그의 'Failed to create Supabase client' 16줄이 그 흔적이다.
+    unstable_rethrow(e);
     console.error("Failed to create Supabase client:", e);
     redirect("/login");
   }
