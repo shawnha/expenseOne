@@ -56,6 +56,7 @@ import type { DocumentType } from "@/types";
 import type { ExpenseEditData, ExistingAttachment, CompanyOption } from "./page";
 import { cn } from "@/lib/utils";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
+import { useFormBusy } from "@/hooks/use-form-busy";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -242,6 +243,8 @@ function CorporateCardEditForm({
   // Warn on unsaved changes (browser close / refresh)
   const companyChanged = companyId !== (expense.companyId ?? "");
   useUnsavedChanges(isDirty || newFiles.length > 0 || removedAttachmentIds.length > 0 || companyChanged);
+  // 작성·제출 중엔 새 배포의 강제 새로고침을 미룬다 (sw-update-prompt)
+  useFormBusy("expense-edit-card", isDirty || newFiles.length > 0 || removedAttachmentIds.length > 0 || companyChanged || isSubmitting);
 
   const handleAmountChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -639,6 +642,8 @@ function DepositRequestEditForm({
   // Warn on unsaved changes (browser close / refresh)
   const companyChanged = companyId !== (expense.companyId ?? "");
   useUnsavedChanges(isDirty || newFiles.length > 0 || removedAttachmentIds.length > 0 || companyChanged);
+  // 작성·제출 중엔 새 배포의 강제 새로고침을 미룬다 (sw-update-prompt)
+  useFormBusy("expense-edit-deposit", isDirty || newFiles.length > 0 || removedAttachmentIds.length > 0 || companyChanged || isSubmitting);
 
   const calcFinalAmount = useCallback(
     (base: number, vat: boolean, freelancer: boolean) => {

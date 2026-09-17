@@ -17,6 +17,7 @@ import {
 } from "@/lib/validations/expense-form";
 import { formatExpenseAmount, getCategoryLabel } from "@/lib/utils/expense-utils";
 import { cn } from "@/lib/utils";
+import { useFormBusy } from "@/hooks/use-form-busy";
 
 const SubmitSuccessDialog = dynamic(
   () => import("@/components/forms/submit-success-dialog").then((m) => m.SubmitSuccessDialog),
@@ -97,6 +98,14 @@ export function RefundForm() {
       : original.amount
     : 0;
   const remaining = originalTotal - refundedSoFar;
+
+  // 작성·제출 중엔 새 배포의 강제 새로고침을 미룬다 (sw-update-prompt).
+  // 금액은 원거래를 고르면 잔액으로 자동 채워지므로, 그 값에서 바꿨을 때만 입력으로 본다.
+  const autoAmountInput = original ? (isUSD ? (remaining / 100).toFixed(2) : String(remaining)) : "";
+  useFormBusy(
+    "refund",
+    isSubmitting || description !== "" || files.length > 0 || amountInput !== autoAmountInput,
+  );
 
   // ── 원거래 로드 (상세 페이지에서 진입) ──
   const loadOriginal = useCallback(async (id: string) => {

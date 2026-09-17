@@ -42,6 +42,7 @@ import {
 } from "@/lib/validations/expense-form";
 import { cn } from "@/lib/utils";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
+import { useFormBusy } from "@/hooks/use-form-busy";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 
 interface CorporateCardFormProps {
@@ -164,6 +165,8 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
 
   // Warn on unsaved changes (browser close / refresh)
   useUnsavedChanges(isDirty || files.length > 0);
+  // 작성·제출 중엔 새 배포의 강제 새로고침을 미룬다 (sw-update-prompt)
+  useFormBusy("corporate-card", isDirty || files.length > 0 || isSubmitting);
 
   // Pre-fill fields from GoWid transaction
   useEffect(() => {

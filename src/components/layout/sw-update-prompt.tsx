@@ -3,9 +3,12 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { RefreshCw } from "lucide-react";
+import { toast } from "sonner";
+import { createReloadGate } from "@/lib/form-busy";
 
 const COOLDOWN_KEY = "sw-update-ts";
 const COOLDOWN_MS = 10_000;
+const PENDING_RELOAD_NOTICE = "업데이트가 준비됐습니다. 작성을 마치면 새로고침됩니다.";
 
 function isInCooldown(): boolean {
   try {
@@ -41,6 +44,8 @@ export function SwUpdatePrompt() {
   const [updating, setUpdating] = useState(false);
   const pathname = usePathname();
   const foundRef = useRef(false);
+  /** 사용자가 "업데이트"를 직접 눌렀다 — 작성 중이어도 미루지 않는다(예전 동작). */
+  const userRequestedRef = useRef(false);
 
   const markFound = useCallback((sw: ServiceWorker) => {
     if (foundRef.current) return;
@@ -122,17 +127,21 @@ export function SwUpdatePrompt() {
 
     const cleanupPromise = setup();
 
-    let refreshing = false;
-    const onControllerChange = () => {
-      if (refreshing) return;
-      refreshing = true;
-      reloadTopWindow();
-    };
+    // 새 SW가 페이지를 넘겨받으면(controllerchange) 새로고침한다.
+    // 작성 중인 폼(useFormBusy)이 있으면 입력을 날리지 않게 미룬다 —
+    // 폼이 끝나면(다른 화면 이동·입력 비움) 또는 안전 상한(30분)이 지나면 그때 새로고침.
+    // 작성 중인 폼이 없거나 사용자가 직접 "업데이트"를 눌렀으면 예전처럼 곧바로.
+    const reloadGate = createReloadGate({
+      reload: reloadTopWindow,
+      notifyPending: () => toast.info(PENDING_RELOAD_NOTICE, { id: "sw-update-pending" }),
+    });
+    const onControllerChange = () => reloadGate.request(userRequestedRef.current);
     navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
 
     return () => {
       clearInterval(pollId);
       clearInterval(updateId);
+      reloadGate.dispose();
       navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
       cleanupPromise.then((cleanup) => cleanup?.());
     };
@@ -156,6 +165,7 @@ export function SwUpdatePrompt() {
 
   const handleUpdate = () => {
     if (!waitingSW) return;
+    userRequestedRef.current = true;
     setUpdating(true);
     setCooldown();
     waitingSW.postMessage("SKIP_WAITING");
