@@ -35,6 +35,17 @@ function configureVapid(): boolean {
 const VAPID_CONFIGURED = configureVapid();
 
 /**
+ * 이 인스턴스에서 푸시를 실제로 보낼 수 있는가.
+ *
+ * 키가 "설정돼 있다"(환경변수 존재)와 "쓸 수 있다"(setVapidDetails 성공)는 다르다.
+ * 형식이 틀리면 키는 있는데 전송은 전부 조용히 건너뛴다 — 진단 화면이 그 차이를
+ * 보여줘야 한다(/api/push/test).
+ */
+export function isPushConfigured(): boolean {
+  return VAPID_CONFIGURED;
+}
+
+/**
  * VAPID 키가 없으면 전송을 아예 시도하지 않는다.
  *
  * 키 없이 보내면 구독 엔드포인트마다 실제 네트워크 요청이 나가고 전부 401로
