@@ -41,6 +41,7 @@ import {
   formatDateISO,
 } from "@/lib/validations/expense-form";
 import { countUploadFailures, uploadFailureMessage } from "@/lib/utils/upload-results";
+import { resolveCreatedExpenseId } from "@/lib/utils/submit-result";
 import { cn } from "@/lib/utils";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
@@ -326,34 +327,30 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
         );
       }
 
+      // 리다이렉트(세션 만료)·id 누락이면 던진다. 첨부가 없어도 확인한다 —
+      // 비용이 안 만들어졌는데 「제출 완료」를 띄우면 안 된다.
+      const result = await response.json().catch(() => null);
+      const expenseId = resolveCreatedExpenseId(response, result);
+
       // Upload optional attachments (receipts). 법카사용은 첨부 선택사항이라
-      // 업로드가 일부 실패해도 제출 자체는 성공으로 처리 — 상세 화면에서 재첨부 가능.
+      // 업로드가 일부 실패해도 제출 자체는 성공으로 처리 — 수정 화면에서 재첨부 가능.
       if (files.length > 0) {
-        const result = await response.json().catch(() => null);
-        const expenseId = result?.data?.id;
-        if (expenseId) {
-          const uploadResults = await Promise.allSettled(
-            files.map((fileItem) => {
-              const formData = new FormData();
-              formData.append("file", fileItem.file);
-              formData.append("expenseId", expenseId);
-              formData.append("documentType", "RECEIPT");
-              return fetch("/api/attachments/upload", { method: "POST", body: formData })
-                .then((res) => { if (!res.ok) throw new Error(fileItem.file.name); return res; });
-            })
-          );
-          const warning = uploadFailureMessage(countUploadFailures(uploadResults), files.length);
-          if (warning) {
-            toast.error(warning);
-            setUploadIssue({ message: warning, detailHref: `/expenses/${expenseId}` });
-          }
-        } else {
-          // id를 못 받으면 첨부를 올리지 못한다 — 조용히 성공 처리하지 않는다.
-          const warning = uploadFailureMessage(files.length, files.length);
-          if (warning) {
-            toast.error(warning);
-            setUploadIssue({ message: warning, detailHref: null });
-          }
+        const uploadResults = await Promise.allSettled(
+          files.map((fileItem) => {
+            const formData = new FormData();
+            formData.append("file", fileItem.file);
+            formData.append("expenseId", expenseId);
+            formData.append("documentType", "RECEIPT");
+            return fetch("/api/attachments/upload", { method: "POST", body: formData })
+              .then((res) => { if (!res.ok) throw new Error(fileItem.file.name); return res; });
+          })
+        );
+        const warning = uploadFailureMessage(countUploadFailures(uploadResults), files.length);
+        if (warning) {
+          toast.error(warning);
+          // 상세 화면엔 첨부 추가 수단이 없다. 수정 화면으로 보낸다
+          // — SUBMITTED/APPROVED 법카는 수정 화면이 열린다(edit/page.tsx:106-110).
+          setUploadIssue({ message: warning, detailHref: `/expenses/${expenseId}/edit` });
         }
       }
 

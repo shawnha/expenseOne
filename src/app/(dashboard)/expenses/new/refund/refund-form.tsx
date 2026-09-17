@@ -16,6 +16,7 @@ import {
   type FileWithPreview,
 } from "@/lib/validations/expense-form";
 import { countUploadFailures, uploadFailureMessage } from "@/lib/utils/upload-results";
+import { resolveCreatedExpenseId } from "@/lib/utils/submit-result";
 import { formatExpenseAmount, getCategoryLabel } from "@/lib/utils/expense-utils";
 import { cn } from "@/lib/utils";
 
@@ -229,39 +230,34 @@ export function RefundForm() {
         throw new Error(errorData?.error?.message || "반품 등록에 실패했습니다.");
       }
 
+      // 리다이렉트(세션 만료)·id 누락이면 던진다. 첨부가 없어도 확인한다 —
+      // 비용이 안 만들어졌는데 「등록 완료」를 띄우면 안 된다.
+      const result = await response.json().catch(() => null);
+      const expenseId = resolveCreatedExpenseId(response, result);
+
       // 첨부 업로드 (선택) — 일부 실패해도 등록 자체는 성공 처리
       if (files.length > 0) {
-        const result = await response.json().catch(() => null);
-        const expenseId = result?.data?.id;
-        if (expenseId) {
-          const uploadResults = await Promise.allSettled(
-            files.map((fileItem) => {
-              const formData = new FormData();
-              formData.append("file", fileItem.file);
-              formData.append("expenseId", expenseId);
-              formData.append("documentType", "RECEIPT");
-              return fetch("/api/attachments/upload", { method: "POST", body: formData }).then(
-                (res) => {
-                  if (!res.ok) throw new Error(fileItem.file.name);
-                  return res;
-                },
-              );
-            }),
-          );
-          const warning = uploadFailureMessage(countUploadFailures(uploadResults), files.length, {
-            editable: false, // 반품 건은 수정 화면이 없다(edit/page.tsx)
-          });
-          if (warning) {
-            toast.error(warning);
-            setUploadIssue({ message: warning, detailHref: `/expenses/${expenseId}` });
-          }
-        } else {
-          // id를 못 받으면 첨부를 올리지 못한다 — 조용히 성공 처리하지 않는다.
-          const warning = uploadFailureMessage(files.length, files.length, { editable: false });
-          if (warning) {
-            toast.error(warning);
-            setUploadIssue({ message: warning, detailHref: null });
-          }
+        const uploadResults = await Promise.allSettled(
+          files.map((fileItem) => {
+            const formData = new FormData();
+            formData.append("file", fileItem.file);
+            formData.append("expenseId", expenseId);
+            formData.append("documentType", "RECEIPT");
+            return fetch("/api/attachments/upload", { method: "POST", body: formData }).then(
+              (res) => {
+                if (!res.ok) throw new Error(fileItem.file.name);
+                return res;
+              },
+            );
+          }),
+        );
+        const warning = uploadFailureMessage(countUploadFailures(uploadResults), files.length, {
+          editable: false, // 반품 건은 수정 화면이 없다(edit/page.tsx:95)
+        });
+        if (warning) {
+          toast.error(warning);
+          // 반품은 수정 화면이 없어서 다시 첨부할 수 없다 — 상세만 보여준다.
+          setUploadIssue({ message: warning, detailHref: `/expenses/${expenseId}` });
         }
       }
 

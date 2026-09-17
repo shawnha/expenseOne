@@ -7,7 +7,9 @@ import assert from "node:assert/strict";
 import {
   applyVatAndWithholding,
   calcDepositAmount,
+  calcDepositBreakdownKRW,
   FREELANCER_WITHHOLDING_RATE,
+  resolveEditedAmount,
 } from "./deposit-amount";
 import { depositRequestFormSchema } from "../validations/expense-form";
 
@@ -220,5 +222,121 @@ describe("calcDepositAmount — 통화 문자열", () => {
   it("0이면 토글과 무관하게 0", () => {
     assert.equal(calcDepositAmount(0, "KRW", true, true), 0);
     assert.equal(calcDepositAmount(0, "USD", true, true), 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 수정 화면 — 이미 차감된 금액에 3.3%를 또 빼던 버그
+// ---------------------------------------------------------------------------
+describe("resolveEditedAmount — 수정 화면", () => {
+  it("토글을 건드리지 않았으면 입력한 숫자가 곧 저장 금액", () => {
+    // 원천징수 100,000원 요청 → DB amount 96,700(net). 수정 화면은 96,700을
+    // 보여주고 원천징수 토글이 켜진 채로 뜬다. 예전엔 금액 칸을 건드리기만 해도
+    // 93,508(= 96,700 × 0.967)이 저장됐다.
+    const stored = 96_700;
+    assert.equal(resolveEditedAmount(stored, false, false, true), stored);
+    // 저장할 때마다 줄어들던 것: 여러 번 반복해도 그대로다.
+    let amount = stored;
+    for (let i = 0; i < 5; i++) amount = resolveEditedAmount(amount, false, false, true);
+    assert.equal(amount, stored);
+    // 예전 동작이었다면 한 번 저장할 때마다 3.3%씩 줄었다.
+    assert.equal(calcDepositAmount(stored, "KRW", false, true), 93_509);
+  });
+
+  it("토글을 건드리지 않았으면 부가세 플래그가 켜져 있어도 그대로", () => {
+    assert.equal(resolveEditedAmount(50_000, false, true, true), 50_000);
+  });
+
+  it("토글을 실제로 건드리면 입력값을 공급가액으로 보고 배율을 적용한다", () => {
+    assert.equal(resolveEditedAmount(100_000, true, true, false), 110_000);
+    assert.equal(resolveEditedAmount(100_000, true, false, true), 96_700);
+    assert.equal(resolveEditedAmount(100_000, true, true, true), 106_370);
+    // 생성 폼과 같은 헬퍼를 쓴다(복제본 없음).
+    assert.equal(
+      resolveEditedAmount(100_000, true, true, true),
+      calcDepositAmount(100_000, "KRW", true, true),
+    );
+  });
+
+  it("0은 토글과 무관하게 0", () => {
+    assert.equal(resolveEditedAmount(0, true, true, true), 0);
+    assert.equal(resolveEditedAmount(0, false, true, true), 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 화면 요약 — 서버와 같은 순서로 계산하는가
+// ---------------------------------------------------------------------------
+
+/** 서버 경로: expense.service createExpense → convertToKRW(cents, rate). */
+function serverStoredKRW(
+  supply: number,
+  currency: string,
+  vat: boolean,
+  freelancer: boolean,
+  rate: number,
+): number {
+  const amount = calcDepositAmount(supply, currency, vat, freelancer);
+  // exchange-rate.service.ts:277-278
+  return currency === "USD" ? Math.round((amount / 100) * rate) : amount;
+}
+
+describe("calcDepositBreakdownKRW", () => {
+  it("USD 실지급액이 서버 저장값과 정확히 같다", () => {
+    const rate = 1387.5;
+    for (const supply of [100, 100.5, 100.55, 0.01, 9999.99]) {
+      for (const vat of [false, true]) {
+        for (const fl of [false, true]) {
+          const bd = calcDepositBreakdownKRW(supply, "USD", vat, fl, rate);
+          assert.ok(bd, `$${supply}`);
+          assert.equal(
+            bd.finalKRW,
+            serverStoredKRW(supply, "USD", vat, fl, rate),
+            `$${supply} vat=${vat} fl=${fl}`,
+          );
+        }
+      }
+    }
+  });
+
+  it("예전 화면 공식(환산 먼저)과는 갈리고, 서버와 맞는 쪽을 쓴다", () => {
+    const rate = 1387.5;
+    const bd = calcDepositBreakdownKRW(100.55, "USD", true, false, rate)!;
+    const legacyDisplay = Math.round(Math.round(100.55 * rate) * 1.1); // 153,464
+    assert.equal(legacyDisplay, 153_464);
+    assert.equal(bd.finalKRW, 153_471);
+    assert.equal(bd.finalKRW, serverStoredKRW(100.55, "USD", true, false, rate));
+  });
+
+  it("환율을 못 받은 USD는 null — 달러 숫자를 원화처럼 보여주지 않는다", () => {
+    assert.equal(calcDepositBreakdownKRW(100, "USD", false, false, null), null);
+    assert.equal(calcDepositBreakdownKRW(100, "USD", true, false, 0), null);
+    // 예전 화면은 여기서 baseKRW = 100(달러 숫자)로 떨어져 "$100 → 100원"을 보여줬다.
+  });
+
+  it("KRW는 환율 없이도 계산되고 값이 예전과 같다", () => {
+    const bd = calcDepositBreakdownKRW(100_000, "KRW", true, true, null)!;
+    assert.equal(bd.baseKRW, 100_000);
+    assert.equal(bd.vatKRW, 10_000);
+    assert.equal(bd.totalBeforeWithholdingKRW, 110_000);
+    assert.equal(bd.withholdingKRW, 3_630);
+    assert.equal(bd.finalKRW, 106_370);
+    assert.equal(bd.finalKRW, calcDepositAmount(100_000, "KRW", true, true));
+  });
+
+  it("줄이 서로 더해진다 (base + VAT = 총액, 총액 - 원천징수 = 실지급액)", () => {
+    for (const [cur, rate] of [["KRW", null], ["USD", 1387.5]] as const) {
+      for (const supply of [1, 7, 100.55, 12_345]) {
+        for (const vat of [false, true]) {
+          for (const fl of [false, true]) {
+            const bd = calcDepositBreakdownKRW(supply, cur, vat, fl, rate)!;
+            assert.equal(bd.baseKRW + bd.vatKRW, bd.totalBeforeWithholdingKRW);
+            assert.equal(bd.totalBeforeWithholdingKRW - bd.withholdingKRW, bd.finalKRW);
+            if (!vat) assert.equal(bd.vatKRW, 0);
+            if (!fl) assert.equal(bd.withholdingKRW, 0);
+          }
+        }
+      }
+    }
   });
 });
