@@ -54,9 +54,9 @@ import {
   formatAmount,
   formatAmountUSD,
   parseAmountUSD,
-  dollarsToCents,
   formatDateISO,
 } from "@/lib/validations/expense-form";
+import { calcDepositAmount } from "@/lib/utils/deposit-amount";
 import type { DocumentType } from "@/types";
 import { cn } from "@/lib/utils";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
@@ -279,16 +279,8 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
     ? { category: payeeForCategory.category, from: payeeForCategory.accountHolder }
     : null;
 
-  const calcFinalAmount = useCallback(
-    (base: number, vat: boolean, freelancer: boolean) => {
-      let result = base;
-      if (vat) result = Math.round(result * 1.1);
-      if (freelancer) result = Math.round(result * (1 - 0.033));
-      return result;
-    },
-    []
-  );
-
+  // amount 필드 = KRW 원 / USD 센트. 부가세·원천징수 배율은 통화별 최소 단위로
+  // 바꾼 뒤 적용한다 — 예전엔 토글이 달러 값에 배율만 곱해 100분의 1로 저장됐다.
   const handleAmountChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       if (currency === "USD") {
@@ -309,7 +301,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
         const num = parseAmountUSD(limited);
         setSupplyAmount(num);
         setAmountDisplay(limited);
-        setValue("amount", dollarsToCents(num), { shouldValidate: true });
+        setValue("amount", calcDepositAmount(num, "USD", vatIncluded, freelancerDeduction), { shouldValidate: true });
         return;
       }
 
@@ -324,29 +316,29 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
       const num = parseInt(raw, 10);
       setSupplyAmount(num);
       setAmountDisplay(formatAmount(num));
-      setValue("amount", calcFinalAmount(num, vatIncluded, freelancerDeduction), { shouldValidate: true });
+      setValue("amount", calcDepositAmount(num, "KRW", vatIncluded, freelancerDeduction), { shouldValidate: true });
     },
-    [setValue, vatIncluded, freelancerDeduction, calcFinalAmount, currency]
+    [setValue, vatIncluded, freelancerDeduction, currency]
   );
 
   const handleVatToggle = useCallback(
     (checked: boolean) => {
       setVatIncluded(checked);
       if (supplyAmount > 0) {
-        setValue("amount", calcFinalAmount(supplyAmount, checked, freelancerDeduction), { shouldValidate: true });
+        setValue("amount", calcDepositAmount(supplyAmount, currency, checked, freelancerDeduction), { shouldValidate: true });
       }
     },
-    [setValue, supplyAmount, freelancerDeduction, calcFinalAmount]
+    [setValue, supplyAmount, freelancerDeduction, currency]
   );
 
   const handleFreelancerToggle = useCallback(
     (checked: boolean) => {
       setFreelancerDeduction(checked);
       if (supplyAmount > 0) {
-        setValue("amount", calcFinalAmount(supplyAmount, vatIncluded, checked), { shouldValidate: true });
+        setValue("amount", calcDepositAmount(supplyAmount, currency, vatIncluded, checked), { shouldValidate: true });
       }
     },
-    [setValue, supplyAmount, vatIncluded, calcFinalAmount]
+    [setValue, supplyAmount, vatIncluded, currency]
   );
 
   const handleDocumentTypeChange = useCallback(
