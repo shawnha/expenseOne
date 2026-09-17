@@ -5,7 +5,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  combineAttachmentWarnings,
   countUploadFailures,
+  deleteFailureMessage,
   isUploadFailure,
   uploadFailureMessage,
   type UploadResponseLike,
@@ -85,5 +87,51 @@ describe("uploadFailureMessage", () => {
       uploadFailureMessage(1, 1, { required: true }),
       "첨부 파일 업로드에 실패했습니다. 첨부가 필수이니 상세 화면에서 다시 첨부해주세요.",
     );
+  });
+});
+
+describe("deleteFailureMessage", () => {
+  it("실패 0건이면 null", () => {
+    assert.equal(deleteFailureMessage(0, 2), null);
+    assert.equal(deleteFailureMessage(0, 0), null);
+  });
+
+  it("삭제가 403/500으로 실패하면 남아 있는 첨부를 확인하라고 알린다", () => {
+    // DELETE는 !res.ok throw가 없어 allSettled가 fulfilled로 준다 —
+    // countUploadFailures의 !ok 분기가 실제로 동작해야 한다.
+    const results = [
+      fulfilled(new Response(null, { status: 204 })),
+      fulfilled(new Response(null, { status: 403 })),
+    ];
+    assert.equal(countUploadFailures(results), 1);
+    assert.equal(
+      deleteFailureMessage(countUploadFailures(results), results.length),
+      "첨부 2개 중 1개 삭제에 실패했습니다. 상세 화면에서 남아 있는 첨부를 확인해주세요.",
+    );
+  });
+
+  it("전부 실패 문구", () => {
+    assert.equal(
+      deleteFailureMessage(2, 2),
+      "첨부 2개 삭제에 실패했습니다. 상세 화면에서 남아 있는 첨부를 확인해주세요.",
+    );
+  });
+});
+
+describe("combineAttachmentWarnings", () => {
+  it("둘 다 없으면 null", () => {
+    assert.equal(combineAttachmentWarnings(null, null), null);
+    assert.equal(combineAttachmentWarnings(undefined), null);
+  });
+
+  it("업로드·삭제 실패를 한 문구로 합친다", () => {
+    assert.equal(
+      combineAttachmentWarnings("첨부 파일 업로드에 실패했습니다.", "첨부 1개 삭제에 실패했습니다."),
+      "첨부 파일 업로드에 실패했습니다. 첨부 1개 삭제에 실패했습니다.",
+    );
+  });
+
+  it("하나만 있으면 그대로", () => {
+    assert.equal(combineAttachmentWarnings(null, "첨부 1개 삭제에 실패했습니다."), "첨부 1개 삭제에 실패했습니다.");
   });
 });

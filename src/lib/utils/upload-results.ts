@@ -48,3 +48,28 @@ export function uploadFailureMessage(
     : " 상세 화면에서 다시 첨부해주세요.";
   return head + tail;
 }
+
+/**
+ * 첨부 **삭제** 실패 안내 문구. 실패가 없으면 null.
+ *
+ * 삭제(DELETE /api/attachments/<id>)는 업로드와 달리 `!res.ok` throw가 없어서
+ * allSettled 결과가 전부 fulfilled로 온다 — `isUploadFailure`의 `!ok` 분기가
+ * 그대로 동작한다. 예전엔 이 결과를 아무도 보지 않아 403/500이 나도
+ * "수정되었습니다" 성공 토스트만 떴고, 지운 줄 알았던 영수증이 남아 있었다.
+ */
+export function deleteFailureMessage(failed: number, total: number): string | null {
+  if (failed <= 0 || total <= 0) return null;
+  const head =
+    failed >= total
+      ? `첨부 ${total}개 삭제에 실패했습니다.`
+      : `첨부 ${total}개 중 ${failed}개 삭제에 실패했습니다.`;
+  return head + " 상세 화면에서 남아 있는 첨부를 확인해주세요.";
+}
+
+/** 업로드·삭제 안내를 한 토스트 문구로 합친다. 둘 다 없으면 null. */
+export function combineAttachmentWarnings(
+  ...parts: (string | null | undefined)[]
+): string | null {
+  const kept = parts.filter((p): p is string => !!p);
+  return kept.length > 0 ? kept.join(" ") : null;
+}
