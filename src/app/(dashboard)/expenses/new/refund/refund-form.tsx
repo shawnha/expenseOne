@@ -79,7 +79,10 @@ export function RefundForm() {
 
   // ── 폼 상태 ──
   const [amountInput, setAmountInput] = useState("");
-  const [transactionDate, setTransactionDate] = useState(formatDateISO(new Date()));
+  // 마운트 시점의 기본 반품일. busy 판정에서 "사용자가 날짜를 바꿨나"를 보려면
+  // 기준값이 고정돼야 한다(매 렌더 new Date()면 자정을 넘길 때 기준이 달라진다).
+  const [defaultTransactionDate] = useState(() => formatDateISO(new Date()));
+  const [transactionDate, setTransactionDate] = useState(defaultTransactionDate);
   const [description, setDescription] = useState("");
   const [files, setFiles] = useState<FileWithPreview[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -104,7 +107,11 @@ export function RefundForm() {
   const autoAmountInput = original ? (isUSD ? (remaining / 100).toFixed(2) : String(remaining)) : "";
   useFormBusy(
     "refund",
-    isSubmitting || description !== "" || files.length > 0 || amountInput !== autoAmountInput,
+    isSubmitting ||
+      description !== "" ||
+      files.length > 0 ||
+      amountInput !== autoAmountInput ||
+      transactionDate !== defaultTransactionDate,
   );
 
   // ── 원거래 로드 (상세 페이지에서 진입) ──
