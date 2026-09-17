@@ -40,6 +40,7 @@ import {
   dollarsToCents,
   formatDateISO,
 } from "@/lib/validations/expense-form";
+import { countUploadFailures, uploadFailureMessage } from "@/lib/utils/upload-results";
 import { cn } from "@/lib/utils";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
@@ -62,6 +63,8 @@ interface CorporateCardFormProps {
 export default function CorporateCardForm({ initialCompanies, prefillData, myCategories = [], myMerchantCategories = {} }: CorporateCardFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  // 비용은 만들어졌는데 첨부 업로드가 실패한 경우 — 성공 창에서 상세로 안내한다.
+  const [uploadIssue, setUploadIssue] = useState<{ message: string; detailHref: string | null } | null>(null);
   const [amountDisplay, setAmountDisplay] = useState("");
   const [showCustomMerchant, setShowCustomMerchant] = useState(false);
 
@@ -339,13 +342,17 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
                 .then((res) => { if (!res.ok) throw new Error(fileItem.file.name); return res; });
             })
           );
-          const failed = uploadResults.filter((r) => r.status === "rejected");
-          if (failed.length > 0) {
-            if (failed.length === files.length) {
-              toast.error("파일 업로드에 실패했습니다. 비용 상세에서 다시 첨부해주세요.");
-            } else {
-              toast.error(`${files.length}개 파일 중 ${failed.length}개 업로드 실패. 비용 상세에서 다시 첨부해주세요.`);
-            }
+          const warning = uploadFailureMessage(countUploadFailures(uploadResults), files.length);
+          if (warning) {
+            toast.error(warning);
+            setUploadIssue({ message: warning, detailHref: `/expenses/${expenseId}` });
+          }
+        } else {
+          // id를 못 받으면 첨부를 올리지 못한다 — 조용히 성공 처리하지 않는다.
+          const warning = uploadFailureMessage(files.length, files.length);
+          if (warning) {
+            toast.error(warning);
+            setUploadIssue({ message: warning, detailHref: null });
           }
         }
       }
@@ -763,6 +770,8 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
         newSubmitPath="/expenses/new"
         title="제출 완료"
         description="법카사용 내역이 정상적으로 제출되었습니다."
+        warning={uploadIssue?.message}
+        detailHref={uploadIssue?.detailHref}
       />
     </div>
   );

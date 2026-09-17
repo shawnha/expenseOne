@@ -51,6 +51,7 @@ import {
   formatDateISO,
   formatFileSize,
 } from "@/lib/validations/expense-form";
+import { countUploadFailures, uploadFailureMessage } from "@/lib/utils/upload-results";
 import { formatExpenseAmount } from "@/lib/utils/expense-utils";
 import type { DocumentType } from "@/types";
 import type { ExpenseEditData, ExistingAttachment, CompanyOption } from "./page";
@@ -311,6 +312,7 @@ function CorporateCardEditForm({
       }
 
       // Upload new attachments in parallel
+      let uploadWarning: string | null = null;
       if (newFiles.length > 0) {
         const uploadResults = await Promise.allSettled(
           newFiles.map((fileItem) => {
@@ -322,17 +324,13 @@ function CorporateCardEditForm({
               .then((res) => { if (!res.ok) throw new Error(fileItem.file.name); return res; });
           }),
         );
-        const failed = uploadResults.filter((r) => r.status === "rejected");
-        if (failed.length > 0) {
-          if (failed.length === newFiles.length) {
-            toast.error("파일 업로드에 실패했습니다. 비용 상세에서 다시 첨부해주세요.");
-          } else {
-            toast.error(`${newFiles.length}개 파일 중 ${failed.length}개 업로드 실패. 비용 상세에서 다시 첨부해주세요.`);
-          }
-        }
+        uploadWarning = uploadFailureMessage(countUploadFailures(uploadResults), newFiles.length);
       }
 
-      toast.success("비용이 수정되었습니다.");
+      // 성공 토스트와 실패 토스트가 같이 뜨면 실패가 묻힌다. 수정 후 상세 화면으로
+      // 이동하므로 거기서 바로 다시 첨부하면 된다.
+      if (uploadWarning) toast.error(`수정은 저장됐지만 ${uploadWarning}`, { duration: 8000 });
+      else toast.success("비용이 수정되었습니다.");
       router.push(`/expenses/${expense.id}`);
       router.refresh();
     } catch (error) {
@@ -806,6 +804,7 @@ function DepositRequestEditForm({
         );
       }
       // Upload new attachments in parallel
+      let uploadWarning: string | null = null;
       if (newFiles.length > 0) {
         const uploadResults = await Promise.allSettled(
           newFiles.map((fileItem) => {
@@ -817,16 +816,11 @@ function DepositRequestEditForm({
               .then((res) => { if (!res.ok) throw new Error(fileItem.file.name); return res; });
           }),
         );
-        const failed = uploadResults.filter((r) => r.status === "rejected");
-        if (failed.length > 0) {
-          if (failed.length === newFiles.length) {
-            toast.error("파일 업로드에 실패했습니다. 비용 상세에서 다시 첨부해주세요.");
-          } else {
-            toast.error(`${newFiles.length}개 파일 중 ${failed.length}개 업로드 실패. 비용 상세에서 다시 첨부해주세요.`);
-          }
-        }
+        uploadWarning = uploadFailureMessage(countUploadFailures(uploadResults), newFiles.length);
       }
-      toast.success("입금요청이 수정되었습니다.");
+      // 실패는 성공 토스트에 묻히지 않게 따로 알린다. 이어서 상세 화면으로 이동한다.
+      if (uploadWarning) toast.error(`수정은 저장됐지만 ${uploadWarning}`, { duration: 8000 });
+      else toast.success("입금요청이 수정되었습니다.");
       router.push(`/expenses/${expense.id}`);
       router.refresh();
     } catch (error) {

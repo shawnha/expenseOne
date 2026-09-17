@@ -15,6 +15,7 @@ import {
   formatAmount,
   type FileWithPreview,
 } from "@/lib/validations/expense-form";
+import { countUploadFailures, uploadFailureMessage } from "@/lib/utils/upload-results";
 import { formatExpenseAmount, getCategoryLabel } from "@/lib/utils/expense-utils";
 import { cn } from "@/lib/utils";
 
@@ -83,6 +84,8 @@ export function RefundForm() {
   const [files, setFiles] = useState<FileWithPreview[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  // 반품은 등록됐는데 첨부 업로드가 실패한 경우 — 성공 창에서 상세로 안내한다.
+  const [uploadIssue, setUploadIssue] = useState<{ message: string; detailHref: string | null } | null>(null);
 
   const isUSD = original?.currency === "USD";
 
@@ -245,11 +248,19 @@ export function RefundForm() {
               );
             }),
           );
-          const failed = uploadResults.filter((r) => r.status === "rejected");
-          if (failed.length > 0) {
-            toast.error(
-              `${files.length}개 파일 중 ${failed.length}개 업로드 실패. 비용 상세에서 다시 첨부해주세요.`,
-            );
+          const warning = uploadFailureMessage(countUploadFailures(uploadResults), files.length, {
+            editable: false, // 반품 건은 수정 화면이 없다(edit/page.tsx)
+          });
+          if (warning) {
+            toast.error(warning);
+            setUploadIssue({ message: warning, detailHref: `/expenses/${expenseId}` });
+          }
+        } else {
+          // id를 못 받으면 첨부를 올리지 못한다 — 조용히 성공 처리하지 않는다.
+          const warning = uploadFailureMessage(files.length, files.length, { editable: false });
+          if (warning) {
+            toast.error(warning);
+            setUploadIssue({ message: warning, detailHref: null });
           }
         }
       }
@@ -467,6 +478,9 @@ export function RefundForm() {
         newSubmitPath="/expenses/new"
         title="등록 완료"
         description="반품/환불이 등록되었습니다. 비용 합계에서 차감됩니다."
+        warning={uploadIssue?.message}
+        detailHref={uploadIssue?.detailHref}
+        detailLabel="상세 보기"
       />
     </div>
   );
