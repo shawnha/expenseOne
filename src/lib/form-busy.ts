@@ -9,7 +9,9 @@
  *
  * 갇힘 방지 — 옛 청크에 영영 머물면 안 된다:
  * 1. 폼이 언마운트되면(다른 화면으로 이동) useFormBusy가 지운다.
- * 2. busy를 마지막으로 켠 뒤 FORM_BUSY_MAX_AGE_MS(30분)가 지나면 만료로 본다.
+ * 2. 마지막 입력 뒤 FORM_BUSY_MAX_AGE_MS(30분)가 지나면 만료로 본다.
+ *    (trackFormActivity가 입력마다 시계를 다시 시작하므로 "30분 무입력"이 기준이다.
+ *    계속 쓰고 있는 사람은 만료되지 않고, 방치된 탭만 풀린다.)
  *    기기 시계가 크게 뒤로 가도 같은 폭이면 만료로 본다.
  */
 
@@ -17,7 +19,7 @@ export const FORM_BUSY_MAX_AGE_MS = 30 * 60 * 1000;
 
 type Listener = () => void;
 
-/** 폼 id → busy를 마지막으로 켠 시각(ms). */
+/** 폼 id → busy를 마지막으로 켠·이어쓴 시각(ms). */
 const busySince = new Map<string, number>();
 const listeners = new Set<Listener>();
 
@@ -74,6 +76,34 @@ export function subscribe(listener: Listener): () => void {
   };
 }
 
+/** 사용자의 입력을 듣는 대상(브라우저에선 window). 테스트에선 가짜를 넣는다. */
+export interface ActivityTarget {
+  addEventListener(type: string, handler: () => void, capture: boolean): void;
+  removeEventListener(type: string, handler: () => void, capture: boolean): void;
+}
+
+/** "아직 쓰고 있다"는 신호. 캡처 단계로 듣는다(폼 안에서 멈추는 이벤트도 잡힌다). */
+export const FORM_ACTIVITY_EVENTS = ["input", "change", "keydown", "pointerdown"];
+
+/**
+ * busy인 동안 입력이 있을 때마다 만료 시계를 다시 시작한다.
+ *
+ * 없으면 30분 상한이 "처음 입력한 시각"부터 세어져, 30분 넘게 붙잡고 쓰는 사람도
+ * 상한에서 강제 새로고침된다 — 이 기능이 막으려던 바로 그 유실이다. 이걸 붙이면
+ * 상한이 "30분 무입력"이 되어 방치된 탭만 만료된다(갇힘 방지는 그대로).
+ */
+export function trackFormActivity(
+  id: string,
+  target: ActivityTarget,
+  now: () => number = Date.now,
+): () => void {
+  const touch = () => setFormBusy(id, true, now());
+  for (const type of FORM_ACTIVITY_EVENTS) target.addEventListener(type, touch, true);
+  return () => {
+    for (const type of FORM_ACTIVITY_EVENTS) target.removeEventListener(type, touch, true);
+  };
+}
+
 export interface ReloadGateOptions {
   /** 실제 새로고침 (브라우저에선 reloadTopWindow). */
   reload: () => void;
@@ -84,6 +114,11 @@ export interface ReloadGateOptions {
   setTimer?: (fn: () => void, ms: number) => ReturnType<typeof setTimeout>;
   clearTimer?: (handle: ReturnType<typeof setTimeout> | undefined) => void;
 }
+
+/** busy가 잠깐 false로 튄 것인지 확인하는 유예. */
+export const IDLE_GRACE_MS = 5_000;
+/** reload() 뒤 이 시간 안에 페이지가 안 떠나면 취소된 것으로 보고 다시 시도할 수 있게 푼다. */
+export const RELOAD_CANCELLED_MS = 5_000;
 
 export interface ReloadGate {
   /**
@@ -117,7 +152,15 @@ export function createReloadGate(options: ReloadGateOptions): ReloadGate {
   const reloadNow = () => {
     if (refreshing) return;
     refreshing = true;
-    stopWaiting();
+    // 구독은 **풀지 않는다**. 폼이 아직 dirty면 beforeunload 확인창이 뜨고,
+    // 사용자가 "머무르기"를 고르면 새로고침이 취소된다. 여기서 구독까지 끊으면
+    // 토스트가 약속한 새로고침이 영영 오지 않는다(옛 청크에 갇힘).
+    // 잠시 뒤 잠금을 풀어 다음 busy 해제 때 한 번 더 시도한다(루프는 생기지 않는다).
+    clearTimer(timer);
+    timer = setTimer(() => {
+      timer = undefined;
+      refreshing = false;
+    }, RELOAD_CANCELLED_MS);
     options.reload();
   };
 
@@ -125,10 +168,19 @@ export function createReloadGate(options: ReloadGateOptions): ReloadGate {
     if (refreshing) return;
     const t = now();
     if (!isAnyFormBusy(t)) {
-      reloadNow();
+      // 곧바로 새로고침하지 않는다:
+      // 1) busy는 잠깐 false로 튈 수 있다 — 흐린 영수증을 지우고 다시 찍는 사이처럼.
+      // 2) 이 함수는 setFormBusy → emit으로 **React 커밋 도중**(언마운트 cleanup)
+      //    동기 호출된다. 유예를 두어 커밋 밖에서 새로고침한다.
+      clearTimer(timer);
+      timer = setTimer(() => {
+        timer = undefined;
+        if (isAnyFormBusy(now())) reloadWhenIdle();
+        else reloadNow();
+      }, IDLE_GRACE_MS);
       return;
     }
-    // busy가 풀리는 건 구독으로, 만료(30분)는 타이머로 잡는다.
+    // busy가 풀리는 건 구독으로, 만료(30분 무입력)는 타이머로 잡는다.
     clearTimer(timer);
     const left = msUntilFormBusyExpires(t);
     if (left !== null) timer = setTimer(reloadWhenIdle, left + 1_000);
