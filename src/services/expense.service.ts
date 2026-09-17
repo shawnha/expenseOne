@@ -25,6 +25,12 @@ import {
 } from "drizzle-orm";
 import { normalizeBizNo } from "@/lib/validations/expense";
 import type { PurchaseLineInput } from "@/lib/validations/expense";
+import {
+  findLockedChanges,
+  isApprovedDepositLocked,
+  lockedChangeMessage,
+  omitLockedFields,
+} from "@/lib/expense-edit-lock";
 import type {
   CreateExpenseInput,
   RefundSubmitInput,
@@ -567,6 +573,9 @@ export async function getPendingRemainingPayments(company?: string) {
     eq(expenses.remainingPaymentRequested, true),
     eq(expenses.remainingPaymentApproved, false),
     eq(expenses.status, "APPROVED"),
+    // 후지급은 입금요청에만 있는 흐름이다. 법카 건에 선지급 플래그를 붙여 요청하는
+    // 우회가 막히기 전에 쌓인 행이 있어도 승인 대기 큐에는 올리지 않는다.
+    eq(expenses.type, "DEPOSIT_REQUEST"),
   ];
 
   if (company) {
@@ -1018,6 +1027,42 @@ export async function updateExpense(
     );
   }
 
+  // 사입 줄은 사입 건에만 붙는다. 사입이 아닌 비용에 줄이 들어가면 발행 추적에
+  // 주인 없는 줄(고아 줄)이 생긴다. 빈 배열은 만들 줄이 없으니 통과시킨다.
+  if (input.purchaseLines?.length && (input.isPurchase ?? expense.isPurchase) !== true) {
+    throw new AppError("VALIDATION_ERROR", "사입 건에만 납품처 약국을 입력할 수 있습니다.");
+  }
+
+  // 승인된 입금요청 잠금 (비관리자).
+  // 승인은 "이 금액을 이 계좌로 보낸다"는 결정이라, 승인 뒤에 요청자가 금액·계좌를
+  // 바꾸면 승인한 내용과 지급할 내용이 어긋난다. 잠금 필드가 실제로 바뀌었으면
+  // 거부하고, 같은 값이면(구버전 PWA는 폼 전체를 보낸다) 빼고 허용 필드만 저장한다 —
+  // 영수증 보충·제목 수정은 그대로 되도록. 판단 기준은 **DB에서 읽은** status다.
+  let editInput = input;
+  if (isApprovedDepositLocked(userRole, expense)) {
+    // 줄 비교가 필요할 때만 조회한다. 입력 순서(sortOrder)로 읽어야 순서 비교가 맞다.
+    const currentLines =
+      input.purchaseLines !== undefined
+        ? await db
+            .select({
+              pharmacyName: purchaseInvoiceLines.pharmacyName,
+              pharmacyBizNo: purchaseInvoiceLines.pharmacyBizNo,
+              supplyAmount: purchaseInvoiceLines.supplyAmount,
+              vatAmount: purchaseInvoiceLines.vatAmount,
+              purchaseItems: purchaseInvoiceLines.purchaseItems,
+            })
+            .from(purchaseInvoiceLines)
+            .where(eq(purchaseInvoiceLines.expenseId, expenseId))
+            .orderBy(asc(purchaseInvoiceLines.sortOrder))
+        : [];
+
+    const lockedChanges = findLockedChanges(expense, input, currentLines);
+    if (lockedChanges.length > 0) {
+      throw new AppError("FORBIDDEN", lockedChangeMessage(lockedChanges));
+    }
+    editInput = omitLockedFields(input);
+  }
+
   // 4. Update -- include ownership + eligibility checks in the WHERE clause
   //    to guard against concurrent state changes (TOCTOU).
   const updateConditions = [
@@ -1033,10 +1078,16 @@ export async function updateExpense(
         eq(expenses.status, "APPROVED"),
       )!,
     );
+    // 입금요청은 읽을 때의 상태 그대로일 때만 쓴다. 위 잠금 판단은 읽은 status
+    // 기준이라, 그 사이 관리자가 승인하면(SUBMITTED→APPROVED) 금액·계좌 변경이
+    // 잠금 없이 승인 건에 써진다. 0행이면 아래에서 새로고침을 안내한다.
+    if (expense.type === "DEPOSIT_REQUEST") {
+      updateConditions.push(eq(expenses.status, expense.status));
+    }
   }
 
   // Build the update set
-  const { status: inputStatus, ...restInput } = input;
+  const { status: inputStatus, ...restInput } = editInput;
 
   const updateSet: Record<string, unknown> = {
     ...restInput,
@@ -1098,7 +1149,8 @@ export async function updateExpense(
     "currency",
     "amountOriginal",
   ];
-  const touchesSlack = Object.keys(input).some((k) =>
+  // 잠금으로 뺀 필드(같은 값이라 저장하지 않은 것)는 재게시 사유가 아니다.
+  const touchesSlack = Object.keys(editInput).some((k) =>
     SLACK_RELEVANT_FIELDS.includes(k),
   );
 

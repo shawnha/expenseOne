@@ -221,7 +221,12 @@ export const updateExpenseSchema = z.object({
   status: z.enum(["SUBMITTED", "APPROVED", "REJECTED", "CANCELLED"]).optional(),
   companyId: z.string().uuid().optional(),
   hasFreelancerWithholding: z.boolean().optional(),
-  ...purchaseFields,
+  // 사입. 생성용 purchaseFields를 그대로 펼치면 isPurchase에 default(false)가 붙어서,
+  // 키를 안 보낸 PATCH(제목만 고치기·호점 지정 등)까지 isPurchase:false로 파싱된다.
+  // updateExpense는 그걸 "사입 해제"로 읽고 약국 줄을 전부 지운다. 수정에서는
+  // 보낸 값만 반영해야 하므로 기본값 없이 다시 정의한다.
+  isPurchase: z.boolean().optional(),
+  purchaseLines: purchaseFields.purchaseLines,
   // 호점 구분 (마트/약국 실비 정리용). null 이면 미지정으로 해제.
   branch: z.enum(["STORE_1", "STORE_2"]).nullable().optional(),
 });

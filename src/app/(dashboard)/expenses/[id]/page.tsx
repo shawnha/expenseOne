@@ -382,7 +382,13 @@ export default async function ExpenseDetailPage({
             />
           )}
           {canRevertApproval && (
-            <RevertApprovalButton expenseId={id} expenseTitle={expense.title} />
+            <RevertApprovalButton
+              expenseId={id}
+              expenseTitle={expense.title}
+              isPrePaid={expense.isPrePaid}
+              remainingPaymentRequested={expense.remainingPaymentRequested}
+              remainingPaymentApproved={expense.remainingPaymentApproved}
+            />
           )}
         </div>
       </div>

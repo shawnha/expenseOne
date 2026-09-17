@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getAuthUser, getCachedClient } from "@/lib/supabase/cached";
+import { getAuthUser, getCachedClient, getCachedCurrentUser } from "@/lib/supabase/cached";
 import { getActiveCompanies } from "@/services/company.service";
 import { getMyCustomCategories } from "@/services/category.service";
 import type {
@@ -36,6 +36,10 @@ export interface ExpenseEditData {
   title: string;
   description: string | null;
   amount: number;
+  /** 원문 통화(KRW/USD). 승인된 입금요청의 읽기 전용 금액 표시에 쓴다. */
+  currency: string;
+  /** USD 건의 원문 금액(센트). KRW 건은 null. */
+  amountOriginal: number | null;
   category: string;
   merchantName: string | null;
   transactionDate: string;
@@ -50,6 +54,8 @@ export interface ExpenseEditData {
   createdAt: string;
   companyId: string | null;
   hasFreelancerWithholding: boolean;
+  /** 사입 여부. 승인 후엔 잠금 필드라 요약 카드에만 보여준다. */
+  isPurchase: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -129,6 +135,8 @@ async function getExpenseForEdit(id: string): Promise<{
       title: expense.title,
       description: expense.description,
       amount: expense.amount,
+      currency: expense.currency ?? "KRW",
+      amountOriginal: expense.amount_original ?? null,
       category: expense.category,
       merchantName: expense.merchant_name,
       transactionDate: expense.transaction_date,
@@ -143,6 +151,7 @@ async function getExpenseForEdit(id: string): Promise<{
       createdAt: expense.created_at,
       companyId: expense.company_id ?? null,
       hasFreelancerWithholding: expense.has_freelancer_withholding ?? false,
+      isPurchase: expense.is_purchase ?? false,
     },
     attachments: (attachmentRows ?? []).map(
       (a: {
@@ -184,9 +193,10 @@ export default async function EditExpensePage({ params }: EditExpensePageProps) 
   // 수정 화면도 본인 화면이다 — getAuthUser는 캐시되므로 위 권한 확인과
   // 같은 요청을 다시 때리지 않는다.
   const authUser = await getAuthUser();
-  const [companies, myCategories] = await Promise.all([
+  const [companies, myCategories, viewer] = await Promise.all([
     getActiveCompanies(),
     authUser ? getMyCustomCategories(authUser.id) : Promise.resolve<string[]>([]),
+    getCachedCurrentUser(),
   ]);
   const initialCompanies: CompanyOption[] = companies.map((c) => ({
     id: c.id,
@@ -201,6 +211,7 @@ export default async function EditExpensePage({ params }: EditExpensePageProps) 
       existingAttachments={result.attachments}
       initialCompanies={initialCompanies}
       myCategories={myCategories}
+      viewerIsAdmin={viewer?.role === "ADMIN"}
     />
   );
 }

@@ -36,6 +36,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return errorResponse("FORBIDDEN", "본인의 비용만 후지급 요청할 수 있습니다.");
     }
 
+    // 후지급은 입금요청에만 있는 흐름이다. 법카 건은 제출 즉시 APPROVED라, 선지급
+    // 플래그만 붙이면 관리자 승인 없이 후지급 요청을 만들 수 있었다.
+    if (expense.type !== "DEPOSIT_REQUEST") {
+      return errorResponse("VALIDATION_ERROR", "입금요청만 후지급 요청할 수 있습니다.");
+    }
+
     // Must be APPROVED
     if (expense.status !== "APPROVED") {
       return errorResponse("VALIDATION_ERROR", "승인된 비용만 후지급 요청할 수 있습니다.");
