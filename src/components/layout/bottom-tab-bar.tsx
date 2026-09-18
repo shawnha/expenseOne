@@ -20,8 +20,10 @@ import {
   ShoppingBag,
   FileText,
   Repeat,
+  CalendarRange,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PlansNavGate } from "@/components/plans/plans-nav-gate";
 import { useRealtimeNotifications } from "@/hooks/use-realtime-notifications";
 
 interface BottomTabBarProps {
@@ -30,13 +32,29 @@ interface BottomTabBarProps {
   unreadCount: number;
 }
 
+interface QuickAction {
+  label: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  /** 비용계획 스위치가 켜진 사람에게만(PlansNavGate). */
+  gated?: boolean;
+}
+
 interface TabItem {
   label: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   badge?: number;
-  quickActions?: { label: string; href: string; icon: React.ComponentType<{ className?: string }> }[];
+  quickActions?: QuickAction[];
 }
+
+/** 모바일에서 비용계획은 탭이 아니라 빠른 메뉴 한 줄이다 — 탭 5칸은 그대로 둔다. */
+const PLANS_QUICK_ACTION: QuickAction = {
+  label: "비용계획",
+  href: "/plans",
+  icon: CalendarRange,
+  gated: true,
+};
 
 function getTabItems(isAdmin: boolean, badge: number): TabItem[] {
   return [
@@ -51,6 +69,7 @@ function getTabItems(isAdmin: boolean, badge: number): TabItem[] {
       quickActions: isAdmin
         ? [
             { label: "반복 입금요청", href: "/expenses/recurring", icon: Repeat },
+            PLANS_QUICK_ACTION,
             { label: "대시보드", href: "/admin", icon: LayoutDashboard },
             { label: "전체 비용", href: "/admin/expenses", icon: Receipt },
             { label: "승인 대기", href: "/admin/pending", icon: Clock },
@@ -65,6 +84,7 @@ function getTabItems(isAdmin: boolean, badge: number): TabItem[] {
           ]
         : [
             { label: "반복 입금요청", href: "/expenses/recurring", icon: Repeat },
+            PLANS_QUICK_ACTION,
             { label: "설정", href: "/settings", icon: Settings },
           ],
     },
@@ -128,7 +148,7 @@ function QuickActionsPopover({
         {actions.map((action, i) => {
           const Icon = action.icon;
           const active = pathname === action.href || pathname.startsWith(action.href + "/");
-          return (
+          const row = (
             <button
               key={action.href}
               type="button"
@@ -158,6 +178,7 @@ function QuickActionsPopover({
               <span className="text-[14px] font-medium">{action.label}</span>
             </button>
           );
+          return action.gated ? <PlansNavGate key={action.href}>{row}</PlansNavGate> : row;
         })}
       </div>
     </>
