@@ -60,6 +60,7 @@ import {
 import type { DocumentType } from "@/types";
 import { cn } from "@/lib/utils";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
+import { useFormBusy } from "@/hooks/use-form-busy";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 
 // ============================================================
@@ -111,6 +112,9 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
   const [files, setFiles] = useState<FileWithPreview[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [amountDisplay, setAmountDisplay] = useState("");
+  // 금액은 RHF register가 아니라 setValue(shouldDirty 없음)로 쓰므로 isDirty가 안 켜진다.
+  // 금액만 입력한 폼도 "작성 중"으로 보려면 따로 표시해야 한다.
+  const [amountTouched, setAmountTouched] = useState(false);
   const [vatIncluded, setVatIncluded] = useState(false);
   const [freelancerDeduction, setFreelancerDeduction] = useState(false);
   const [purchase, setPurchase] = useState<PurchaseFieldValues>(emptyPurchaseFields);
@@ -220,6 +224,8 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
 
   // Warn on unsaved changes (browser close / refresh)
   useUnsavedChanges(isDirty || files.length > 0);
+  // 작성·제출 중엔 새 배포의 강제 새로고침을 미룬다 (sw-update-prompt)
+  useFormBusy("deposit-request", isDirty || files.length > 0 || amountTouched || isSubmitting);
 
   const watchedIsPrePaid = watch("isPrePaid");
   const watchedPrePaidPercentage = watch("prePaidPercentage");
@@ -291,6 +297,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
 
   const handleAmountChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
+      setAmountTouched(true);
       if (currency === "USD") {
         const raw = e.target.value.replace(/[^0-9.]/g, "");
         // Prevent multiple decimal points

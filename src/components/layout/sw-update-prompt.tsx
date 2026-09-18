@@ -3,9 +3,12 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { RefreshCw } from "lucide-react";
+import { toast } from "sonner";
+import { createReloadGate, type ReloadGate } from "@/lib/form-busy";
 
 const COOLDOWN_KEY = "sw-update-ts";
 const COOLDOWN_MS = 10_000;
+const PENDING_RELOAD_NOTICE = "업데이트가 준비됐습니다. 작성을 마치면 새로고침됩니다.";
 
 function isInCooldown(): boolean {
   try {
@@ -36,11 +39,31 @@ function reloadTopWindow() {
   }
 }
 
+/**
+ * 게이트는 **모듈 스코프**에 둔다. 미뤄둔 새로고침이 이 컴포넌트 언마운트와 함께
+ * 사라지면(예: 폼 작성 중 배포 → 미룸 → 로그아웃으로 /login 이동) controllerchange는
+ * 다시 오지 않아 그 문서는 끝까지 옛 청크에 남는다 — 새 SW는 activate에서 옛 캐시를
+ * 지우므로 그 청크는 404가 된다(스켈레톤에 갇힘).
+ */
+let sharedGate: ReloadGate | null = null;
+
+function getReloadGate(): ReloadGate {
+  if (!sharedGate) {
+    sharedGate = createReloadGate({
+      reload: reloadTopWindow,
+      notifyPending: () => toast.info(PENDING_RELOAD_NOTICE, { id: "sw-update-pending" }),
+    });
+  }
+  return sharedGate;
+}
+
 export function SwUpdatePrompt() {
   const [waitingSW, setWaitingSW] = useState<ServiceWorker | null>(null);
   const [updating, setUpdating] = useState(false);
   const pathname = usePathname();
   const foundRef = useRef(false);
+  /** 사용자가 "업데이트"를 직접 눌렀다 — 작성 중이어도 미루지 않는다(예전 동작). */
+  const userRequestedRef = useRef(false);
 
   const markFound = useCallback((sw: ServiceWorker) => {
     if (foundRef.current) return;
@@ -122,17 +145,17 @@ export function SwUpdatePrompt() {
 
     const cleanupPromise = setup();
 
-    let refreshing = false;
-    const onControllerChange = () => {
-      if (refreshing) return;
-      refreshing = true;
-      reloadTopWindow();
-    };
+    // 새 SW가 페이지를 넘겨받으면(controllerchange) 새로고침한다.
+    // 작성 중인 폼(useFormBusy)이 있으면 입력을 날리지 않게 미룬다 —
+    // 폼이 끝나면(다른 화면 이동·입력 비움) 또는 안전 상한(30분 무입력)이 지나면 그때 새로고침.
+    // 작성 중인 폼이 없거나 사용자가 직접 "업데이트"를 눌렀으면 예전처럼 곧바로.
+    const onControllerChange = () => getReloadGate().request(userRequestedRef.current);
     navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
 
     return () => {
       clearInterval(pollId);
       clearInterval(updateId);
+      // 게이트는 dispose하지 않는다 — 미뤄둔 새로고침은 언마운트 뒤에도 살아 있어야 한다.
       navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
       cleanupPromise.then((cleanup) => cleanup?.());
     };
@@ -156,6 +179,7 @@ export function SwUpdatePrompt() {
 
   const handleUpdate = () => {
     if (!waitingSW) return;
+    userRequestedRef.current = true;
     setUpdating(true);
     setCooldown();
     waitingSW.postMessage("SKIP_WAITING");

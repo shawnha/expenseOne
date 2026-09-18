@@ -42,6 +42,7 @@ import {
 } from "@/lib/validations/expense-form";
 import { cn } from "@/lib/utils";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
+import { useFormBusy } from "@/hooks/use-form-busy";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 
 interface CorporateCardFormProps {
@@ -63,6 +64,10 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [amountDisplay, setAmountDisplay] = useState("");
+  // 금액은 RHF register가 아니라 setValue(shouldDirty 없음)로 쓰므로 isDirty가 안 켜진다.
+  // 금액만 입력한 폼도 "작성 중"으로 보려면 따로 표시해야 한다. (GoWid 프리필은
+  // URL 파라미터로 서버에서 다시 채워지므로 사용자가 직접 친 경우만 센다.)
+  const [amountTouched, setAmountTouched] = useState(false);
   const [showCustomMerchant, setShowCustomMerchant] = useState(false);
 
   // Company selection
@@ -164,6 +169,8 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
 
   // Warn on unsaved changes (browser close / refresh)
   useUnsavedChanges(isDirty || files.length > 0);
+  // 작성·제출 중엔 새 배포의 강제 새로고침을 미룬다 (sw-update-prompt)
+  useFormBusy("corporate-card", isDirty || files.length > 0 || amountTouched || isSubmitting);
 
   // Pre-fill fields from GoWid transaction
   useEffect(() => {
@@ -205,6 +212,7 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
 
   const handleAmountChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
+      setAmountTouched(true);
       if (currency === "USD") {
         const raw = e.target.value.replace(/[^0-9.]/g, "");
         // Prevent multiple decimal points

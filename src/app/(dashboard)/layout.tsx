@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { getAuthUser, getCachedClient, getCachedCurrentUser } from "@/lib/supabase/cached";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
@@ -63,6 +63,10 @@ export default async function DashboardLayout({
   try {
     supabase = await getCachedClient();
   } catch (e) {
+    // Next 내부 신호(redirect·notFound·동적 렌더 전환)는 삼키지 않는다.
+    // 없으면 프리렌더 중 DYNAMIC_SERVER_USAGE가 여기서 잡혀 "로그인으로 보내기"로
+    // 처리된다 — 빌드 로그의 'Failed to create Supabase client' 16줄이 그 흔적이다.
+    unstable_rethrow(e);
     console.error("Failed to create Supabase client:", e);
     redirect("/login");
   }
@@ -78,20 +82,33 @@ export default async function DashboardLayout({
   // Hard 6s timeout guards against pooler stalls; if either query hangs, we
   // render the layout with a degraded fallback rather than blocking the
   // whole tree on a single slow query.
+  //
+  // 쿼리가 **거부**(풀러 인증 오류 28P01·연결 끊김 등)돼도 같은 폴백을 쓴다.
+  // 이 레이아웃의 오류는 같은 폴더 error.tsx가 아니라 루트 error.tsx(사이드바
+  // 없는 전체 오류)로 올라간다 — 레이아웃 조회 하나가 전 화면을 죽이지 않게 한다.
+  // 단, Next 내부 신호(redirect·notFound·동적 렌더 전환)는 삼키지 않고 다시 던진다.
   const LAYOUT_TIMEOUT_MS = 6000;
-  const layoutTimer = <T,>(p: PromiseLike<T>, fb: T): Promise<T> =>
-    Promise.race([
-      Promise.resolve(p),
-      new Promise<T>((resolve) =>
-        setTimeout(() => {
-          console.error("[DashboardLayout] query timeout, falling back");
-          resolve(fb);
-        }, LAYOUT_TIMEOUT_MS),
-      ),
-    ]);
+  const layoutTimer = <T,>(p: PromiseLike<T>, fb: T, tag: string): Promise<T> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<T>((resolve) => {
+      timer = setTimeout(() => {
+        console.error(`[DashboardLayout] ${tag} query timeout, falling back`);
+        resolve(fb);
+      }, LAYOUT_TIMEOUT_MS);
+    });
+    const guarded = Promise.resolve(p)
+      .catch((e: unknown) => {
+        unstable_rethrow(e);
+        console.error(`[DashboardLayout] ${tag} query failed, falling back:`, e);
+        return fb;
+      })
+      // 쿼리가 먼저 끝나면 타이머를 지워 뒤늦은 "timeout" 오탐 로그를 막는다.
+      .finally(() => clearTimeout(timer));
+    return Promise.race([guarded, timeout]);
+  };
 
   const [cachedUser, notifResult] = await Promise.all([
-    layoutTimer(getCachedCurrentUser(), null),
+    layoutTimer(getCachedCurrentUser(), null, "profile"),
     layoutTimer(
       supabase
         .from("notifications")
@@ -100,6 +117,7 @@ export default async function DashboardLayout({
         .eq("is_read", false)
         .then((r) => ({ count: r.count })),
       { count: 0 } as { count: number | null },
+      "unread-count",
     ),
   ]);
 
