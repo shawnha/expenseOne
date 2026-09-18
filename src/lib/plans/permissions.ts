@@ -1,6 +1,7 @@
 import { sql, type SQL } from "drizzle-orm";
 import type { PlanTx } from "@/lib/db/plans-client";
 import { PlanError } from "./errors";
+import { rowsOf } from "./rows";
 
 // ---------------------------------------------------------------------------
 // 비용계획 권한 (SCHEMA.md 3절)
@@ -79,11 +80,6 @@ export function projectScopeSql(access: { userId: string; isExecutive: boolean }
 }
 
 // --- DB 검사 (요청마다, 캐시 없음 — 15명 규모) ---------------------------------------
-
-type Rows<T> = Iterable<T> | ArrayLike<T>;
-function rowsOf<T>(result: unknown): T[] {
-  return Array.from(result as Rows<T>);
-}
 
 /** E: 대표인가. */
 export async function isExecutive(tx: PlanTx, userId: string): Promise<boolean> {
