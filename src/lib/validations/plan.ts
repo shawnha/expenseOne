@@ -162,6 +162,12 @@ export const linkExpenseSchema = z.object({
 });
 export type LinkExpenseInput = z.infer<typeof linkExpenseSchema>;
 
+/** 해제는 연결 행 id 로. DELETE 본문 대신 쿼리스트링을 쓴다(프록시·캐시가 본문 있는 DELETE 를 흘린다). */
+export const unlinkQuerySchema = z.object({
+  linkId: uuidField("연결"),
+});
+export type UnlinkQueryInput = z.infer<typeof unlinkQuerySchema>;
+
 export const linkCandidatesQuerySchema = z.object({
   q: z.string().trim().max(100, "검색어는 100자 이내로 입력해주세요").optional(),
 });

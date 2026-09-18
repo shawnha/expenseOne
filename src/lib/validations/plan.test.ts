@@ -15,6 +15,7 @@ import {
   PLAN_AMOUNT_MAX,
   searchParamsToObject,
   updatePlanSchema,
+  unlinkQuerySchema,
 } from "./plan";
 
 const C = "3f2a9c1e-7b4d-4e8a-9c21-5d6e7f8a9b0c";
@@ -120,5 +121,19 @@ describe("boardQuerySchema — 문자열 쿼리에서", () => {
   it("searchParamsToObject 는 빈 값을 버린다(기본값이 살도록)", () => {
     const o = searchParamsToObject(new URLSearchParams("from=2026-09&companyId=&months=4"));
     assert.deepEqual(o, { from: "2026-09", months: "4" });
+  });
+});
+
+describe("unlinkQuerySchema — 연결 해제", () => {
+  it("linkId 는 uuid 필수 (쿼리스트링에서 온다)", () => {
+    const ok = unlinkQuerySchema.safeParse({ linkId: "3f1a0c5e-7b2d-4c1a-9e8f-0a1b2c3d4e5f" });
+    assert.equal(ok.success, true);
+    assert.equal(unlinkQuerySchema.safeParse({ linkId: "abc" }).success, false);
+    assert.equal(unlinkQuerySchema.safeParse({}).success, false);
+  });
+  it("searchParamsToObject 를 거친 값이 그대로 통과한다", () => {
+    const params = new URLSearchParams("linkId=3f1a0c5e-7b2d-4c1a-9e8f-0a1b2c3d4e5f&q=");
+    const parsed = unlinkQuerySchema.safeParse(searchParamsToObject(params));
+    assert.equal(parsed.success, true);
   });
 });
