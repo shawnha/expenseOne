@@ -345,7 +345,7 @@ function LinkRow({
           <Button
             type="button"
             variant="ghost"
-            size="xs"
+            size="sm"
             className="mt-0.5 text-[var(--apple-red)]"
             onClick={onUnlink}
             disabled={busy}

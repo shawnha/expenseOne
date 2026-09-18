@@ -17,13 +17,15 @@ interface MonthBoardProps {
   board: BoardResult;
   /** 법인 필터가 걸려 있지 않으면 카드마다 법인을 적는다. */
   showCompany: boolean;
+  /** 보드에 걸린 법인. 빈 상태에서 계획을 추가할 때 그대로 이어받는다. */
+  companyId?: string;
 }
 
-export function MonthBoard({ board, showCompany }: MonthBoardProps) {
+export function MonthBoard({ board, showCompany, companyId }: MonthBoardProps) {
   const total = board.months.reduce((sum, m) => sum + m.count, 0);
 
   if (total === 0) {
-    return <BoardEmptyState hasProject={board.projects.length > 0} />;
+    return <BoardEmptyState hasProject={board.projects.length > 0} companyId={companyId} />;
   }
 
   return (
@@ -69,7 +71,7 @@ export function MonthBoard({ board, showCompany }: MonthBoardProps) {
  * 아무것도 없을 때. 프로젝트가 하나도 없으면 계획부터 권해 봐야 막힌다 —
  * 계획은 반드시 프로젝트에 달리므로 **프로젝트 만들기를 앞세운다**.
  */
-function BoardEmptyState({ hasProject }: { hasProject: boolean }) {
+function BoardEmptyState({ hasProject, companyId }: { hasProject: boolean; companyId?: string }) {
   return (
     <div className="glass flex flex-col items-center gap-3 rounded-2xl px-6 py-14 text-center animate-fade-up">
       <span className="flex size-12 items-center justify-center rounded-full bg-[var(--apple-tertiary-system-fill)]">
@@ -86,7 +88,7 @@ function BoardEmptyState({ hasProject }: { hasProject: boolean }) {
         </p>
       </div>
       <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
-        {hasProject && <PlanCreateButton label="계획 추가" />}
+        {hasProject && <PlanCreateButton label="계획 추가" defaultCompanyId={companyId} />}
         <ProjectOpenButton label="프로젝트 만들기" variant={hasProject ? "outline" : "default"} />
       </div>
     </div>

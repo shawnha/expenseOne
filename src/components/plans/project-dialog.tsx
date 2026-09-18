@@ -305,7 +305,7 @@ function ProjectRow({
         {project.members.map((member) => (
           <span
             key={member.id}
-            className="inline-flex items-center gap-1 rounded-full bg-[var(--apple-tertiary-system-fill)] py-1 pr-1 pl-2.5 text-caption1 text-[var(--apple-label)]"
+            className="inline-flex items-center gap-1 rounded-full bg-[var(--apple-tertiary-system-fill)] py-1 pr-1 pl-3 text-caption1 text-[var(--apple-label)]"
           >
             {member.name}
             <button
@@ -314,7 +314,7 @@ function ProjectRow({
               disabled={busy || lastOne}
               aria-label={`${member.name} 참여자 제거`}
               title={lastOne ? "마지막 참여자는 제거할 수 없습니다" : "참여자 제거"}
-              className="flex size-5 items-center justify-center rounded-full text-[var(--apple-secondary-label)] transition-colors hover:bg-[var(--apple-red)]/15 hover:text-[var(--apple-red)] disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--apple-secondary-label)]"
+              className="flex size-7 items-center justify-center rounded-full text-[var(--apple-secondary-label)] transition-colors hover:bg-[var(--apple-red)]/15 hover:text-[var(--apple-red)] disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--apple-secondary-label)]"
             >
               <X className="size-3" aria-hidden="true" />
             </button>
@@ -330,7 +330,7 @@ function ProjectRow({
         >
           <PopoverTrigger
             disabled={busy}
-            className="inline-flex items-center gap-1 rounded-full border border-dashed border-[var(--apple-separator)] px-2.5 py-1 text-caption1 text-[var(--apple-blue)] transition-colors hover:bg-[var(--apple-blue)]/10 disabled:opacity-50"
+            className="inline-flex min-h-9 items-center gap-1 rounded-full border border-dashed border-[var(--apple-separator)] px-3 py-1 text-caption1 text-[var(--apple-blue)] transition-colors hover:bg-[var(--apple-blue)]/10 disabled:opacity-50"
           >
             <UserPlus className="size-3" aria-hidden="true" />
             참여자 추가

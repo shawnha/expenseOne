@@ -147,7 +147,7 @@ export function CommentThread({ planId, initialComments }: CommentThreadProps) {
                     <Button
                       type="button"
                       variant="ghost"
-                      size="xs"
+                      size="sm"
                       onClick={() => {
                         setEditingId(comment.id);
                         setEditDraft(comment.body);
@@ -159,7 +159,7 @@ export function CommentThread({ planId, initialComments }: CommentThreadProps) {
                     <Button
                       type="button"
                       variant="ghost"
-                      size="xs"
+                      size="sm"
                       className="text-[var(--apple-red)]"
                       onClick={() => handleDelete(comment.id)}
                       disabled={busy}

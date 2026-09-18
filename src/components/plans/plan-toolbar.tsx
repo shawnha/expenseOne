@@ -124,7 +124,7 @@ export function PlanToolbar({ board, currentMonth }: PlanToolbarProps) {
           value={projectId || ALL}
           onValueChange={(v) => setParams({ projectId: !v || v === ALL ? null : String(v) })}
         >
-          <SelectTrigger size="sm" aria-label="프로젝트 필터">
+          <SelectTrigger className="max-w-[46vw] sm:max-w-56" aria-label="프로젝트 필터">
             <SelectValue>
               {projectsInScope.find((p) => p.id === projectId)?.name ?? "전체 프로젝트"}
             </SelectValue>
@@ -143,7 +143,7 @@ export function PlanToolbar({ board, currentMonth }: PlanToolbarProps) {
           value={brandId || ALL}
           onValueChange={(v) => setParams({ brandId: !v || v === ALL ? null : String(v) })}
         >
-          <SelectTrigger size="sm" aria-label="브랜드 필터">
+          <SelectTrigger className="max-w-[46vw] sm:max-w-56" aria-label="브랜드 필터">
             <SelectValue>
               {brandId === BRAND_NONE
                 ? "공통"

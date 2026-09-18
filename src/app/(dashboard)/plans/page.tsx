@@ -65,7 +65,7 @@ export default async function PlansPage({ searchParams }: PlansPageProps) {
 
       <PlanToolbar board={board} currentMonth={currentMonthKST()} />
 
-      <MonthBoard board={board} showCompany={!query.companyId} />
+      <MonthBoard board={board} showCompany={!query.companyId} companyId={query.companyId} />
     </div>
   );
 }
