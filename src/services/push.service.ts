@@ -10,10 +10,39 @@ const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "";
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "";
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT || "mailto:shawn@hanah1.com";
 
-const VAPID_CONFIGURED = Boolean(VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY);
+const VAPID_KEYS_PRESENT = Boolean(VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY);
 
-if (VAPID_CONFIGURED) {
-  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+/**
+ * setVapidDetails는 키 형식이 틀리면(길이·base64url 아님·줄바꿈 섞임) **던진다.**
+ * 모듈 최상단에서 던지면 이 파일을 import하는 모든 라우트(비용 제출·승인·크론)가
+ * 로드 단계에서 통째로 죽는다. 실패하면 로그를 한 번만 남기고 푸시만 끈다.
+ * (오류 메시지에는 키 값이 들어가지 않는다 — 길이·형식 설명뿐이다.)
+ */
+function configureVapid(): boolean {
+  if (!VAPID_KEYS_PRESENT) return false;
+  try {
+    webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+    return true;
+  } catch (err) {
+    console.error(
+      "[Push] VAPID 설정 실패 — 이 인스턴스에서는 푸시 전송을 끕니다:",
+      err instanceof Error ? err.message : err,
+    );
+    return false;
+  }
+}
+
+const VAPID_CONFIGURED = configureVapid();
+
+/**
+ * 이 인스턴스에서 푸시를 실제로 보낼 수 있는가.
+ *
+ * 키가 "설정돼 있다"(환경변수 존재)와 "쓸 수 있다"(setVapidDetails 성공)는 다르다.
+ * 형식이 틀리면 키는 있는데 전송은 전부 조용히 건너뛴다 — 진단 화면이 그 차이를
+ * 보여줘야 한다(/api/push/test).
+ */
+export function isPushConfigured(): boolean {
+  return VAPID_CONFIGURED;
 }
 
 /**
@@ -25,7 +54,8 @@ if (VAPID_CONFIGURED) {
  */
 function pushDisabled(): boolean {
   if (VAPID_CONFIGURED) return false;
-  console.warn("[Push] VAPID 키가 없어 푸시 전송을 건너뜁니다.");
+  // 키가 있는데 설정이 실패한 경우는 로드 때 이미 한 번 기록했다 — 호출마다 반복하지 않는다.
+  if (!VAPID_KEYS_PRESENT) console.warn("[Push] VAPID 키가 없어 푸시 전송을 건너뜁니다.");
   return true;
 }
 

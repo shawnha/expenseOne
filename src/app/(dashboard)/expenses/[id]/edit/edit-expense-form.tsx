@@ -67,6 +67,7 @@ import type { DocumentType } from "@/types";
 import type { ExpenseEditData, ExistingAttachment, CompanyOption } from "./page";
 import { cn } from "@/lib/utils";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
+import { useFormBusy } from "@/hooks/use-form-busy";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -255,6 +256,11 @@ function CorporateCardEditForm({
   // Warn on unsaved changes (browser close / refresh)
   const companyChanged = companyId !== (expense.companyId ?? "");
   useUnsavedChanges(isDirty || newFiles.length > 0 || removedAttachmentIds.length > 0 || companyChanged);
+  // 작성·제출 중엔 새 배포의 강제 새로고침을 미룬다 (sw-update-prompt).
+  // 금액은 RHF register가 아니라 setValue(shouldDirty 없음)로 쓰므로 isDirty에 안 잡힌다 —
+  // 화면에 보이는 값(amountDisplay)을 처음 값과 비교해 따로 본다.
+  const amountChanged = amountDisplay !== formatAmount(expense.amount);
+  useFormBusy("expense-edit-card", isDirty || newFiles.length > 0 || removedAttachmentIds.length > 0 || companyChanged || amountChanged || isSubmitting);
 
   const handleAmountChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -707,6 +713,14 @@ function DepositRequestEditForm({
   // Warn on unsaved changes (browser close / refresh)
   const companyChanged = companyId !== (expense.companyId ?? "");
   useUnsavedChanges(isDirty || newFiles.length > 0 || removedAttachmentIds.length > 0 || companyChanged);
+  // 작성·제출 중엔 새 배포의 강제 새로고침을 미룬다 (sw-update-prompt).
+  // 금액·부가세·원천징수는 RHF register가 아니라 setValue(shouldDirty 없음)·로컬 state로
+  // 쓰므로 isDirty에 안 잡힌다 — 처음 값과 비교해 따로 본다(셋 다 제출 금액을 바꾼다).
+  const amountChanged =
+    amountDisplay !== formatAmount(expense.amount) ||
+    vatIncluded ||
+    freelancerDeduction !== (expense.hasFreelancerWithholding ?? false);
+  useFormBusy("expense-edit-deposit", isDirty || newFiles.length > 0 || removedAttachmentIds.length > 0 || companyChanged || amountChanged || isSubmitting);
 
   // 금액 계산은 생성 폼과 같은 헬퍼(@/lib/utils/deposit-amount)를 쓴다.
   // 예전엔 이 파일에 calcFinalAmount 복제본이 있어 두 경로가 갈라졌다.
