@@ -47,6 +47,7 @@ export default async function PlansPage({ searchParams }: PlansPageProps) {
   const query = parsed.success ? parsed.data : boardQuerySchema.parse({});
 
   const board = await getBoard({ id: user.id, role: user.role }, query);
+  const currentMonth = currentMonthKST();
 
   return (
     <div className="flex flex-col gap-4 sm:gap-5 lg:gap-6">
@@ -63,9 +64,14 @@ export default async function PlansPage({ searchParams }: PlansPageProps) {
         </div>
       </header>
 
-      <PlanToolbar board={board} currentMonth={currentMonthKST()} />
+      <PlanToolbar board={board} currentMonth={currentMonth} />
 
-      <MonthBoard board={board} showCompany={!query.companyId} companyId={query.companyId} />
+      <MonthBoard
+        board={board}
+        showCompany={!query.companyId}
+        companyId={query.companyId}
+        currentMonth={currentMonth}
+      />
     </div>
   );
 }

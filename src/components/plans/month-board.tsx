@@ -19,9 +19,11 @@ interface MonthBoardProps {
   showCompany: boolean;
   /** 보드에 걸린 법인. 빈 상태에서 계획을 추가할 때 그대로 이어받는다. */
   companyId?: string;
+  /** 지금 달(KST, 서버 계산). 네 달을 나란히 놓으면 어느 칸이 이번 달인지 표시가 없으면 알 수 없다. */
+  currentMonth?: string;
 }
 
-export function MonthBoard({ board, showCompany, companyId }: MonthBoardProps) {
+export function MonthBoard({ board, showCompany, companyId, currentMonth }: MonthBoardProps) {
   const total = board.months.reduce((sum, m) => sum + m.count, 0);
 
   if (total === 0) {
@@ -38,8 +40,13 @@ export function MonthBoard({ board, showCompany, companyId }: MonthBoardProps) {
           style={{ animationDelay: `${index * 50}ms` }}
         >
           {/* 달 머리 — 합계는 예정 건만 센다(취소·마감 제외) */}
-          <header className="glass-subtle flex items-baseline justify-between gap-2 rounded-2xl px-4 py-3">
-            <h2 className="text-headline text-[var(--apple-label)]">{monthLabel(month.month)}</h2>
+          <header className="glass-subtle flex items-baseline justify-between gap-2 px-4 py-3">
+            <div className="flex items-baseline gap-1.5">
+              <h2 className="text-headline text-[var(--apple-label)]">{monthLabel(month.month)}</h2>
+              {month.month === currentMonth && (
+                <span className="glass-badge glass-badge-blue">이번 달</span>
+              )}
+            </div>
             <div className="text-right">
               <p className="text-[15px] font-semibold tabular-nums text-[var(--apple-label)]">
                 {formatKRW(month.total)}
@@ -73,7 +80,7 @@ export function MonthBoard({ board, showCompany, companyId }: MonthBoardProps) {
  */
 function BoardEmptyState({ hasProject, companyId }: { hasProject: boolean; companyId?: string }) {
   return (
-    <div className="glass flex flex-col items-center gap-3 rounded-2xl px-6 py-14 text-center animate-fade-up">
+    <div className="glass flex flex-col items-center gap-3 px-6 py-14 text-center animate-fade-up">
       <span className="flex size-12 items-center justify-center rounded-full bg-[var(--apple-tertiary-system-fill)]">
         <CalendarRange className="size-6 text-[var(--apple-secondary-label)]" aria-hidden="true" />
       </span>

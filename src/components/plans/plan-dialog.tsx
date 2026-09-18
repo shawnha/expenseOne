@@ -49,6 +49,8 @@ export interface PlanEditTarget {
   companyName: string;
   projectId: string;
   brandId: string | null;
+  /** 저장된 브랜드 이름. 비활성 브랜드는 목록에 없으므로 이 값으로 표시한다. */
+  brandName: string | null;
   title: string;
   amount: number;
   plannedDate: string;
@@ -142,10 +144,22 @@ export function PlanDialog({
     };
   }, []);
 
-  // 법인이 하나뿐이면 고를 것이 없다. 상태를 따로 맞추지 않고 **읽는 자리에서 정한다** —
-  // 상태를 고치는 effect 를 하나 더 두면 열릴 때마다 렌더가 한 번 더 돈다.
+  /**
+   * 참여 중인 프로젝트가 모두 한 법인이면 그 법인이 기본값이다. 첫 출시 대상은 KRW 3법인이라
+   * "법인이 하나뿐"인 경우는 없고, 법인 필터는 대표에게만 보여 defaultCompanyId 도 대개 비어 있다 —
+   * 그대로 두면 일반 참여자는 **늘 미선택으로 열려** 프로젝트·브랜드 칸이 비활성으로 죽어 보인다.
+   */
+  const soleProjectCompanyId = useMemo(() => {
+    const ids = new Set((options?.projects ?? []).map((p) => p.companyId));
+    return ids.size === 1 ? [...ids][0] : "";
+  }, [options]);
+
+  // 상태를 따로 맞추지 않고 **읽는 자리에서 정한다** — 상태를 고치는 effect 를 하나 더 두면
+  // 열릴 때마다 렌더가 한 번 더 돌고, 사용자가 고른 값을 덮어쓸 위험이 생긴다.
   const activeCompanyId =
-    companyId || (options?.companies.length === 1 ? options.companies[0].id : "");
+    companyId ||
+    (options?.companies.length === 1 ? options.companies[0].id : "") ||
+    soleProjectCompanyId;
 
   const projectsInCompany = useMemo(
     () => (options?.projects ?? []).filter((p) => p.companyId === activeCompanyId),
@@ -165,6 +179,16 @@ export function PlanDialog({
   }, []);
 
   const amount = Number(amountText.replace(/[^\d]/g, "") || "0");
+
+  /**
+   * 브랜드 트리거 라벨. 목록에서 못 찾았는데 brandId 가 남아 있으면 **'공통'이라고 적으면 안 된다** —
+   * 화면은 비워졌다고 말하고 저장은 그 브랜드를 그대로 유지해 상세와 어긋난다(비활성 브랜드).
+   */
+  const projectLabel = projectsInCompany.find((p) => p.id === projectId)?.name;
+
+  const brandLabel =
+    brandsInCompany.find((b) => b.id === brandId)?.name ??
+    (brandId !== BRAND_NONE && plan?.brandName ? `${plan.brandName} (비활성)` : "공통");
 
   const handleAddBrand = useCallback(async () => {
     const name = (newBrand ?? "").trim();
@@ -318,10 +342,13 @@ export function PlanDialog({
                 onValueChange={(v) => setProjectId(v ? String(v) : "")}
                 disabled={!activeCompanyId || projectsInCompany.length === 0}
               >
-                <SelectTrigger className="w-full" aria-label="프로젝트 선택">
-                  <SelectValue placeholder="프로젝트 선택">
-                    {projectsInCompany.find((p) => p.id === projectId)?.name}
-                  </SelectValue>
+                <SelectTrigger
+                  className="w-full"
+                  // aria-label 은 접근 가능한 이름을 통째로 덮어쓴다. 현재 선택을 라벨에 함께 넣지 않으면
+                  // 스크린 리더가 무엇이 골라져 있는지 읽지 못한다(company-pill-group.tsx 와 같은 이유).
+                  aria-label={`프로젝트 선택: ${projectLabel ?? "미선택"}`}
+                >
+                  <SelectValue placeholder="프로젝트 선택">{projectLabel}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {projectsInCompany.map((p) => (
@@ -344,10 +371,8 @@ export function PlanDialog({
                 브랜드 <span className="font-normal">(선택)</span>
               </Label>
               <Select value={brandId} onValueChange={(v) => v && setBrandId(String(v))} disabled={!activeCompanyId}>
-                <SelectTrigger className="w-full" aria-label="브랜드 선택">
-                  <SelectValue placeholder="공통">
-                    {brandsInCompany.find((b) => b.id === brandId)?.name ?? "공통"}
-                  </SelectValue>
+                <SelectTrigger className="w-full" aria-label={`브랜드 선택: ${brandLabel}`}>
+                  <SelectValue placeholder="공통">{brandLabel}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={BRAND_NONE}>공통</SelectItem>
@@ -365,7 +390,7 @@ export function PlanDialog({
                   <button
                     type="button"
                     onClick={() => setNewBrand("")}
-                    className="self-start inline-flex items-center gap-1 rounded-full px-2 py-1 text-caption1 text-[var(--apple-blue)] hover:bg-[var(--apple-blue)]/10 transition-colors"
+                    className="self-start inline-flex min-h-11 items-center gap-1 rounded-full px-3 text-caption1 text-[var(--apple-blue)] hover:bg-[var(--apple-blue)]/10 transition-colors"
                   >
                     <Plus className="size-3" aria-hidden="true" />
                     브랜드 추가
@@ -442,7 +467,7 @@ export function PlanDialog({
               <div className="flex items-center justify-between gap-2">
                 <Label className="text-footnote text-[var(--apple-secondary-label)]">예정일</Label>
                 <div
-                  className="inline-flex rounded-full bg-[var(--apple-system-grouped-background)] p-1"
+                  className="inline-flex rounded-full border border-[var(--glass-border)] bg-[var(--apple-system-grouped-background)] p-1"
                   role="radiogroup"
                   aria-label="날짜 단위"
                 >
@@ -468,7 +493,7 @@ export function PlanDialog({
               <Popover open={dateOpen} onOpenChange={setDateOpen}>
                 <PopoverTrigger
                   className={cn(
-                    "flex h-11 w-full items-center justify-start gap-2 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] px-3 text-sm transition-colors hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]",
+                    "flex h-10 w-full items-center justify-start gap-2 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] px-3 text-sm transition-colors hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]",
                     !date && "text-[var(--apple-secondary-label)]",
                   )}
                   aria-label={`예정일: ${dateLabel}`}

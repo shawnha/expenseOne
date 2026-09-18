@@ -4,7 +4,7 @@ export default function PlanDetailLoading() {
       <div className="h-6 w-24 rounded-full bg-[var(--apple-tertiary-system-fill)]" />
 
       {/* 머리 + 요약 */}
-      <div className="glass rounded-2xl p-4 sm:p-5">
+      <div className="glass p-4 sm:p-5">
         <div className="h-4 w-40 rounded bg-[var(--apple-tertiary-system-fill)]" />
         <div className="mt-2 h-6 w-2/3 rounded bg-[var(--apple-tertiary-system-fill)]" />
         <div className="mt-2 h-4 w-32 rounded bg-[var(--apple-tertiary-system-fill)]" />
@@ -16,7 +16,7 @@ export default function PlanDetailLoading() {
       </div>
 
       {/* 필드 */}
-      <div className="glass rounded-2xl p-4 sm:p-5">
+      <div className="glass p-4 sm:p-5">
         <div className="grid gap-3 sm:grid-cols-2">
           {[0, 1, 2, 3].map((field) => (
             <div key={field}>
@@ -29,7 +29,7 @@ export default function PlanDetailLoading() {
 
       {/* 연결 · 메모 */}
       {[0, 1].map((block) => (
-        <div key={block} className="glass rounded-2xl p-4 sm:p-5">
+        <div key={block} className="glass p-4 sm:p-5">
           <div className="h-5 w-32 rounded bg-[var(--apple-tertiary-system-fill)]" />
           <div className="mt-3 h-14 rounded-xl bg-[var(--apple-tertiary-system-fill)]" />
         </div>

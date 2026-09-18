@@ -14,7 +14,8 @@ import { formatStamp, jsonBody, planFetch } from "./plan-client";
 // upsert 를 할 수 없어서 POST …/read 로 갈라져 있다. 여기서 부르지 않으면
 // 보드의 '새 메모' 배지가 영영 안 지워진다.
 //
-// 지운 메모는 행이 남고 body 만 비워진다(작성자·시각은 이력으로 남긴다).
+// 지운 메모는 행이 남고 body 만 비워진다(작성자·시각은 이력으로 남긴다). 되살리는 화면이 없으므로
+// 삭제는 그 자리에서 한 번 확인한다 — 모바일에서 '수정' 바로 옆 버튼이라 오탭이 곧 소실이다.
 // ---------------------------------------------------------------------------
 
 interface CommentThreadProps {
@@ -28,6 +29,8 @@ export function CommentThread({ planId, initialComments }: CommentThreadProps) {
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState("");
+  /** 삭제를 물어보는 중인 메모. 지운 메모는 되살릴 수 없는데 '수정' 바로 옆이라 한 번 확인한다. */
+  const [confirmId, setConfirmId] = useState<string | null>(null);
   const marked = useRef(false);
 
   // 열릴 때 한 번만. StrictMode 의 두 번째 마운트까지 세면 같은 요청이 두 번 나간다.
@@ -81,13 +84,14 @@ export function CommentThread({ planId, initialComments }: CommentThreadProps) {
         `/api/plans/items/${planId}/comments/${commentId}`,
         { method: "DELETE" },
         "메모를 지웠습니다.",
+        () => setConfirmId(null),
       );
     },
     [planId, send],
   );
 
   return (
-    <section className="glass rounded-2xl p-4 sm:p-5" aria-label="메모">
+    <section className="glass p-4 sm:p-5" aria-label="메모">
       <h2 className="text-headline text-[var(--apple-label)]">메모</h2>
 
       <ul className="mt-3 flex flex-col gap-3">
@@ -124,12 +128,19 @@ export function CommentThread({ planId, initialComments }: CommentThreadProps) {
                   aria-label="메모 수정"
                 />
                 <div className="flex justify-end gap-2">
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setEditingId(null)}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="min-h-11"
+                    onClick={() => setEditingId(null)}
+                  >
                     취소
                   </Button>
                   <Button
                     type="button"
                     size="sm"
+                    className="min-h-11"
                     onClick={() => handleEdit(comment.id)}
                     disabled={busy || !editDraft.trim()}
                   >
@@ -142,32 +153,61 @@ export function CommentThread({ planId, initialComments }: CommentThreadProps) {
                 <p className="mt-1 whitespace-pre-wrap text-footnote text-[var(--apple-label)]">
                   {comment.body}
                 </p>
-                {comment.canEdit && (
-                  <div className="mt-1.5 flex justify-end gap-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setEditingId(comment.id);
-                        setEditDraft(comment.body);
-                      }}
-                      disabled={busy}
-                    >
-                      수정
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-[var(--apple-red)]"
-                      onClick={() => handleDelete(comment.id)}
-                      disabled={busy}
-                    >
-                      삭제
-                    </Button>
-                  </div>
-                )}
+                {comment.canEdit &&
+                  (confirmId === comment.id ? (
+                    <div className="mt-1.5 flex flex-wrap items-center justify-end gap-2">
+                      <span className="mr-auto text-caption2 text-[var(--apple-secondary-label)]">
+                        지운 메모는 되돌릴 수 없습니다.
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="min-h-11"
+                        onClick={() => setConfirmId(null)}
+                        disabled={busy}
+                      >
+                        그대로 두기
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        className="min-h-11"
+                        onClick={() => handleDelete(comment.id)}
+                        disabled={busy}
+                      >
+                        지우기
+                      </Button>
+                    </div>
+                  ) : (
+                    // gap-1(4px)로 붙여 두면 모바일에서 '수정'을 누르려다 '삭제'가 눌린다.
+                    <div className="mt-1.5 flex justify-end gap-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="min-h-11"
+                        onClick={() => {
+                          setEditingId(comment.id);
+                          setEditDraft(comment.body);
+                        }}
+                        disabled={busy}
+                      >
+                        수정
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="min-h-11 text-[var(--apple-red)]"
+                        onClick={() => setConfirmId(comment.id)}
+                        disabled={busy}
+                      >
+                        삭제
+                      </Button>
+                    </div>
+                  ))}
               </>
             )}
           </li>

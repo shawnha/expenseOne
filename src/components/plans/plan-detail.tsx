@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { CompanyBadge } from "@/components/companies/company-badge";
 import { formatKRW } from "@/lib/utils/expense-utils";
 import type { LinkCandidate, PlanChangeRow, PlanDetail, PlanLinkRow } from "@/services/plan.service";
 import { CommentThread } from "./comment-thread";
@@ -76,6 +77,13 @@ function logLine(row: PlanChangeRow): { label: string; detail: string | null } {
   return { label, detail: row.reason };
 }
 
+/** 요약 타일의 '차이' — diffBadge 와 같은 말. 연결이 없으면 비교할 대상이 없다. */
+function diffText(diff: number, linkCount: number): string {
+  if (linkCount === 0) return "-";
+  if (diff === 0) return "계획과 일치";
+  return `${formatKRW(Math.abs(diff))} ${diff < 0 ? "초과" : "남음"}`;
+}
+
 interface PlanDetailViewProps {
   detail: PlanDetail;
 }
@@ -94,6 +102,8 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
     companyName: plan.companyName,
     projectId: plan.projectId,
     brandId: plan.brandId,
+    // 비활성화된 브랜드는 다이얼로그의 선택 목록에 없다. 이름을 같이 넘겨야 '공통'으로 잘못 보이지 않는다.
+    brandName: plan.brandName,
     title: plan.title,
     amount: plan.amount,
     plannedDate: plan.plannedDate,
@@ -135,7 +145,7 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
       </div>
 
       {/* 머리 */}
-      <section className="glass rounded-2xl p-4 sm:p-5 animate-fade-up">
+      <section className="glass p-4 sm:p-5 animate-fade-up">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -144,8 +154,9 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
                   {PLAN_STATUS_LABEL[plan.status] ?? plan.status}
                 </span>
               )}
+              <CompanyBadge name={plan.companyName} slug={plan.companySlug} />
               <span className="text-caption1 text-[var(--apple-secondary-label)]">
-                {plan.companyName} · {plan.projectName}
+                {plan.projectName}
                 {plan.brandName ? ` · ${plan.brandName}` : " · 공통"}
               </span>
             </div>
@@ -162,14 +173,16 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
           )}
         </div>
 
-        {/* 요약 */}
-        <div className="mt-4 grid grid-cols-3 gap-2">
+        {/* 요약 — 모바일에서 금액 한 줄이 85px 타일을 넘지 않도록 2열로 (홈의 스탯 그리드와 같은 모양) */}
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
           <SummaryTile label="계획 금액" value={formatKRW(plan.amount)} />
           <SummaryTile label="요청 합계" value={formatKRW(summary.requestedSum)} />
           <SummaryTile
             label="차이"
-            value={formatKRW(summary.diff)}
+            // 부호(-1,000,000원) 대신 카드 배지와 같은 말로 읽는다 — 한 화면에서 같은 값이 두 표기로 나오지 않게.
+            value={diffText(summary.diff, summary.linkCount)}
             tone={summary.diff < 0 ? "red" : undefined}
+            className="col-span-2 sm:col-span-1"
           />
         </div>
         {diff && (
@@ -180,7 +193,7 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
       </section>
 
       {/* 필드 */}
-      <section className="glass rounded-2xl p-4 sm:p-5" aria-label="상세 정보">
+      <section className="glass p-4 sm:p-5" aria-label="상세 정보">
         <dl className="grid gap-3 sm:grid-cols-2">
           <Field label="거래처" value={plan.vendorName ?? "-"} />
           <Field label="브랜드" value={plan.brandName ?? "공통"} />
@@ -203,16 +216,25 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
       </section>
 
       {/* 연결된 입금요청 */}
-      <section className="glass rounded-2xl p-4 sm:p-5" aria-label="연결된 입금요청">
+      <section className="glass p-4 sm:p-5" aria-label="연결된 입금요청">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-headline text-[var(--apple-label)]">연결된 입금요청</h2>
           {canEdit && (
-            <Button type="button" size="sm" variant="outline" onClick={() => setLinkOpen(true)}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="min-h-11"
+              onClick={() => setLinkOpen(true)}
+            >
               <Plus className="size-3.5" aria-hidden="true" />
               연결
             </Button>
           )}
         </div>
+        <p className="mt-1 text-caption2 text-[var(--apple-secondary-label)] break-keep">
+          연결한 순간의 금액으로 비교합니다. 요청을 나중에 고쳐도 계획 합계는 바뀌지 않습니다(요청 원본 유지).
+        </p>
 
         {links.length === 0 ? (
           <p className="mt-3 text-footnote text-[var(--apple-secondary-label)]">
@@ -235,7 +257,7 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
       <CommentThread planId={plan.id} initialComments={comments} />
 
       {/* 이력 */}
-      <section className="glass rounded-2xl p-4 sm:p-5" aria-label="변경 이력">
+      <section className="glass p-4 sm:p-5" aria-label="변경 이력">
         <h2 className="text-headline text-[var(--apple-label)]">최근 변경</h2>
         {changeLog.length === 0 ? (
           <p className="mt-3 text-footnote text-[var(--apple-secondary-label)]">기록이 없습니다.</p>
@@ -282,13 +304,15 @@ function SummaryTile({
   label,
   value,
   tone,
+  className,
 }: {
   label: string;
   value: string;
   tone?: "red";
+  className?: string;
 }) {
   return (
-    <div className="rounded-xl bg-[var(--apple-tertiary-system-fill)] px-3 py-2.5">
+    <div className={cn("rounded-xl bg-[var(--apple-tertiary-system-fill)] px-3 py-2.5", className)}>
       <p className="text-caption2 text-[var(--apple-secondary-label)]">{label}</p>
       <p
         className={cn(
@@ -346,7 +370,7 @@ function LinkRow({
             type="button"
             variant="ghost"
             size="sm"
-            className="mt-0.5 text-[var(--apple-red)]"
+            className="mt-0.5 min-h-11 text-[var(--apple-red)]"
             onClick={onUnlink}
             disabled={busy}
           >
@@ -369,6 +393,7 @@ function LinkRow({
           <span className="glass-badge glass-badge-orange">
             제출 후 수정됨
             {link.currentAmount !== null && ` · 현재 ${formatKRW(link.currentAmount)}`}
+            {" (요청 원본 유지)"}
           </span>
         )}
       </div>

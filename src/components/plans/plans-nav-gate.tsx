@@ -27,8 +27,11 @@ function loadFlag(): Promise<boolean> {
     )
     .catch(() => null)
     .then((json: { data?: { enabled?: boolean } } | null) => {
-      cached = json?.data?.enabled === true;
       inFlight = null;
+      // **실패는 캐시하지 않는다.** 답이 오지 않은 것과 OFF 는 다르다 — 한 번 튄 응답을 false 로
+      // 굳혀 두면 소유자가 스위치를 켜도 그 창을 완전히 새로고침할 때까지 메뉴가 영영 안 뜬다.
+      if (json == null) return false;
+      cached = json.data?.enabled === true;
       return cached;
     });
   return inFlight;

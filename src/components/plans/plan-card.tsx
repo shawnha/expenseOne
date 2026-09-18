@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { MessageCircle, Link2, User as UserIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CompanyBadge } from "@/components/companies/company-badge";
 import { formatKRW } from "@/lib/utils/expense-utils";
 import type { PlanCard as PlanCardData } from "@/services/plan.service";
 import { diffBadge, PLAN_STATUS_LABEL } from "./plan-client";
@@ -30,11 +31,18 @@ export function PlanCardItem({ card, showCompany = false }: PlanCardProps) {
       href={`/plans/${card.id}`}
       prefetch={false}
       className={cn(
-        "glass-card block p-4 rounded-2xl apple-press",
+        "glass-card block p-4 apple-press",
         "transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]",
         cancelled && "opacity-60",
       )}
     >
+      {/* 법인 — 여러 법인이 한 화면에 섞일 때는 색으로 가른다(/expenses·/admin 목록과 같은 배지) */}
+      {showCompany && (
+        <div className="mb-1.5">
+          <CompanyBadge name={card.companyName} slug={card.companySlug} />
+        </div>
+      )}
+
       {/* 제목 + 금액 */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
@@ -42,7 +50,6 @@ export function PlanCardItem({ card, showCompany = false }: PlanCardProps) {
             {card.title}
           </p>
           <p className="mt-1 text-[13px] text-[var(--apple-secondary-label)] truncate">
-            {showCompany && <span>{card.companyName} · </span>}
             {card.projectName}
             {card.brandName && <span> · {card.brandName}</span>}
           </p>

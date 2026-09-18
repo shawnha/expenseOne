@@ -195,11 +195,23 @@ export function ProjectDialog({ open, onOpenChange, onSaved }: ProjectDialogProp
               </div>
               <div className="flex justify-end gap-2">
                 {projects.length > 0 && (
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setShowForm(false)}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="min-h-11"
+                    onClick={() => setShowForm(false)}
+                  >
                     접기
                   </Button>
                 )}
-                <Button type="button" size="sm" onClick={() => void handleCreate()} disabled={creating}>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="min-h-11"
+                  onClick={() => void handleCreate()}
+                  disabled={creating}
+                >
                   {creating ? "만드는 중..." : "만들기"}
                 </Button>
               </div>
@@ -282,8 +294,15 @@ function ProjectRow({
   onRemove: (userId: string) => void;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  /**
+   * 제거를 물어보는 중인 참여자. 참여자 행이 유일한 권한 근거라, 실수로 한 번 스친 X 하나가
+   * 그 사람 화면에서 이 프로젝트의 계획을 전부 404 로 만든다. 확인을 한 단계 둔다.
+   * 다이얼로그 안이라 또 다른 Dialog 를 겹치지 않고 칩 줄에서 바로 묻는다.
+   */
+  const [confirmId, setConfirmId] = useState<string | null>(null);
   const memberIds = new Set(project.members.map((m) => m.id));
   const lastOne = project.members.length <= 1;
+  const confirming = project.members.find((m) => m.id === confirmId) ?? null;
 
   return (
     <div className="rounded-2xl border border-[var(--apple-separator)] p-3">
@@ -305,21 +324,52 @@ function ProjectRow({
         {project.members.map((member) => (
           <span
             key={member.id}
-            className="inline-flex items-center gap-1 rounded-full bg-[var(--apple-tertiary-system-fill)] py-1 pr-1 pl-3 text-caption1 text-[var(--apple-label)]"
+            className="inline-flex min-h-11 items-center gap-1 rounded-full bg-[var(--apple-tertiary-system-fill)] py-1 pr-1 pl-3 text-caption1 text-[var(--apple-label)]"
           >
             {member.name}
             <button
               type="button"
-              onClick={() => onRemove(member.id)}
+              onClick={() => setConfirmId(member.id)}
               disabled={busy || lastOne}
               aria-label={`${member.name} 참여자 제거`}
               title={lastOne ? "마지막 참여자는 제거할 수 없습니다" : "참여자 제거"}
-              className="flex size-7 items-center justify-center rounded-full text-[var(--apple-secondary-label)] transition-colors hover:bg-[var(--apple-red)]/15 hover:text-[var(--apple-red)] disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--apple-secondary-label)]"
+              className="flex size-9 items-center justify-center rounded-full text-[var(--apple-secondary-label)] transition-colors hover:bg-[var(--apple-red)]/15 hover:text-[var(--apple-red)] disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--apple-secondary-label)]"
             >
-              <X className="size-3" aria-hidden="true" />
+              <X className="size-3.5" aria-hidden="true" />
             </button>
           </span>
         ))}
+
+        {confirming && (
+          <div className="flex w-full flex-wrap items-center gap-2 rounded-xl bg-[var(--apple-red)]/10 px-3 py-2">
+            <span className="mr-auto text-caption1 text-[var(--apple-label)] break-keep">
+              {confirming.name} 님을 빼면 이 프로젝트의 계획을 더 이상 볼 수 없습니다.
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="min-h-11"
+              onClick={() => setConfirmId(null)}
+              disabled={busy}
+            >
+              그대로 두기
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              className="min-h-11"
+              onClick={() => {
+                onRemove(confirming.id);
+                setConfirmId(null);
+              }}
+              disabled={busy}
+            >
+              빼기
+            </Button>
+          </div>
+        )}
 
         <Popover
           open={pickerOpen}
@@ -330,7 +380,7 @@ function ProjectRow({
         >
           <PopoverTrigger
             disabled={busy}
-            className="inline-flex min-h-9 items-center gap-1 rounded-full border border-dashed border-[var(--apple-separator)] px-3 py-1 text-caption1 text-[var(--apple-blue)] transition-colors hover:bg-[var(--apple-blue)]/10 disabled:opacity-50"
+            className="inline-flex min-h-11 items-center gap-1 rounded-full border border-dashed border-[var(--apple-separator)] px-3 py-1 text-caption1 text-[var(--apple-blue)] transition-colors hover:bg-[var(--apple-blue)]/10 disabled:opacity-50"
           >
             <UserPlus className="size-3" aria-hidden="true" />
             참여자 추가
