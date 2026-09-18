@@ -40,6 +40,8 @@ import {
   dollarsToCents,
   formatDateISO,
 } from "@/lib/validations/expense-form";
+import { countUploadFailures, uploadFailureMessage } from "@/lib/utils/upload-results";
+import { resolveCreatedExpenseId } from "@/lib/utils/submit-result";
 import { cn } from "@/lib/utils";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useFormBusy } from "@/hooks/use-form-busy";
@@ -63,6 +65,8 @@ interface CorporateCardFormProps {
 export default function CorporateCardForm({ initialCompanies, prefillData, myCategories = [], myMerchantCategories = {} }: CorporateCardFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  // 비용은 만들어졌는데 첨부 업로드가 실패한 경우 — 성공 창에서 상세로 안내한다.
+  const [uploadIssue, setUploadIssue] = useState<{ message: string; detailHref: string | null } | null>(null);
   const [amountDisplay, setAmountDisplay] = useState("");
   // 금액은 RHF register가 아니라 setValue(shouldDirty 없음)로 쓰므로 isDirty가 안 켜진다.
   // 금액만 입력한 폼도 "작성 중"으로 보려면 따로 표시해야 한다. (GoWid 프리필은
@@ -331,30 +335,30 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
         );
       }
 
+      // 리다이렉트(세션 만료)·id 누락이면 던진다. 첨부가 없어도 확인한다 —
+      // 비용이 안 만들어졌는데 「제출 완료」를 띄우면 안 된다.
+      const result = await response.json().catch(() => null);
+      const expenseId = resolveCreatedExpenseId(response, result);
+
       // Upload optional attachments (receipts). 법카사용은 첨부 선택사항이라
-      // 업로드가 일부 실패해도 제출 자체는 성공으로 처리 — 상세 화면에서 재첨부 가능.
+      // 업로드가 일부 실패해도 제출 자체는 성공으로 처리 — 수정 화면에서 재첨부 가능.
       if (files.length > 0) {
-        const result = await response.json().catch(() => null);
-        const expenseId = result?.data?.id;
-        if (expenseId) {
-          const uploadResults = await Promise.allSettled(
-            files.map((fileItem) => {
-              const formData = new FormData();
-              formData.append("file", fileItem.file);
-              formData.append("expenseId", expenseId);
-              formData.append("documentType", "RECEIPT");
-              return fetch("/api/attachments/upload", { method: "POST", body: formData })
-                .then((res) => { if (!res.ok) throw new Error(fileItem.file.name); return res; });
-            })
-          );
-          const failed = uploadResults.filter((r) => r.status === "rejected");
-          if (failed.length > 0) {
-            if (failed.length === files.length) {
-              toast.error("파일 업로드에 실패했습니다. 비용 상세에서 다시 첨부해주세요.");
-            } else {
-              toast.error(`${files.length}개 파일 중 ${failed.length}개 업로드 실패. 비용 상세에서 다시 첨부해주세요.`);
-            }
-          }
+        const uploadResults = await Promise.allSettled(
+          files.map((fileItem) => {
+            const formData = new FormData();
+            formData.append("file", fileItem.file);
+            formData.append("expenseId", expenseId);
+            formData.append("documentType", "RECEIPT");
+            return fetch("/api/attachments/upload", { method: "POST", body: formData })
+              .then((res) => { if (!res.ok) throw new Error(fileItem.file.name); return res; });
+          })
+        );
+        const warning = uploadFailureMessage(countUploadFailures(uploadResults), files.length);
+        if (warning) {
+          toast.error(warning);
+          // 상세 화면엔 첨부 추가 수단이 없다. 수정 화면으로 보낸다
+          // — SUBMITTED/APPROVED 법카는 수정 화면이 열린다(edit/page.tsx:106-110).
+          setUploadIssue({ message: warning, detailHref: `/expenses/${expenseId}/edit` });
         }
       }
 
@@ -771,6 +775,8 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
         newSubmitPath="/expenses/new"
         title="제출 완료"
         description="법카사용 내역이 정상적으로 제출되었습니다."
+        warning={uploadIssue?.message}
+        detailHref={uploadIssue?.detailHref}
       />
     </div>
   );

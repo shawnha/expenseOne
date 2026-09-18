@@ -51,6 +51,17 @@ import {
   formatDateISO,
   formatFileSize,
 } from "@/lib/validations/expense-form";
+import {
+  combineAttachmentWarnings,
+  countUploadFailures,
+  deleteFailureMessage,
+  uploadFailureMessage,
+} from "@/lib/utils/upload-results";
+import {
+  calcDepositAmount,
+  calcDepositBreakdownKRW,
+  resolveEditedAmount,
+} from "@/lib/utils/deposit-amount";
 import { formatExpenseAmount } from "@/lib/utils/expense-utils";
 import type { DocumentType } from "@/types";
 import type { ExpenseEditData, ExistingAttachment, CompanyOption } from "./page";
@@ -194,6 +205,8 @@ function CorporateCardEditForm({
   const [amountDisplay, setAmountDisplay] = useState(
     formatAmount(expense.amount)
   );
+  /** USD 등 외화 건은 금액을 잠근다 — ForeignCurrencyAmountLock 주석 참고. */
+  const isForeignCurrency = expense.currency !== "KRW";
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [companyId, setCompanyId] = useState<string>(expense.companyId ?? "");
   const [userCompanyId, setUserCompanyId] = useState<string | null>(null);
@@ -292,7 +305,8 @@ function CorporateCardEditForm({
         body: JSON.stringify({
           title: data.title,
           description: data.description || null,
-          amount: data.amount,
+          // 외화 건은 amount를 보내지 않는다(입금요청 수정 폼과 같은 이유).
+          ...(isForeignCurrency ? {} : { amount: data.amount }),
           category: data.category,
           merchantName: data.merchantName || undefined,
           transactionDate: formatDateISO(data.transactionDate ?? new Date()),
@@ -307,16 +321,25 @@ function CorporateCardEditForm({
         );
       }
 
-      // Delete removed attachments in parallel
+      // Delete removed attachments in parallel.
+      // 결과를 버리면 403/500으로 삭제가 실패해도 "수정되었습니다"만 뜨고,
+      // 지운 줄 알았던 영수증이 그대로 남는다. 업로드와 같은 규칙으로 센다
+      // (DELETE엔 !res.ok throw가 없어 헬퍼의 !ok 분기가 동작한다).
+      let deleteWarning: string | null = null;
       if (removedAttachmentIds.length > 0) {
-        await Promise.allSettled(
+        const deleteResults = await Promise.allSettled(
           removedAttachmentIds.map((attachmentId) =>
             fetch(`/api/attachments/${attachmentId}`, { method: "DELETE" }),
           ),
         );
+        deleteWarning = deleteFailureMessage(
+          countUploadFailures(deleteResults),
+          removedAttachmentIds.length,
+        );
       }
 
       // Upload new attachments in parallel
+      let uploadWarning: string | null = null;
       if (newFiles.length > 0) {
         const uploadResults = await Promise.allSettled(
           newFiles.map((fileItem) => {
@@ -328,17 +351,14 @@ function CorporateCardEditForm({
               .then((res) => { if (!res.ok) throw new Error(fileItem.file.name); return res; });
           }),
         );
-        const failed = uploadResults.filter((r) => r.status === "rejected");
-        if (failed.length > 0) {
-          if (failed.length === newFiles.length) {
-            toast.error("파일 업로드에 실패했습니다. 비용 상세에서 다시 첨부해주세요.");
-          } else {
-            toast.error(`${newFiles.length}개 파일 중 ${failed.length}개 업로드 실패. 비용 상세에서 다시 첨부해주세요.`);
-          }
-        }
+        uploadWarning = uploadFailureMessage(countUploadFailures(uploadResults), newFiles.length);
       }
+      const attachmentWarning = combineAttachmentWarnings(uploadWarning, deleteWarning);
 
-      toast.success("비용이 수정되었습니다.");
+      // 성공 토스트와 실패 토스트가 같이 뜨면 실패가 묻힌다. 수정 후 상세 화면으로
+      // 이동하므로 거기서 바로 다시 첨부하면 된다.
+      if (attachmentWarning) toast.error(`수정은 저장됐지만 ${attachmentWarning}`, { duration: 8000 });
+      else toast.success("비용이 수정되었습니다.");
       router.push(`/expenses/${expense.id}`);
       router.refresh();
     } catch (error) {
@@ -383,14 +403,18 @@ function CorporateCardEditForm({
               <Input id="title" placeholder="예: 3월 사무용품 구매" aria-invalid={!!errors.title} {...register("title")} />
               {errors.title && <p className="text-xs text-[var(--apple-red)]">{errors.title.message}</p>}
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="amount">금액 <span className="text-[var(--apple-red)]">*</span></Label>
-              <InputGroup>
-                <InputGroupInput id="amount" placeholder="0" inputMode="numeric" value={amountDisplay} onChange={handleAmountChange} aria-invalid={!!errors.amount} />
-                <InputGroupAddon align="inline-end"><InputGroupText>원</InputGroupText></InputGroupAddon>
-              </InputGroup>
-              {errors.amount && <p className="text-xs text-[var(--apple-red)]">{errors.amount.message}</p>}
-            </div>
+            {isForeignCurrency ? (
+              <ForeignCurrencyAmountLock expense={expense} />
+            ) : (
+              <div className="space-y-1.5">
+                <Label htmlFor="amount">금액 <span className="text-[var(--apple-red)]">*</span></Label>
+                <InputGroup>
+                  <InputGroupInput id="amount" placeholder="0" inputMode="numeric" value={amountDisplay} onChange={handleAmountChange} aria-invalid={!!errors.amount} />
+                  <InputGroupAddon align="inline-end"><InputGroupText>원</InputGroupText></InputGroupAddon>
+                </InputGroup>
+                {errors.amount && <p className="text-xs text-[var(--apple-red)]">{errors.amount.message}</p>}
+              </div>
+            )}
             {/* 카테고리 — 프리셋 + 내가 쓰던 것 + 직접 입력 */}
             <Controller name="category" control={control} render={({ field }) => (
               <CategorySelectField
@@ -485,6 +509,37 @@ const approvedDepositRequestFormSchema = depositRequestFormSchema.extend({
 /** 승인 모드 요약 카드 아래 안내. 서버 403 문구와 같은 방향으로 맞춘다. */
 const APPROVED_LOCK_NOTICE =
   "승인된 입금요청은 금액·계좌·회사·선지급·원천징수를 바꿀 수 없습니다. 변경이 필요하면 관리자에게 승인 취소를 요청해주세요.";
+
+/**
+ * USD 등 외화 건의 금액 잠금 카드.
+ *
+ * 이 화면의 금액 칸은 원화 정수 하나만 다룬다. 외화 건을 그대로 열면
+ * 칸에는 원화 환산액이 뜨고, 저장하면 amount(원화)만 덮어써지는 반면
+ * amountOriginal(센트)·exchangeRate는 예전 값으로 남는다
+ * (expense.service.ts updateExpense의 갱신 대상에 없다). 그러면 상세·CSV의
+ * formatExpenseAmount가 "$100.00 / 200,000원"처럼 서로 안 맞는 금액을 보여준다.
+ * 그래서 외화 건은 금액을 잠그고 — 제목·카테고리·첨부 수정은 그대로 된다 —
+ * PATCH 본문에서도 amount를 뺀다.
+ */
+function ForeignCurrencyAmountLock({ expense }: { expense: ExpenseEditData }) {
+  return (
+    <div className="space-y-1.5">
+      <Label>금액</Label>
+      <div className="rounded-xl bg-[rgba(0,0,0,0.04)] p-4 dark:bg-[rgba(255,255,255,0.06)]">
+        <p className="text-xl font-semibold tabular-nums text-[var(--apple-label)] break-words">
+          {formatExpenseAmount(expense.amount, expense.currency, expense.amountOriginal)}
+        </p>
+      </div>
+      <div className="flex items-start gap-2.5 rounded-xl border border-[rgba(0,122,255,0.2)] bg-[rgba(0,122,255,0.1)] p-4">
+        <Lock className="mt-0.5 size-4 shrink-0 text-[var(--apple-blue)]" aria-hidden="true" />
+        <p className="text-[13px] leading-relaxed text-[var(--apple-label)]">
+          통화가 {expense.currency}인 건은 이 화면에서 금액을 바꿀 수 없습니다. 금액이
+          잘못됐다면 이 건을 삭제하고 다시 등록해주세요. 제목·카테고리·첨부는 수정할 수 있습니다.
+        </p>
+      </div>
+    </div>
+  );
+}
 
 /**
  * 승인된 입금요청의 잠금 필드 요약 카드.
@@ -584,11 +639,24 @@ function DepositRequestEditForm({
   const [amountDisplay, setAmountDisplay] = useState(
     formatAmount(expense.amount)
   );
-  const [supplyAmount, setSupplyAmount] = useState(expense.amount);
+  // 저장된 `expense.amount`는 부가세·원천징수가 **이미 반영된 최종 금액**이고,
+  // 공급가액은 저장하지 않아 복원할 수 없다. 그래서 공급가액은 "모름"(0)에서
+  // 시작하고, 사용자가 이 화면에서 실제로 새 금액을 입력하거나 토글을 건드릴
+  // 때만 계산기를 켠다(calcActive).
+  //
+  // 예전엔 supplyAmount를 expense.amount로 채워 두고 원천징수 토글이 DB 값으로
+  // 켜져 있었다. 그래서 (1) 화면을 열자마자 "공급가액 96,700 / 실지급액 93,509"
+  // 라는 없는 내역이 뜨고, (2) 금액 칸을 한 글자만 건드려도 이미 차감된 금액에
+  // 3.3%를 또 빼서 저장할 때마다 금액이 줄었다.
+  const [supplyAmount, setSupplyAmount] = useState(0);
   const [vatIncluded, setVatIncluded] = useState(false);
   const [freelancerDeduction, setFreelancerDeduction] = useState(
     expense.hasFreelancerWithholding ?? false
   );
+  /** 이 화면에서 토글을 실제로 건드렸는가. 건드리기 전엔 입력한 숫자 = 최종 금액. */
+  const [calcActive, setCalcActive] = useState(false);
+  /** USD 건은 amount(원화)만 고쳐지고 amountOriginal(센트)·환율은 그대로 남아 금액이 어긋난다. */
+  const isForeignCurrency = expense.currency !== "KRW";
   const [fileError, setFileError] = useState<string | null>(null);
   const [docTypeErrors, setDocTypeErrors] = useState<Record<string, boolean>>({});
   const [dueDateOpen, setDueDateOpen] = useState(false);
@@ -654,16 +722,8 @@ function DepositRequestEditForm({
     freelancerDeduction !== (expense.hasFreelancerWithholding ?? false);
   useFormBusy("expense-edit-deposit", isDirty || newFiles.length > 0 || removedAttachmentIds.length > 0 || companyChanged || amountChanged || isSubmitting);
 
-  const calcFinalAmount = useCallback(
-    (base: number, vat: boolean, freelancer: boolean) => {
-      let result = base;
-      if (vat) result = Math.round(result * 1.1);
-      if (freelancer) result = Math.round(result * (1 - 0.033));
-      return result;
-    },
-    []
-  );
-
+  // 금액 계산은 생성 폼과 같은 헬퍼(@/lib/utils/deposit-amount)를 쓴다.
+  // 예전엔 이 파일에 calcFinalAmount 복제본이 있어 두 경로가 갈라졌다.
   const handleAmountChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const raw = e.target.value.replace(/[^\d]/g, "");
@@ -676,27 +736,37 @@ function DepositRequestEditForm({
       const num = parseInt(raw, 10);
       setSupplyAmount(num);
       setAmountDisplay(formatAmount(num));
-      setValue("amount", calcFinalAmount(num, vatIncluded, freelancerDeduction), { shouldValidate: true });
+      // 토글을 건드리기 전이면 입력한 숫자가 곧 최종 금액이다. 배율을 다시
+      // 적용하면 이미 차감된 금액에서 또 깎인다.
+      setValue(
+        "amount",
+        resolveEditedAmount(num, calcActive, vatIncluded, freelancerDeduction),
+        { shouldValidate: true },
+      );
     },
-    [setValue, vatIncluded, freelancerDeduction, calcFinalAmount]
+    [setValue, vatIncluded, freelancerDeduction, calcActive]
   );
 
   const handleVatToggle = useCallback(
     (checked: boolean) => {
       setVatIncluded(checked);
+      setCalcActive(true);
+      // 새 공급가액을 입력하지 않았으면(supplyAmount === 0) 저장된 금액을
+      // 그대로 둔다 — 토글만 껐다 켜도 3.3%가 또 빠지던 문제.
       if (supplyAmount <= 0) return;
-      setValue("amount", calcFinalAmount(supplyAmount, checked, freelancerDeduction), { shouldValidate: true });
+      setValue("amount", calcDepositAmount(supplyAmount, "KRW", checked, freelancerDeduction), { shouldValidate: true });
     },
-    [setValue, supplyAmount, freelancerDeduction, calcFinalAmount]
+    [setValue, supplyAmount, freelancerDeduction]
   );
 
   const handleFreelancerToggle = useCallback(
     (checked: boolean) => {
       setFreelancerDeduction(checked);
+      setCalcActive(true);
       if (supplyAmount <= 0) return;
-      setValue("amount", calcFinalAmount(supplyAmount, vatIncluded, checked), { shouldValidate: true });
+      setValue("amount", calcDepositAmount(supplyAmount, "KRW", vatIncluded, checked), { shouldValidate: true });
     },
-    [setValue, supplyAmount, vatIncluded, calcFinalAmount]
+    [setValue, supplyAmount, vatIncluded]
   );
 
   const handleDocumentTypeChange = useCallback(
@@ -777,7 +847,9 @@ function DepositRequestEditForm({
         : {
             title: data.title,
             description: data.description || null,
-            amount: data.amount,
+            // 외화 건은 amount를 아예 보내지 않는다 — 보내면 원화 금액만 바뀌고
+            // amountOriginal(센트)·환율이 그대로 남아 두 금액이 어긋난다.
+            ...(isForeignCurrency ? {} : { amount: data.amount }),
             category: data.category,
             bankName: data.bankName,
             accountHolder: data.accountHolder,
@@ -811,15 +883,24 @@ function DepositRequestEditForm({
         }
         throw new Error(errorData?.error?.message || "비용 수정에 실패했습니다.");
       }
-      // Delete removed attachments in parallel
+      // Delete removed attachments in parallel.
+      // 결과를 버리면 403/500으로 삭제가 실패해도 "수정되었습니다"만 뜨고,
+      // 지운 줄 알았던 영수증이 그대로 남는다. 업로드와 같은 규칙으로 센다
+      // (DELETE엔 !res.ok throw가 없어 헬퍼의 !ok 분기가 동작한다).
+      let deleteWarning: string | null = null;
       if (removedAttachmentIds.length > 0) {
-        await Promise.allSettled(
+        const deleteResults = await Promise.allSettled(
           removedAttachmentIds.map((attachmentId) =>
             fetch(`/api/attachments/${attachmentId}`, { method: "DELETE" }),
           ),
         );
+        deleteWarning = deleteFailureMessage(
+          countUploadFailures(deleteResults),
+          removedAttachmentIds.length,
+        );
       }
       // Upload new attachments in parallel
+      let uploadWarning: string | null = null;
       if (newFiles.length > 0) {
         const uploadResults = await Promise.allSettled(
           newFiles.map((fileItem) => {
@@ -831,16 +912,12 @@ function DepositRequestEditForm({
               .then((res) => { if (!res.ok) throw new Error(fileItem.file.name); return res; });
           }),
         );
-        const failed = uploadResults.filter((r) => r.status === "rejected");
-        if (failed.length > 0) {
-          if (failed.length === newFiles.length) {
-            toast.error("파일 업로드에 실패했습니다. 비용 상세에서 다시 첨부해주세요.");
-          } else {
-            toast.error(`${newFiles.length}개 파일 중 ${failed.length}개 업로드 실패. 비용 상세에서 다시 첨부해주세요.`);
-          }
-        }
+        uploadWarning = uploadFailureMessage(countUploadFailures(uploadResults), newFiles.length);
       }
-      toast.success("입금요청이 수정되었습니다.");
+      const attachmentWarning = combineAttachmentWarnings(uploadWarning, deleteWarning);
+      // 실패는 성공 토스트에 묻히지 않게 따로 알린다. 이어서 상세 화면으로 이동한다.
+      if (attachmentWarning) toast.error(`수정은 저장됐지만 ${attachmentWarning}`, { duration: 8000 });
+      else toast.success("입금요청이 수정되었습니다.");
       router.push(`/expenses/${expense.id}`);
       router.refresh();
     } catch (error) {
@@ -949,7 +1026,10 @@ function DepositRequestEditForm({
               {errors.title && <p className="text-xs text-[var(--apple-red)]">{errors.title.message}</p>}
             </div>
             {/* 금액·VAT·원천징수 — 승인 후엔 잠금이라 위 요약 카드에서만 보여준다 */}
-            {!isApprovedMode && (
+            {!isApprovedMode && isForeignCurrency && (
+              <ForeignCurrencyAmountLock expense={expense} />
+            )}
+            {!isApprovedMode && !isForeignCurrency && (
               <div className="space-y-1.5">
                 <Label htmlFor="amount">금액 <span className="text-[var(--apple-red)]">*</span></Label>
                 <InputGroup>
@@ -970,11 +1050,14 @@ function DepositRequestEditForm({
                   </label>
                 </div>
 
-                {/* 금액 내역 */}
-                {supplyAmount > 0 && (vatIncluded || freelancerDeduction) && (() => {
-                  const vatAmount = vatIncluded ? Math.round(supplyAmount * 0.1) : 0;
-                  const freelancerAmount = freelancerDeduction ? Math.round((supplyAmount + vatAmount) * 0.033) : 0;
-                  const finalAmount = calcFinalAmount(supplyAmount, vatIncluded, freelancerDeduction);
+                {/* 금액 내역 — 토글을 실제로 건드려 계산기를 켰을 때만 보여준다.
+                    저장된 금액은 이미 최종값이라, 열자마자 공급가액/실지급액을
+                    그리면 있지도 않은 차감 내역을 보여주게 된다. */}
+                {calcActive && supplyAmount > 0 && (vatIncluded || freelancerDeduction) && (() => {
+                  const bd = calcDepositBreakdownKRW(supplyAmount, "KRW", vatIncluded, freelancerDeduction, null)!;
+                  const vatAmount = bd.vatKRW;
+                  const freelancerAmount = bd.withholdingKRW;
+                  const finalAmount = bd.finalKRW;
                   return (
                     <div className="mt-2 p-3 rounded-lg bg-[rgba(0,122,255,0.06)] text-[13px] space-y-1">
                       <div className="flex justify-between">

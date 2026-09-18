@@ -54,9 +54,11 @@ import {
   formatAmount,
   formatAmountUSD,
   parseAmountUSD,
-  dollarsToCents,
   formatDateISO,
 } from "@/lib/validations/expense-form";
+import { calcDepositAmount, calcDepositBreakdownKRW } from "@/lib/utils/deposit-amount";
+import { countUploadFailures, uploadFailureMessage } from "@/lib/utils/upload-results";
+import { resolveCreatedExpenseId } from "@/lib/utils/submit-result";
 import type { DocumentType } from "@/types";
 import { cn } from "@/lib/utils";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
@@ -124,6 +126,8 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
   const [bankOpen, setBankOpen] = useState(false);
   const [dueDateOpen, setDueDateOpen] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  // 비용은 만들어졌는데 첨부 업로드가 실패한 경우 — 성공 창에서 상세로 안내한다.
+  const [uploadIssue, setUploadIssue] = useState<{ message: string; detailHref: string | null } | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [docTypeErrors, setDocTypeErrors] = useState<Record<string, boolean>>(
     {}
@@ -285,16 +289,8 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
     ? { category: payeeForCategory.category, from: payeeForCategory.accountHolder }
     : null;
 
-  const calcFinalAmount = useCallback(
-    (base: number, vat: boolean, freelancer: boolean) => {
-      let result = base;
-      if (vat) result = Math.round(result * 1.1);
-      if (freelancer) result = Math.round(result * (1 - 0.033));
-      return result;
-    },
-    []
-  );
-
+  // amount 필드 = KRW 원 / USD 센트. 부가세·원천징수 배율은 통화별 최소 단위로
+  // 바꾼 뒤 적용한다 — 예전엔 토글이 달러 값에 배율만 곱해 100분의 1로 저장됐다.
   const handleAmountChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       setAmountTouched(true);
@@ -316,7 +312,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
         const num = parseAmountUSD(limited);
         setSupplyAmount(num);
         setAmountDisplay(limited);
-        setValue("amount", dollarsToCents(num), { shouldValidate: true });
+        setValue("amount", calcDepositAmount(num, "USD", vatIncluded, freelancerDeduction), { shouldValidate: true });
         return;
       }
 
@@ -331,29 +327,29 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
       const num = parseInt(raw, 10);
       setSupplyAmount(num);
       setAmountDisplay(formatAmount(num));
-      setValue("amount", calcFinalAmount(num, vatIncluded, freelancerDeduction), { shouldValidate: true });
+      setValue("amount", calcDepositAmount(num, "KRW", vatIncluded, freelancerDeduction), { shouldValidate: true });
     },
-    [setValue, vatIncluded, freelancerDeduction, calcFinalAmount, currency]
+    [setValue, vatIncluded, freelancerDeduction, currency]
   );
 
   const handleVatToggle = useCallback(
     (checked: boolean) => {
       setVatIncluded(checked);
       if (supplyAmount > 0) {
-        setValue("amount", calcFinalAmount(supplyAmount, checked, freelancerDeduction), { shouldValidate: true });
+        setValue("amount", calcDepositAmount(supplyAmount, currency, checked, freelancerDeduction), { shouldValidate: true });
       }
     },
-    [setValue, supplyAmount, freelancerDeduction, calcFinalAmount]
+    [setValue, supplyAmount, freelancerDeduction, currency]
   );
 
   const handleFreelancerToggle = useCallback(
     (checked: boolean) => {
       setFreelancerDeduction(checked);
       if (supplyAmount > 0) {
-        setValue("amount", calcFinalAmount(supplyAmount, vatIncluded, checked), { shouldValidate: true });
+        setValue("amount", calcDepositAmount(supplyAmount, currency, vatIncluded, checked), { shouldValidate: true });
       }
     },
-    [setValue, supplyAmount, vatIncluded, calcFinalAmount]
+    [setValue, supplyAmount, vatIncluded, currency]
   );
 
   const handleDocumentTypeChange = useCallback(
@@ -463,28 +459,27 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
         );
       }
 
-      const result = await response.json();
-      const expenseId = result.data?.id;
+      // 리다이렉트(세션 만료)·id 누락이면 던진다. "첨부만 실패"로 안내하고
+      // 「제출 완료」 창을 띄우면 만들어지지도 않은 건을 등록됐다고 알리게 된다.
+      const result = await response.json().catch(() => null);
+      const expenseId = resolveCreatedExpenseId(response, result);
 
-      if (expenseId) {
-        const uploadResults = await Promise.allSettled(
-          files.map((fileItem) => {
-            const formData = new FormData();
-            formData.append("file", fileItem.file);
-            formData.append("expenseId", expenseId);
-            formData.append("documentType", fileItem.documentType || "OTHER");
-            return fetch("/api/attachments/upload", { method: "POST", body: formData })
-              .then((res) => { if (!res.ok) throw new Error(fileItem.file.name); return res; });
-          })
-        );
-        const failed = uploadResults.filter((r) => r.status === "rejected");
-        if (failed.length > 0) {
-          if (failed.length === files.length) {
-            toast.error("파일 업로드에 실패했습니다. 비용 상세에서 다시 첨부해주세요.");
-          } else {
-            toast.error(`${files.length}개 파일 중 ${failed.length}개 업로드 실패. 비용 상세에서 다시 첨부해주세요.`);
-          }
-        }
+      const uploadResults = await Promise.allSettled(
+        files.map((fileItem) => {
+          const formData = new FormData();
+          formData.append("file", fileItem.file);
+          formData.append("expenseId", expenseId);
+          formData.append("documentType", fileItem.documentType || "OTHER");
+          return fetch("/api/attachments/upload", { method: "POST", body: formData })
+            .then((res) => { if (!res.ok) throw new Error(fileItem.file.name); return res; });
+        })
+      );
+      const warning = uploadFailureMessage(countUploadFailures(uploadResults), files.length, { required: true });
+      if (warning) {
+        toast.error(warning);
+        // 상세 화면엔 첨부를 추가할 수단이 없다(보기·다운로드뿐). 수정 화면으로 보낸다
+        // — SUBMITTED/APPROVED 입금요청은 수정 화면이 열린다(edit/page.tsx:117-121).
+        setUploadIssue({ message: warning, detailHref: `/expenses/${expenseId}/edit` });
       }
 
       setShowSuccess(true);
@@ -674,21 +669,35 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
                 </label>
               </div>
               {supplyAmount > 0 && (() => {
-                // For USD, apply VAT/deduction to KRW-converted amount for display
-                const baseKRW = currency === "USD" && exchangeRate ? Math.round(supplyAmount * exchangeRate.rate) : supplyAmount;
-                let afterVat = baseKRW;
-                const vatAmount = vatIncluded ? Math.round(baseKRW * 0.1) : 0;
-                if (vatIncluded) afterVat = baseKRW + vatAmount;
-                const withholdingBase = afterVat;
-                const withholdingAmount = freelancerDeduction ? Math.round(withholdingBase * 0.033) : 0;
-                const finalAmount = withholdingBase - withholdingAmount;
+                // 서버와 같은 순서로 계산한다(센트 → 배율 → 환산). 예전엔 화면만
+                // '환산 → 배율'이라 USD 건에서 저장값과 몇 원 어긋났다.
+                const bd = calcDepositBreakdownKRW(
+                  supplyAmount,
+                  currency,
+                  vatIncluded,
+                  freelancerDeduction,
+                  exchangeRate?.rate ?? null,
+                );
+                // USD인데 환율을 못 받은 경우. 달러 숫자를 원화처럼 보여주면
+                // ($100 → 100원) 금액을 잘못 입력한 줄 안다.
+                if (!bd) {
+                  return (
+                    <div className="px-3 py-2 text-[13px] text-[var(--apple-secondary-label)] border border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)] rounded-xl">
+                      환율 정보를 불러오지 못해 원화 금액을 계산할 수 없습니다.
+                    </div>
+                  );
+                }
+                const baseKRW = bd.baseKRW;
+                const vatAmount = bd.vatKRW;
+                const withholdingAmount = bd.withholdingKRW;
+                const finalAmount = bd.finalKRW;
                 return (
                   <div className="px-3 py-2 text-[13px] text-[var(--apple-secondary-label)] space-y-0.5 border border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)] rounded-xl">
                     <div className="flex justify-between">
                       <span>공급가액</span>
                       <span>{currency === "USD" ? `$${formatAmountUSD(supplyAmount)}` : `${formatAmount(baseKRW)}원`}</span>
                     </div>
-                    {currency === "USD" && exchangeRate && (
+                    {currency === "USD" && (
                       <div className="flex justify-between">
                         <span>원화 환산</span>
                         <span>{formatAmount(baseKRW)}원</span>
@@ -821,9 +830,22 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
                         )}
 
                         {supplyAmount > 0 && watchedPrePaidPercentage != null && watchedPrePaidPercentage < 100 && (() => {
-                          const baseKRW = currency === "USD" && exchangeRate ? Math.round(supplyAmount * exchangeRate.rate) : supplyAmount;
-                          const totalBeforeWithholding = vatIncluded ? Math.round(baseKRW * 1.1) : baseKRW;
-                          const withholdingAmount = freelancerDeduction ? Math.round(totalBeforeWithholding * 0.033) : 0;
+                          const bd = calcDepositBreakdownKRW(
+                            supplyAmount,
+                            currency,
+                            vatIncluded,
+                            freelancerDeduction,
+                            exchangeRate?.rate ?? null,
+                          );
+                          if (!bd) {
+                            return (
+                              <div className="px-3 py-2 text-[13px] text-[var(--apple-secondary-label)] border border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)] rounded-xl">
+                                환율 정보를 불러오지 못해 원화 금액을 계산할 수 없습니다.
+                              </div>
+                            );
+                          }
+                          const totalBeforeWithholding = bd.totalBeforeWithholdingKRW;
+                          const withholdingAmount = bd.withholdingKRW;
                           const prePaidAmount = Math.round(totalBeforeWithholding * watchedPrePaidPercentage / 100);
                           const postPaidAmount = totalBeforeWithholding - prePaidAmount - withholdingAmount;
                           return (
@@ -1150,6 +1172,8 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
         newSubmitPath="/expenses/new"
         title="제출 완료"
         description="입금요청이 정상적으로 제출되었습니다. 관리자 승인을 기다려주세요."
+        warning={uploadIssue?.message}
+        detailHref={uploadIssue?.detailHref}
       />
     </div>
   );
