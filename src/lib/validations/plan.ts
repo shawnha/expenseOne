@@ -17,7 +17,11 @@ const isoDateField = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "날짜 형식은 YYYY-MM-DD여야 합니다");
 
-const monthField = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "월 형식은 YYYY-MM이어야 합니다");
+// 연도 범위는 diff.ts 의 parseMonth(2000~2100)와 **같아야 한다**. 넓게 두면 zod 는 통과시키고
+// monthRange 가 RangeError 를 던져, 주소를 손으로 고친 한 건이 보드 전체를 오류 화면으로 만든다.
+const monthField = z
+  .string()
+  .regex(/^(20\d{2}|2100)-(0[1-9]|1[0-2])$/, "월 형식은 YYYY-MM이어야 합니다(2000~2100)");
 
 /**
  * 선택 텍스트. 빈 문자열·공백만이면 null 로(DB CHECK btrim 길이 ≥1 과 맞춤).

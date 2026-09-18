@@ -15,6 +15,8 @@ import { rowsOf } from "./rows";
 // 입금요청 **연결 범위**(본인 제출분만 vs 법인 전부)에만 쓴다(SCHEMA.md 5절 7).
 //
 // 앞부분은 순수 술어(단위 테스트), 뒷부분은 같은 규칙을 SQL 로 옮긴 DB 검사다.
+// M(project) 자체는 순수 함수로 두지 않는다 — 실제 판정은 requireProjectAccess·requirePlanAccess 의
+// SQL 뿐이라, 같은 규칙을 JS 로 한 벌 더 두면 아무도 부르지 않는 함수가 테스트만 초록으로 만든다.
 // ---------------------------------------------------------------------------
 
 export interface PlanAccess {
@@ -24,16 +26,6 @@ export interface PlanAccess {
 }
 
 // --- 순수 술어 ----------------------------------------------------------------
-
-/** M(project): 대표이거나 그 사업의 참여자인가. */
-export function canAccessProject(
-  access: { isExecutive: boolean; memberProjectIds: ReadonlySet<string> | readonly string[] },
-  projectId: string,
-): boolean {
-  if (access.isExecutive) return true;
-  const ids = access.memberProjectIds;
-  return ids instanceof Set ? ids.has(projectId) : (ids as readonly string[]).includes(projectId);
-}
 
 /** 연결 후보 범위: 대표·ADMIN 은 그 법인 요청 전부, MEMBER 는 본인이 제출한 요청만. */
 export function canLinkAllCompanyRequests(access: { isExecutive: boolean; role: "MEMBER" | "ADMIN" }): boolean {
@@ -97,14 +89,6 @@ export async function loadAccess(
   actor: { userId: string; role: "MEMBER" | "ADMIN" },
 ): Promise<PlanAccess> {
   return { userId: actor.userId, role: actor.role, isExecutive: await isExecutive(tx, actor.userId) };
-}
-
-/** P($uid) 를 배열로. 목록 화면에서 사업 필터 옵션을 만들 때. */
-export async function getMemberProjectIds(tx: PlanTx, userId: string): Promise<string[]> {
-  const rows = rowsOf<{ project_id: string }>(
-    await tx.execute(sql`SELECT project_id FROM ${memberProjectIdsSql(userId)} AS p`),
-  );
-  return rows.map((r) => r.project_id);
 }
 
 export interface ProjectAccessRow {

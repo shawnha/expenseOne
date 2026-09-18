@@ -24,9 +24,11 @@ type RouteContext = { params: Promise<{ id: string; cid: string }> };
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
+    // 스위치 게이트가 **먼저**다. 순서가 반대면 Origin 없는 요청에 403 이 나가, 스위치가 꺼진
+    // 사용자도 "이 경로는 있다"는 사실을 알게 된다(없는 경로는 404). requirePlanActor 는 읽기만 한다.
+    const actor = await requirePlanActor();
     const csrfError = validateOrigin(request);
     if (csrfError) return csrfError;
-    const actor = await requirePlanActor();
     const params = await context.params;
     const id = requireUuidParam(params.id, "계획");
     const cid = requireUuidParam(params.cid, "메모");
@@ -39,9 +41,11 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
+    // 스위치 게이트가 **먼저**다. 순서가 반대면 Origin 없는 요청에 403 이 나가, 스위치가 꺼진
+    // 사용자도 "이 경로는 있다"는 사실을 알게 된다(없는 경로는 404). requirePlanActor 는 읽기만 한다.
+    const actor = await requirePlanActor();
     const csrfError = validateOrigin(request);
     if (csrfError) return csrfError;
-    const actor = await requirePlanActor();
     const params = await context.params;
     const id = requireUuidParam(params.id, "계획");
     const cid = requireUuidParam(params.cid, "메모");

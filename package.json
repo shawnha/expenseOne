@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test:smoke": "node scripts/smoke.mjs",
-    "test:unit": "npx tsx --test src/lib/expense-edit-lock.test.ts src/lib/form-busy.test.ts src/lib/utils/deposit-amount.test.ts src/lib/utils/upload-results.test.ts src/lib/utils/submit-result.test.ts src/lib/plans/diff.test.ts src/lib/plans/flag-logic.test.ts src/lib/plans/permissions.test.ts src/lib/validations/plan.test.ts"
+    "test:unit": "npx tsx@4 --test src/lib/expense-edit-lock.test.ts src/lib/form-busy.test.ts src/lib/utils/deposit-amount.test.ts src/lib/utils/upload-results.test.ts src/lib/utils/submit-result.test.ts src/lib/plans/diff.test.ts src/lib/plans/flag-logic.test.ts src/lib/plans/permissions.test.ts src/lib/plans/search.test.ts src/lib/validations/plan.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

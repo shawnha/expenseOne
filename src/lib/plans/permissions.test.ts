@@ -6,7 +6,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
-  canAccessProject,
   canEditComment,
   canLinkAllCompanyRequests,
   canRemoveMember,
@@ -19,20 +18,6 @@ import { CasingCache } from "drizzle-orm/casing";
 
 const ME = "11111111-1111-4111-8111-111111111111";
 const OTHER = "22222222-2222-4222-8222-222222222222";
-const P1 = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-const P2 = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
-
-describe("canAccessProject — E OR project ∈ P(uid)", () => {
-  it("대표는 어떤 사업이든", () => {
-    assert.equal(canAccessProject({ isExecutive: true, memberProjectIds: [] }, P1), true);
-  });
-  it("참여자 행이 있는 사업만", () => {
-    assert.equal(canAccessProject({ isExecutive: false, memberProjectIds: [P1] }, P1), true);
-    assert.equal(canAccessProject({ isExecutive: false, memberProjectIds: [P1] }, P2), false);
-    assert.equal(canAccessProject({ isExecutive: false, memberProjectIds: new Set([P2]) }, P2), true);
-    assert.equal(canAccessProject({ isExecutive: false, memberProjectIds: new Set() }, P1), false);
-  });
-});
 
 describe("canLinkAllCompanyRequests — users.role 은 연결 범위에만", () => {
   it("대표·ADMIN 은 법인 전부, MEMBER 는 본인 제출분만", () => {
@@ -62,6 +47,7 @@ describe("canRemoveMember — 마지막 참여자는 제거 불가(409)", () => 
   });
 });
 
+// 실제 판정 경로: plan.service.ts 의 assertPlannableCompany 가 companies 한 행을 읽어 이 함수에 넘긴다.
 describe("isPlannableCompany — 첫 출시는 KRW·활성 법인만(Q9)", () => {
   it("HOI(USD)·비활성 제외", () => {
     assert.equal(isPlannableCompany({ currency: "KRW", isActive: true }), true);

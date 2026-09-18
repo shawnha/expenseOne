@@ -2,6 +2,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { sql } from "drizzle-orm";
 import * as planSchema from "./schema-plans";
+import { PlanError } from "@/lib/plans/errors";
 
 // ---------------------------------------------------------------------------
 // 비용계획 전용 DB 클라이언트 (integration-review P12)
@@ -43,6 +44,14 @@ export type PlanTx = Parameters<Parameters<typeof plansDb.transaction>[0]>[0];
 /** 쿼리별 상한(P12). 보드·상세 어느 쿼리도 이보다 오래 돌면 끊는다. */
 export const PLAN_STATEMENT_TIMEOUT_MS = 5000;
 
+/**
+ * 트랜잭션 **전체** 예산. statement_timeout 은 문장 하나만 막는다 — 보드 한 번은
+ * SET LOCAL·대표 여부·카드·프로젝트·참여자·회사·브랜드까지 7개 안팎을 줄줄이 실행하므로,
+ * 느려진 DB 에서는 문장마다 4초씩 걸려도 합이 30초를 넘는다. 그러면 우리가 만든 error.tsx 대신
+ * 플랫폼의 504 가 뜨고 로그에도 원인이 남지 않는다. 여기서 먼저 끊어 우리 오류로 떨어뜨린다.
+ */
+export const PLAN_TX_BUDGET_MS = 12_000;
+
 export interface PlanTxOptions {
   /** true 면 `SET TRANSACTION READ ONLY` — 조회 API 전용. */
   readOnly?: boolean;
@@ -51,6 +60,9 @@ export interface PlanTxOptions {
 /**
  * 계획 쿼리를 트랜잭션으로 감싼다. 첫 문장은 항상 statement_timeout 5초.
  * 콜백이 throw 하면 롤백된다(드리즐 기본 동작).
+ *
+ * 예산 초과는 **트랜잭션 안에서** 던진다 — 바깥에서 race 하면 트랜잭션이 배경에 남아
+ * max 2 짜리 풀의 연결을 붙잡는다. 안에서 던지면 곧바로 ROLLBACK 하고 연결을 돌려준다.
  */
 export async function withPlanTx<T>(
   fn: (tx: PlanTx) => Promise<T>,
@@ -59,7 +71,19 @@ export async function withPlanTx<T>(
   return plansDb.transaction(
     async (tx) => {
       await tx.execute(sql.raw(`SET LOCAL statement_timeout = '${PLAN_STATEMENT_TIMEOUT_MS}'`));
-      return fn(tx);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const budget = new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          // statement_timeout(57014)이 내는 것과 같은 문장 — 사용자에게는 같은 일이다.
+          () => reject(new PlanError("INTERNAL_ERROR", "조회 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.")),
+          PLAN_TX_BUDGET_MS,
+        );
+      });
+      try {
+        return await Promise.race([fn(tx), budget]);
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
     },
     options.readOnly ? { accessMode: "read only" } : undefined,
   );

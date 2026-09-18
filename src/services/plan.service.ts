@@ -12,10 +12,12 @@ import {
 import { users } from "@/lib/db/schema";
 import { PlanError, mapDbError } from "@/lib/plans/errors";
 import { num, rowsOf } from "@/lib/plans/rows";
+import { containsPattern } from "@/lib/plans/search";
 import {
   canEditComment,
   canLinkAllCompanyRequests,
   canRemoveMember,
+  isPlannableCompany,
   loadAccess,
   projectScopeSql,
   requireExecutive,
@@ -124,12 +126,13 @@ async function loadPlannableCompanies(tx: PlanTx): Promise<CompanyOption[]> {
 }
 
 async function assertPlannableCompany(tx: PlanTx, companyId: string): Promise<void> {
-  const rows = rowsOf<{ ok: boolean }>(
-    await tx.execute(sql`SELECT EXISTS (
-        SELECT 1 FROM expenseone.companies c
-         WHERE c.id = ${companyId}::uuid AND c.is_active = true AND c.currency = 'KRW') AS ok`),
-  );
-  if (rows[0]?.ok !== true) {
+  // 범위 판정은 SQL 이 아니라 isPlannableCompany 가 한다 — 규칙이 한 군데(단위 테스트가 덮는 자리)에만 있게.
+  const row = rowsOf<{ currency: string; is_active: boolean }>(
+    await tx.execute(sql`SELECT c.currency, c.is_active
+        FROM expenseone.companies c
+       WHERE c.id = ${companyId}::uuid`),
+  )[0];
+  if (!row || !isPlannableCompany({ currency: row.currency, isActive: row.is_active })) {
     throw new PlanError("VALIDATION_ERROR", "비용계획을 쓸 수 없는 법인입니다.");
   }
 }
@@ -358,22 +361,21 @@ export async function removeProjectMember(
     // 사업 행을 먼저 잠가 같은 사업의 참여자 변경을 한 줄로 세운다. (집계에는 FOR UPDATE 를 못 쓴다)
     await tx.execute(sql`SELECT 1 FROM expenseone.plan_projects j
                           WHERE j.id = ${projectId}::uuid FOR UPDATE`);
-    const count = num(
-      rowsOf<{ n: number }>(
-        await tx.execute(sql`SELECT count(*)::int AS n FROM expenseone.plan_project_members m
-                              WHERE m.project_id = ${projectId}::uuid`),
-      )[0]?.n,
-    );
-    if (!canRemoveMember(count)) {
+    // 참여자 수와 **대상이 참여자인지**를 한 번에 읽는다. 순서가 중요하다 — 참여자가 1명뿐인 사업에서
+    // 남을 지우려 하면 "마지막 참여자라 못 지운다"가 아니라 404 가 맞다.
+    const row = rowsOf<{ n: number; is_member: boolean }>(
+      await tx.execute(sql`SELECT count(*)::int AS n,
+                                  coalesce(bool_or(m.user_id = ${userId}::uuid), false) AS is_member
+                             FROM expenseone.plan_project_members m
+                            WHERE m.project_id = ${projectId}::uuid`),
+    )[0];
+    if (row?.is_member !== true) throw new PlanError("NOT_FOUND", "참여자를 찾을 수 없습니다.");
+    if (!canRemoveMember(num(row.n))) {
       throw new PlanError("CONFLICT", "마지막 참여자는 제거할 수 없습니다.");
     }
 
-    const removed = rowsOf<{ user_id: string }>(
-      await tx.execute(sql`DELETE FROM expenseone.plan_project_members m
-                            WHERE m.project_id = ${projectId}::uuid AND m.user_id = ${userId}::uuid
-                        RETURNING m.user_id`),
-    );
-    if (removed.length === 0) throw new PlanError("NOT_FOUND", "참여자를 찾을 수 없습니다.");
+    await tx.execute(sql`DELETE FROM expenseone.plan_project_members m
+                          WHERE m.project_id = ${projectId}::uuid AND m.user_id = ${userId}::uuid`);
 
     await logChange(tx, {
       companyId: project.companyId,
@@ -1193,8 +1195,11 @@ export async function getPlanDetail(actor: PlanActorInput, planId: string): Prom
         actorName: g.actor_name,
         reason: g.reason,
         createdAt: iso(g.created_at) ?? "",
-        before: g.before_data,
-        after: g.after_data,
+        // 메모 이력의 before/after 에는 **원문이 들어 있다**(5절 6). 그대로 내보내면 지우거나 고친 메모의
+        // 원래 글이 같은 계획을 볼 수 있는 모든 사람에게 다시 나가 soft delete 가 무의미해진다.
+        // 화면(logLine)은 메모 이력에서 라벨과 시각만 쓰므로 통째로 가린다.
+        before: g.entity_type === "comment" ? null : g.before_data,
+        after: g.entity_type === "comment" ? null : g.after_data,
       })),
       // 접근할 수 있으면 곧 수정할 수 있다(등급 없음). 취소·마감된 계획만 잠근다.
       canEdit: row.status === "PLANNED",
@@ -1360,7 +1365,8 @@ export async function listLinkCandidates(
     const access = await loadAccess(tx, actorAccess(actor));
     const plan = await requirePlanAccess(tx, access, planId);
     const canLinkAll = canLinkAllCompanyRequests(access);
-    const search = q ? sql` AND e.title ILIKE ${`%${q}%`}` : sql``;
+    const pattern = q ? containsPattern(q) : null;
+    const search = pattern ? sql` AND e.title ILIKE ${pattern}` : sql``;
 
     const rows = rowsOf<{
       id: string;

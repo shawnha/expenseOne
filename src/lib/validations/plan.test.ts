@@ -17,6 +17,7 @@ import {
   updatePlanSchema,
   unlinkQuerySchema,
 } from "./plan";
+import { monthRange } from "@/lib/plans/diff";
 
 const C = "3f2a9c1e-7b4d-4e8a-9c21-5d6e7f8a9b0c";
 const P = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -117,6 +118,22 @@ describe("boardQuerySchema — 문자열 쿼리에서", () => {
     assert.equal(boardQuerySchema.parse({ brandId: B }).brandId, B);
     assert.equal(boardQuerySchema.safeParse({ brandId: "all" }).success, false);
     assert.equal(boardQuerySchema.parse({ status: "ALL" }).status, "ALL");
+  });
+  // zod 가 통과시킨 월은 monthRange(diff.ts)가 반드시 계산할 수 있어야 한다. 범위가 어긋나면
+  // 검증은 성공하고 계산이 RangeError 로 터져, 페이지의 기본값 폴백이 아니라 오류 화면이 뜬다.
+  it("연도는 parseMonth 와 같은 2000~2100 범위만", () => {
+    assert.equal(boardQuerySchema.safeParse({ from: "1899-01" }).success, false);
+    assert.equal(boardQuerySchema.safeParse({ from: "1999-12" }).success, false);
+    assert.equal(boardQuerySchema.safeParse({ from: "2101-01" }).success, false);
+    assert.equal(boardQuerySchema.parse({ from: "2000-01" }).from, "2000-01");
+    assert.equal(boardQuerySchema.parse({ from: "2100-12" }).from, "2100-12");
+  });
+  it("통과한 from 은 monthRange 가 던지지 않는다", () => {
+    for (const v of ["1899-01", "2101-01", "2000-01", "2100-12", "2026-09"]) {
+      const parsed = boardQuerySchema.safeParse({ from: v });
+      if (!parsed.success) continue;
+      assert.doesNotThrow(() => monthRange(parsed.data.from!, parsed.data.months));
+    }
   });
   it("searchParamsToObject 는 빈 값을 버린다(기본값이 살도록)", () => {
     const o = searchParamsToObject(new URLSearchParams("from=2026-09&companyId=&months=4"));
