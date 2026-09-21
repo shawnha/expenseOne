@@ -55,6 +55,8 @@ export function ProjectDialog({ open, onOpenChange, onSaved }: ProjectDialogProp
   const [companyId, setCompanyId] = useState("");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  /** 만들기 폼에서 고른 참여자(만든 사람은 자동 포함이라 여기 없다). */
+  const [pickedMembers, setPickedMembers] = useState<UserOption[]>([]);
   const [touched, setTouched] = useState(false);
 
   // 이 다이얼로그도 열릴 때 마운트된다(ProjectOpenButton). 목록은 마운트될 때 한 번 읽는다 —
@@ -99,7 +101,12 @@ export function ProjectDialog({ open, onOpenChange, onSaved }: ProjectDialogProp
     setCreating(true);
     const res = await planFetch<{ project: ProjectSummary }>(
       "/api/plans/projects",
-      jsonBody({ companyId, name: name.trim(), description: description.trim() || null }),
+      jsonBody({
+        companyId,
+        name: name.trim(),
+        description: description.trim() || null,
+        memberIds: pickedMembers.map((m) => m.id),
+      }),
     );
     setCreating(false);
     if (!res.ok) {
@@ -109,10 +116,11 @@ export function ProjectDialog({ open, onOpenChange, onSaved }: ProjectDialogProp
     setProjects((prev) => [...prev, res.data.project]);
     setName("");
     setDescription("");
+    setPickedMembers([]);
     setShowForm(false);
     setTouched(true);
     toast.success(`프로젝트 '${res.data.project.name}'을(를) 만들었습니다.`);
-  }, [companyId, name, description]);
+  }, [companyId, name, description, pickedMembers]);
 
   const mutateMembers = useCallback(
     async (projectId: string, url: string, init: RequestInit, successMessage: string) => {
@@ -192,6 +200,24 @@ export function ProjectDialog({ open, onOpenChange, onSaved }: ProjectDialogProp
                   onChange={(e) => setDescription(e.target.value)}
                   maxLength={2000}
                 />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-footnote text-[var(--apple-secondary-label)]">
+                  참여자 <span className="font-normal">(선택 · 나는 자동으로 포함)</span>
+                </Label>
+                <MemberChips
+                  members={pickedMembers}
+                  users={users}
+                  removable
+                  onOpenPicker={() => void ensureUsers()}
+                  onAdd={(user) =>
+                    setPickedMembers((prev) => (prev.some((m) => m.id === user.id) ? prev : [...prev, user]))
+                  }
+                  onRemove={(userId) => setPickedMembers((prev) => prev.filter((m) => m.id !== userId))}
+                />
+                <p className="text-caption2 text-[var(--apple-secondary-label)]">
+                  참여자는 이 프로젝트의 계획을 보고 고칠 수 있습니다. 나중에 추가·제거할 수도 있습니다.
+                </p>
               </div>
               <div className="flex justify-end gap-2">
                 {projects.length > 0 && (
@@ -278,6 +304,100 @@ export function ProjectDialog({ open, onOpenChange, onSaved }: ProjectDialogProp
 
 // ---------------------------------------------------------------------------
 
+/**
+ * 참여자 칩 줄 + "참여자 추가" 검색 팝오버. 만들기 폼(고른 사람을 바로 뺄 수 있음)과
+ * 기존 프로젝트 행(제거는 확인 뒤)에서 같이 쓴다.
+ */
+function MemberChips({
+  members,
+  users,
+  removable,
+  disabled,
+  removeDisabled,
+  removeTitle,
+  onOpenPicker,
+  onAdd,
+  onRemove,
+}: {
+  members: UserOption[];
+  users: UserOption[] | null;
+  /** true 면 X 를 누르는 즉시 뺀다(아직 저장 전인 만들기 폼). */
+  removable: boolean;
+  disabled?: boolean;
+  /** X 만 따로 막을 때(마지막 참여자). 추가 팝오버는 그대로 열린다. */
+  removeDisabled?: boolean;
+  removeTitle?: string;
+  onOpenPicker: () => void;
+  onAdd: (user: UserOption) => void;
+  onRemove: (userId: string) => void;
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const memberIds = new Set(members.map((m) => m.id));
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {members.map((member) => (
+        <span
+          key={member.id}
+          className="inline-flex min-h-11 items-center gap-1 rounded-full bg-[var(--apple-tertiary-system-fill)] py-1 pr-1 pl-3 text-caption1 text-[var(--apple-label)]"
+        >
+          {member.name}
+          {removable && (
+            <button
+              type="button"
+              onClick={() => onRemove(member.id)}
+              disabled={disabled || removeDisabled}
+              aria-label={`${member.name} 참여자 제거`}
+              title={removeTitle}
+              className="flex size-9 items-center justify-center rounded-full text-[var(--apple-secondary-label)] transition-colors hover:bg-[var(--apple-red)]/15 hover:text-[var(--apple-red)] disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--apple-secondary-label)]"
+            >
+              <X className="size-3.5" aria-hidden="true" />
+            </button>
+          )}
+        </span>
+      ))}
+      <Popover
+        open={pickerOpen}
+        onOpenChange={(next) => {
+          setPickerOpen(next);
+          if (next) onOpenPicker();
+        }}
+      >
+        <PopoverTrigger
+          disabled={disabled}
+          className="inline-flex min-h-11 items-center gap-1 rounded-full border border-dashed border-[var(--apple-separator)] px-3 py-1 text-caption1 text-[var(--apple-blue)] transition-colors hover:bg-[var(--apple-blue)]/10 disabled:opacity-50"
+        >
+          <UserPlus className="size-3" aria-hidden="true" />
+          참여자 추가
+        </PopoverTrigger>
+        <PopoverContent className="w-[240px] p-0" align="start">
+          <Command>
+            <CommandInput placeholder="직원 검색..." />
+            <CommandList>
+              <CommandEmpty>{users ? "검색 결과가 없습니다." : "불러오는 중..."}</CommandEmpty>
+              <CommandGroup>
+                {(users ?? []).map((user) => (
+                  <CommandItem
+                    key={user.id}
+                    value={user.name}
+                    onSelect={() => {
+                      setPickerOpen(false);
+                      if (!memberIds.has(user.id)) onAdd(user);
+                    }}
+                  >
+                    <Check className={memberIds.has(user.id) ? "size-4 opacity-100" : "size-4 opacity-0"} />
+                    <span className="truncate">{user.name}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
 function ProjectRow({
   project,
   users,
@@ -293,14 +413,12 @@ function ProjectRow({
   onAdd: (userId: string) => void;
   onRemove: (userId: string) => void;
 }) {
-  const [pickerOpen, setPickerOpen] = useState(false);
   /**
    * 제거를 물어보는 중인 참여자. 참여자 행이 유일한 권한 근거라, 실수로 한 번 스친 X 하나가
    * 그 사람 화면에서 이 프로젝트의 계획을 전부 404 로 만든다. 확인을 한 단계 둔다.
-   * 다이얼로그 안이라 또 다른 Dialog 를 겹치지 않고 칩 줄에서 바로 묻는다.
+   * 다이얼로그 안이라 또 다른 Dialog 를 겹치지 않고 칩 줄 아래에서 바로 묻는다.
    */
   const [confirmId, setConfirmId] = useState<string | null>(null);
-  const memberIds = new Set(project.members.map((m) => m.id));
   const lastOne = project.members.length <= 1;
   const confirming = project.members.find((m) => m.id === confirmId) ?? null;
 
@@ -320,25 +438,18 @@ function ProjectRow({
         </p>
       )}
 
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        {project.members.map((member) => (
-          <span
-            key={member.id}
-            className="inline-flex min-h-11 items-center gap-1 rounded-full bg-[var(--apple-tertiary-system-fill)] py-1 pr-1 pl-3 text-caption1 text-[var(--apple-label)]"
-          >
-            {member.name}
-            <button
-              type="button"
-              onClick={() => setConfirmId(member.id)}
-              disabled={busy || lastOne}
-              aria-label={`${member.name} 참여자 제거`}
-              title={lastOne ? "마지막 참여자는 제거할 수 없습니다" : "참여자 제거"}
-              className="flex size-9 items-center justify-center rounded-full text-[var(--apple-secondary-label)] transition-colors hover:bg-[var(--apple-red)]/15 hover:text-[var(--apple-red)] disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--apple-secondary-label)]"
-            >
-              <X className="size-3.5" aria-hidden="true" />
-            </button>
-          </span>
-        ))}
+      <div className="mt-2 flex flex-col gap-2">
+        <MemberChips
+          members={project.members}
+          users={users}
+          removable
+          disabled={busy}
+          removeDisabled={lastOne}
+          removeTitle={lastOne ? "마지막 참여자는 제거할 수 없습니다" : "참여자 제거"}
+          onOpenPicker={onOpenPicker}
+          onAdd={(user) => onAdd(user.id)}
+          onRemove={(userId) => setConfirmId(userId)}
+        />
 
         {confirming && (
           <div className="flex w-full flex-wrap items-center gap-2 rounded-xl bg-[var(--apple-red)]/10 px-3 py-2">
@@ -370,47 +481,6 @@ function ProjectRow({
             </Button>
           </div>
         )}
-
-        <Popover
-          open={pickerOpen}
-          onOpenChange={(next) => {
-            setPickerOpen(next);
-            if (next) onOpenPicker();
-          }}
-        >
-          <PopoverTrigger
-            disabled={busy}
-            className="inline-flex min-h-11 items-center gap-1 rounded-full border border-dashed border-[var(--apple-separator)] px-3 py-1 text-caption1 text-[var(--apple-blue)] transition-colors hover:bg-[var(--apple-blue)]/10 disabled:opacity-50"
-          >
-            <UserPlus className="size-3" aria-hidden="true" />
-            참여자 추가
-          </PopoverTrigger>
-          <PopoverContent className="w-[240px] p-0" align="start">
-            <Command>
-              <CommandInput placeholder="직원 검색..." />
-              <CommandList>
-                <CommandEmpty>{users ? "검색 결과가 없습니다." : "불러오는 중..."}</CommandEmpty>
-                <CommandGroup>
-                  {(users ?? []).map((user) => (
-                    <CommandItem
-                      key={user.id}
-                      value={user.name}
-                      onSelect={() => {
-                        setPickerOpen(false);
-                        if (!memberIds.has(user.id)) onAdd(user.id);
-                      }}
-                    >
-                      <Check
-                        className={memberIds.has(user.id) ? "size-4 opacity-100" : "size-4 opacity-0"}
-                      />
-                      <span className="truncate">{user.name}</span>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
       </div>
     </div>
   );
