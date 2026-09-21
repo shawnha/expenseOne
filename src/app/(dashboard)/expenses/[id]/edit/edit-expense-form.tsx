@@ -40,6 +40,8 @@ import {
 import { FileUpload, FileUploadWithDocType } from "@/components/forms/file-upload";
 import { CompanySelector } from "@/components/forms/company-selector";
 import { CategorySelectField } from "@/components/forms/category-select-field";
+import { ConvertToCardDialog } from "@/components/expenses/convert-to-card-dialog";
+import { canShowConvertButton } from "@/lib/expense-convert";
 import {
   corporateCardFormSchema,
   depositRequestFormSchema,
@@ -81,6 +83,8 @@ interface EditExpenseFormProps {
   myCategories?: string[];
   /** 보는 사람이 ADMIN인가. 서버 잠금은 ADMIN에게 걸리지 않으므로 화면도 맞춘다. */
   viewerIsAdmin?: boolean;
+  /** 보는 사람(=제출자) 프로필의 카드 끝 4자리. 없으면 법카 변경 다이얼로그가 미리 경고한다. */
+  viewerCardLastFour?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -93,6 +97,7 @@ export function EditExpenseForm({
   initialCompanies,
   myCategories = [],
   viewerIsAdmin = false,
+  viewerCardLastFour = null,
 }: EditExpenseFormProps) {
   if (expense.type === "CORPORATE_CARD") {
     return (
@@ -112,6 +117,7 @@ export function EditExpenseForm({
       initialCompanies={initialCompanies}
       myCategories={myCategories}
       viewerIsAdmin={viewerIsAdmin}
+      viewerCardLastFour={viewerCardLastFour}
     />
   );
 }
@@ -624,6 +630,7 @@ function DepositRequestEditForm({
   initialCompanies,
   myCategories = [],
   viewerIsAdmin = false,
+  viewerCardLastFour = null,
 }: EditExpenseFormProps) {
   const router = useRouter();
   // 승인된 요청 모드 — 영수증 보충·제목/카테고리/긴급/납입 기일/설명만 고친다.
@@ -1168,6 +1175,10 @@ function DepositRequestEditForm({
         </div>
 
         <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          {/* 법카로 결제한 건이면 승인 없이 바로 법카 사용으로 — 제출 상태에서만(서버가 최종 판단) */}
+          {canShowConvertButton(expense) && (
+            <ConvertToCardDialog expenseId={expense.id} transactionDate={expense.transactionDate} viewerCardLastFour={viewerCardLastFour} disabled={isSubmitting} />
+          )}
           <Link href={`/expenses/${expense.id}`} className="w-full sm:w-auto">
             <Button type="button" variant="outline" className="w-full rounded-full h-11 glass border-[var(--apple-separator)]">취소</Button>
           </Link>

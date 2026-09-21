@@ -56,6 +56,9 @@ export interface ExpenseEditData {
   hasFreelancerWithholding: boolean;
   /** 사입 여부. 승인 후엔 잠금 필드라 요약 카드에만 보여준다. */
   isPurchase: boolean;
+  /** 후지급 플래그. 법카 사용으로 변경 버튼을 숨기는 조건(서버 규칙과 동일). */
+  remainingPaymentRequested: boolean;
+  remainingPaymentApproved: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -152,6 +155,8 @@ async function getExpenseForEdit(id: string): Promise<{
       companyId: expense.company_id ?? null,
       hasFreelancerWithholding: expense.has_freelancer_withholding ?? false,
       isPurchase: expense.is_purchase ?? false,
+      remainingPaymentRequested: expense.remaining_payment_requested ?? false,
+      remainingPaymentApproved: expense.remaining_payment_approved ?? false,
     },
     attachments: (attachmentRows ?? []).map(
       (a: {
@@ -193,10 +198,16 @@ export default async function EditExpensePage({ params }: EditExpensePageProps) 
   // 수정 화면도 본인 화면이다 — getAuthUser는 캐시되므로 위 권한 확인과
   // 같은 요청을 다시 때리지 않는다.
   const authUser = await getAuthUser();
-  const [companies, myCategories, viewer] = await Promise.all([
+  // 카드 끝 4자리는 캐시 프로필(getCachedCurrentUser)에 없다. 설정 화면과 같은 방식으로
+  // 본인 행만 읽는다 — 법카 변경 전에 "카드 내역이 안 합쳐진다"를 미리 알리기 위해서다.
+  const supabase = await getCachedClient();
+  const [companies, myCategories, viewer, viewerCard] = await Promise.all([
     getActiveCompanies(),
     authUser ? getMyCustomCategories(authUser.id) : Promise.resolve<string[]>([]),
     getCachedCurrentUser(),
+    authUser
+      ? supabase.from("users").select("card_last_four").eq("id", authUser.id).maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
   const initialCompanies: CompanyOption[] = companies.map((c) => ({
     id: c.id,
@@ -212,6 +223,7 @@ export default async function EditExpensePage({ params }: EditExpensePageProps) 
       initialCompanies={initialCompanies}
       myCategories={myCategories}
       viewerIsAdmin={viewer?.role === "ADMIN"}
+      viewerCardLastFour={(viewerCard.data?.card_last_four ?? null) as string | null}
     />
   );
 }

@@ -234,6 +234,29 @@ export const updateExpenseSchema = z.object({
 export type UpdateExpenseInput = z.infer<typeof updateExpenseSchema>;
 
 // ---------------------------------------------------------------------------
+// 4-1. 입금요청 → 법카 사용 변경 (POST /api/expenses/[id]/convert-to-card)
+//
+// 수정 스키마와 섞지 않는다 — 변경은 유형·상태를 한 번에 바꾸는 별도 동작이라
+// updateExpense의 잠금·재게시 규칙과 무관하게 서비스가 따로 처리한다.
+// 나머지 값(제목·금액·카테고리·회사·설명)은 그대로 두므로 받지 않는다.
+// ---------------------------------------------------------------------------
+
+export const convertToCardSchema = z.object({
+  /** 카드 결제일. 카드 내역 자동 병합(±2일)의 기준이라 필수다. */
+  transactionDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "거래일 형식은 YYYY-MM-DD여야 합니다"),
+  merchantName: z
+    .string()
+    .trim()
+    .max(200, "가맹점명은 200자 이내로 입력해주세요")
+    .optional()
+    .nullable(),
+});
+
+export type ConvertToCardInput = z.infer<typeof convertToCardSchema>;
+
+// ---------------------------------------------------------------------------
 // 5. Reject schema
 // ---------------------------------------------------------------------------
 

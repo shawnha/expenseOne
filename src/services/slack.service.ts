@@ -743,6 +743,61 @@ export async function updateSlackExpenseMessage(params: {
 }
 
 /**
+ * 입금요청 → 법카 사용 변경. 수정 재게시(updateSlackExpenseMessage)와 같은 방식으로
+ * 기존 입금요청 메시지(primary + mirror)를 지우고 법카 형식으로 다시 올린다.
+ *
+ * 따로 두는 이유: 채널에서 "승인 대기 건이 하나 줄었다"는 게 보여야 한다.
+ * "법카사용이 수정되었습니다"로 올리면 원래 법카였던 것처럼 읽힌다.
+ */
+export async function notifySlackDepositConvertedToCard(params: {
+  slackMessageTs: string | null;
+  slackChannelId: string | null;
+  mirrorSlackMessageTs: string | null;
+  mirrorSlackChannelId: string | null;
+  submitterEmail: string;
+  submitterName: string;
+  title: string;
+  amount: number;
+  category: string;
+  expenseUrl: string;
+  companyId?: string | null;
+  currency?: string | null;
+  amountOriginal?: number | null;
+  merchantName?: string | null;
+  description?: string | null;
+}): Promise<SlackPostResult> {
+  // 1. 입금요청으로 올라간 메시지 제거 — 저장된 좌표 기준(회사가 바뀌었어도 정확히 지운다)
+  await deletePostedMessages(params);
+
+  // 2. 법카 사용 형식으로 재게시. 승인 대기가 아니라는 점을 첫 줄에 못 박는다.
+  const companyName = await getCompanyName(params.companyId);
+
+  return sendToTargets({
+    companyId: params.companyId,
+    submitterEmail: params.submitterEmail,
+    submitterName: params.submitterName,
+    buildText: (mention) => {
+      const lines = [
+        `💳 ${mention} 입금요청 → 법카 사용으로 변경 (승인 불필요)`,
+      ];
+      if (companyName) lines.push(`• 회사: ${companyName}`);
+      lines.push(
+        `• 제목: ${params.title}`,
+        `• 금액: ${formatExpenseAmount(params.amount, params.currency, params.amountOriginal)}`,
+        `• 카테고리: ${getCategoryLabel(params.category)}`,
+        `• 가맹점명: ${params.merchantName ?? "-"}`,
+      );
+      if (params.description?.trim()) {
+        const memo = params.description.trim();
+        lines.push(`• 설명: ${memo.length > 500 ? memo.slice(0, 500) + "..." : memo}`);
+      }
+      lines.push(`<${params.expenseUrl}|상세 보기>`);
+      return lines.join("\n");
+    },
+  });
+}
+
+/**
  * 비용 취소/삭제 시 Slack 메시지 삭제 (primary + mirror 양쪽).
  */
 export async function deleteSlackExpenseMessage(params: {
