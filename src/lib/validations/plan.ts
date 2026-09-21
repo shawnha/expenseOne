@@ -53,6 +53,8 @@ export const createProjectSchema = z.object({
   companyId: uuidField("회사"),
   name: z.string().trim().min(1, "프로젝트 이름을 입력해주세요").max(100, "프로젝트 이름은 100자 이내로 입력해주세요"),
   description: nullableText(2000, "설명"),
+  /** 만들 때 같이 넣을 참여자. 만든 사람은 항상 포함되므로 여기 없어도 된다(중복은 무시). */
+  memberIds: z.array(uuidField("사용자")).max(50, "참여자는 한 번에 50명까지 추가할 수 있습니다").default([]),
 });
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
 

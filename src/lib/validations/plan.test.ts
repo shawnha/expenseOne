@@ -99,6 +99,15 @@ describe("createProjectSchema / createBrandSchema", () => {
     assert.equal(createProjectSchema.safeParse({ companyId: "korea", name: "a" }).success, false);
     assert.equal(createBrandSchema.parse({ companyId: C, name: "ODD", categoryCode: "" }).categoryCode, null);
   });
+
+  it("memberIds 는 없으면 빈 배열, uuid 만, 최대 50명", () => {
+    assert.deepEqual(createProjectSchema.parse({ companyId: C, name: "a" }).memberIds, []);
+    const two = ["11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"];
+    assert.deepEqual(createProjectSchema.parse({ companyId: C, name: "a", memberIds: two }).memberIds, two);
+    assert.equal(createProjectSchema.safeParse({ companyId: C, name: "a", memberIds: ["nope"] }).success, false);
+    const many = Array.from({ length: 51 }, (_, i) => `${String(i).padStart(8, "0")}-0000-4000-8000-000000000000`);
+    assert.equal(createProjectSchema.safeParse({ companyId: C, name: "a", memberIds: many }).success, false);
+  });
 });
 
 describe("boardQuerySchema — 문자열 쿼리에서", () => {

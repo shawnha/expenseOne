@@ -1,4 +1,4 @@
-import { eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { withPlanTx, type PlanTx } from "@/lib/db/plans-client";
 import {
   costPlans,
@@ -299,6 +299,33 @@ export async function createProject(actor: PlanActorInput, input: CreateProjectI
       actorId: actor.id,
       after: { userId: actor.id, source: "creator" },
     });
+
+    // 만들 때 고른 참여자 — 같은 트랜잭션에서 넣는다. 만든 사람·중복은 걸러내고,
+    // 비활성·없는 사용자는 통째로 거부한다(반쯤 만들어진 프로젝트를 남기지 않는다).
+    const extraIds = Array.from(new Set(input.memberIds)).filter((id) => id !== actor.id);
+    if (extraIds.length > 0) {
+      const found = await tx
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.isActive, true), inArray(users.id, extraIds)));
+      if (found.length !== extraIds.length) {
+        throw new PlanError("VALIDATION_ERROR", "참여자 목록에 찾을 수 없는 직원이 있습니다.");
+      }
+      await tx.insert(planProjectMembers).values(
+        extraIds.map((userId) => ({ projectId, userId, addedById: actor.id })),
+      );
+      for (const userId of extraIds) {
+        await logChange(tx, {
+          companyId: input.companyId,
+          projectId,
+          entityType: "member",
+          entityId: userId,
+          action: "ADD",
+          actorId: actor.id,
+          after: { userId, source: "create" },
+        });
+      }
+    }
 
     // 방금 넣은 참여자 행이 같은 트랜잭션에서 보이므로 대표가 아니어도 자기 사업이 잡힌다.
     const access: PlanAccess = { userId: actor.id, role: actor.role, isExecutive: false };
