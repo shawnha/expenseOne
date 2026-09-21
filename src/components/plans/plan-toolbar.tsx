@@ -28,6 +28,11 @@ import { ProjectDialog } from "./project-dialog";
 const ALL = "__all__";
 /** 분류 미지정(공통)만 보기. 서버 쿼리의 brandId=none 과 같은 값. */
 const BRAND_NONE = "none";
+/** Select 값 접두어 — 이름 기반 분류 선택. 값 자체는 URL 의 brandName 이 된다. */
+const BRAND_NAME_PREFIX = "name:";
+
+/** 이름을 유일 인덱스와 같은 규칙(lower·btrim)으로 정규화한다. */
+const normalizeName = (name: string) => name.trim().toLowerCase();
 
 interface PlanToolbarProps {
   board: BoardResult;
@@ -45,6 +50,7 @@ export function PlanToolbar({ board, currentMonth }: PlanToolbarProps) {
   const companyId = searchParams.get("companyId") ?? "";
   const projectId = searchParams.get("projectId") ?? "";
   const brandId = searchParams.get("brandId") ?? "";
+  const brandName = searchParams.get("brandName") ?? "";
   const showCancelled = searchParams.get("status") === "ALL";
 
   const setParams = useCallback(
@@ -70,15 +76,44 @@ export function PlanToolbar({ board, currentMonth }: PlanToolbarProps) {
     ? board.brands.filter((b) => b.companyId === companyId)
     : board.brands;
 
+  // 분류는 **이름으로** 고른다. 법인 '전체' 에서는 기본 5개가 법인마다 하나씩 있어 id 로 나열하면 같은
+  // 이름이 법인 수만큼 반복된다(QA D2-05). 이름으로 묶어 하나씩 보여 주고 URL 에는 brandName 을 싣는다.
+  const brandOptions = (() => {
+    const seen = new Set<string>();
+    const out: Array<{ key: string; label: string }> = [];
+    for (const b of brandsInScope) {
+      const key = normalizeName(b.name);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ key, label: b.name });
+    }
+    return out;
+  })();
+
   // 주소로 받은 필터 값이 목록에 없을 수 있다(남이 공유한 링크, 남의 프로젝트, 비활성 분류).
   // 그때 '전체'라고 적으면 필터가 안 걸린 것처럼 보이는데 서버는 여전히 그 값으로 걸러 낸다 —
   // 보드가 통째로 비어 보이고 빠져나갈 길도 없다. 값 자체를 드러내고 해제 칩을 띄운다.
   const projectName = projectsInScope.find((p) => p.id === projectId)?.name;
-  const brandName = brandsInScope.find((b) => b.id === brandId)?.name;
   const unknownProject = Boolean(projectId) && projectName === undefined;
-  const unknownBrand = Boolean(brandId) && brandId !== BRAND_NONE && brandName === undefined;
+  // brandId=<uuid> 는 옛 링크 호환 — 이름을 찾아 같은 이름 옵션으로 보여 준다.
+  const legacyBrandName = brandId && brandId !== BRAND_NONE ? brandsInScope.find((b) => b.id === brandId)?.name : undefined;
+  const selectedBrandOption =
+    brandName ? brandOptions.find((o) => o.key === normalizeName(brandName)) : undefined;
+  const unknownBrand =
+    (Boolean(brandName) && selectedBrandOption === undefined) ||
+    (Boolean(brandId) && brandId !== BRAND_NONE && legacyBrandName === undefined);
+  const brandSelectValue =
+    brandId === BRAND_NONE
+      ? BRAND_NONE
+      : selectedBrandOption
+        ? `${BRAND_NAME_PREFIX}${selectedBrandOption.key}`
+        : legacyBrandName
+          ? `${BRAND_NAME_PREFIX}${normalizeName(legacyBrandName)}`
+          : ALL;
   const brandLabel =
-    brandId === BRAND_NONE ? "공통" : (brandName ?? (unknownBrand ? "선택한 분류" : "전체 분류"));
+    brandId === BRAND_NONE
+      ? "공통"
+      : (selectedBrandOption?.label ?? legacyBrandName ?? (unknownBrand ? "선택한 분류" : "전체 분류"));
 
   return (
     <div className={cn("glass p-3 sm:p-4", isPending && "opacity-60 transition-opacity")}>
@@ -138,7 +173,7 @@ export function PlanToolbar({ board, currentMonth }: PlanToolbarProps) {
             value={companyId}
             onChange={(key) =>
               // 프로젝트·분류는 법인에 매여 있다. 법인을 바꾸면 같이 풀어 준다.
-              setParams({ companyId: key || null, projectId: null, brandId: null })
+              setParams({ companyId: key || null, projectId: null, brandId: null, brandName: null })
             }
             ariaLabel="법인 필터"
           />
@@ -174,8 +209,16 @@ export function PlanToolbar({ board, currentMonth }: PlanToolbarProps) {
         </div>
 
         <Select
-          value={brandId || ALL}
-          onValueChange={(v) => setParams({ brandId: !v || v === ALL ? null : String(v) })}
+          value={brandSelectValue}
+          onValueChange={(v) => {
+            const value = v ? String(v) : ALL;
+            if (value === ALL) setParams({ brandId: null, brandName: null });
+            else if (value === BRAND_NONE) setParams({ brandId: BRAND_NONE, brandName: null });
+            else {
+              const option = brandOptions.find((o) => `${BRAND_NAME_PREFIX}${o.key}` === value);
+              setParams({ brandId: null, brandName: option?.label ?? null });
+            }
+          }}
         >
           <SelectTrigger
             className="max-w-[46vw] data-[size=default]:h-11 sm:max-w-56"
@@ -188,9 +231,9 @@ export function PlanToolbar({ board, currentMonth }: PlanToolbarProps) {
           <SelectContent>
             <SelectItem value={ALL}>전체 분류</SelectItem>
             <SelectItem value={BRAND_NONE}>공통</SelectItem>
-            {brandsInScope.map((b) => (
-              <SelectItem key={b.id} value={b.id}>
-                {b.name}
+            {brandOptions.map((o) => (
+              <SelectItem key={o.key} value={`${BRAND_NAME_PREFIX}${o.key}`}>
+                {o.label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -215,7 +258,7 @@ export function PlanToolbar({ board, currentMonth }: PlanToolbarProps) {
             variant="ghost"
             size="sm"
             className="min-h-11 rounded-full text-[var(--apple-blue)]"
-            onClick={() => setParams({ projectId: null, brandId: null })}
+            onClick={() => setParams({ projectId: null, brandId: null, brandName: null })}
           >
             필터 해제
           </Button>

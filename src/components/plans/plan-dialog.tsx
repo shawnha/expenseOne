@@ -170,8 +170,15 @@ export function PlanDialog({
 
   // 상태를 따로 맞추지 않고 **읽는 자리에서 정한다** — 상태를 고치는 effect 를 하나 더 두면
   // 열릴 때마다 렌더가 한 번 더 돌고, 사용자가 고른 값을 덮어쓸 위험이 생긴다.
+  // 프로젝트만 받았을 때(헤더의 '계획 추가' + projectId 필터)는 그 프로젝트의 법인을 역추적한다(QA D2-04).
+  const defaultProjectCompanyId = useMemo(
+    () => (defaultProjectId ? (options?.projects.find((p) => p.id === defaultProjectId)?.companyId ?? "") : ""),
+    [options, defaultProjectId],
+  );
+
   const activeCompanyId =
     companyId ||
+    defaultProjectCompanyId ||
     (options?.companies.length === 1 ? options.companies[0].id : "") ||
     soleProjectCompanyId;
 
@@ -277,11 +284,17 @@ export function PlanDialog({
           if (res.code === "CONFLICT") router.refresh();
           return;
         }
+        // 서버는 바뀐 칸이 없으면 version 을 올리지 않는다(no-op). "수정했습니다" 라고 하지 않는다(QA D2-09).
+        if (plan && "version" in res.data && res.data.version === plan.version) {
+          toast.info("바뀐 내용이 없습니다.");
+          onOpenChange(false);
+          return;
+        }
         finish(plan ? "계획을 수정했습니다." : "계획을 추가했습니다.");
       }),
     [
       withLock, activeCompanyId, projectId, title, amount, date, precision, brandId, vendorName,
-      description, plan, router, finish,
+      description, plan, router, finish, onOpenChange,
     ],
   );
 

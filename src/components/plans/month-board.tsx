@@ -303,6 +303,7 @@ function MonthColumn({
   showCompany,
   showProject,
   dropProjectId,
+  compactWhenEmpty = false,
 }: {
   month: BoardMonth;
   index: number;
@@ -311,6 +312,11 @@ function MonthColumn({
   showProject: boolean;
   /** 서랍 안에서는 같은 프로젝트의 카드만 받는다. 없으면(서랍 밖) 아무 카드나. */
   dropProjectId?: string;
+  /**
+   * 모바일(sm 미만)에서 빈 달을 한 줄("10월 · 계획 없음")로 접는다(QA D2-08) — 서랍마다 빈 칸 4개가
+   * 세로로 쌓이면 프로젝트 5개에 8화면이 넘는다. 모바일엔 드래그가 없으니 드롭 대상도 필요 없다.
+   */
+  compactWhenEmpty?: boolean;
 }) {
   const board = usePlanBoardStrict();
   const dragging = board.dragging;
@@ -367,63 +373,76 @@ function MonthColumn({
   );
 
   const highlight = accepts && over;
+  const compact = compactWhenEmpty && month.items.length === 0;
 
   return (
-    <section
-      aria-label={monthLabel(month.month)}
-      className={cn(
-        "flex flex-col gap-2.5 rounded-[22px] transition-[box-shadow,background-color] duration-150 animate-fade-up",
-        accepts && "ring-2 ring-[var(--apple-blue)]/25",
-        highlight && "bg-[var(--apple-blue)]/8 ring-[var(--apple-blue)]",
-      )}
-      style={{ animationDelay: `${index * 50}ms` }}
-      onDragEnter={onDragEnter}
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
-      onDrop={onDrop}
-    >
-      {/* 달 머리 — 합계는 예정 건만 센다(취소·마감 제외) */}
-      <header className="glass-subtle flex items-baseline justify-between gap-2 px-4 py-3">
-        <div className="flex items-baseline gap-1.5">
-          <h2 className="text-headline text-[var(--apple-label)]">{monthLabel(month.month)}</h2>
-          {month.month === currentMonth && <span className="glass-badge glass-badge-blue">이번 달</span>}
-        </div>
-        <div className="text-right">
-          <p className="text-[15px] font-semibold tabular-nums text-[var(--apple-label)]">
-            {formatKRW(month.total)}
-          </p>
-          <p className="text-caption2 text-[var(--apple-secondary-label)] tabular-nums">{month.count}건</p>
-        </div>
-      </header>
-
-      {month.items.length === 0 ? (
-        <p
-          className={cn(
-            "rounded-2xl border border-dashed border-[var(--apple-separator)] px-4 py-6 text-center text-footnote text-[var(--apple-secondary-label)]",
-            highlight && "border-[var(--apple-blue)] text-[var(--apple-blue)]",
-          )}
-        >
-          {accepts ? "여기에 놓으면 이 달로 옮깁니다" : "계획이 없습니다"}
+    <>
+      {compact && (
+        <p className="flex min-h-11 items-center justify-between gap-2 rounded-2xl border border-dashed border-[var(--apple-separator)] px-4 text-footnote text-[var(--apple-secondary-label)] sm:hidden">
+          <span className="inline-flex items-center gap-1.5">
+            {monthLabel(month.month)}
+            {month.month === currentMonth && <span className="glass-badge glass-badge-blue">이번 달</span>}
+          </span>
+          <span>계획 없음</span>
         </p>
-      ) : (
-        <div className="flex flex-col gap-2.5">
-          {month.items.map((card) => (
-            <PlanCardItem key={card.id} card={card} showCompany={showCompany} showProject={showProject} />
-          ))}
-          {accepts && (
-            <p
-              className={cn(
-                "rounded-2xl border border-dashed border-[var(--apple-separator)] px-4 py-3 text-center text-caption1 text-[var(--apple-secondary-label)]",
-                highlight && "border-[var(--apple-blue)] text-[var(--apple-blue)]",
-              )}
-              aria-hidden="true"
-            >
-              여기에 놓으면 이 달로 옮깁니다
-            </p>
-          )}
-        </div>
       )}
-    </section>
+      <section
+        aria-label={monthLabel(month.month)}
+        className={cn(
+          "flex flex-col gap-2.5 rounded-[22px] transition-[box-shadow,background-color] duration-150 animate-fade-up",
+          compact && "max-sm:hidden",
+          accepts && "ring-2 ring-[var(--apple-blue)]/25",
+          highlight && "bg-[var(--apple-blue)]/8 ring-[var(--apple-blue)]",
+        )}
+        style={{ animationDelay: `${index * 50}ms` }}
+        onDragEnter={onDragEnter}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+      >
+        {/* 달 머리 — 합계는 예정 건만 센다(취소·마감 제외) */}
+        <header className="glass-subtle flex items-baseline justify-between gap-2 px-4 py-3">
+          <div className="flex items-baseline gap-1.5">
+            <h2 className="text-headline text-[var(--apple-label)]">{monthLabel(month.month)}</h2>
+            {month.month === currentMonth && <span className="glass-badge glass-badge-blue">이번 달</span>}
+          </div>
+          <div className="text-right">
+            <p className="text-[15px] font-semibold tabular-nums text-[var(--apple-label)]">
+              {formatKRW(month.total)}
+            </p>
+            <p className="text-caption2 text-[var(--apple-secondary-label)] tabular-nums">{month.count}건</p>
+          </div>
+        </header>
+
+        {month.items.length === 0 ? (
+          <p
+            className={cn(
+              "rounded-2xl border border-dashed border-[var(--apple-separator)] px-4 py-6 text-center text-footnote text-[var(--apple-secondary-label)]",
+              highlight && "border-[var(--apple-blue)] text-[var(--apple-blue)]",
+            )}
+          >
+            {accepts ? "여기에 놓으면 이 달로 옮깁니다" : "계획이 없습니다"}
+          </p>
+        ) : (
+          <div className="flex flex-col gap-2.5">
+            {month.items.map((card) => (
+              <PlanCardItem key={card.id} card={card} showCompany={showCompany} showProject={showProject} />
+            ))}
+            {accepts && (
+              <p
+                className={cn(
+                  "rounded-2xl border border-dashed border-[var(--apple-separator)] px-4 py-3 text-center text-caption1 text-[var(--apple-secondary-label)]",
+                  highlight && "border-[var(--apple-blue)] text-[var(--apple-blue)]",
+                )}
+                aria-hidden="true"
+              >
+                여기에 놓으면 이 달로 옮깁니다
+              </p>
+            )}
+          </div>
+        )}
+      </section>
+    </>
   );
 }
 
@@ -548,6 +567,7 @@ function ProjectDrawer({
                 showCompany={false}
                 showProject={false}
                 dropProjectId={project.id}
+                compactWhenEmpty
               />
             ))}
           </div>

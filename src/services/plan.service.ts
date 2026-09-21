@@ -612,6 +612,8 @@ interface CardFilters {
   companyId?: string;
   projectId?: string;
   brandId?: string;
+  /** 분류 이름으로(법인 무관). lower(btrim()) 으로 비교 — 유일 인덱스와 같은 식. */
+  brandName?: string;
   status: "PLANNED" | "ALL";
 }
 
@@ -629,6 +631,9 @@ async function loadPlanCards(tx: PlanTx, access: PlanAccess, f: CardFilters): Pr
       : f.brandId === "none"
         ? sql` AND p.brand_id IS NULL`
         : sql` AND p.brand_id = ${f.brandId}::uuid`;
+  const brandNameFilter = f.brandName
+    ? sql` AND lower(btrim(b.name)) = lower(btrim(${f.brandName}))`
+    : sql``;
 
   const rows = rowsOf<{
     id: string;
@@ -685,7 +690,7 @@ async function loadPlanCards(tx: PlanTx, access: PlanAccess, f: CardFilters): Pr
         ) n ON true
        WHERE p.deleted_at IS NULL
          AND p.planned_date >= ${f.fromDate}::date AND p.planned_date < ${f.toDate}::date
-         AND ${projectScopeSql(access, sql`p.project_id`)}${statusFilter}${companyFilter}${projectFilter}${brandFilter}
+         AND ${projectScopeSql(access, sql`p.project_id`)}${statusFilter}${companyFilter}${projectFilter}${brandFilter}${brandNameFilter}
        ORDER BY p.planned_date, p.created_at`),
   );
 
@@ -758,6 +763,7 @@ export async function getBoard(actor: PlanActorInput, query: BoardQueryInput): P
       companyId: query.companyId,
       projectId: query.projectId,
       brandId: query.brandId,
+      brandName: query.brandName,
       status: query.status,
     });
     const projects = await loadProjectsInScope(tx, access, query.companyId);
@@ -795,6 +801,7 @@ export async function listPlanItems(actor: PlanActorInput, query: BoardQueryInpu
       companyId: query.companyId,
       projectId: query.projectId,
       brandId: query.brandId,
+      brandName: query.brandName,
       status: query.status,
     });
     return { items };

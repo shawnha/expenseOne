@@ -144,13 +144,18 @@ export const cancelPlanSchema = z.object({
 });
 export type CancelPlanInput = z.infer<typeof cancelPlanSchema>;
 
-/** 보드·목록 조회. from 이 없으면 서버가 KST 현재 달을 쓴다. brandId="none" 은 공통·미지정만. */
+/**
+ * 보드·목록 조회. from 이 없으면 서버가 KST 현재 달을 쓴다. brandId="none" 은 공통·미지정만.
+ * brandName 은 **이름으로** 거른다(대소문자·양끝 공백 무시) — 법인 '전체' 에서는 같은 이름의 분류가
+ * 법인마다 하나씩 있어 id 하나로는 고를 수 없다(QA D2-05). 둘 다 오면 둘 다 건다.
+ */
 export const boardQuerySchema = z.object({
   from: monthField.optional(),
   months: z.coerce.number().int().min(1).max(12).optional().default(4),
   companyId: uuidField("회사").optional(),
   projectId: uuidField("프로젝트").optional(),
   brandId: z.union([uuidField("분류"), z.literal("none")]).optional(),
+  brandName: z.string().trim().min(1, "분류 이름이 비었습니다").max(100, "분류 이름은 100자 이내입니다").optional(),
   /** PLANNED(기본) = 취소·마감 제외, ALL = 전부 */
   status: z.enum(["PLANNED", "ALL"]).optional().default("PLANNED"),
 });

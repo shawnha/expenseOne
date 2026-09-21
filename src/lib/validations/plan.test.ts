@@ -194,3 +194,17 @@ describe("issuesMessage — 영문 기본 문구는 한국어로 (QA D-13)", () 
     if (!r.success) assert.equal(issuesMessage(r.error), "거래처는 200자 이내로 입력해주세요");
   });
 });
+
+describe("boardQuerySchema — brandName (이름 기반 분류 필터, QA D2-05)", () => {
+  it("공백을 다듬고, 빈 값·101자는 거부한다", () => {
+    assert.equal(boardQuerySchema.parse({ brandName: " 마케팅 " }).brandName, "마케팅");
+    assert.equal(boardQuerySchema.parse({}).brandName, undefined);
+    assert.equal(boardQuerySchema.safeParse({ brandName: "   " }).success, false);
+    assert.equal(boardQuerySchema.safeParse({ brandName: "x".repeat(101) }).success, false);
+  });
+  it("brandId=none 과 함께 올 수 있다(둘 다 건다)", () => {
+    const parsed = boardQuerySchema.parse({ brandId: "none", brandName: "마케팅" });
+    assert.equal(parsed.brandId, "none");
+    assert.equal(parsed.brandName, "마케팅");
+  });
+});

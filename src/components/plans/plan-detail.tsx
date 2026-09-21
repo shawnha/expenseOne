@@ -502,14 +502,16 @@ function LinkSuggestions({ planId }: { planId: string }) {
             className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-xl bg-[var(--apple-system-background)] px-3 py-2.5"
           >
             <div className="min-w-0 flex-1 basis-40">
-              <p className="text-footnote font-medium text-[var(--apple-label)] truncate">
-                <Link href={`/expenses/${s.id}`} className="hover:underline">
-                  {s.title}
+              {/* 제목 링크는 44px(QA D2-07). */}
+              <p className="text-footnote font-medium text-[var(--apple-label)]">
+                <Link href={`/expenses/${s.id}`} className="flex min-h-11 items-center rounded-lg hover:underline">
+                  <span className="truncate">{s.title}</span>
                 </Link>
               </p>
-              <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-caption2 tabular-nums text-[var(--apple-secondary-label)]">
+              <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-caption2 tabular-nums text-[var(--apple-secondary-label)]">
                 <span className="glass-badge glass-badge-gray">{EXPENSE_STATUS_LABEL[s.status] ?? s.status}</span>
-                <span>제출 {formatStamp(s.createdAt).slice(0, 10)}</span>
+                {/* 상태 배지 "제출" 바로 뒤라 "제출 날짜" 는 "제출 제출 …" 로 읽힌다(QA D2-06). */}
+                <span>제출일 {formatStamp(s.createdAt).slice(0, 10)}</span>
                 {s.submitterName && <span>· {s.submitterName}</span>}
                 <span>· {suggestionHint(s)}</span>
               </p>

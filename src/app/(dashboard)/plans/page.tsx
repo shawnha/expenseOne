@@ -24,7 +24,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "비용계획" };
 
 /** 보드가 읽는 쿼리 값만 추린다. 배열로 들어온 중복 파라미터는 버린다. */
-const QUERY_KEYS = ["from", "companyId", "projectId", "brandId", "status"] as const;
+const QUERY_KEYS = ["from", "companyId", "projectId", "brandId", "brandName", "status"] as const;
 
 interface PlansPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
