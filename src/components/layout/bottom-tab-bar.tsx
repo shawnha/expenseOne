@@ -20,10 +20,9 @@ import {
   ShoppingBag,
   FileText,
   Repeat,
-  CalendarRange,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { PlansNavGate } from "@/components/plans/plans-nav-gate";
+import { PlansNavGate, PlansNavIcon } from "@/components/plans/plans-nav-gate";
 import { useRealtimeNotifications } from "@/hooks/use-realtime-notifications";
 
 interface BottomTabBarProps {
@@ -52,7 +51,7 @@ interface TabItem {
 const PLANS_QUICK_ACTION: QuickAction = {
   label: "비용계획",
   href: "/plans",
-  icon: CalendarRange,
+  icon: PlansNavIcon,
   gated: true,
 };
 

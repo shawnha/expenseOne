@@ -19,11 +19,10 @@ import {
   Landmark,
   FileText,
   Repeat,
-  CalendarRange,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ExpenseOneLogo } from "@/components/layout/expense-one-logo";
-import { PlansNavGate } from "@/components/plans/plans-nav-gate";
+import { PlansNavGate, PlansNavIcon } from "@/components/plans/plans-nav-gate";
 import type { User } from "@/types";
 
 interface NavItem {
@@ -41,7 +40,7 @@ const mainNavItems: NavItem[] = [
   {
     label: "비용계획",
     href: "/plans",
-    icon: <CalendarRange className="size-[18px] [stroke-width:1.8]" />,
+    icon: <PlansNavIcon className="size-[18px]" />,
     gated: true,
   },
 ];

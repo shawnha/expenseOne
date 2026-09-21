@@ -58,3 +58,32 @@ export function PlansNavGate({ children }: { children: ReactNode }) {
 
   return enabled ? <>{children}</> : null;
 }
+
+/**
+ * 비용계획 메뉴 아이콘.
+ *
+ * lucide 아이콘을 하나 더 import 하면 사이드바·탭 바가 있는 **모든 화면**의 묶음이 449B 커진다
+ * (측정: measure-bundle.mjs, 홈·비용관리·입금요청 폼 각 +1357B → 예산 1024B 초과). 메뉴 글리프
+ * 하나 때문에 계획과 무관한 화면이 값을 치를 이유가 없어 여기서 직접 그린다.
+ * 모양은 달력 + 기간 줄 — 다른 메뉴 아이콘과 겹치지 않는다.
+ */
+export function PlansNavIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <rect x="3" y="4" width="18" height="17" rx="2" />
+      <path d="M3 10h18" />
+      <path d="M8 2v4" />
+      <path d="M16 2v4" />
+      <path d="M8 15h8" />
+    </svg>
+  );
+}
