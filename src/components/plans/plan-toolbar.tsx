@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useTransition } from "react";
+import { useCallback, useState, useTransition, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,14 +15,18 @@ import {
 import { CompanyPillGroup } from "@/components/companies/company-pill-group";
 import type { BoardResult } from "@/services/plan.service";
 import { monthLabel, shiftMonth } from "./plan-client";
+import { ProjectDialog } from "./project-dialog";
 
 // ---------------------------------------------------------------------------
 // 달 이동 + 필터. 상태는 전부 URL 에 둔다 — 뒤로 가기가 통하고, 링크를 그대로 건네줄 수 있고,
-// 보드 본문은 서버 컴포넌트로 남는다.
+// 보드가 서버에서 받은 데이터를 그대로 쓴다.
+//
+// 프로젝트가 최상위다(v1.1): 프로젝트는 드롭다운이 아니라 **칩 줄**로 늘어놓고, 줄 끝의 '＋ 프로젝트'가
+// 프로젝트 다이얼로그를 연다. 분류(plan_brands)는 그 아래 단계라 드롭다운으로 둔다.
 // ---------------------------------------------------------------------------
 
 const ALL = "__all__";
-/** 브랜드 미지정(공통)만 보기. 서버 쿼리의 brandId=none 과 같은 값. */
+/** 분류 미지정(공통)만 보기. 서버 쿼리의 brandId=none 과 같은 값. */
 const BRAND_NONE = "none";
 
 interface PlanToolbarProps {
@@ -36,6 +40,7 @@ export function PlanToolbar({ board, currentMonth }: PlanToolbarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  const [projectDialogOpen, setProjectDialogOpen] = useState(false);
 
   const companyId = searchParams.get("companyId") ?? "";
   const projectId = searchParams.get("projectId") ?? "";
@@ -56,23 +61,21 @@ export function PlanToolbar({ board, currentMonth }: PlanToolbarProps) {
   );
 
   const lastMonth = shiftMonth(board.from, board.monthCount - 1);
-  const projectsInScope = companyId
-    ? board.projects.filter((p) => p.companyId === companyId)
-    : board.projects;
+  // 보드의 projects 는 서버가 이미 법인 필터로 걸러 준다. 분류는 법인 필터가 없을 때 전 법인 것이 온다.
+  const projectsInScope = board.projects;
   const brandsInScope = companyId
     ? board.brands.filter((b) => b.companyId === companyId)
     : board.brands;
 
-  // 주소로 받은 필터 값이 목록에 없을 수 있다(남이 공유한 링크, 남의 프로젝트, 비활성 브랜드).
+  // 주소로 받은 필터 값이 목록에 없을 수 있다(남이 공유한 링크, 남의 프로젝트, 비활성 분류).
   // 그때 '전체'라고 적으면 필터가 안 걸린 것처럼 보이는데 서버는 여전히 그 값으로 걸러 낸다 —
   // 보드가 통째로 비어 보이고 빠져나갈 길도 없다. 값 자체를 드러내고 해제 칩을 띄운다.
   const projectName = projectsInScope.find((p) => p.id === projectId)?.name;
   const brandName = brandsInScope.find((b) => b.id === brandId)?.name;
   const unknownProject = Boolean(projectId) && projectName === undefined;
   const unknownBrand = Boolean(brandId) && brandId !== BRAND_NONE && brandName === undefined;
-  const projectLabel = projectName ?? (unknownProject ? "선택한 프로젝트" : "전체 프로젝트");
   const brandLabel =
-    brandId === BRAND_NONE ? "공통" : (brandName ?? (unknownBrand ? "선택한 브랜드" : "전체 브랜드"));
+    brandId === BRAND_NONE ? "공통" : (brandName ?? (unknownBrand ? "선택한 분류" : "전체 분류"));
 
   return (
     <div className={cn("glass p-3 sm:p-4", isPending && "opacity-60 transition-opacity")}>
@@ -131,34 +134,45 @@ export function PlanToolbar({ board, currentMonth }: PlanToolbarProps) {
             ]}
             value={companyId}
             onChange={(key) =>
-              // 프로젝트·브랜드는 법인에 매여 있다. 법인을 바꾸면 같이 풀어 준다.
+              // 프로젝트·분류는 법인에 매여 있다. 법인을 바꾸면 같이 풀어 준다.
               setParams({ companyId: key || null, projectId: null, brandId: null })
             }
             ariaLabel="법인 필터"
           />
         )}
 
-        <Select
-          value={projectId || ALL}
-          onValueChange={(v) => setParams({ projectId: !v || v === ALL ? null : String(v) })}
+        {/* 프로젝트 칩 — 넘치면 이 줄 안에서만 가로 스크롤(페이지는 밀리지 않는다) */}
+        <div
+          className="flex max-w-full min-w-0 items-center gap-1.5 overflow-x-auto py-1 -my-1"
+          role="radiogroup"
+          aria-label="프로젝트 필터"
         >
-          <SelectTrigger
-            className="max-w-[46vw] sm:max-w-56"
-            // aria-label 은 트리거 안의 내용을 통째로 덮어쓴다. 선택값을 라벨에 함께 넣어야
-            // 스크린 리더가 지금 걸린 필터를 읽을 수 있다(company-pill-group.tsx 와 같은 이유).
-            aria-label={`프로젝트 필터: ${projectLabel}`}
+          <ProjectChip selected={!projectId} onClick={() => setParams({ projectId: null })}>
+            전체
+          </ProjectChip>
+          {projectsInScope.map((p) => (
+            <ProjectChip
+              key={p.id}
+              selected={projectId === p.id}
+              onClick={() => setParams({ projectId: p.id })}
+            >
+              {p.name}
+            </ProjectChip>
+          ))}
+          {unknownProject && (
+            <ProjectChip selected onClick={() => setParams({ projectId: null })}>
+              선택한 프로젝트
+            </ProjectChip>
+          )}
+          <button
+            type="button"
+            onClick={() => setProjectDialogOpen(true)}
+            className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-full border border-dashed border-[var(--apple-separator)] px-3 text-[0.8rem] font-medium text-[var(--apple-blue)] transition-colors hover:bg-[var(--apple-blue)]/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--apple-blue)]"
           >
-            <SelectValue>{projectLabel}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>전체 프로젝트</SelectItem>
-            {projectsInScope.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+            <Plus className="size-3.5" aria-hidden="true" />
+            프로젝트
+          </button>
+        </div>
 
         <Select
           value={brandId || ALL}
@@ -166,12 +180,14 @@ export function PlanToolbar({ board, currentMonth }: PlanToolbarProps) {
         >
           <SelectTrigger
             className="max-w-[46vw] sm:max-w-56"
-            aria-label={`브랜드 필터: ${brandLabel}`}
+            // aria-label 은 트리거 안의 내용을 통째로 덮어쓴다. 선택값을 라벨에 함께 넣어야
+            // 스크린 리더가 지금 걸린 필터를 읽을 수 있다(company-pill-group.tsx 와 같은 이유).
+            aria-label={`분류 필터: ${brandLabel}`}
           >
             <SelectValue>{brandLabel}</SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL}>전체 브랜드</SelectItem>
+            <SelectItem value={ALL}>전체 분류</SelectItem>
             <SelectItem value={BRAND_NONE}>공통</SelectItem>
             {brandsInScope.map((b) => (
               <SelectItem key={b.id} value={b.id}>
@@ -206,6 +222,33 @@ export function PlanToolbar({ board, currentMonth }: PlanToolbarProps) {
           </Button>
         )}
       </div>
+
+      {projectDialogOpen && <ProjectDialog open onOpenChange={setProjectDialogOpen} />}
     </div>
+  );
+}
+
+/** 프로젝트 필터 칩. '취소 포함' 토글과 같은 모양(44px 필). */
+function ProjectChip({
+  selected,
+  onClick,
+  children,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <Button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      variant={selected ? "default" : "outline"}
+      size="sm"
+      className="min-h-11 shrink-0 rounded-full max-w-[60vw] sm:max-w-56"
+      onClick={onClick}
+    >
+      <span className="truncate">{children}</span>
+    </Button>
   );
 }

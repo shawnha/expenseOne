@@ -8,7 +8,6 @@ import { getBoard } from "@/services/plan.service";
 import { MonthBoard } from "@/components/plans/month-board";
 import { PlanToolbar } from "@/components/plans/plan-toolbar";
 import { PlanCreateButton } from "@/components/plans/plan-dialog";
-import { ProjectOpenButton } from "@/components/plans/project-dialog";
 
 // ---------------------------------------------------------------------------
 // /plans — 월별 비용계획 보드.
@@ -58,10 +57,8 @@ export default async function PlansPage({ searchParams }: PlansPageProps) {
             앞으로 나갈 돈을 달별로 세워 두고, 실제 입금요청과 맞춰 봅니다.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <ProjectOpenButton />
-          <PlanCreateButton defaultCompanyId={query.companyId} />
-        </div>
+        {/* 프로젝트 만들기·참여자는 툴바의 '＋ 프로젝트' 칩이 연다(프로젝트가 최상위, v1.1). */}
+        <PlanCreateButton defaultCompanyId={query.companyId} defaultProjectId={query.projectId} />
       </header>
 
       <PlanToolbar board={board} currentMonth={currentMonth} />
@@ -70,6 +67,7 @@ export default async function PlansPage({ searchParams }: PlansPageProps) {
         board={board}
         showCompany={!query.companyId}
         companyId={query.companyId}
+        projectId={query.projectId}
         currentMonth={currentMonth}
       />
     </div>

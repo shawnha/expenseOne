@@ -34,12 +34,15 @@ import { fromISODate, jsonBody, planFetch, toISODate } from "./plan-client";
 
 // ---------------------------------------------------------------------------
 // 계획 추가·수정 다이얼로그. 취소(=status CANCELLED)도 여기서 한다 — 계획을 지우는 길은 없다.
+// 카드 메뉴의 '삭제'도 이 취소 흐름이다(initialMode="cancel" 로 확인 화면부터 연다).
 //
-// 선택지(법인·프로젝트·브랜드)는 **열릴 때 직접 받아 온다.** 보드가 가진 목록은 화면 필터가
-// 걸린 범위라서, 다이얼로그에서 다른 법인을 고르는 순간 그 법인의 프로젝트·브랜드가 비어 보인다.
+// 선택지(법인·프로젝트·분류)는 **열릴 때 직접 받아 온다.** 보드가 가진 목록은 화면 필터가
+// 걸린 범위라서, 다이얼로그에서 다른 법인을 고르는 순간 그 법인의 프로젝트·분류가 비어 보인다.
+//
+// "분류" = plan_brands. 표·API 이름은 brand 그대로 두고 화면 말만 바꿨다(제품 개발·마케팅 같은 하위 카테고리).
 // ---------------------------------------------------------------------------
 
-/** 브랜드 미지정(공통). Select 는 빈 문자열을 값으로 쓸 수 없어 따로 표식을 둔다. */
+/** 분류 미지정(공통). Select 는 빈 문자열을 값으로 쓸 수 없어 따로 표식을 둔다. */
 const BRAND_NONE = "__none__";
 
 export interface PlanEditTarget {
@@ -49,7 +52,7 @@ export interface PlanEditTarget {
   companyName: string;
   projectId: string;
   brandId: string | null;
-  /** 저장된 브랜드 이름. 비활성 브랜드는 목록에 없으므로 이 값으로 표시한다. */
+  /** 저장된 분류 이름. 비활성 분류는 목록에 없으므로 이 값으로 표시한다. */
   brandName: string | null;
   title: string;
   amount: number;
@@ -67,6 +70,10 @@ interface PlanDialogProps {
   plan?: PlanEditTarget | null;
   /** 추가 모드에서 처음 고를 법인. 보드 필터가 걸려 있으면 그 법인. */
   defaultCompanyId?: string;
+  /** 추가 모드에서 처음 고를 프로젝트(서랍의 '계획 추가'). defaultCompanyId 와 같은 법인이어야 한다. */
+  defaultProjectId?: string;
+  /** 수정 모드에서 취소 확인 화면부터 열기(카드 메뉴의 '삭제'). */
+  initialMode?: "edit" | "cancel";
   /** 저장·취소 뒤. 기본은 화면 새로고침. */
   onSaved?: () => void;
 }
@@ -88,6 +95,8 @@ export function PlanDialog({
   onOpenChange,
   plan = null,
   defaultCompanyId,
+  defaultProjectId,
+  initialMode = "edit",
   onSaved,
 }: PlanDialogProps) {
   const router = useRouter();
@@ -100,7 +109,7 @@ export function PlanDialog({
   // 열 때마다 새 인스턴스다 — 지난 입력을 지우는 effect 가 필요 없고, 남은 값으로 엉뚱한 계획을
   // 저장하는 사고도 구조적으로 막힌다.
   const [companyId, setCompanyId] = useState(plan?.companyId ?? defaultCompanyId ?? "");
-  const [projectId, setProjectId] = useState(plan?.projectId ?? "");
+  const [projectId, setProjectId] = useState(plan?.projectId ?? defaultProjectId ?? "");
   const [brandId, setBrandId] = useState<string>(plan?.brandId ?? BRAND_NONE);
   const [title, setTitle] = useState(plan?.title ?? "");
   const [amountText, setAmountText] = useState(plan ? plan.amount.toLocaleString("ko-KR") : "");
@@ -114,10 +123,10 @@ export function PlanDialog({
 
   const [newBrand, setNewBrand] = useState<string | null>(null);
   const [addingBrand, setAddingBrand] = useState(false);
-  const [cancelMode, setCancelMode] = useState(false);
+  const [cancelMode, setCancelMode] = useState(plan !== null && initialMode === "cancel");
   const [cancelReason, setCancelReason] = useState("");
 
-  // 선택지(법인·프로젝트·브랜드)는 마운트될 때 한 번.
+  // 선택지(법인·프로젝트·분류)는 마운트될 때 한 번.
   useEffect(() => {
     let alive = true;
     void Promise.all([
@@ -147,7 +156,7 @@ export function PlanDialog({
   /**
    * 참여 중인 프로젝트가 모두 한 법인이면 그 법인이 기본값이다. 첫 출시 대상은 KRW 3법인이라
    * "법인이 하나뿐"인 경우는 없고, 법인 필터는 대표에게만 보여 defaultCompanyId 도 대개 비어 있다 —
-   * 그대로 두면 일반 참여자는 **늘 미선택으로 열려** 프로젝트·브랜드 칸이 비활성으로 죽어 보인다.
+   * 그대로 두면 일반 참여자는 **늘 미선택으로 열려** 프로젝트·분류 칸이 비활성으로 죽어 보인다.
    */
   const soleProjectCompanyId = useMemo(() => {
     const ids = new Set((options?.projects ?? []).map((p) => p.companyId));
@@ -172,7 +181,7 @@ export function PlanDialog({
 
   const handleCompanyChange = useCallback((next: string) => {
     setCompanyId(next);
-    // 프로젝트·브랜드는 법인에 매인다. 남겨 두면 법인이 어긋난 채로 저장 버튼이 눌린다.
+    // 프로젝트·분류는 법인에 매인다. 남겨 두면 법인이 어긋난 채로 저장 버튼이 눌린다.
     setProjectId("");
     setBrandId(BRAND_NONE);
     setNewBrand(null);
@@ -181,8 +190,8 @@ export function PlanDialog({
   const amount = Number(amountText.replace(/[^\d]/g, "") || "0");
 
   /**
-   * 브랜드 트리거 라벨. 목록에서 못 찾았는데 brandId 가 남아 있으면 **'공통'이라고 적으면 안 된다** —
-   * 화면은 비워졌다고 말하고 저장은 그 브랜드를 그대로 유지해 상세와 어긋난다(비활성 브랜드).
+   * 분류 트리거 라벨. 목록에서 못 찾았는데 brandId 가 남아 있으면 **'공통'이라고 적으면 안 된다** —
+   * 화면은 비워졌다고 말하고 저장은 그 분류를 그대로 유지해 상세와 어긋난다(비활성 분류).
    */
   const projectLabel = projectsInCompany.find((p) => p.id === projectId)?.name;
 
@@ -207,7 +216,7 @@ export function PlanDialog({
     setOptions((prev) => (prev ? { ...prev, brands: [...prev.brands, brand] } : prev));
     setBrandId(brand.id);
     setNewBrand(null);
-    toast.success(`브랜드 '${brand.name}'을(를) 추가했습니다.`);
+    toast.success(`분류 '${brand.name}'을(를) 추가했습니다.`);
   }, [newBrand, activeCompanyId]);
 
   const finish = useCallback(
@@ -299,8 +308,9 @@ export function PlanDialog({
 
         {cancelMode ? (
           <div className="space-y-3">
-            <p className="text-footnote text-[var(--apple-secondary-label)]">
-              취소한 계획은 합계에서 빠지지만 기록은 남습니다. 되돌리려면 새 계획을 만들어야 합니다.
+            <p className="text-footnote text-[var(--apple-secondary-label)] break-keep">
+              취소한 계획은 보드와 합계에서 빠지지만 지워지지는 않습니다. 필터의 &lsquo;취소 포함&rsquo;을 켜면
+              다시 볼 수 있고, 사유와 이력도 그대로 남습니다. 되살리려면 새 계획을 만들어야 합니다.
             </p>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="plan-cancel-reason" className="text-footnote text-[var(--apple-secondary-label)]">
@@ -365,13 +375,13 @@ export function PlanDialog({
               )}
             </div>
 
-            {/* 브랜드 */}
+            {/* 분류 */}
             <div className="flex flex-col gap-1.5">
               <Label className="text-footnote text-[var(--apple-secondary-label)]">
-                브랜드 <span className="font-normal">(선택)</span>
+                분류 <span className="font-normal">(선택)</span>
               </Label>
               <Select value={brandId} onValueChange={(v) => v && setBrandId(String(v))} disabled={!activeCompanyId}>
-                <SelectTrigger className="w-full" aria-label={`브랜드 선택: ${brandLabel}`}>
+                <SelectTrigger className="w-full" aria-label={`분류 선택: ${brandLabel}`}>
                   <SelectValue placeholder="공통">{brandLabel}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -384,7 +394,7 @@ export function PlanDialog({
                 </SelectContent>
               </Select>
 
-              {/* 인라인 브랜드 추가 — 대표만 */}
+              {/* 인라인 분류 추가 — 대표만 */}
               {options?.isExecutive && activeCompanyId && (
                 newBrand === null ? (
                   <button
@@ -393,7 +403,7 @@ export function PlanDialog({
                     className="self-start inline-flex min-h-11 items-center gap-1 rounded-full px-3 text-caption1 text-[var(--apple-blue)] hover:bg-[var(--apple-blue)]/10 transition-colors"
                   >
                     <Plus className="size-3" aria-hidden="true" />
-                    브랜드 추가
+                    새 분류
                   </button>
                 ) : (
                   <div className="flex items-center gap-2">
@@ -401,8 +411,8 @@ export function PlanDialog({
                       value={newBrand}
                       onChange={(e) => setNewBrand(e.target.value)}
                       maxLength={100}
-                      placeholder="새 브랜드 이름"
-                      aria-label="새 브랜드 이름"
+                      placeholder="새 분류 이름 (예: 제품 개발, 마케팅)"
+                      aria-label="새 분류 이름"
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
@@ -598,21 +608,36 @@ export function PlanDialog({
 export function PlanCreateButton({
   label = "계획 추가",
   defaultCompanyId,
+  defaultProjectId,
   variant = "default",
+  size = "lg",
 }: {
   label?: string;
   defaultCompanyId?: string;
+  defaultProjectId?: string;
   variant?: "default" | "outline";
+  size?: "lg" | "sm";
 }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button type="button" size="lg" variant={variant} onClick={() => setOpen(true)}>
+      <Button
+        type="button"
+        size={size}
+        variant={variant}
+        className={size === "sm" ? "min-h-11" : undefined}
+        onClick={() => setOpen(true)}
+      >
         <Plus className="size-4" aria-hidden="true" />
         {label}
       </Button>
       {open && (
-        <PlanDialog open onOpenChange={setOpen} defaultCompanyId={defaultCompanyId} />
+        <PlanDialog
+          open
+          onOpenChange={setOpen}
+          defaultCompanyId={defaultCompanyId}
+          defaultProjectId={defaultProjectId}
+        />
       )}
     </>
   );
