@@ -124,6 +124,8 @@ export function PlanDialog({
   const [newBrand, setNewBrand] = useState<string | null>(null);
   const [addingBrand, setAddingBrand] = useState(false);
   const [cancelMode, setCancelMode] = useState(plan !== null && initialMode === "cancel");
+  /** 카드 메뉴의 '삭제'로 들어왔으면 그 말을 그대로 쓴다 — 실제로 하는 일(취소 상태)은 같다. */
+  const deleteWording = initialMode === "cancel";
   const [cancelReason, setCancelReason] = useState("");
 
   // 선택지(법인·프로젝트·분류)는 마운트될 때 한 번.
@@ -285,8 +287,8 @@ export function PlanDialog({
       if (res.code === "CONFLICT") router.refresh();
       return;
     }
-    finish("계획을 취소했습니다.");
-  }, [plan, cancelReason, router, finish]);
+    finish(deleteWording ? "계획을 삭제했습니다(취소 상태로 보관)." : "계획을 취소했습니다.");
+  }, [plan, cancelReason, router, finish, deleteWording]);
 
   const dateLabel = !date
     ? "날짜 선택"
@@ -302,15 +304,16 @@ export function PlanDialog({
       >
         <DialogHeader>
           <DialogTitle className="text-headline text-[var(--apple-label)]">
-            {cancelMode ? "계획 취소" : plan ? "계획 수정" : "계획 추가"}
+            {cancelMode ? (deleteWording ? "계획 삭제" : "계획 취소") : plan ? "계획 수정" : "계획 추가"}
           </DialogTitle>
         </DialogHeader>
 
         {cancelMode ? (
           <div className="space-y-3">
             <p className="text-footnote text-[var(--apple-secondary-label)] break-keep">
-              취소한 계획은 보드와 합계에서 빠지지만 지워지지는 않습니다. 필터의 &lsquo;취소 포함&rsquo;을 켜면
-              다시 볼 수 있고, 사유와 이력도 그대로 남습니다. 되살리려면 새 계획을 만들어야 합니다.
+              {deleteWording ? "삭제한" : "취소한"} 계획은 보드와 합계에서 빠지지만 완전히 지워지지는 않습니다(상태:
+              취소됨). 필터의 &lsquo;취소 포함&rsquo;을 켜면 다시 볼 수 있고, 사유와 이력도 그대로 남습니다.
+              되살리려면 새 계획을 만들어야 합니다.
             </p>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="plan-cancel-reason" className="text-footnote text-[var(--apple-secondary-label)]">
@@ -592,7 +595,7 @@ export function PlanDialog({
               onClick={() => void (cancelMode ? handleCancelPlan() : handleSubmit())}
               disabled={saving || (!cancelMode && (loadingOptions || !options))}
             >
-              {saving ? "저장 중..." : cancelMode ? "계획 취소하기" : plan ? "저장" : "추가"}
+              {saving ? "저장 중..." : cancelMode ? (deleteWording ? "삭제하기" : "계획 취소하기") : plan ? "저장" : "추가"}
             </Button>
           </div>
         </DialogFooter>
