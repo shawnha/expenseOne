@@ -13,6 +13,7 @@ import { users } from "@/lib/db/schema";
 import { PlanError, mapDbError } from "@/lib/plans/errors";
 import { num, rowsOf } from "@/lib/plans/rows";
 import { containsPattern } from "@/lib/plans/search";
+import { dispatchPlanPush, type PlanPushEvent, type PlanPushKind } from "@/lib/plans/notify";
 import {
   canEditComment,
   canLinkAllCompanyRequests,
@@ -61,6 +62,8 @@ import type {
 export interface PlanActorInput {
   id: string;
   role: "MEMBER" | "ADMIN";
+  /** 푸시 문구에 쓴다("○○ 님이 …"). 없으면 "동료". requirePlanActor 는 항상 채운다. */
+  name?: string;
 }
 
 const actorAccess = (actor: PlanActorInput) => ({ userId: actor.id, role: actor.role });
@@ -258,7 +261,8 @@ export async function listProjects(actor: PlanActorInput, companyId?: string): P
  * 이 행이 유일한 권한 근거라서 빠지면 만든 사람도 자기 사업을 못 본다(SCHEMA.md 3절).
  */
 export async function createProject(actor: PlanActorInput, input: CreateProjectInput): Promise<ProjectSummary> {
-  return withPlanTx(async (tx) => {
+  const push: { ev: PlanPushEvent | null } = { ev: null };
+  const result = await withPlanTx(async (tx) => {
     await assertPlannableCompany(tx, input.companyId);
     let projectId: string;
     try {
@@ -331,8 +335,13 @@ export async function createProject(actor: PlanActorInput, input: CreateProjectI
     const access: PlanAccess = { userId: actor.id, role: actor.role, isExecutive: false };
     const summary = (await loadProjectsInScope(tx, access, input.companyId)).find((p) => p.id === projectId);
     if (!summary) throw new PlanError("INTERNAL_ERROR", "프로젝트를 만들지 못했습니다.");
+    if (extraIds.length > 0) {
+      push.ev = await pushEventFor(tx, "member_added", actor, projectId, undefined, extraIds);
+    }
     return summary;
   });
+  dispatchPlanPush(push.ev);
+  return result;
 }
 
 // --- 참여자 ----------------------------------------------------------------------
@@ -342,7 +351,8 @@ export async function addProjectMember(
   projectId: string,
   userId: string,
 ): Promise<UserOption[]> {
-  return withPlanTx(async (tx) => {
+  const push: { ev: PlanPushEvent | null } = { ev: null };
+  const result = await withPlanTx(async (tx) => {
     const access = await loadAccess(tx, actorAccess(actor));
     const project = await requireProjectAccess(tx, access, projectId);
 
@@ -370,8 +380,11 @@ export async function addProjectMember(
       actorId: actor.id,
       after: { userId },
     });
+    push.ev = await pushEventFor(tx, "member_added", actor, projectId, undefined, [userId]);
     return loadProjectMembers(tx, projectId);
   });
+  dispatchPlanPush(push.ev);
+  return result;
 }
 
 /** 마지막 참여자는 제거할 수 없다(409) — 아무도 들어갈 수 없는 사업이 생기는 것을 막는다(5절 4-1). */
@@ -425,6 +438,40 @@ async function loadProjectMembers(tx: PlanTx, projectId: string): Promise<UserOp
        WHERE m.project_id = ${projectId}::uuid ORDER BY u.name`),
   );
   return rows.map((r) => ({ id: r.id, name: r.name }));
+}
+
+
+// --- 푸시 알림 재료 ------------------------------------------------------------------
+// 커밋 뒤에 보낼 푸시의 재료를 트랜잭션 안에서 모아 둔다(참여자 목록은 커밋 시점 기준).
+// 보내는 일 자체는 dispatchPlanPush 가 트랜잭션 밖에서 한다 — 실패해도 저장에는 영향 없음.
+
+async function pushEventFor(
+  tx: PlanTx,
+  kind: PlanPushKind,
+  actor: PlanActorInput,
+  projectId: string,
+  plan?: { id: string; title: string },
+  candidateIds?: string[],
+): Promise<PlanPushEvent> {
+  const project = rowsOf<{ name: string }>(
+    await tx.execute(sql`SELECT j.name FROM expenseone.plan_projects j WHERE j.id = ${projectId}::uuid`),
+  )[0];
+  const members =
+    candidateIds ??
+    rowsOf<{ user_id: string }>(
+      await tx.execute(
+        sql`SELECT m.user_id FROM expenseone.plan_project_members m WHERE m.project_id = ${projectId}::uuid`,
+      ),
+    ).map((r) => r.user_id);
+  return {
+    kind,
+    actorId: actor.id,
+    actorName: actor.name ?? "동료",
+    projectName: project?.name ?? "비용계획",
+    planId: plan?.id,
+    planTitle: plan?.title,
+    candidateIds: members,
+  };
 }
 
 // --- 브랜드 ----------------------------------------------------------------------
@@ -764,7 +811,8 @@ async function loadPlanFields(tx: PlanTx, planId: string): Promise<PlanFieldRow>
 }
 
 export async function createPlan(actor: PlanActorInput, input: CreatePlanInput): Promise<{ id: string }> {
-  return withPlanTx(async (tx) => {
+  const push: { ev: PlanPushEvent | null } = { ev: null };
+  const result = await withPlanTx(async (tx) => {
     const access = await loadAccess(tx, actorAccess(actor));
     const project = await requireProjectAccess(tx, access, input.projectId);
     if (project.companyId !== input.companyId) {
@@ -812,8 +860,11 @@ export async function createPlan(actor: PlanActorInput, input: CreatePlanInput):
         vendorName: input.vendorName,
       },
     });
+    push.ev = await pushEventFor(tx, "plan_created", actor, input.projectId, { id: created.id, title: input.title });
     return { id: created.id };
   });
+  dispatchPlanPush(push.ev);
+  return result;
 }
 
 /**
@@ -825,7 +876,8 @@ export async function updatePlan(
   planId: string,
   input: UpdatePlanInput,
 ): Promise<{ id: string; version: number }> {
-  return withPlanTx(async (tx) => {
+  const push: { ev: PlanPushEvent | null } = { ev: null };
+  const result = await withPlanTx(async (tx) => {
     const access = await loadAccess(tx, actorAccess(actor));
     await requirePlanAccess(tx, access, planId, { forUpdate: true });
     const current = await loadPlanFields(tx, planId);
@@ -903,8 +955,11 @@ export async function updatePlan(
       before,
       after: { ...after, version },
     });
+    push.ev = await pushEventFor(tx, "plan_updated", actor, current.projectId, { id: planId, title: input.title ?? current.title });
     return { id: planId, version };
   });
+  dispatchPlanPush(push.ev);
+  return result;
 }
 
 /** 취소: 하드 삭제는 없다. status 만 CANCELLED 로 바꾸고 사유를 이력에 남긴다. */
@@ -913,7 +968,8 @@ export async function cancelPlan(
   planId: string,
   input: CancelPlanInput,
 ): Promise<{ id: string; version: number }> {
-  return withPlanTx(async (tx) => {
+  const push: { ev: PlanPushEvent | null } = { ev: null };
+  const result = await withPlanTx(async (tx) => {
     const access = await loadAccess(tx, actorAccess(actor));
     await requirePlanAccess(tx, access, planId, { forUpdate: true });
     const current = await loadPlanFields(tx, planId);
@@ -936,8 +992,11 @@ export async function cancelPlan(
       after: { status: "CANCELLED", version },
       reason: input.reason,
     });
+    push.ev = await pushEventFor(tx, "plan_cancelled", actor, current.projectId, { id: planId, title: current.title });
     return { id: planId, version };
   });
+  dispatchPlanPush(push.ev);
+  return result;
 }
 
 /** 5절 2 의 UPDATE 한 문장. 바꿀 칸이 없어도 version·updated_* 는 올린다. 0행 = 그 사이 누가 고쳤다 → 409. */
@@ -1250,7 +1309,8 @@ export async function createComment(
   planId: string,
   input: CommentBodyInput,
 ): Promise<PlanCommentRow[]> {
-  return withPlanTx(async (tx) => {
+  const push: { ev: PlanPushEvent | null } = { ev: null };
+  const result = await withPlanTx(async (tx) => {
     const access = await loadAccess(tx, actorAccess(actor));
     const plan = await requirePlanAccess(tx, access, planId);
 
@@ -1269,8 +1329,14 @@ export async function createComment(
       actorId: actor.id,
       after: { length: input.body.length },
     });
+    {
+      const fields = await loadPlanFields(tx, planId);
+      push.ev = await pushEventFor(tx, "comment_added", actor, plan.projectId, { id: planId, title: fields.title });
+    }
     return loadComments(tx, planId, access.userId);
   });
+  dispatchPlanPush(push.ev);
+  return result;
 }
 
 /** 본인 메모만. 원문은 이력의 before_data 에 남는다(5절 6). */
@@ -1437,7 +1503,8 @@ export async function linkExpense(
   planId: string,
   expenseId: string,
 ): Promise<{ linkId: string }> {
-  return withPlanTx(async (tx) => {
+  const push: { ev: PlanPushEvent | null } = { ev: null };
+  const result = await withPlanTx(async (tx) => {
     const access = await loadAccess(tx, actorAccess(actor));
     const plan = await requirePlanAccess(tx, access, planId);
     if (plan.status !== "PLANNED") {
@@ -1481,8 +1548,14 @@ export async function linkExpense(
         snapshotTitle: created.snapshot_title,
       },
     });
+    {
+      const fields = await loadPlanFields(tx, planId);
+      push.ev = await pushEventFor(tx, "link_added", actor, plan.projectId, { id: planId, title: fields.title });
+    }
     return { linkId: created.id };
   });
+  dispatchPlanPush(push.ev);
+  return result;
 }
 
 /** 해제는 소프트(unlinked_at + unlinked_by_id). 스냅샷 행은 남는다. */
@@ -1491,7 +1564,8 @@ export async function unlinkExpense(
   planId: string,
   linkId: string,
 ): Promise<{ linkId: string }> {
-  return withPlanTx(async (tx) => {
+  const push: { ev: PlanPushEvent | null } = { ev: null };
+  const result = await withPlanTx(async (tx) => {
     const access = await loadAccess(tx, actorAccess(actor));
     const plan = await requirePlanAccess(tx, access, planId);
 
@@ -1514,6 +1588,12 @@ export async function unlinkExpense(
       actorId: actor.id,
       before: { expenseId: row.expense_id, snapshotAmount: num(row.snapshot_amount) },
     });
+    {
+      const fields = await loadPlanFields(tx, planId);
+      push.ev = await pushEventFor(tx, "link_removed", actor, plan.projectId, { id: planId, title: fields.title });
+    }
     return { linkId: row.id };
   });
+  dispatchPlanPush(push.ev);
+  return result;
 }
