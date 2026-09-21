@@ -39,7 +39,7 @@ describe("buildPlanPush — 문구·링크", () => {
   });
   it("모든 종류가 문구를 만든다", () => {
     const kinds: PlanPushEvent["kind"][] = [
-      "plan_created", "plan_updated", "plan_cancelled", "comment_added", "member_added", "link_added", "link_removed",
+      "plan_created", "plan_updated", "plan_cancelled", "comment_added", "member_added", "link_added", "link_removed", "project_deleted",
     ];
     for (const kind of kinds) {
       const m = buildPlanPush({ ...base, kind });
