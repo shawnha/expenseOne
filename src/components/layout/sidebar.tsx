@@ -22,18 +22,27 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ExpenseOneLogo } from "@/components/layout/expense-one-logo";
+import { PlansNavGate, PlansNavIcon } from "@/components/plans/plans-nav-gate";
 import type { User } from "@/types";
 
 interface NavItem {
   label: string;
   href: string;
   icon: React.ReactNode;
+  /** 비용계획 스위치가 켜진 사람에게만 보이는 항목(PlansNavGate). */
+  gated?: boolean;
 }
 
 const mainNavItems: NavItem[] = [
   { label: "홈", href: "/", icon: <Home className="size-[18px] [stroke-width:1.8]" /> },
   { label: "비용 관리", href: "/expenses", icon: <Receipt className="size-[18px] [stroke-width:1.8]" /> },
   { label: "반복 입금요청", href: "/expenses/recurring", icon: <Repeat className="size-[18px] [stroke-width:1.8]" /> },
+  {
+    label: "비용계획",
+    href: "/plans",
+    icon: <PlansNavIcon className="size-[18px]" />,
+    gated: true,
+  },
 ];
 
 const adminNavItems: NavItem[] = [
@@ -134,9 +143,11 @@ function RailContent({ user }: { user: User }) {
 
       {/* Navigation */}
       <nav className="flex flex-1 flex-col items-center gap-1.5 overflow-y-auto py-2 w-full px-2">
-        {mainNavItems.map((item) => (
-          <RailNavLink key={item.href} item={item} isActive={isActive(item.href)} />
-        ))}
+        {mainNavItems.map((item) => {
+          const link = <RailNavLink key={item.href} item={item} isActive={isActive(item.href)} />;
+          // 게이트는 렌더를 막을 뿐 계획 코드를 끌어오지 않는다 — 사이드바는 모든 화면에 있다.
+          return item.gated ? <PlansNavGate key={item.href}>{link}</PlansNavGate> : link;
+        })}
 
         {isAdmin && (
           <div className="mt-4 flex flex-col items-center gap-1.5 w-full">

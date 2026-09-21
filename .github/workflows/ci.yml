@@ -1,0 +1,106 @@
+# ExpenseOne CI — 타입·린트·단위 테스트·빌드를 PR 과 main push 에서 돌린다.
+# main 머지는 아침 창(07:00~08:30 KST)에 사람이 PR로 올린다.
+#
+# 목적: 타입 오류·린트 오류·단위 테스트 실패·빌드 실패가 main에 들어가 기존 앱 핫픽스까지
+#       막는 일을 없앤다 (integration-review-2026-09-18.md C6·P19).
+# 브랜치 보호의 "필수 체크" 이름 = 아래 job 이름 `verify`.
+#
+# 로컬 재현(2026-09-18 02시, 깨끗한 worktree @8327e4c, .env 파일 없음, Node 26/npm 11):
+#   npm ci 성공 · tsc --noEmit 0 오류 · lint 0 errors/7 warnings · test:unit 17 pass · build 성공.
+#   (CI는 Node 22/npm 10이라 설치 스크립트(esbuild·sharp 등)가 실제로 실행된다 — 로컬보다 엄격하지 않다.)
+#
+# 비밀 값은 하나도 쓰지 않는다. 운영 Supabase·Slack·푸시 키를 GitHub Secrets에 넣지 않는다.
+# 여기서 만든 빌드 결과물은 어디에도 배포되지 않는다(Vercel은 자기 빌드를 따로 한다).
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# 같은 브랜치에 새 커밋이 오면 이전 실행을 취소해 분 사용량을 아낀다.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# 코드 읽기만. 이 워크플로는 아무것도 쓰거나 배포하지 않는다.
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - name: 코드 가져오기
+        uses: actions/checkout@v4
+
+      - name: Node 설치
+        uses: actions/setup-node@v4
+        with:
+          # Vercel 프로젝트 Settings → Build and Deployment → Node.js Version 과 같은 메이저로 맞춘다.
+          # (Next 16.1.6 최소 요구 20.9. 값이 다르면 USER-ACTIONS.md 7번에서 확인 후 이 줄만 바꾼다.)
+          node-version: 22
+          cache: npm
+
+      - name: 의존성 설치 (lockfile 고정)
+        run: npm ci --no-audit --no-fund
+
+      - name: 타입 검사
+        # next-env.d.ts는 .gitignore 대상(.gitignore:47)이라 CI 체크아웃엔 없다.
+        # 로컬 재현에서 없는 상태로도 tsc 0 오류였다.
+        run: npx tsc --noEmit
+
+      - name: 린트
+        # package.json "lint": "eslint". 경고는 통과, error만 실패.
+        run: npm run lint
+
+      - name: 단위 테스트
+        # package.json "test:unit": tsx --test 로 순수 로직 테스트만 돈다(DB·네트워크 없음).
+        # tsx는 devDependencies에 없어 npx가 내려받는다(CI=true라 확인 질문 없이 진행).
+        run: npm run test:unit
+
+      - name: Vercel cron 표현식 하루 1회 검사
+        # Hobby 플랜은 하루 1회보다 잦은 cron이 있으면 배포 자체가 실패한다(검토 문서 C5).
+        # 분·시 칸이 모두 숫자 하나일 때만 통과시킨다. (현재 vercel.json: "0 0 * * *" 2개)
+        run: |
+          node -e '
+            const v = require("./vercel.json");
+            const crons = v.crons || [];
+            const bad = crons.filter((c) => {
+              const f = String(c.schedule).trim().split(/\s+/);
+              return f.length !== 5 || !/^\d+$/.test(f[0]) || !/^\d+$/.test(f[1]);
+            });
+            if (bad.length) { console.error("하루 1회가 아닌 cron:", JSON.stringify(bad)); process.exit(1); }
+            console.log("cron OK:", crons.map((c) => c.path + " " + c.schedule).join(", "));
+          '
+
+      - name: 빌드
+        # 로컬 재현에서 환경변수 0개로도 빌드는 성공했다. 아래 값은 "빌드가 운영 값에 기대지 않는다"를
+        # 고정하고, 빌드 중 어떤 코드가 실제로 접속을 시도해도 아무 데도 닿지 않게 하는 안전한 가짜 값이다.
+        env:
+          # src/lib/db/index.ts:19 — 모듈 최상단에서 읽는다. 비어 있으면 페이지 수집 단계마다
+          # "[DB] SUPABASE_DB_URL is not set or empty" 로그가 18번 찍힌다(로컬 재현).
+          # 접속은 지연 연결이라 빌드 중엔 열리지 않는다. 열리더라도 러너 자신의 닫힌 포트라 즉시 실패한다.
+          SUPABASE_DB_URL: postgres://ci:ci@127.0.0.1:5432/ci
+          # src/lib/supabase/{client,server,middleware}.ts — createBrowserClient/createServerClient 인자.
+          # NEXT_PUBLIC_* 는 빌드 시 번들에 문자열로 박힌다 → 절대 실제 값을 넣지 않는다.
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-dummy-anon-key
+          # src/app/(auth)/login/page.tsx:9 — 모듈 최상단에서 읽어 번들에 박힌다.
+          NEXT_PUBLIC_GOOGLE_CLIENT_ID: ci-dummy.apps.googleusercontent.com
+          # 서버 라우트들이 링크를 만들 때 읽는다(src/lib/api-utils.ts:71 등). 빌드엔 불필요, 기본값 고정용.
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+          # 일부러 넣지 않는 것:
+          # - VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY: src/services/push.service.ts:9-17 이 모듈 로드 시
+          #   webpush.setVapidDetails()를 부른다. 가짜 키를 넣으면 형식 검사에서 예외 → 이 모듈을
+          #   import하는 모든 라우트가 죽는다(4/5 사고와 같은 경로). 비워 두면 푸시만 꺼진다.
+          # - NEXT_PUBLIC_VAPID_PUBLIC_KEY: src/components/layout/push-prompt.tsx:7, 비면 알림 권유만 꺼짐.
+          # - SLACK_*, CRON_SECRET, SUPABASE_SERVICE_ROLE_KEY, GOWID_*, KOREAEXIM_API_KEY: 빌드와 무관, 비밀.
+        run: npm run build
