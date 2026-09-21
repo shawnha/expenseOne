@@ -67,11 +67,12 @@ export const projectsQuerySchema = z.object({
   companyId: uuidField("회사").optional(),
 });
 
-// --- 브랜드 ------------------------------------------------------------------
+// --- 분류(plan_brands) ----------------------------------------------------------
+// 표·API 이름은 brand 그대로, 화면 말은 "분류"(제품 개발·마케팅 같은 하위 카테고리, v1.1 오너 피드백).
 
 export const createBrandSchema = z.object({
   companyId: uuidField("회사"),
-  name: z.string().trim().min(1, "브랜드 이름을 입력해주세요").max(100, "브랜드 이름은 100자 이내로 입력해주세요"),
+  name: z.string().trim().min(1, "분류 이름을 입력해주세요").max(100, "분류 이름은 100자 이내로 입력해주세요"),
   categoryCode: nullableText(100, "카테고리 코드"),
 });
 export type CreateBrandInput = z.infer<typeof createBrandSchema>;
@@ -88,7 +89,7 @@ const planFields = {
   amount: amountField,
   plannedDate: isoDateField,
   datePrecision: z.enum(DATE_PRECISIONS, { message: "날짜 단위는 DAY 또는 MONTH입니다" }),
-  brandId: uuidField("브랜드").nullable().optional(),
+  brandId: uuidField("분류").nullable().optional(),
   vendorName: optionalText(200, "거래처"),
   description: optionalText(4000, "설명"),
 };
@@ -98,7 +99,7 @@ export const createPlanSchema = z.object({
   projectId: uuidField("프로젝트"),
   ...planFields,
   datePrecision: planFields.datePrecision.default("DAY"),
-  brandId: uuidField("브랜드").nullable().optional().transform((v) => v ?? null),
+  brandId: uuidField("분류").nullable().optional().transform((v) => v ?? null),
   vendorName: nullableText(200, "거래처"),
   description: nullableText(4000, "설명"),
 });
@@ -148,7 +149,7 @@ export const boardQuerySchema = z.object({
   months: z.coerce.number().int().min(1).max(12).optional().default(4),
   companyId: uuidField("회사").optional(),
   projectId: uuidField("프로젝트").optional(),
-  brandId: z.union([uuidField("브랜드"), z.literal("none")]).optional(),
+  brandId: z.union([uuidField("분류"), z.literal("none")]).optional(),
   /** PLANNED(기본) = 취소·마감 제외, ALL = 전부 */
   status: z.enum(["PLANNED", "ALL"]).optional().default("PLANNED"),
 });

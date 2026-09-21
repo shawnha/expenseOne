@@ -13,6 +13,12 @@ import { users } from "@/lib/db/schema";
 import { PlanError, mapDbError } from "@/lib/plans/errors";
 import { num, rowsOf } from "@/lib/plans/rows";
 import { containsPattern } from "@/lib/plans/search";
+import {
+  rankSuggestions,
+  SUGGEST_AMOUNT_MAX_RATIO,
+  SUGGEST_AMOUNT_MIN_RATIO,
+  SUGGEST_DATE_WINDOW_DAYS,
+} from "@/lib/plans/suggest";
 import { dispatchPlanPush, type PlanPushEvent, type PlanPushKind } from "@/lib/plans/notify";
 import {
   canEditComment,
@@ -148,7 +154,7 @@ async function assertBrandInCompany(tx: PlanTx, brandId: string, companyId: stri
          WHERE b.id = ${brandId}::uuid AND b.company_id = ${companyId}::uuid AND b.is_active = true) AS ok`),
   );
   if (rows[0]?.ok !== true) {
-    throw new PlanError("VALIDATION_ERROR", "그 법인의 브랜드가 아닙니다.");
+    throw new PlanError("VALIDATION_ERROR", "그 법인의 분류가 아닙니다.");
   }
 }
 
@@ -540,7 +546,7 @@ export async function createBrand(actor: PlanActorInput, input: CreateBrandInput
         .returning({ id: planBrands.id });
       brandId = created.id;
     } catch (err) {
-      throw asConflict(err, "같은 이름의 브랜드가 이미 있습니다.");
+      throw asConflict(err, "같은 이름의 분류가 이미 있습니다.");
     }
 
     await logChange(tx, {
@@ -553,7 +559,7 @@ export async function createBrand(actor: PlanActorInput, input: CreateBrandInput
     });
 
     const brand = (await loadBrands(tx, input.companyId, true)).find((b) => b.id === brandId);
-    if (!brand) throw new PlanError("INTERNAL_ERROR", "브랜드를 만들지 못했습니다.");
+    if (!brand) throw new PlanError("INTERNAL_ERROR", "분류를 만들지 못했습니다.");
     return brand;
   });
 }
@@ -577,6 +583,8 @@ export interface PlanCard {
   status: string;
   version: number;
   vendorName: string | null;
+  /** 보드에서 바로 수정 다이얼로그를 열 때 필요하다(상세를 다시 읽지 않는다). */
+  description: string | null;
   ownerId: string | null;
   ownerName: string | null;
   linkCount: number;
@@ -625,6 +633,7 @@ async function loadPlanCards(tx: PlanTx, access: PlanAccess, f: CardFilters): Pr
     status: string;
     version: number;
     vendor_name: string | null;
+    description: string | null;
     created_by_id: string | null;
     owner_name: string | null;
     link_count: number;
@@ -636,7 +645,7 @@ async function loadPlanCards(tx: PlanTx, access: PlanAccess, f: CardFilters): Pr
                                 p.project_id, j.name AS project_name,
                                 p.brand_id, b.name AS brand_name,
                                 p.title, p.amount, p.planned_date::text AS planned_date,
-                                p.date_precision, p.status, p.version, p.vendor_name,
+                                p.date_precision, p.status, p.version, p.vendor_name, p.description,
                                 p.created_by_id, u.name AS owner_name,
                                 coalesce(l.link_count, 0)::int AS link_count,
                                 coalesce(l.requested_sum, 0)::bigint AS requested_sum,
@@ -686,6 +695,7 @@ async function loadPlanCards(tx: PlanTx, access: PlanAccess, f: CardFilters): Pr
       status: r.status,
       version: num(r.version),
       vendorName: r.vendor_name,
+      description: r.description,
       ownerId: r.created_by_id,
       ownerName: r.owner_name,
       linkCount: num(r.link_count),
@@ -703,13 +713,23 @@ export interface BoardMonth {
   items: PlanCard[];
 }
 
+export interface BoardProject {
+  id: string;
+  name: string;
+  companyId: string;
+  companyName: string;
+  companySlug: string;
+  /** 서랍 머리의 "참여자 N". 이름은 싣지 않는다 — 보드는 프로젝트 다이얼로그가 아니다. */
+  memberCount: number;
+}
+
 export interface BoardResult {
   from: string;
   monthCount: number;
   months: BoardMonth[];
   isExecutive: boolean;
   companies: CompanyOption[];
-  projects: Array<{ id: string; name: string; companyId: string }>;
+  projects: BoardProject[];
   brands: BrandOption[];
 }
 
@@ -737,7 +757,14 @@ export async function getBoard(actor: PlanActorInput, query: BoardQueryInput): P
       months: groupByMonth(items, range.keys),
       isExecutive: access.isExecutive,
       companies,
-      projects: projects.map((p) => ({ id: p.id, name: p.name, companyId: p.companyId })),
+      projects: projects.map((p) => ({
+        id: p.id,
+        name: p.name,
+        companyId: p.companyId,
+        companyName: p.companyName,
+        companySlug: p.companySlug,
+        memberCount: p.members.length,
+      })),
       brands,
     };
   }, { readOnly: true });
@@ -1490,6 +1517,84 @@ export async function listLinkCandidates(
       status: r.status,
       submitterName: r.submitter_name,
       createdAt: iso(r.created_at) ?? "",
+    }));
+  }, { readOnly: true });
+}
+
+export interface LinkSuggestion extends LinkCandidate {
+  /** 요청의 기준 날짜 — 기일 → 거래일 → 제출일(KST) 순으로 있는 것. "YYYY-MM-DD" */
+  refDate: string;
+  score: number;
+  /** 예정일과의 차이(일). 요청이 더 늦으면 양수. 날짜를 못 읽으면 null. */
+  dateDiffDays: number | null;
+  reasons: Array<"date" | "amount" | "title">;
+}
+
+/**
+ * 자동 연결 **제안** — 잇지는 않는다(클릭이 있어야 (g) 가 돈다). 후보 범위는 (f) 와 같고
+ * (같은 법인·KRW·반려·취소 아님·아직 어느 계획에도 이어지지 않음·MEMBER 는 본인 제출분),
+ * 날짜가 ±45일 안이거나 금액이 0.8~1.25배인 것만 넓게 골라 온 뒤 순수 함수로 점수를 매겨 5건.
+ * 취소·마감된 계획엔 제안하지 않는다(연결 자체가 409).
+ */
+export async function listLinkSuggestions(actor: PlanActorInput, planId: string): Promise<LinkSuggestion[]> {
+  return withPlanTx(async (tx) => {
+    const access = await loadAccess(tx, actorAccess(actor));
+    const plan = await requirePlanAccess(tx, access, planId);
+    if (plan.status !== "PLANNED") return [];
+    const fields = await loadPlanFields(tx, planId);
+    const canLinkAll = canLinkAllCompanyRequests(access);
+
+    const rows = rowsOf<{
+      id: string;
+      title: string;
+      amount: number;
+      due_date: string | null;
+      ref_date: string;
+      status: string;
+      submitter_name: string | null;
+      created_at: Date;
+    }>(
+      await tx.execute(sql`SELECT e.id, e.title, e.amount, e.due_date::text AS due_date,
+                                  coalesce(e.due_date, e.transaction_date,
+                                           (e.created_at AT TIME ZONE 'Asia/Seoul')::date)::text AS ref_date,
+                                  e.status::text AS status, u.name AS submitter_name, e.created_at
+          FROM expenseone.expenses e
+          LEFT JOIN expenseone.users u ON u.id = e.submitted_by_id
+         WHERE e.type = 'DEPOSIT_REQUEST' AND e.status NOT IN ('REJECTED', 'CANCELLED')
+           AND e.currency = 'KRW' AND e.company_id = ${plan.companyId}::uuid
+           AND (${canLinkAll}::boolean OR e.submitted_by_id = ${access.userId}::uuid)
+           AND NOT EXISTS (SELECT 1 FROM expenseone.plan_expense_links x
+                            WHERE x.expense_id = e.id AND x.unlinked_at IS NULL)
+           AND (abs(coalesce(e.due_date, e.transaction_date, (e.created_at AT TIME ZONE 'Asia/Seoul')::date)
+                    - ${fields.plannedDate}::date) <= ${SUGGEST_DATE_WINDOW_DAYS}::int
+                OR (e.amount >= ${fields.amount}::numeric * ${SUGGEST_AMOUNT_MIN_RATIO}::numeric
+                    AND e.amount <= ${fields.amount}::numeric * ${SUGGEST_AMOUNT_MAX_RATIO}::numeric))
+         ORDER BY e.created_at DESC
+         LIMIT 200`),
+    );
+
+    const ranked = rankSuggestions(
+      { amount: fields.amount, plannedDate: fields.plannedDate, title: fields.title },
+      rows.map((r) => ({
+        id: r.id,
+        amount: num(r.amount),
+        date: r.ref_date,
+        title: r.title,
+        row: r,
+      })),
+    );
+    return ranked.map(({ candidate, score, dateDiffDays, reasons }) => ({
+      id: candidate.id,
+      title: candidate.title,
+      amount: candidate.amount,
+      dueDate: candidate.row.due_date,
+      status: candidate.row.status,
+      submitterName: candidate.row.submitter_name,
+      createdAt: iso(candidate.row.created_at) ?? "",
+      refDate: candidate.date,
+      score,
+      dateDiffDays: Number.isNaN(dateDiffDays) ? null : dateDiffDays,
+      reasons,
     }));
   }, { readOnly: true });
 }
