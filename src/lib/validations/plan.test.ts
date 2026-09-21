@@ -11,6 +11,7 @@ import {
   createBrandSchema,
   createPlanSchema,
   createProjectSchema,
+  issuesMessage,
   linkExpenseSchema,
   PLAN_AMOUNT_MAX,
   searchParamsToObject,
@@ -161,5 +162,35 @@ describe("unlinkQuerySchema — 연결 해제", () => {
     const params = new URLSearchParams("linkId=3f1a0c5e-7b2d-4c1a-9e8f-0a1b2c3d4e5f&q=");
     const parsed = unlinkQuerySchema.safeParse(searchParamsToObject(params));
     assert.equal(parsed.success, true);
+  });
+});
+
+describe("issuesMessage — 영문 기본 문구는 한국어로 (QA D-13)", () => {
+  it("타입 불일치는 칸 이름과 함께 한국어 공통 문구", () => {
+    const r = createPlanSchema.safeParse({
+      companyId: "3f1a0c5e-7b2d-4c1a-9e8f-0a1b2c3d4e5f",
+      projectId: "3f1a0c5e-7b2d-4c1a-9e8f-0a1b2c3d4e5f",
+      title: "t",
+      amount: "1000",
+      plannedDate: "2026-09-01",
+    });
+    assert.equal(r.success, false);
+    if (!r.success) {
+      const msg = issuesMessage(r.error);
+      assert.equal(msg, "금액이 올바르지 않습니다");
+      assert.ok(!/[A-Za-z]/.test(msg), msg);
+    }
+  });
+  it("우리가 단 한국어 문구는 그대로, 조사는 병기 없이", () => {
+    const r = createPlanSchema.safeParse({
+      companyId: "3f1a0c5e-7b2d-4c1a-9e8f-0a1b2c3d4e5f",
+      projectId: "3f1a0c5e-7b2d-4c1a-9e8f-0a1b2c3d4e5f",
+      title: "t",
+      amount: 1000,
+      plannedDate: "2026-09-01",
+      vendorName: "x".repeat(201),
+    });
+    assert.equal(r.success, false);
+    if (!r.success) assert.equal(issuesMessage(r.error), "거래처는 200자 이내로 입력해주세요");
   });
 });

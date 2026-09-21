@@ -94,3 +94,22 @@ describe("createFlagCache", () => {
     assert.equal(calls, 2);
   });
 });
+
+describe("createFlagCache — 읽기 실패는 onError 로 알린다 (QA D-12)", () => {
+  it("loader 가 던지면 null 을 캐시하고 onError 에 원인을 넘긴다", async () => {
+    const seen: unknown[] = [];
+    const boom = new Error("connection refused");
+    const cache = createFlagCache({ failureTtlMs: 5_000, now: () => 0, onError: (e) => seen.push(e) });
+    assert.equal(await cache.get(async () => { throw boom; }), null);
+    assert.deepEqual(seen, [boom]);
+  });
+  it("onError 가 던져도 판정은 OFF 로 끝난다", async () => {
+    const cache = createFlagCache({
+      now: () => 0,
+      onError: () => {
+        throw new Error("logger broke");
+      },
+    });
+    assert.equal(await cache.get(async () => { throw new Error("db"); }), null);
+  });
+});
