@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { toast } from "sonner";
-import { CalendarIcon, CreditCard, Loader2 } from "lucide-react";
+import { CalendarIcon, CreditCard, Loader2, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatDateISO } from "@/lib/validations/expense-form";
+import { needsCardLastFourWarning } from "@/lib/expense-convert";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
@@ -35,6 +37,12 @@ interface ConvertToCardDialogProps {
   expenseId: string;
   /** 현재 거래일(YYYY-MM-DD). 카드 결제일로 미리 채운다. */
   transactionDate: string;
+  /**
+   * 보는 사람(=제출자) 프로필의 카드 끝 4자리. 없으면 카드 내역이 이 건과 합쳐지지
+   * 않으므로 변경 **전에** 경고한다. 변경을 막지는 않는다 — 카드가 아예 없는 건이 아니라
+   * 등록만 안 한 경우가 대부분이고, 설정에서 등록하면 다음 동기화부터 합쳐진다.
+   */
+  viewerCardLastFour?: string | null;
   /** 폼이 제출 중이면 함께 잠근다. */
   disabled?: boolean;
 }
@@ -42,6 +50,7 @@ interface ConvertToCardDialogProps {
 export function ConvertToCardDialog({
   expenseId,
   transactionDate,
+  viewerCardLastFour = null,
   disabled = false,
 }: ConvertToCardDialogProps) {
   const router = useRouter();
@@ -52,6 +61,7 @@ export function ConvertToCardDialog({
   );
   const [merchantName, setMerchantName] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const warnMissingCard = needsCardLastFourWarning(viewerCardLastFour);
 
   const handleConvert = async () => {
     if (!date) {
@@ -79,8 +89,9 @@ export function ConvertToCardDialog({
         return;
       }
       toast.success("법카 사용으로 변경되었습니다. 승인 없이 바로 등록됩니다.");
-      // 프로필에 카드 끝 4자리가 없으면 카드 내역이 이 건과 합쳐지지 않는다 — 지금 알려준다.
-      if (json?.data && json.data.cardLastFour == null) {
+      // 변경 전 경고를 못 본 경우(서버가 본 제출자 프로필에만 4자리가 없을 때)만 사후 안내.
+      // 경고를 보고 "그래도 변경"을 누른 사람에게 같은 말을 또 하지 않는다.
+      if (!warnMissingCard && json?.data && json.data.cardLastFour == null) {
         toast.info("설정에서 카드 끝 4자리를 등록하면 이후 카드 내역이 이 건과 자동으로 합쳐집니다.", {
           duration: 8000,
         });
@@ -182,6 +193,28 @@ export function ConvertToCardDialog({
                 }}
               />
             </div>
+
+            {/* 카드 끝 4자리 미등록 — 변경 전 경고(DESIGN.md Alerts: 12px 반경, 경고색 10%/20%, 아이콘+텍스트) */}
+            {warnMissingCard && (
+              <div
+                role="alert"
+                className="flex gap-2.5 rounded-xl border border-[rgba(255,149,0,0.2)] bg-[rgba(255,149,0,0.1)] dark:bg-[rgba(255,159,10,0.14)] p-4"
+              >
+                <TriangleAlert className="size-4 shrink-0 mt-0.5 text-[var(--apple-orange)]" aria-hidden />
+                <div className="space-y-1.5">
+                  <p className="text-[13px] font-medium leading-relaxed text-[var(--apple-label)]">
+                    카드 끝 4자리가 등록돼 있지 않아 이후 카드 내역이 자동으로 합쳐지지 않습니다.
+                    설정에서 등록한 뒤 변경하는 것을 권합니다.
+                  </p>
+                  <Link
+                    href="/settings"
+                    className="inline-flex min-h-11 items-center text-[13px] font-medium text-[var(--apple-blue)] underline-offset-4 hover:underline"
+                  >
+                    설정으로 이동
+                  </Link>
+                </div>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
@@ -205,6 +238,8 @@ export function ConvertToCardDialog({
                   <Loader2 className="size-4 animate-spin" />
                   변경 중...
                 </>
+              ) : warnMissingCard ? (
+                "그래도 변경"
               ) : (
                 "법카 사용으로 변경"
               )}

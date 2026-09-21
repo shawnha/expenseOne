@@ -198,10 +198,16 @@ export default async function EditExpensePage({ params }: EditExpensePageProps) 
   // 수정 화면도 본인 화면이다 — getAuthUser는 캐시되므로 위 권한 확인과
   // 같은 요청을 다시 때리지 않는다.
   const authUser = await getAuthUser();
-  const [companies, myCategories, viewer] = await Promise.all([
+  // 카드 끝 4자리는 캐시 프로필(getCachedCurrentUser)에 없다. 설정 화면과 같은 방식으로
+  // 본인 행만 읽는다 — 법카 변경 전에 "카드 내역이 안 합쳐진다"를 미리 알리기 위해서다.
+  const supabase = await getCachedClient();
+  const [companies, myCategories, viewer, viewerCard] = await Promise.all([
     getActiveCompanies(),
     authUser ? getMyCustomCategories(authUser.id) : Promise.resolve<string[]>([]),
     getCachedCurrentUser(),
+    authUser
+      ? supabase.from("users").select("card_last_four").eq("id", authUser.id).maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
   const initialCompanies: CompanyOption[] = companies.map((c) => ({
     id: c.id,
@@ -217,6 +223,7 @@ export default async function EditExpensePage({ params }: EditExpensePageProps) 
       initialCompanies={initialCompanies}
       myCategories={myCategories}
       viewerIsAdmin={viewer?.role === "ADMIN"}
+      viewerCardLastFour={(viewerCard.data?.card_last_four ?? null) as string | null}
     />
   );
 }

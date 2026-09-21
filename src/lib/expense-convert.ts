@@ -117,6 +117,16 @@ export function canShowConvertButton(
   );
 }
 
+/**
+ * 변경 전에 카드 끝 4자리 경고를 보여줄지. 카드 동기화의 중복 판정이
+ * expenses.cardLastFour 일치에 걸려 있어서, 프로필에 4자리가 없으면 나중에 들어오는
+ * 카드 내역이 이 건과 합쳐지지 않는다. 빈 문자열·자릿수가 다른 값도 "없음"으로 본다 —
+ * 그 값으로는 어차피 일치할 수 없다.
+ */
+export function needsCardLastFourWarning(cardLastFour: string | null | undefined): boolean {
+  return !/^\d{4}$/.test(cardLastFour ?? "");
+}
+
 // ---------------------------------------------------------------------------
 // 오류 — 서비스가 던지고 라우트가 상태 코드로 바꾼다
 // ---------------------------------------------------------------------------

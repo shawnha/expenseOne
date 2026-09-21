@@ -10,6 +10,7 @@ import {
   CONVERT_REASONS,
   CONVERT_ERROR_STATUS,
   ConvertError,
+  needsCardLastFourWarning,
   type ConvertibleExpense,
   type ConvertViewer,
 } from "./expense-convert";
@@ -187,6 +188,26 @@ describe("canShowConvertButton — 화면 미러", () => {
     assert.equal(canShowConvertButton({ ...submitted, isPurchase: true }), false);
     assert.equal(canShowConvertButton({ ...submitted, remainingPaymentRequested: true }), false);
     assert.equal(canShowConvertButton({ ...submitted, remainingPaymentApproved: true }), false);
+  });
+});
+
+describe("needsCardLastFourWarning — 변경 전 경고", () => {
+  it("숫자 4자리가 있으면 경고하지 않는다", () => {
+    assert.equal(needsCardLastFourWarning("1234"), false);
+    assert.equal(needsCardLastFourWarning("0007"), false);
+  });
+
+  it("없거나 비었으면 경고한다", () => {
+    assert.equal(needsCardLastFourWarning(null), true);
+    assert.equal(needsCardLastFourWarning(undefined), true);
+    assert.equal(needsCardLastFourWarning(""), true);
+  });
+
+  it("4자리 숫자가 아니면 일치할 수 없으므로 경고한다", () => {
+    assert.equal(needsCardLastFourWarning("123"), true);
+    assert.equal(needsCardLastFourWarning("12345"), true);
+    assert.equal(needsCardLastFourWarning("12a4"), true);
+    assert.equal(needsCardLastFourWarning(" 1234"), true);
   });
 });
 
