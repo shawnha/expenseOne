@@ -142,6 +142,8 @@ export async function requirePlanAccess(
     await tx.execute(sql`SELECT p.id, p.company_id, p.project_id, p.version, p.status
         FROM expenseone.cost_plans p
        WHERE p.id = ${planId}::uuid AND p.deleted_at IS NULL
+         AND EXISTS (SELECT 1 FROM expenseone.plan_projects j0
+                      WHERE j0.id = p.project_id AND j0.deleted_at IS NULL)
          AND (${access.isExecutive}::boolean OR EXISTS (
                SELECT 1 FROM expenseone.plan_project_members m
                  JOIN expenseone.plan_projects j ON j.id = m.project_id AND j.deleted_at IS NULL

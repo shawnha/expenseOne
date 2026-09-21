@@ -200,6 +200,8 @@ export interface ProjectSummary {
   name: string;
   description: string | null;
   createdAt: string;
+  /** 만든 사람(표시·삭제 버튼 노출용). 접근 판정에는 쓰지 않는다. */
+  createdById: string | null;
   members: UserOption[];
 }
 
@@ -207,6 +209,8 @@ export interface ProjectListResult {
   projects: ProjectSummary[];
   companies: CompanyOption[];
   isExecutive: boolean;
+  /** 화면이 "내가 만든 프로젝트"를 알아보는 데 쓴다(삭제 버튼 노출). */
+  viewerId: string;
 }
 
 async function loadProjectsInScope(
@@ -223,9 +227,10 @@ async function loadProjectsInScope(
     name: string;
     description: string | null;
     created_at: Date;
+    created_by_id: string | null;
   }>(
     await tx.execute(sql`SELECT j.id, j.company_id, c.name AS company_name, c.slug AS company_slug,
-                                j.name, j.description, j.created_at
+                                j.name, j.description, j.created_at, j.created_by_id
         FROM expenseone.plan_projects j
         JOIN expenseone.companies c ON c.id = j.company_id
        WHERE j.deleted_at IS NULL AND c.is_active = true AND c.currency = 'KRW'
@@ -262,6 +267,7 @@ async function loadProjectsInScope(
     name: r.name,
     description: r.description,
     createdAt: new Date(r.created_at).toISOString(),
+    createdById: r.created_by_id,
     members: byProject.get(r.id) ?? [],
   }));
 }
@@ -271,7 +277,7 @@ export async function listProjects(actor: PlanActorInput, companyId?: string): P
     const access = await loadAccess(tx, actorAccess(actor));
     const projects = await loadProjectsInScope(tx, access, companyId);
     const companies = await loadPlannableCompanies(tx);
-    return { projects, companies, isExecutive: access.isExecutive };
+    return { projects, companies, isExecutive: access.isExecutive, viewerId: actor.id };
   }, { readOnly: true });
 }
 
@@ -447,6 +453,59 @@ export async function removeProjectMember(
     });
     return loadProjectMembers(tx, projectId);
   });
+}
+
+/**
+ * 프로젝트 삭제(소프트). 참여자이면서 **만든 사람**이거나 대표만 지울 수 있다 — 참여자 전원이
+ * 지울 수 있게 두면 한 사람의 실수로 다른 사람들의 계획이 통째로 사라진다.
+ * (여기서 created_by_id 는 접근 판정이 아니라 "누가 지울 수 있나"의 추가 제한이다.
+ *  접근 자체는 requireProjectAccess 가 참여자 행으로 먼저 판정한다.)
+ * 계획 행은 지우지 않는다 — 프로젝트가 deleted_at 이면 보드·상세·연결 후보에서 전부 빠진다.
+ * 되살리기는 대표가 DB 에서(deleted_at NULL) — 첫 출시엔 화면 없음.
+ */
+export async function deleteProject(
+  actor: PlanActorInput,
+  projectId: string,
+): Promise<{ id: string; planCount: number }> {
+  const push: { ev: PlanPushEvent | null } = { ev: null };
+  const result = await withPlanTx(async (tx) => {
+    const access = await loadAccess(tx, actorAccess(actor));
+    const project = await requireProjectAccess(tx, access, projectId);
+
+    const meta = rowsOf<{ created_by_id: string | null; plan_count: number }>(
+      await tx.execute(sql`SELECT j.created_by_id,
+                                  (SELECT count(*)::int FROM expenseone.cost_plans p
+                                    WHERE p.project_id = j.id AND p.deleted_at IS NULL) AS plan_count
+                             FROM expenseone.plan_projects j
+                            WHERE j.id = ${projectId}::uuid AND j.deleted_at IS NULL
+                              FOR UPDATE`),
+    )[0];
+    if (!meta) throw new PlanError("NOT_FOUND", "프로젝트를 찾을 수 없습니다.");
+    if (!access.isExecutive && meta.created_by_id !== actor.id) {
+      throw new PlanError("FORBIDDEN", "프로젝트는 만든 사람이나 대표만 삭제할 수 있습니다.");
+    }
+
+    // 알림 수신자는 지우기 전에 읽는다(참여자 행은 남지만 커밋 뒤에는 접근이 끊긴다).
+    push.ev = await pushEventFor(tx, "project_deleted", actor, projectId);
+
+    await tx.execute(sql`UPDATE expenseone.plan_projects
+                            SET deleted_at = now(), deleted_by_id = ${actor.id}::uuid,
+                                is_active = false, updated_at = now()
+                          WHERE id = ${projectId}::uuid`);
+
+    await logChange(tx, {
+      companyId: project.companyId,
+      projectId,
+      entityType: "project",
+      entityId: projectId,
+      action: "DELETE",
+      actorId: actor.id,
+      before: { name: project.name, planCount: num(meta.plan_count) },
+    });
+    return { id: projectId, planCount: num(meta.plan_count) };
+  });
+  await dispatchPlanPush(push.ev);
+  return result;
 }
 
 async function loadProjectMembers(tx: PlanTx, projectId: string): Promise<UserOption[]> {
@@ -688,7 +747,7 @@ async function loadPlanCards(tx: PlanTx, access: PlanAccess, f: CardFilters): Pr
              AND cm.author_id IS DISTINCT FROM ${access.userId}::uuid
              AND cm.created_at > coalesce(r.last_read_at, '-infinity'::timestamptz)
         ) n ON true
-       WHERE p.deleted_at IS NULL
+       WHERE p.deleted_at IS NULL AND j.deleted_at IS NULL
          AND p.planned_date >= ${f.fromDate}::date AND p.planned_date < ${f.toDate}::date
          AND ${projectScopeSql(access, sql`p.project_id`)}${statusFilter}${companyFilter}${projectFilter}${brandFilter}${brandNameFilter}
        ORDER BY p.planned_date, p.created_at`),
@@ -1266,7 +1325,7 @@ export async function getPlanDetail(actor: PlanActorInput, planId: string): Prom
           LEFT JOIN expenseone.plan_brands b ON b.id = p.brand_id
           LEFT JOIN expenseone.users u ON u.id = p.created_by_id
           LEFT JOIN expenseone.users w ON w.id = p.updated_by_id
-         WHERE p.id = ${planId}::uuid`),
+         WHERE p.id = ${planId}::uuid AND j.deleted_at IS NULL`),
     )[0];
     if (!row) throw new PlanError("NOT_FOUND", "계획을 찾을 수 없습니다.");
 

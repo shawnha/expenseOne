@@ -24,7 +24,8 @@ export type PlanPushKind =
   | "comment_added"
   | "member_added"
   | "link_added"
-  | "link_removed";
+  | "link_removed"
+  | "project_deleted";
 
 export interface PlanPushEvent {
   kind: PlanPushKind;
@@ -82,6 +83,8 @@ export function buildPlanPush(ev: PlanPushEvent): PlanPushMessage {
       return { title: `[비용계획] ${plan}`, body: `${ev.actorName} 님이 입금요청을 연결했습니다.`, url };
     case "link_removed":
       return { title: `[비용계획] ${plan}`, body: `${ev.actorName} 님이 입금요청 연결을 해제했습니다.`, url };
+    case "project_deleted":
+      return { title: `[비용계획] ${ev.projectName}`, body: `${ev.actorName} 님이 프로젝트를 삭제했습니다.`, url: "/plans" };
   }
 }
 

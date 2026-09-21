@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Plus, UserPlus, X } from "lucide-react";
+import { Check, Plus, Trash2, UserPlus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -61,6 +61,8 @@ export function ProjectDialog({ open, onOpenChange, onSaved }: ProjectDialogProp
   /** 만들기 폼에서 고른 참여자(만든 사람은 자동 포함이라 여기 없다). */
   const [pickedMembers, setPickedMembers] = useState<UserOption[]>([]);
   const [touched, setTouched] = useState(false);
+  /** 삭제 버튼 노출 판단(서버가 최종). 대표거나 내가 만든 프로젝트만. */
+  const [viewer, setViewer] = useState<{ id: string; isExecutive: boolean } | null>(null);
 
   // 이 다이얼로그도 열릴 때 마운트된다(ProjectOpenButton). 목록은 마운트될 때 한 번 읽는다 —
   // 다른 화면에서 참여자가 바뀌었을 수 있으니 열 때마다 새로 읽는 편이 맞다.
@@ -70,6 +72,7 @@ export function ProjectDialog({ open, onOpenChange, onSaved }: ProjectDialogProp
       projects: ProjectSummary[];
       companies: CompanyOption[];
       isExecutive: boolean;
+      viewerId: string;
     }>("/api/plans/projects").then((res) => {
       if (!alive) return;
       setLoading(false);
@@ -79,6 +82,7 @@ export function ProjectDialog({ open, onOpenChange, onSaved }: ProjectDialogProp
       }
       setProjects(res.data.projects);
       setCompanies(res.data.companies);
+      setViewer({ id: res.data.viewerId, isExecutive: res.data.isExecutive });
       // 프로젝트가 하나도 없으면 만들기 폼을 펼친 채로 연다 — 여기 온 이유가 그것뿐이다.
       if (res.data.projects.length === 0) setShowForm(true);
       if (res.data.companies.length === 1) setCompanyId(res.data.companies[0].id);
@@ -146,6 +150,31 @@ export function ProjectDialog({ open, onOpenChange, onSaved }: ProjectDialogProp
       }),
     [withLock],
   );
+
+  const deleteLock = useRef(false);
+  const handleDeleteProject = useCallback(async (project: ProjectSummary) => {
+    if (deleteLock.current) return;
+    deleteLock.current = true;
+    setBusyProject(project.id);
+    try {
+      const res = await planFetch<{ id: string; planCount: number }>(`/api/plans/projects/${project.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        toast.error(res.message);
+        return;
+      }
+      setProjects((prev) => prev.filter((p) => p.id !== project.id));
+      setTouched(true);
+      const n = res.data.planCount;
+      toast.success(
+        n > 0 ? `'${project.name}' 프로젝트와 계획 ${n}건을 삭제했습니다.` : `'${project.name}' 프로젝트를 삭제했습니다.`,
+      );
+    } finally {
+      setBusyProject(null);
+      deleteLock.current = false;
+    }
+  }, []);
 
   const handleClose = useCallback(() => {
     onOpenChange(false);
@@ -277,6 +306,8 @@ export function ProjectDialog({ open, onOpenChange, onSaved }: ProjectDialogProp
                   project={project}
                   users={users}
                   busy={busyProject === project.id}
+                  canDelete={Boolean(viewer && (viewer.isExecutive || project.createdById === viewer.id))}
+                  onDelete={() => void handleDeleteProject(project)}
                   onOpenPicker={() => void ensureUsers()}
                   onAdd={(userId) =>
                     void mutateMembers(
@@ -410,6 +441,8 @@ function ProjectRow({
   project,
   users,
   busy,
+  canDelete,
+  onDelete,
   onOpenPicker,
   onAdd,
   onRemove,
@@ -417,10 +450,14 @@ function ProjectRow({
   project: ProjectSummary;
   users: UserOption[] | null;
   busy: boolean;
+  canDelete: boolean;
+  onDelete: () => void;
   onOpenPicker: () => void;
   onAdd: (userId: string) => void;
   onRemove: (userId: string) => void;
 }) {
+  /** 프로젝트 삭제 확인 단계. 참여자 전원의 계획이 함께 사라지므로 한 번 더 묻는다. */
+  const [confirmDelete, setConfirmDelete] = useState(false);
   /**
    * 제거를 물어보는 중인 참여자. 참여자 행이 유일한 권한 근거라, 실수로 한 번 스친 X 하나가
    * 그 사람 화면에서 이 프로젝트의 계획을 전부 404 로 만든다. 확인을 한 단계 둔다.
@@ -436,10 +473,45 @@ function ProjectRow({
         <p className="text-subheadline font-semibold text-[var(--apple-label)] truncate">
           {project.name}
         </p>
-        <span className="shrink-0 text-caption2 text-[var(--apple-secondary-label)]">
-          {project.companyName}
+        <span className="flex shrink-0 items-center gap-1">
+          <span className="text-caption2 text-[var(--apple-secondary-label)]">{project.companyName}</span>
+          {canDelete && !confirmDelete && (
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(true)}
+              disabled={busy}
+              aria-label={`${project.name} 프로젝트 삭제`}
+              title="프로젝트 삭제"
+              className="flex size-11 items-center justify-center rounded-full text-[var(--apple-secondary-label)] transition-colors hover:bg-[var(--apple-red)]/15 hover:text-[var(--apple-red)] disabled:opacity-40"
+            >
+              <Trash2 className="size-4" aria-hidden="true" />
+            </button>
+          )}
         </span>
       </div>
+      {confirmDelete && (
+        <div className="mt-2 flex w-full flex-wrap items-center gap-2 rounded-xl bg-[var(--apple-red)]/10 px-3 py-2">
+          <span className="mr-auto text-caption1 text-[var(--apple-label)] break-keep">
+            이 프로젝트와 안에 있는 계획이 모두 목록에서 사라집니다. 되돌릴 수 없습니다.
+          </span>
+          <Button type="button" variant="ghost" size="sm" className="min-h-11" onClick={() => setConfirmDelete(false)} disabled={busy}>
+            그대로 두기
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            size="sm"
+            className="min-h-11"
+            onClick={() => {
+              setConfirmDelete(false);
+              onDelete();
+            }}
+            disabled={busy}
+          >
+            삭제
+          </Button>
+        </div>
+      )}
       {project.description && (
         <p className="mt-1 text-caption1 text-[var(--apple-secondary-label)] line-clamp-2">
           {project.description}
