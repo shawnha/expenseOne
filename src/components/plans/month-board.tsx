@@ -114,6 +114,8 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
   const [dragging, setDragging] = useState<DragState | null>(null);
   const [swipeOpenId, setSwipeOpenId] = useState<string | null>(null);
   const [dialog, setDialog] = useState<DialogState | null>(null);
+  /** PATCH 가 나가 있는 카드. 같은 카드를 연달아 옮기면 두 번째는 옛 version 으로 나가 409 가 된다(QA D-04). */
+  const inflight = useRef(new Set<string>());
 
   // --- 달 옮기기: 낙관적 갱신 → PATCH → 실패면 원위치, 성공이면 '되돌리기' 토스트 ---------------
 
@@ -134,20 +136,26 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
     async (cardId: string, nextDate: string): Promise<{ title: string; prevDate: string } | null> => {
       const card = itemsRef.current.find((c) => c.id === cardId);
       if (!card || card.status !== "PLANNED") return null;
+      if (inflight.current.has(cardId)) return null;
       const prevDate = card.plannedDate;
       if (nextDate === prevDate) return null;
 
+      inflight.current.add(cardId);
       applyPatch(cardId, { plannedDate: nextDate });
-      const res = await patchDate(cardId, card.version, nextDate);
-      if (!res.ok) {
-        applyPatch(cardId, { plannedDate: prevDate });
-        toast.error(res.message);
-        // 낙관적 잠금에 걸렸으면 화면의 version 이 옛것이다. 서버 것으로 다시 그린다.
-        if (res.code === "CONFLICT") router.refresh();
-        return null;
+      try {
+        const res = await patchDate(cardId, card.version, nextDate);
+        if (!res.ok) {
+          applyPatch(cardId, { plannedDate: prevDate });
+          toast.error(res.message);
+          // 낙관적 잠금에 걸렸으면 화면의 version 이 옛것이다. 서버 것으로 다시 그린다.
+          if (res.code === "CONFLICT") router.refresh();
+          return null;
+        }
+        applyPatch(cardId, { version: res.data.version });
+        return { title: card.title, prevDate };
+      } finally {
+        inflight.current.delete(cardId);
       }
-      applyPatch(cardId, { version: res.data.version });
-      return { title: card.title, prevDate };
     },
     [applyPatch, patchDate, router],
   );
@@ -164,7 +172,7 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
           label: "되돌리기",
           onClick: () => {
             void performMove(cardId, moved.prevDate).then((undone) => {
-              if (undone) toast.success(`'${clipTitle(undone.title)}' 을(를) 되돌렸습니다.`);
+              if (undone) toast.success(`'${clipTitle(undone.title)}' 계획을 되돌렸습니다.`);
             });
           },
         },

@@ -31,6 +31,7 @@ import { CompanyPillGroup } from "@/components/companies/company-pill-group";
 import { PLAN_AMOUNT_MAX } from "@/lib/validations/plan";
 import type { BrandOption, CompanyOption, ProjectSummary } from "@/services/plan.service";
 import { fromISODate, jsonBody, planFetch, toISODate } from "./plan-client";
+import { useSubmitLock } from "./use-submit-lock";
 
 // ---------------------------------------------------------------------------
 // 계획 추가·수정 다이얼로그. 취소(=status CANCELLED)도 여기서 한다 — 계획을 지우는 길은 없다.
@@ -104,6 +105,8 @@ export function PlanDialog({
   const [options, setOptions] = useState<Options | null>(null);
   const [loadingOptions, setLoadingOptions] = useState(true);
   const [saving, setSaving] = useState(false);
+  // 같은 틱의 두 번째 클릭을 막는다(QA D-04). saving 은 화면용, 이 잠금이 실제 문지기다.
+  const withLock = useSubmitLock();
 
   // 처음 값은 **prop 에서 바로** 읽는다. 이 다이얼로그는 열릴 때 마운트되므로(PlanCreateButton·상세 화면)
   // 열 때마다 새 인스턴스다 — 지난 입력을 지우는 effect 가 필요 없고, 남은 값으로 엉뚱한 계획을
@@ -201,25 +204,29 @@ export function PlanDialog({
     brandsInCompany.find((b) => b.id === brandId)?.name ??
     (brandId !== BRAND_NONE && plan?.brandName ? `${plan.brandName} (비활성)` : "공통");
 
-  const handleAddBrand = useCallback(async () => {
-    const name = (newBrand ?? "").trim();
-    if (!name || !activeCompanyId) return;
-    setAddingBrand(true);
-    const res = await planFetch<{ brand: BrandOption }>(
-      "/api/plans/brands",
-      jsonBody({ companyId: activeCompanyId, name }),
-    );
-    setAddingBrand(false);
-    if (!res.ok) {
-      toast.error(res.message);
-      return;
-    }
-    const brand = res.data.brand;
-    setOptions((prev) => (prev ? { ...prev, brands: [...prev.brands, brand] } : prev));
-    setBrandId(brand.id);
-    setNewBrand(null);
-    toast.success(`분류 '${brand.name}'을(를) 추가했습니다.`);
-  }, [newBrand, activeCompanyId]);
+  const handleAddBrand = useCallback(
+    () =>
+      withLock(async () => {
+        const name = (newBrand ?? "").trim();
+        if (!name || !activeCompanyId) return;
+        setAddingBrand(true);
+        const res = await planFetch<{ brand: BrandOption }>(
+          "/api/plans/brands",
+          jsonBody({ companyId: activeCompanyId, name }),
+        );
+        setAddingBrand(false);
+        if (!res.ok) {
+          toast.error(res.message);
+          return;
+        }
+        const brand = res.data.brand;
+        setOptions((prev) => (prev ? { ...prev, brands: [...prev.brands, brand] } : prev));
+        setBrandId(brand.id);
+        setNewBrand(null);
+        toast.success(`'${brand.name}' 분류를 추가했습니다.`);
+      }),
+    [withLock, newBrand, activeCompanyId],
+  );
 
   const finish = useCallback(
     (message: string) => {
@@ -231,64 +238,72 @@ export function PlanDialog({
     [onOpenChange, onSaved, router],
   );
 
-  const handleSubmit = useCallback(async () => {
-    if (!activeCompanyId) return toast.error("법인을 선택해주세요.");
-    if (!projectId) return toast.error("프로젝트를 선택해주세요.");
-    if (!title.trim()) return toast.error("제목을 입력해주세요.");
-    if (amount <= 0) return toast.error("금액을 입력해주세요.");
-    if (amount > PLAN_AMOUNT_MAX) return toast.error("금액이 너무 큽니다.");
-    if (!date) return toast.error("예정일을 선택해주세요.");
+  const handleSubmit = useCallback(
+    () =>
+      withLock(async () => {
+        if (!activeCompanyId) return toast.error("법인을 선택해주세요.");
+        if (!projectId) return toast.error("프로젝트를 선택해주세요.");
+        if (!title.trim()) return toast.error("제목을 입력해주세요.");
+        if (amount <= 0) return toast.error("금액을 입력해주세요.");
+        if (amount > PLAN_AMOUNT_MAX) return toast.error("금액이 너무 큽니다.");
+        if (!date) return toast.error("예정일을 선택해주세요.");
 
-    const shared = {
-      projectId,
-      title: title.trim(),
-      amount,
-      plannedDate: toISODate(date),
-      datePrecision: precision,
-      brandId: brandId === BRAND_NONE ? null : brandId,
-      vendorName: vendorName.trim() || null,
-      description: description.trim() || null,
-    };
+        const shared = {
+          projectId,
+          title: title.trim(),
+          amount,
+          plannedDate: toISODate(date),
+          datePrecision: precision,
+          brandId: brandId === BRAND_NONE ? null : brandId,
+          vendorName: vendorName.trim() || null,
+          description: description.trim() || null,
+        };
 
-    setSaving(true);
-    const res = plan
-      ? await planFetch<{ id: string; version: number }>(`/api/plans/items/${plan.id}`, {
-          ...jsonBody({ version: plan.version, ...shared }),
-          method: "PATCH",
-        })
-      : await planFetch<{ id: string }>(
-          "/api/plans/items",
-          jsonBody({ companyId: activeCompanyId, ...shared }),
+        setSaving(true);
+        const res = plan
+          ? await planFetch<{ id: string; version: number }>(`/api/plans/items/${plan.id}`, {
+              ...jsonBody({ version: plan.version, ...shared }),
+              method: "PATCH",
+            })
+          : await planFetch<{ id: string }>(
+              "/api/plans/items",
+              jsonBody({ companyId: activeCompanyId, ...shared }),
+            );
+        setSaving(false);
+
+        if (!res.ok) {
+          toast.error(res.message);
+          // 낙관적 잠금에 걸렸으면 화면의 version 이 이미 옛것이다. 다시 읽어 와야 다음 시도가 통한다.
+          if (res.code === "CONFLICT") router.refresh();
+          return;
+        }
+        finish(plan ? "계획을 수정했습니다." : "계획을 추가했습니다.");
+      }),
+    [
+      withLock, activeCompanyId, projectId, title, amount, date, precision, brandId, vendorName,
+      description, plan, router, finish,
+    ],
+  );
+
+  const handleCancelPlan = useCallback(
+    () =>
+      withLock(async () => {
+        if (!plan) return;
+        setSaving(true);
+        const res = await planFetch<{ id: string; version: number }>(
+          `/api/plans/items/${plan.id}/cancel`,
+          jsonBody({ version: plan.version, reason: cancelReason.trim() || null }),
         );
-    setSaving(false);
-
-    if (!res.ok) {
-      toast.error(res.message);
-      // 낙관적 잠금에 걸렸으면 화면의 version 이 이미 옛것이다. 다시 읽어 와야 다음 시도가 통한다.
-      if (res.code === "CONFLICT") router.refresh();
-      return;
-    }
-    finish(plan ? "계획을 수정했습니다." : "계획을 추가했습니다.");
-  }, [
-    activeCompanyId, projectId, title, amount, date, precision, brandId, vendorName,
-    description, plan, router, finish,
-  ]);
-
-  const handleCancelPlan = useCallback(async () => {
-    if (!plan) return;
-    setSaving(true);
-    const res = await planFetch<{ id: string; version: number }>(
-      `/api/plans/items/${plan.id}/cancel`,
-      jsonBody({ version: plan.version, reason: cancelReason.trim() || null }),
-    );
-    setSaving(false);
-    if (!res.ok) {
-      toast.error(res.message);
-      if (res.code === "CONFLICT") router.refresh();
-      return;
-    }
-    finish(deleteWording ? "계획을 삭제했습니다(취소 상태로 보관)." : "계획을 취소했습니다.");
-  }, [plan, cancelReason, router, finish, deleteWording]);
+        setSaving(false);
+        if (!res.ok) {
+          toast.error(res.message);
+          if (res.code === "CONFLICT") router.refresh();
+          return;
+        }
+        finish(deleteWording ? "계획을 삭제했습니다(취소 상태로 보관)." : "계획을 취소했습니다.");
+      }),
+    [withLock, plan, cancelReason, router, finish, deleteWording],
+  );
 
   const dateLabel = !date
     ? "날짜 선택"
@@ -356,7 +371,7 @@ export function PlanDialog({
                 disabled={!activeCompanyId || projectsInCompany.length === 0}
               >
                 <SelectTrigger
-                  className="w-full"
+                  className="w-full data-[size=default]:h-11"
                   // aria-label 은 접근 가능한 이름을 통째로 덮어쓴다. 현재 선택을 라벨에 함께 넣지 않으면
                   // 스크린 리더가 무엇이 골라져 있는지 읽지 못한다(company-pill-group.tsx 와 같은 이유).
                   aria-label={`프로젝트 선택: ${projectLabel ?? "미선택"}`}
@@ -384,7 +399,7 @@ export function PlanDialog({
                 분류 <span className="font-normal">(선택)</span>
               </Label>
               <Select value={brandId} onValueChange={(v) => v && setBrandId(String(v))} disabled={!activeCompanyId}>
-                <SelectTrigger className="w-full" aria-label={`분류 선택: ${brandLabel}`}>
+                <SelectTrigger className="w-full data-[size=default]:h-11" aria-label={`분류 선택: ${brandLabel}`}>
                   <SelectValue placeholder="공통">{brandLabel}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -411,6 +426,7 @@ export function PlanDialog({
                 ) : (
                   <div className="flex items-center gap-2">
                     <Input
+                      className="h-11"
                       value={newBrand}
                       onChange={(e) => setNewBrand(e.target.value)}
                       maxLength={100}
@@ -446,6 +462,7 @@ export function PlanDialog({
               </Label>
               <Input
                 id="plan-title"
+                className="h-11"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 maxLength={200}
@@ -464,7 +481,7 @@ export function PlanDialog({
                   value={amountText}
                   inputMode="numeric"
                   placeholder="0"
-                  className="pr-10 tabular-nums"
+                  className="h-11 pr-10 tabular-nums"
                   onChange={(e) =>
                     setAmountText(formatAmountInput(e.target.value.replace(/[^\d]/g, "").slice(0, 10)))
                   }
@@ -492,7 +509,8 @@ export function PlanDialog({
                       aria-checked={precision === p}
                       onClick={() => setPrecision(p)}
                       className={cn(
-                        "rounded-full px-3 py-1 text-caption1 font-medium transition-all duration-200",
+                        // 44px 터치 타깃(DESIGN.md, QA D-08). 컨테이너 p-1 을 더하면 필 높이 52px.
+                        "min-h-11 rounded-full px-4 text-caption1 font-medium transition-all duration-200",
                         precision === p
                           ? "bg-[var(--apple-blue)] text-white shadow-[0_1px_4px_rgba(0,122,255,0.25)]"
                           : "text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)]",
@@ -506,7 +524,7 @@ export function PlanDialog({
               <Popover open={dateOpen} onOpenChange={setDateOpen}>
                 <PopoverTrigger
                   className={cn(
-                    "flex h-10 w-full items-center justify-start gap-2 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] px-3 text-sm transition-colors hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]",
+                    "flex h-11 w-full items-center justify-start gap-2 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] px-3 text-sm transition-colors hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]",
                     !date && "text-[var(--apple-secondary-label)]",
                   )}
                   aria-label={`예정일: ${dateLabel}`}
@@ -540,6 +558,7 @@ export function PlanDialog({
               </Label>
               <Input
                 id="plan-vendor"
+                className="h-11"
                 value={vendorName}
                 onChange={(e) => setVendorName(e.target.value)}
                 maxLength={200}

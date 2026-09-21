@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useTransition, type ReactNode } from "react";
+import { useCallback, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -63,6 +63,9 @@ export function PlanToolbar({ board, currentMonth }: PlanToolbarProps) {
   const lastMonth = shiftMonth(board.from, board.monthCount - 1);
   // 보드의 projects 는 서버가 이미 법인 필터로 걸러 준다. 분류는 법인 필터가 없을 때 전 법인 것이 온다.
   const projectsInScope = board.projects;
+  // 법인이 섞여 있으면(대표의 '전체', 여러 법인에 참여) 칩에 법인을 병기한다 — 같은 이름의 프로젝트가
+  // 두 법인에 있을 수 있다(QA D-09).
+  const mixedCompanies = new Set(projectsInScope.map((p) => p.companyId)).size > 1;
   const brandsInScope = companyId
     ? board.brands.filter((b) => b.companyId === companyId)
     : board.brands;
@@ -147,22 +150,18 @@ export function PlanToolbar({ board, currentMonth }: PlanToolbarProps) {
           role="radiogroup"
           aria-label="프로젝트 필터"
         >
-          <ProjectChip selected={!projectId} onClick={() => setParams({ projectId: null })}>
-            전체
-          </ProjectChip>
+          <ProjectChip label="전체" selected={!projectId} onClick={() => setParams({ projectId: null })} />
           {projectsInScope.map((p) => (
             <ProjectChip
               key={p.id}
+              label={p.name}
+              hint={mixedCompanies ? p.companyName : undefined}
               selected={projectId === p.id}
               onClick={() => setParams({ projectId: p.id })}
-            >
-              {p.name}
-            </ProjectChip>
+            />
           ))}
           {unknownProject && (
-            <ProjectChip selected onClick={() => setParams({ projectId: null })}>
-              선택한 프로젝트
-            </ProjectChip>
+            <ProjectChip label="선택한 프로젝트" selected onClick={() => setParams({ projectId: null })} />
           )}
           <button
             type="button"
@@ -179,7 +178,7 @@ export function PlanToolbar({ board, currentMonth }: PlanToolbarProps) {
           onValueChange={(v) => setParams({ brandId: !v || v === ALL ? null : String(v) })}
         >
           <SelectTrigger
-            className="max-w-[46vw] sm:max-w-56"
+            className="max-w-[46vw] data-[size=default]:h-11 sm:max-w-56"
             // aria-label 은 트리거 안의 내용을 통째로 덮어쓴다. 선택값을 라벨에 함께 넣어야
             // 스크린 리더가 지금 걸린 필터를 읽을 수 있다(company-pill-group.tsx 와 같은 이유).
             aria-label={`분류 필터: ${brandLabel}`}
@@ -228,27 +227,31 @@ export function PlanToolbar({ board, currentMonth }: PlanToolbarProps) {
   );
 }
 
-/** 프로젝트 필터 칩. '취소 포함' 토글과 같은 모양(44px 필). */
+/** 프로젝트 필터 칩. '취소 포함' 토글과 같은 모양(44px 필). hint 는 법인 병기(작고 흐리게). */
 function ProjectChip({
+  label,
+  hint,
   selected,
   onClick,
-  children,
 }: {
+  label: string;
+  hint?: string;
   selected: boolean;
   onClick: () => void;
-  children: ReactNode;
 }) {
   return (
     <Button
       type="button"
       role="radio"
       aria-checked={selected}
+      aria-label={hint ? `${label} (${hint})` : undefined}
       variant={selected ? "default" : "outline"}
       size="sm"
-      className="min-h-11 shrink-0 rounded-full max-w-[60vw] sm:max-w-56"
+      className="min-h-11 shrink-0 rounded-full max-w-[60vw] sm:max-w-64"
       onClick={onClick}
     >
-      <span className="truncate">{children}</span>
+      <span className="truncate">{label}</span>
+      {hint && <span className="shrink-0 text-[11px] font-normal opacity-70">· {hint}</span>}
     </Button>
   );
 }

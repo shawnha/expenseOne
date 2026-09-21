@@ -34,6 +34,7 @@ import {
   planFetch,
   PLAN_STATUS_LABEL,
 } from "./plan-client";
+import { useSubmitLock } from "./use-submit-lock";
 
 // ---------------------------------------------------------------------------
 // 계획 상세. 필드·담당자·요약·연결된 입금요청·메모·최근 이력 10.
@@ -100,6 +101,7 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
   const [editOpen, setEditOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
   const [unlinking, setUnlinking] = useState<string | null>(null);
+  const withLock = useSubmitLock();
 
   const editTarget: PlanEditTarget = {
     id: plan.id,
@@ -120,20 +122,21 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
   };
 
   const handleUnlink = useCallback(
-    async (linkId: string) => {
-      setUnlinking(linkId);
-      const res = await planFetch(`/api/plans/items/${plan.id}/links?linkId=${linkId}`, {
-        method: "DELETE",
-      });
-      setUnlinking(null);
-      if (!res.ok) {
-        toast.error(res.message);
-        return;
-      }
-      toast.success("연결을 해제했습니다.");
-      router.refresh();
-    },
-    [plan.id, router],
+    (linkId: string) =>
+      withLock(async () => {
+        setUnlinking(linkId);
+        const res = await planFetch(`/api/plans/items/${plan.id}/links?linkId=${linkId}`, {
+          method: "DELETE",
+        });
+        setUnlinking(null);
+        if (!res.ok) {
+          toast.error(res.message);
+          return;
+        }
+        toast.success("연결을 해제했습니다.");
+        router.refresh();
+      }),
+    [withLock, plan.id, router],
   );
 
   const diff = diffBadge(summary.diff, summary.linkCount);
@@ -143,7 +146,7 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
       <div className="animate-fade-up">
         <Link
           href="/plans"
-          className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-footnote text-[var(--apple-blue)] transition-colors hover:bg-[var(--apple-blue)]/10"
+          className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-footnote text-[var(--apple-blue)] transition-colors hover:bg-[var(--apple-blue)]/10"
         >
           <ArrowLeft className="size-4" aria-hidden="true" />
           비용계획
@@ -256,6 +259,7 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
               <LinkRow
                 key={link.id}
                 link={link}
+                canEdit={canEdit}
                 busy={unlinking === link.id}
                 onUnlink={() => void handleUnlink(link.id)}
               />
@@ -264,7 +268,7 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
         )}
       </section>
 
-      <CommentThread planId={plan.id} initialComments={comments} />
+      <CommentThread planId={plan.id} initialComments={comments} canEdit={canEdit} />
 
       {/* 이력 */}
       <section className="glass p-4 sm:p-5" aria-label="변경 이력">
@@ -347,10 +351,13 @@ function Field({ label, value }: { label: string; value: string }) {
 
 function LinkRow({
   link,
+  canEdit,
   busy,
   onUnlink,
 }: {
   link: PlanLinkRow;
+  /** 취소·마감된 계획은 해제도 잠긴다(QA D-07, 서버도 409). */
+  canEdit: boolean;
   busy: boolean;
   onUnlink: () => void;
 }) {
@@ -358,12 +365,16 @@ function LinkRow({
     <li className="rounded-xl border border-[var(--apple-separator)] px-3 py-2.5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-footnote font-medium text-[var(--apple-label)] truncate">
+          {/* 제목 링크는 44px 높이(QA D-08). 오른쪽 금액+해제 버튼 열이 이미 그만큼 높아 행이 길어지지 않는다. */}
+          <p className="text-footnote font-medium text-[var(--apple-label)]">
             {link.deleted || !link.expenseId ? (
-              link.snapshotTitle
+              <span className="block truncate">{link.snapshotTitle}</span>
             ) : (
-              <Link href={`/expenses/${link.expenseId}`} className="hover:underline">
-                {link.snapshotTitle}
+              <Link
+                href={`/expenses/${link.expenseId}`}
+                className="flex min-h-11 items-center truncate rounded-lg hover:underline"
+              >
+                <span className="truncate">{link.snapshotTitle}</span>
               </Link>
             )}
           </p>
@@ -376,16 +387,18 @@ function LinkRow({
           <p className="text-footnote font-semibold tabular-nums text-[var(--apple-label)]">
             {formatKRW(link.snapshotAmount)}
           </p>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="mt-0.5 min-h-11 text-[var(--apple-red)]"
-            onClick={onUnlink}
-            disabled={busy}
-          >
-            {busy ? "해제 중" : "해제"}
-          </Button>
+          {canEdit && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="mt-0.5 min-h-11 text-[var(--apple-red)]"
+              onClick={onUnlink}
+              disabled={busy}
+            >
+              {busy ? "해제 중" : "해제"}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -439,6 +452,7 @@ function LinkSuggestions({ planId }: { planId: string }) {
   const [suggestions, setSuggestions] = useState<LinkSuggestion[] | null>(null);
   const [hidden, setHidden] = useState<Set<string>>(() => new Set());
   const [linking, setLinking] = useState<string | null>(null);
+  const withLock = useSubmitLock();
 
   useEffect(() => {
     let alive = true;
@@ -453,19 +467,20 @@ function LinkSuggestions({ planId }: { planId: string }) {
   }, [planId]);
 
   const handleLink = useCallback(
-    async (expenseId: string) => {
-      setLinking(expenseId);
-      const res = await planFetch<{ linkId: string }>(`/api/plans/items/${planId}/links`, jsonBody({ expenseId }));
-      setLinking(null);
-      if (!res.ok) {
-        toast.error(res.message);
-        return;
-      }
-      setSuggestions((prev) => (prev ? prev.filter((s) => s.id !== expenseId) : prev));
-      toast.success("입금요청을 연결했습니다.");
-      router.refresh();
-    },
-    [planId, router],
+    (expenseId: string) =>
+      withLock(async () => {
+        setLinking(expenseId);
+        const res = await planFetch<{ linkId: string }>(`/api/plans/items/${planId}/links`, jsonBody({ expenseId }));
+        setLinking(null);
+        if (!res.ok) {
+          toast.error(res.message);
+          return;
+        }
+        setSuggestions((prev) => (prev ? prev.filter((s) => s.id !== expenseId) : prev));
+        toast.success("입금요청을 연결했습니다.");
+        router.refresh();
+      }),
+    [withLock, planId, router],
   );
 
   const visible = (suggestions ?? []).filter((s) => !hidden.has(s.id));
@@ -551,6 +566,7 @@ function LinkDialog({
   const [candidates, setCandidates] = useState<LinkCandidate[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [linking, setLinking] = useState<string | null>(null);
+  const withLock = useSubmitLock();
 
   // 입력이 멈춘 뒤에 찾는다. 글자마다 부르면 같은 표를 여러 번 훑는다.
   useEffect(() => {
@@ -572,22 +588,23 @@ function LinkDialog({
   }, [open, query, planId]);
 
   const handleLink = useCallback(
-    async (expenseId: string) => {
-      setLinking(expenseId);
-      const res = await planFetch<{ linkId: string }>(
-        `/api/plans/items/${planId}/links`,
-        jsonBody({ expenseId }),
-      );
-      setLinking(null);
-      if (!res.ok) {
-        toast.error(res.message);
-        return;
-      }
-      toast.success("입금요청을 연결했습니다.");
-      onOpenChange(false);
-      router.refresh();
-    },
-    [planId, onOpenChange, router],
+    (expenseId: string) =>
+      withLock(async () => {
+        setLinking(expenseId);
+        const res = await planFetch<{ linkId: string }>(
+          `/api/plans/items/${planId}/links`,
+          jsonBody({ expenseId }),
+        );
+        setLinking(null);
+        if (!res.ok) {
+          toast.error(res.message);
+          return;
+        }
+        toast.success("입금요청을 연결했습니다.");
+        onOpenChange(false);
+        router.refresh();
+      }),
+    [withLock, planId, onOpenChange, router],
   );
 
   return (
