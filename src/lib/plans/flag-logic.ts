@@ -27,6 +27,11 @@ export interface FlagCacheOptions {
   failureTtlMs?: number;
   /** 시계 주입(테스트용). */
   now?: () => number;
+  /**
+   * loader 가 throw 했을 때. 캐시는 예외를 삼키고 OFF 로 답하므로(fail-closed) 여기서 로그를 남기지 않으면
+   * 기능이 소리 없이 사라진다(QA D-12). 이 콜백이 던져도 무시한다.
+   */
+  onError?: (err: unknown) => void;
 }
 
 export interface FlagCache {
@@ -40,6 +45,7 @@ export function createFlagCache(options: FlagCacheOptions = {}): FlagCache {
   const ttlMs = options.ttlMs ?? 20_000;
   const failureTtlMs = options.failureTtlMs ?? 5_000;
   const now = options.now ?? Date.now;
+  const onError = options.onError;
 
   let cached: { row: FlagRow | null; expiresAt: number } | null = null;
   let inflight: Promise<FlagRow | null> | null = null;
@@ -55,9 +61,14 @@ export function createFlagCache(options: FlagCacheOptions = {}): FlagCache {
         let ok = true;
         try {
           row = await loader();
-        } catch {
+        } catch (err) {
           row = null;
           ok = false;
+          try {
+            onError?.(err);
+          } catch {
+            // 로그 콜백의 실패가 판정을 바꾸면 안 된다
+          }
         }
         const ttl = ok && row ? ttlMs : failureTtlMs;
         cached = { row, expiresAt: now() + ttl };

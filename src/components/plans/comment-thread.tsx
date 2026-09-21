@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { PlanCommentRow } from "@/services/plan.service";
 import { formatStamp, jsonBody, planFetch } from "./plan-client";
+import { useSubmitLock } from "./use-submit-lock";
 
 // ---------------------------------------------------------------------------
 // 계획 메모 스레드. 쓰기·본인 수정·본인 삭제, 그리고 **열 때 읽음 표시**.
@@ -21,9 +23,12 @@ import { formatStamp, jsonBody, planFetch } from "./plan-client";
 interface CommentThreadProps {
   planId: string;
   initialComments: PlanCommentRow[];
+  /** 취소·마감된 계획은 메모도 잠긴다(서버도 409). 읽기는 그대로. */
+  canEdit: boolean;
 }
 
-export function CommentThread({ planId, initialComments }: CommentThreadProps) {
+export function CommentThread({ planId, initialComments, canEdit }: CommentThreadProps) {
+  const router = useRouter();
   const [comments, setComments] = useState(initialComments);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -32,28 +37,37 @@ export function CommentThread({ planId, initialComments }: CommentThreadProps) {
   /** 삭제를 물어보는 중인 메모. 지운 메모는 되살릴 수 없는데 '수정' 바로 옆이라 한 번 확인한다. */
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const marked = useRef(false);
+  // 같은 틱의 두 번째 클릭을 막는다(QA D-04). busy 는 화면용, 이 잠금이 실제 문지기다.
+  const withLock = useSubmitLock();
 
   // 열릴 때 한 번만. StrictMode 의 두 번째 마운트까지 세면 같은 요청이 두 번 나간다.
   useEffect(() => {
     if (marked.current) return;
     marked.current = true;
-    void planFetch(`/api/plans/items/${planId}/read`, { method: "POST" });
-  }, [planId]);
+    void planFetch(`/api/plans/items/${planId}/read`, { method: "POST" }).then((res) => {
+      // 뒤로 가기는 라우터 캐시의 보드를 다시 쓴다 — 읽음 처리 뒤 캐시를 비워야 '새 메모 N' 배지가
+      // 사라진다(QA D-06). 메모가 하나도 없으면 지울 배지도 없으니 서버를 다시 부르지 않는다.
+      if (res.ok && initialComments.length > 0) router.refresh();
+    });
+    // initialComments 는 첫 마운트 값만 뜻이 있다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planId, router]);
 
   const send = useCallback(
-    async (url: string, init: RequestInit, successMessage: string, after?: () => void) => {
-      setBusy(true);
-      const res = await planFetch<{ comments: PlanCommentRow[] }>(url, init);
-      setBusy(false);
-      if (!res.ok) {
-        toast.error(res.message);
-        return;
-      }
-      setComments(res.data.comments);
-      after?.();
-      toast.success(successMessage);
-    },
-    [],
+    (url: string, init: RequestInit, successMessage: string, after?: () => void) =>
+      withLock(async () => {
+        setBusy(true);
+        const res = await planFetch<{ comments: PlanCommentRow[] }>(url, init);
+        setBusy(false);
+        if (!res.ok) {
+          toast.error(res.message);
+          return;
+        }
+        setComments(res.data.comments);
+        after?.();
+        toast.success(successMessage);
+      }),
+    [withLock],
   );
 
   const handleCreate = useCallback(() => {
@@ -153,7 +167,8 @@ export function CommentThread({ planId, initialComments }: CommentThreadProps) {
                 <p className="mt-1 whitespace-pre-wrap text-footnote text-[var(--apple-label)]">
                   {comment.body}
                 </p>
-                {comment.canEdit &&
+                {canEdit &&
+                  comment.canEdit &&
                   (confirmId === comment.id ? (
                     <div className="mt-1.5 flex flex-wrap items-center justify-end gap-2">
                       <span className="mr-auto text-caption2 text-[var(--apple-secondary-label)]">
@@ -214,20 +229,26 @@ export function CommentThread({ planId, initialComments }: CommentThreadProps) {
         ))}
       </ul>
 
-      <div className="mt-3 space-y-2">
-        <Textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          maxLength={4000}
-          placeholder="메모 남기기"
-          aria-label="새 메모"
-        />
-        <div className="flex justify-end">
-          <Button type="button" size="lg" onClick={handleCreate} disabled={busy || !draft.trim()}>
-            {busy ? "저장 중..." : "메모 남기기"}
-          </Button>
+      {canEdit ? (
+        <div className="mt-3 space-y-2">
+          <Textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            maxLength={4000}
+            placeholder="메모 남기기"
+            aria-label="새 메모"
+          />
+          <div className="flex justify-end">
+            <Button type="button" size="lg" onClick={handleCreate} disabled={busy || !draft.trim()}>
+              {busy ? "저장 중..." : "메모 남기기"}
+            </Button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <p className="mt-3 text-caption1 text-[var(--apple-secondary-label)]">
+          취소되었거나 마감된 계획에는 메모를 남길 수 없습니다.
+        </p>
+      )}
     </section>
   );
 }

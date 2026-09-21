@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { withJosa } from "@/lib/plans/josa";
 
 // ---------------------------------------------------------------------------
 // 비용계획 입력 검증 (서버 라우트 + 클라이언트 폼 공용). DB CHECK 와 같은 범위로 맞춘다
@@ -30,7 +31,7 @@ const monthField = z
 function optionalText(max: number, label: string) {
   return z
     .string()
-    .max(max, `${label}은(는) ${max}자 이내로 입력해주세요`)
+    .max(max, `${withJosa(label, "은/는")} ${max}자 이내로 입력해주세요`)
     .nullable()
     .optional()
     .transform((v) => (v === undefined ? undefined : v && v.trim().length > 0 ? v.trim() : null));
@@ -67,11 +68,12 @@ export const projectsQuerySchema = z.object({
   companyId: uuidField("회사").optional(),
 });
 
-// --- 브랜드 ------------------------------------------------------------------
+// --- 분류(plan_brands) ----------------------------------------------------------
+// 표·API 이름은 brand 그대로, 화면 말은 "분류"(제품 개발·마케팅 같은 하위 카테고리, v1.1 오너 피드백).
 
 export const createBrandSchema = z.object({
   companyId: uuidField("회사"),
-  name: z.string().trim().min(1, "브랜드 이름을 입력해주세요").max(100, "브랜드 이름은 100자 이내로 입력해주세요"),
+  name: z.string().trim().min(1, "분류 이름을 입력해주세요").max(100, "분류 이름은 100자 이내로 입력해주세요"),
   categoryCode: nullableText(100, "카테고리 코드"),
 });
 export type CreateBrandInput = z.infer<typeof createBrandSchema>;
@@ -88,7 +90,7 @@ const planFields = {
   amount: amountField,
   plannedDate: isoDateField,
   datePrecision: z.enum(DATE_PRECISIONS, { message: "날짜 단위는 DAY 또는 MONTH입니다" }),
-  brandId: uuidField("브랜드").nullable().optional(),
+  brandId: uuidField("분류").nullable().optional(),
   vendorName: optionalText(200, "거래처"),
   description: optionalText(4000, "설명"),
 };
@@ -98,7 +100,7 @@ export const createPlanSchema = z.object({
   projectId: uuidField("프로젝트"),
   ...planFields,
   datePrecision: planFields.datePrecision.default("DAY"),
-  brandId: uuidField("브랜드").nullable().optional().transform((v) => v ?? null),
+  brandId: uuidField("분류").nullable().optional().transform((v) => v ?? null),
   vendorName: nullableText(200, "거래처"),
   description: nullableText(4000, "설명"),
 });
@@ -142,13 +144,18 @@ export const cancelPlanSchema = z.object({
 });
 export type CancelPlanInput = z.infer<typeof cancelPlanSchema>;
 
-/** 보드·목록 조회. from 이 없으면 서버가 KST 현재 달을 쓴다. brandId="none" 은 공통·미지정만. */
+/**
+ * 보드·목록 조회. from 이 없으면 서버가 KST 현재 달을 쓴다. brandId="none" 은 공통·미지정만.
+ * brandName 은 **이름으로** 거른다(대소문자·양끝 공백 무시) — 법인 '전체' 에서는 같은 이름의 분류가
+ * 법인마다 하나씩 있어 id 하나로는 고를 수 없다(QA D2-05). 둘 다 오면 둘 다 건다.
+ */
 export const boardQuerySchema = z.object({
   from: monthField.optional(),
   months: z.coerce.number().int().min(1).max(12).optional().default(4),
   companyId: uuidField("회사").optional(),
   projectId: uuidField("프로젝트").optional(),
-  brandId: z.union([uuidField("브랜드"), z.literal("none")]).optional(),
+  brandId: z.union([uuidField("분류"), z.literal("none")]).optional(),
+  brandName: z.string().trim().min(1, "분류 이름이 비었습니다").max(100, "분류 이름은 100자 이내입니다").optional(),
   /** PLANNED(기본) = 취소·마감 제외, ALL = 전부 */
   status: z.enum(["PLANNED", "ALL"]).optional().default("PLANNED"),
 });
@@ -187,7 +194,46 @@ export function searchParamsToObject(params: URLSearchParams): Record<string, st
   return raw;
 }
 
-/** zod 오류를 기존 API 형식(", " 로 이은 메시지)으로. */
+/** 한글이 없는 문장 = zod 기본(영문) 문구. 타입 불일치처럼 우리가 문구를 달지 않은 자리다. */
+const HANGUL_RE = /[가-힣]/;
+
+/** 칸 이름 → 화면 말. 영문 기본 문구를 바꿀 때 "amount" 대신 "금액" 이라고 적기 위해. */
+const FIELD_LABELS: Record<string, string> = {
+  companyId: "법인",
+  projectId: "프로젝트",
+  brandId: "분류",
+  title: "제목",
+  amount: "금액",
+  plannedDate: "예정일",
+  datePrecision: "날짜 단위",
+  vendorName: "거래처",
+  description: "설명",
+  version: "버전",
+  body: "메모",
+  name: "이름",
+  memberIds: "참여자",
+  userId: "사용자",
+  expenseId: "입금요청",
+  linkId: "연결",
+  reason: "사유",
+  categoryCode: "카테고리 코드",
+  from: "시작 달",
+  months: "개월 수",
+  status: "상태",
+  q: "검색어",
+};
+
+/**
+ * zod 오류를 기존 API 형식(", " 로 이은 메시지)으로. 영문 기본 문구("Invalid input: expected number,
+ * received string")는 한국어로 바꾼다(QA D-13) — 칸 이름을 화면 말로 적고 조사를 맞춘다.
+ */
 export function issuesMessage(error: z.ZodError): string {
-  return error.issues.map((i) => i.message).join(", ");
+  return error.issues
+    .map((i) => {
+      if (HANGUL_RE.test(i.message)) return i.message;
+      const key = i.path.length > 0 ? String(i.path[0]) : "";
+      const label = FIELD_LABELS[key] ?? key;
+      return label ? `${withJosa(label, "이/가")} 올바르지 않습니다` : "입력값이 올바르지 않습니다";
+    })
+    .join(", ");
 }

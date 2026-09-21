@@ -291,8 +291,8 @@
 .glass {
   position: relative;
   background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   border: 1px solid var(--glass-border);
   border-top-color: var(--glass-border-top);
   box-shadow:
@@ -349,8 +349,8 @@
 .glass-strong {
   position: relative;
   background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
   -webkit-backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
   border: 1px solid var(--glass-border-strong);
   border-top-color: var(--glass-border-top);
   box-shadow:
@@ -383,8 +383,8 @@
 .glass-subtle {
   position: relative;
   background: var(--glass-bg-subtle);
-  backdrop-filter: blur(var(--glass-blur-subtle)) saturate(var(--glass-saturate));
   -webkit-backdrop-filter: blur(var(--glass-blur-subtle)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur-subtle)) saturate(var(--glass-saturate));
   border: 1px solid var(--glass-border);
   border-top-color: var(--glass-border-top);
   box-shadow:
@@ -423,8 +423,8 @@
 .glass-tab-bar {
   position: relative;
   background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   border: 1px solid var(--glass-border);
   box-shadow:
     0 8px 40px rgba(0, 0, 0, 0.12),
@@ -461,8 +461,8 @@
 .glass-lens {
   position: absolute;
   border-radius: 18px;
-  backdrop-filter: brightness(1.35) saturate(1.6) contrast(1.05);
   -webkit-backdrop-filter: brightness(1.35) saturate(1.6) contrast(1.05);
+  backdrop-filter: brightness(1.35) saturate(1.6) contrast(1.05);
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.25);
   box-shadow:
@@ -492,8 +492,8 @@
 .dark .glass-lens {
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.15);
-  backdrop-filter: brightness(1.5) saturate(1.8) contrast(1.1);
   -webkit-backdrop-filter: brightness(1.5) saturate(1.8) contrast(1.1);
+  backdrop-filter: brightness(1.5) saturate(1.8) contrast(1.1);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.12),
     inset 0 -0.5px 0 rgba(0, 0, 0, 0.1),
@@ -512,8 +512,8 @@
 .glass-card {
   position: relative;
   background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   border: 1px solid var(--glass-border);
   border-top-color: var(--glass-border-top);
   box-shadow:
@@ -582,8 +582,8 @@
 .glass-nav {
   position: relative;
   background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
   -webkit-backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
   border: 1px solid var(--glass-border);
   border-top-color: var(--glass-border-top);
   box-shadow:
@@ -634,8 +634,8 @@
 .glass-dialog {
   position: relative;
   background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
   -webkit-backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
   border: 1px solid var(--glass-border-strong);
   border-top-color: var(--glass-border-top);
   box-shadow:
@@ -680,8 +680,8 @@
 .glass-sidebar {
   position: relative;
   background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
   -webkit-backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
   border-right: 1px solid var(--glass-border);
 }
 
@@ -704,8 +704,8 @@
 .glass-header {
   position: relative;
   background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   border-top-color: var(--glass-border-top);
   box-shadow:
     0 2px 12px rgba(0, 0, 0, 0.06),

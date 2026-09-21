@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
+import { notFound, redirect, unstable_rethrow } from "next/navigation";
 import { getCachedCurrentUser } from "@/lib/supabase/cached";
 import { currentMonthKST } from "@/lib/plans/diff";
+import { toSafeError } from "@/lib/plans/errors";
 import { isCostPlanningAllowed } from "@/lib/plans/flag";
 import { boardQuerySchema } from "@/lib/validations/plan";
-import { getBoard } from "@/services/plan.service";
+import { getBoard, type BoardResult } from "@/services/plan.service";
 import { MonthBoard } from "@/components/plans/month-board";
 import { PlanToolbar } from "@/components/plans/plan-toolbar";
 import { PlanCreateButton } from "@/components/plans/plan-dialog";
-import { ProjectOpenButton } from "@/components/plans/project-dialog";
 
 // ---------------------------------------------------------------------------
 // /plans — 월별 비용계획 보드.
@@ -24,7 +24,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "비용계획" };
 
 /** 보드가 읽는 쿼리 값만 추린다. 배열로 들어온 중복 파라미터는 버린다. */
-const QUERY_KEYS = ["from", "companyId", "projectId", "brandId", "status"] as const;
+const QUERY_KEYS = ["from", "companyId", "projectId", "brandId", "brandName", "status"] as const;
 
 interface PlansPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -46,7 +46,14 @@ export default async function PlansPage({ searchParams }: PlansPageProps) {
   const parsed = boardQuerySchema.safeParse(raw);
   const query = parsed.success ? parsed.data : boardQuerySchema.parse({});
 
-  const board = await getBoard({ id: user.id, role: user.role }, query);
+  let board: BoardResult;
+  try {
+    board = await getBoard({ id: user.id, role: user.role }, query);
+  } catch (err) {
+    unstable_rethrow(err);
+    // Next 가 오류를 통째로 로그에 찍는다 — 드리즐 오류 문장의 SQL·params 를 빼고 던진다(QA D-01).
+    throw toSafeError(err);
+  }
   const currentMonth = currentMonthKST();
 
   return (
@@ -58,10 +65,8 @@ export default async function PlansPage({ searchParams }: PlansPageProps) {
             앞으로 나갈 돈을 달별로 세워 두고, 실제 입금요청과 맞춰 봅니다.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <ProjectOpenButton />
-          <PlanCreateButton defaultCompanyId={query.companyId} />
-        </div>
+        {/* 프로젝트 만들기·참여자는 툴바의 '＋ 프로젝트' 칩이 연다(프로젝트가 최상위, v1.1). */}
+        <PlanCreateButton defaultCompanyId={query.companyId} defaultProjectId={query.projectId} />
       </header>
 
       <PlanToolbar board={board} currentMonth={currentMonth} />
@@ -70,6 +75,7 @@ export default async function PlansPage({ searchParams }: PlansPageProps) {
         board={board}
         showCompany={!query.companyId}
         companyId={query.companyId}
+        projectId={query.projectId}
         currentMonth={currentMonth}
       />
     </div>

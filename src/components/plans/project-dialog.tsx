@@ -27,6 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { CompanyPillGroup } from "@/components/companies/company-pill-group";
 import type { CompanyOption, ProjectSummary, UserOption } from "@/services/plan.service";
 import { jsonBody, planFetch } from "./plan-client";
+import { useSubmitLock } from "./use-submit-lock";
 
 // ---------------------------------------------------------------------------
 // 프로젝트 만들기 + 참여자 추가·제거.
@@ -50,6 +51,8 @@ export function ProjectDialog({ open, onOpenChange, onSaved }: ProjectDialogProp
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [busyProject, setBusyProject] = useState<string | null>(null);
+  // 같은 틱의 두 번째 클릭을 막는다(QA D-04). creating/busyProject 는 화면용, 이 잠금이 실제 문지기다.
+  const withLock = useSubmitLock();
 
   const [showForm, setShowForm] = useState(false);
   const [companyId, setCompanyId] = useState("");
@@ -95,48 +98,53 @@ export function ProjectDialog({ open, onOpenChange, onSaved }: ProjectDialogProp
     setUsers(res.data.users);
   }, [users]);
 
-  const handleCreate = useCallback(async () => {
-    if (!companyId) return toast.error("법인을 선택해주세요.");
-    if (!name.trim()) return toast.error("프로젝트 이름을 입력해주세요.");
-    setCreating(true);
-    const res = await planFetch<{ project: ProjectSummary }>(
-      "/api/plans/projects",
-      jsonBody({
-        companyId,
-        name: name.trim(),
-        description: description.trim() || null,
-        memberIds: pickedMembers.map((m) => m.id),
+  const handleCreate = useCallback(
+    () =>
+      withLock(async () => {
+        if (!companyId) return toast.error("법인을 선택해주세요.");
+        if (!name.trim()) return toast.error("프로젝트 이름을 입력해주세요.");
+        setCreating(true);
+        const res = await planFetch<{ project: ProjectSummary }>(
+          "/api/plans/projects",
+          jsonBody({
+            companyId,
+            name: name.trim(),
+            description: description.trim() || null,
+            memberIds: pickedMembers.map((m) => m.id),
+          }),
+        );
+        setCreating(false);
+        if (!res.ok) {
+          toast.error(res.message);
+          return;
+        }
+        setProjects((prev) => [...prev, res.data.project]);
+        setName("");
+        setDescription("");
+        setPickedMembers([]);
+        setShowForm(false);
+        setTouched(true);
+        toast.success(`'${res.data.project.name}' 프로젝트를 만들었습니다.`);
       }),
-    );
-    setCreating(false);
-    if (!res.ok) {
-      toast.error(res.message);
-      return;
-    }
-    setProjects((prev) => [...prev, res.data.project]);
-    setName("");
-    setDescription("");
-    setPickedMembers([]);
-    setShowForm(false);
-    setTouched(true);
-    toast.success(`프로젝트 '${res.data.project.name}'을(를) 만들었습니다.`);
-  }, [companyId, name, description, pickedMembers]);
+    [withLock, companyId, name, description, pickedMembers],
+  );
 
   const mutateMembers = useCallback(
-    async (projectId: string, url: string, init: RequestInit, successMessage: string) => {
-      setBusyProject(projectId);
-      const res = await planFetch<{ members: UserOption[] }>(url, init);
-      setBusyProject(null);
-      if (!res.ok) {
-        toast.error(res.message);
-        return;
-      }
-      const members = res.data.members;
-      setProjects((prev) => prev.map((p) => (p.id === projectId ? { ...p, members } : p)));
-      setTouched(true);
-      toast.success(successMessage);
-    },
-    [],
+    (projectId: string, url: string, init: RequestInit, successMessage: string) =>
+      withLock(async () => {
+        setBusyProject(projectId);
+        const res = await planFetch<{ members: UserOption[] }>(url, init);
+        setBusyProject(null);
+        if (!res.ok) {
+          toast.error(res.message);
+          return;
+        }
+        const members = res.data.members;
+        setProjects((prev) => prev.map((p) => (p.id === projectId ? { ...p, members } : p)));
+        setTouched(true);
+        toast.success(successMessage);
+      }),
+    [withLock],
   );
 
   const handleClose = useCallback(() => {

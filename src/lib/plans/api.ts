@@ -3,7 +3,9 @@ import type { z } from "zod";
 import { requireAuth } from "@/lib/api-utils";
 import { AppError } from "@/services/attachment.service";
 import { isCostPlanningAllowed } from "./flag";
-import { mapDbError, PlanError, PLAN_ERROR_STATUS, type PlanErrorCode } from "./errors";
+import { mapDbError, PlanError, PLAN_ERROR_STATUS, summarizeError, type PlanErrorCode } from "./errors";
+import { withJosa } from "./josa";
+import { issuesMessage } from "@/lib/validations/plan";
 
 // ---------------------------------------------------------------------------
 // 비용계획 라우트 공용 껍데기 (src/app/api/plans/**)
@@ -37,7 +39,9 @@ export function handlePlanError(err: unknown): NextResponse {
   const mapped = mapDbError(err);
   if (mapped instanceof PlanError) return planError(mapped.code, mapped.message);
   if (mapped instanceof AppError) return planError(mapped.code, mapped.message);
-  console.error("[Plans] unhandled error:", mapped);
+  // 객체를 통째로 찍지 않는다 — 드리즐 오류 문장에는 실패한 SQL 과 사용자 입력(params)이 들어 있다(QA D-01).
+  const s = summarizeError(mapped);
+  console.error(`[Plans] unhandled error: ${s.name}${s.code ? ` ${s.code}` : ""}: ${s.message}`);
   return planError("INTERNAL_ERROR", "서버 내부 오류가 발생했습니다.");
 }
 
@@ -45,7 +49,7 @@ export function handlePlanError(err: unknown): NextResponse {
 export function parseOrThrow<T extends z.ZodType>(schema: T, value: unknown): z.infer<T> {
   const parsed = schema.safeParse(value);
   if (!parsed.success) {
-    throw new PlanError("VALIDATION_ERROR", parsed.error.issues.map((i) => i.message).join(", "));
+    throw new PlanError("VALIDATION_ERROR", issuesMessage(parsed.error));
   }
   return parsed.data;
 }
@@ -63,7 +67,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 /** 경로 파라미터 검사. 형식이 아니면 **404** — 없는 id 와 구분해 주지 않는다. */
 export function requireUuidParam(value: string, label: string): string {
-  if (!UUID_RE.test(value)) throw new PlanError("NOT_FOUND", `${label}을(를) 찾을 수 없습니다.`);
+  if (!UUID_RE.test(value)) throw new PlanError("NOT_FOUND", `${withJosa(label, "을/를")} 찾을 수 없습니다.`);
   return value;
 }
 

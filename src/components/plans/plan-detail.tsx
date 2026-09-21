@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Link2, Plus, Search } from "lucide-react";
+import { ArrowLeft, EyeOff, Link2, Plus, Search, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { CompanyBadge } from "@/components/companies/company-badge";
 import { formatKRW } from "@/lib/utils/expense-utils";
-import type { LinkCandidate, PlanChangeRow, PlanDetail, PlanLinkRow } from "@/services/plan.service";
+import type {
+  LinkCandidate,
+  LinkSuggestion,
+  PlanChangeRow,
+  PlanDetail,
+  PlanLinkRow,
+} from "@/services/plan.service";
 import { CommentThread } from "./comment-thread";
 import { PlanDialog, type PlanEditTarget } from "./plan-dialog";
 import {
@@ -28,6 +34,7 @@ import {
   planFetch,
   PLAN_STATUS_LABEL,
 } from "./plan-client";
+import { useSubmitLock } from "./use-submit-lock";
 
 // ---------------------------------------------------------------------------
 // 계획 상세. 필드·담당자·요약·연결된 입금요청·메모·최근 이력 10.
@@ -41,7 +48,7 @@ const FIELD_LABEL: Record<string, string> = {
   amount: "금액",
   plannedDate: "예정일",
   datePrecision: "날짜 단위",
-  brandId: "브랜드",
+  brandId: "분류",
   projectId: "프로젝트",
   vendorName: "거래처",
   description: "설명",
@@ -59,7 +66,7 @@ const LOG_LABEL: Record<string, string> = {
   "member:ADD": "참여자 추가",
   "member:REMOVE": "참여자 제거",
   "project:CREATE": "프로젝트 등록",
-  "brand:CREATE": "브랜드 추가",
+  "brand:CREATE": "분류 추가",
 };
 
 function logLine(row: PlanChangeRow): { label: string; detail: string | null } {
@@ -94,6 +101,7 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
   const [editOpen, setEditOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
   const [unlinking, setUnlinking] = useState<string | null>(null);
+  const withLock = useSubmitLock();
 
   const editTarget: PlanEditTarget = {
     id: plan.id,
@@ -114,20 +122,21 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
   };
 
   const handleUnlink = useCallback(
-    async (linkId: string) => {
-      setUnlinking(linkId);
-      const res = await planFetch(`/api/plans/items/${plan.id}/links?linkId=${linkId}`, {
-        method: "DELETE",
-      });
-      setUnlinking(null);
-      if (!res.ok) {
-        toast.error(res.message);
-        return;
-      }
-      toast.success("연결을 해제했습니다.");
-      router.refresh();
-    },
-    [plan.id, router],
+    (linkId: string) =>
+      withLock(async () => {
+        setUnlinking(linkId);
+        const res = await planFetch(`/api/plans/items/${plan.id}/links?linkId=${linkId}`, {
+          method: "DELETE",
+        });
+        setUnlinking(null);
+        if (!res.ok) {
+          toast.error(res.message);
+          return;
+        }
+        toast.success("연결을 해제했습니다.");
+        router.refresh();
+      }),
+    [withLock, plan.id, router],
   );
 
   const diff = diffBadge(summary.diff, summary.linkCount);
@@ -137,7 +146,7 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
       <div className="animate-fade-up">
         <Link
           href="/plans"
-          className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-footnote text-[var(--apple-blue)] transition-colors hover:bg-[var(--apple-blue)]/10"
+          className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-footnote text-[var(--apple-blue)] transition-colors hover:bg-[var(--apple-blue)]/10"
         >
           <ArrowLeft className="size-4" aria-hidden="true" />
           비용계획
@@ -196,7 +205,7 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
       <section className="glass p-4 sm:p-5" aria-label="상세 정보">
         <dl className="grid gap-3 sm:grid-cols-2">
           <Field label="거래처" value={plan.vendorName ?? "-"} />
-          <Field label="브랜드" value={plan.brandName ?? "공통"} />
+          <Field label="분류" value={plan.brandName ?? "공통"} />
           <Field label="프로젝트" value={plan.projectName} />
           <Field label="법인" value={plan.companyName} />
           <Field label="담당자" value={plan.ownerName ?? "-"} />
@@ -236,9 +245,13 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
           연결한 순간의 금액으로 비교합니다. 요청을 나중에 고쳐도 계획 합계는 바뀌지 않습니다(요청 원본 유지).
         </p>
 
+        {/* 제안은 사람이 눌러야 이어진다 — 잘못 이으면 그 순간의 금액이 스냅샷으로 얼어붙는다. */}
+        {canEdit && <LinkSuggestions planId={plan.id} />}
+
         {links.length === 0 ? (
-          <p className="mt-3 text-footnote text-[var(--apple-secondary-label)]">
-            연결된 입금요청이 없습니다. 실제로 요청을 올린 뒤 여기에 이어 두면 계획과 대조할 수 있습니다.
+          <p className="mt-3 text-footnote text-[var(--apple-secondary-label)] break-keep">
+            계획을 세운 뒤 실제 입금요청을 올리면, 그 요청을 여기에 이어 두고 계획 금액과 실제 요청 금액의 차이를
+            봅니다. 비슷한 요청이 있으면 자동으로 찾아 제안합니다. 아직 이어 둔 요청이 없습니다.
           </p>
         ) : (
           <ul className="mt-3 flex flex-col gap-2">
@@ -246,6 +259,7 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
               <LinkRow
                 key={link.id}
                 link={link}
+                canEdit={canEdit}
                 busy={unlinking === link.id}
                 onUnlink={() => void handleUnlink(link.id)}
               />
@@ -254,7 +268,7 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
         )}
       </section>
 
-      <CommentThread planId={plan.id} initialComments={comments} />
+      <CommentThread planId={plan.id} initialComments={comments} canEdit={canEdit} />
 
       {/* 이력 */}
       <section className="glass p-4 sm:p-5" aria-label="변경 이력">
@@ -337,10 +351,13 @@ function Field({ label, value }: { label: string; value: string }) {
 
 function LinkRow({
   link,
+  canEdit,
   busy,
   onUnlink,
 }: {
   link: PlanLinkRow;
+  /** 취소·마감된 계획은 해제도 잠긴다(QA D-07, 서버도 409). */
+  canEdit: boolean;
   busy: boolean;
   onUnlink: () => void;
 }) {
@@ -348,12 +365,16 @@ function LinkRow({
     <li className="rounded-xl border border-[var(--apple-separator)] px-3 py-2.5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-footnote font-medium text-[var(--apple-label)] truncate">
+          {/* 제목 링크는 44px 높이(QA D-08). 오른쪽 금액+해제 버튼 열이 이미 그만큼 높아 행이 길어지지 않는다. */}
+          <p className="text-footnote font-medium text-[var(--apple-label)]">
             {link.deleted || !link.expenseId ? (
-              link.snapshotTitle
+              <span className="block truncate">{link.snapshotTitle}</span>
             ) : (
-              <Link href={`/expenses/${link.expenseId}`} className="hover:underline">
-                {link.snapshotTitle}
+              <Link
+                href={`/expenses/${link.expenseId}`}
+                className="flex min-h-11 items-center truncate rounded-lg hover:underline"
+              >
+                <span className="truncate">{link.snapshotTitle}</span>
               </Link>
             )}
           </p>
@@ -366,16 +387,18 @@ function LinkRow({
           <p className="text-footnote font-semibold tabular-nums text-[var(--apple-label)]">
             {formatKRW(link.snapshotAmount)}
           </p>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="mt-0.5 min-h-11 text-[var(--apple-red)]"
-            onClick={onUnlink}
-            disabled={busy}
-          >
-            {busy ? "해제 중" : "해제"}
-          </Button>
+          {canEdit && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="mt-0.5 min-h-11 text-[var(--apple-red)]"
+              onClick={onUnlink}
+              disabled={busy}
+            >
+              {busy ? "해제 중" : "해제"}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -402,6 +425,132 @@ function LinkRow({
 }
 
 // ---------------------------------------------------------------------------
+// 연결 제안 — 같은 법인의 연결되지 않은 입금요청 중 날짜(±45일)나 금액(0.8~1.25배)이 맞는 것 최대 5건.
+// '연결'을 눌러야 이어진다. '숨기기'는 이 화면에 있는 동안만(새로고침하면 다시 나온다).
+// ---------------------------------------------------------------------------
+
+const REASON_LABEL: Record<LinkSuggestion["reasons"][number], string> = {
+  date: "날짜",
+  amount: "금액",
+  title: "제목",
+};
+
+function suggestionHint(s: LinkSuggestion): string {
+  const parts: string[] = [];
+  if (s.dateDiffDays !== null && s.reasons.includes("date")) {
+    parts.push(
+      s.dateDiffDays === 0 ? "예정일과 같은 날" : `예정일 ${Math.abs(s.dateDiffDays)}일 ${s.dateDiffDays > 0 ? "뒤" : "앞"}`,
+    );
+  }
+  const rest = s.reasons.filter((r) => r !== "date").map((r) => REASON_LABEL[r]);
+  if (rest.length > 0) parts.push(`${rest.join("·")} 비슷`);
+  return parts.join(" · ");
+}
+
+function LinkSuggestions({ planId }: { planId: string }) {
+  const router = useRouter();
+  const [suggestions, setSuggestions] = useState<LinkSuggestion[] | null>(null);
+  const [hidden, setHidden] = useState<Set<string>>(() => new Set());
+  const [linking, setLinking] = useState<string | null>(null);
+  const withLock = useSubmitLock();
+
+  useEffect(() => {
+    let alive = true;
+    void planFetch<{ suggestions: LinkSuggestion[] }>(`/api/plans/items/${planId}/link-suggestions`).then((res) => {
+      if (!alive) return;
+      // 제안은 곁들이다 — 실패해도 상세를 막지 않고 조용히 비운다.
+      setSuggestions(res.ok ? res.data.suggestions : []);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [planId]);
+
+  const handleLink = useCallback(
+    (expenseId: string) =>
+      withLock(async () => {
+        setLinking(expenseId);
+        const res = await planFetch<{ linkId: string }>(`/api/plans/items/${planId}/links`, jsonBody({ expenseId }));
+        setLinking(null);
+        if (!res.ok) {
+          toast.error(res.message);
+          return;
+        }
+        setSuggestions((prev) => (prev ? prev.filter((s) => s.id !== expenseId) : prev));
+        toast.success("입금요청을 연결했습니다.");
+        router.refresh();
+      }),
+    [withLock, planId, router],
+  );
+
+  const visible = (suggestions ?? []).filter((s) => !hidden.has(s.id));
+  if (visible.length === 0) return null;
+
+  return (
+    <div className="mt-3 rounded-2xl border border-[var(--apple-blue)]/25 bg-[var(--apple-blue)]/5 p-3" aria-label="연결 제안">
+      <p className="inline-flex items-center gap-1.5 text-footnote font-semibold text-[var(--apple-label)]">
+        <Sparkles className="size-3.5 text-[var(--apple-blue)]" aria-hidden="true" />
+        연결 제안 {visible.length}건
+      </p>
+      <p className="mt-0.5 text-caption2 text-[var(--apple-secondary-label)] break-keep">
+        날짜나 금액이 이 계획과 비슷한 입금요청입니다. 맞는 건만 골라 연결하세요.
+      </p>
+      <ul className="mt-2 flex flex-col gap-2">
+        {visible.map((s) => (
+          <li
+            key={s.id}
+            className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-xl bg-[var(--apple-system-background)] px-3 py-2.5"
+          >
+            <div className="min-w-0 flex-1 basis-40">
+              {/* 제목 링크는 44px(QA D2-07). */}
+              <p className="text-footnote font-medium text-[var(--apple-label)]">
+                <Link href={`/expenses/${s.id}`} className="flex min-h-11 items-center rounded-lg hover:underline">
+                  <span className="truncate">{s.title}</span>
+                </Link>
+              </p>
+              <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-caption2 tabular-nums text-[var(--apple-secondary-label)]">
+                <span className="glass-badge glass-badge-gray">{EXPENSE_STATUS_LABEL[s.status] ?? s.status}</span>
+                {/* 상태 배지 "제출" 바로 뒤라 "제출 날짜" 는 "제출 제출 …" 로 읽힌다(QA D2-06). */}
+                <span>제출일 {formatStamp(s.createdAt).slice(0, 10)}</span>
+                {s.submitterName && <span>· {s.submitterName}</span>}
+                <span>· {suggestionHint(s)}</span>
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              <span className="mr-1 text-footnote font-semibold tabular-nums text-[var(--apple-label)]">
+                {formatKRW(s.amount)}
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                className="min-h-11 rounded-full"
+                onClick={() => void handleLink(s.id)}
+                disabled={linking !== null}
+              >
+                <Link2 className="size-3.5" aria-hidden="true" />
+                {linking === s.id ? "연결 중" : "연결"}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="min-h-11 rounded-full text-[var(--apple-secondary-label)]"
+                aria-label={`${s.title} 제안 숨기기`}
+                onClick={() => setHidden((prev) => new Set(prev).add(s.id))}
+                disabled={linking !== null}
+              >
+                <EyeOff className="size-3.5" aria-hidden="true" />
+                숨기기
+              </Button>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // 연결 다이얼로그 — 같은 법인의 아직 연결되지 않은 입금요청만 서버가 골라서 준다.
 // ---------------------------------------------------------------------------
 
@@ -419,6 +568,7 @@ function LinkDialog({
   const [candidates, setCandidates] = useState<LinkCandidate[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [linking, setLinking] = useState<string | null>(null);
+  const withLock = useSubmitLock();
 
   // 입력이 멈춘 뒤에 찾는다. 글자마다 부르면 같은 표를 여러 번 훑는다.
   useEffect(() => {
@@ -440,22 +590,23 @@ function LinkDialog({
   }, [open, query, planId]);
 
   const handleLink = useCallback(
-    async (expenseId: string) => {
-      setLinking(expenseId);
-      const res = await planFetch<{ linkId: string }>(
-        `/api/plans/items/${planId}/links`,
-        jsonBody({ expenseId }),
-      );
-      setLinking(null);
-      if (!res.ok) {
-        toast.error(res.message);
-        return;
-      }
-      toast.success("입금요청을 연결했습니다.");
-      onOpenChange(false);
-      router.refresh();
-    },
-    [planId, onOpenChange, router],
+    (expenseId: string) =>
+      withLock(async () => {
+        setLinking(expenseId);
+        const res = await planFetch<{ linkId: string }>(
+          `/api/plans/items/${planId}/links`,
+          jsonBody({ expenseId }),
+        );
+        setLinking(null);
+        if (!res.ok) {
+          toast.error(res.message);
+          return;
+        }
+        toast.success("입금요청을 연결했습니다.");
+        onOpenChange(false);
+        router.refresh();
+      }),
+    [withLock, planId, onOpenChange, router],
   );
 
   return (
