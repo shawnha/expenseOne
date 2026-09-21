@@ -10,7 +10,7 @@ import {
   planProjects,
 } from "@/lib/db/schema-plans";
 import { users } from "@/lib/db/schema";
-import { PlanError, mapDbError } from "@/lib/plans/errors";
+import { dbErrorCode, PlanError, mapDbError } from "@/lib/plans/errors";
 import { num, rowsOf } from "@/lib/plans/rows";
 import { containsPattern } from "@/lib/plans/search";
 import {
@@ -62,7 +62,7 @@ import type {
 //   - 권한 근거는 대표 행 또는 참여자 행뿐. created_by_id·users.role 은 근거가 아니다(3절).
 //   - 응답에 users.name 말고 다른 사람 정보는 넣지 않는다(5절 9).
 //   - expenses·users 는 **읽기만** 한다. 이 파일에 UPDATE/DELETE/INSERT 대상이 되는 기존 표는 없다(P7·P18).
-//   - 알림·Slack·푸시를 부르지 않는다. 계획은 첫 출시에서 아무 알림도 보내지 않는다.
+//   - 알림 종(notifications)·Slack 은 부르지 않는다. 푸시만 커밋 뒤 dispatchPlanPush 로(notify.ts).
 // ---------------------------------------------------------------------------
 
 export interface PlanActorInput {
@@ -111,10 +111,23 @@ async function logChange(tx: PlanTx, entry: LogEntry): Promise<void> {
   });
 }
 
-/** unique 위반(23505)만 뜻이 통하는 문장으로 바꾼다. 나머지는 기존 매핑 그대로. */
+/**
+ * unique 위반(23505)만 뜻이 통하는 문장으로 바꾼다. 나머지는 기존 매핑 그대로.
+ * 드리즐이 감싼 오류라 최상위 code 가 아니라 cause 체인에서 찾는다(QA D-01).
+ */
 function asConflict(err: unknown, message: string): unknown {
-  if ((err as { code?: unknown } | null)?.code === "23505") return new PlanError("CONFLICT", message);
+  if (dbErrorCode(err) === "23505") return new PlanError("CONFLICT", message);
   return mapDbError(err);
+}
+
+/**
+ * 취소·마감된 계획은 상세가 잠긴다(canEdit=false). 수정·취소는 각자 검사하고, 연결·해제·메모 쓰기는
+ * 이 한 줄로 같은 규칙을 탄다(QA D-07). 읽기(상세·메모 목록·읽음 표시)는 막지 않는다.
+ */
+function requirePlannedForWrite(status: string): void {
+  if (status !== "PLANNED") {
+    throw new PlanError("CONFLICT", "취소되었거나 마감된 계획은 바꿀 수 없습니다.");
+  }
 }
 
 export interface CompanyOption {
@@ -346,7 +359,7 @@ export async function createProject(actor: PlanActorInput, input: CreateProjectI
     }
     return summary;
   });
-  dispatchPlanPush(push.ev);
+  await dispatchPlanPush(push.ev);
   return result;
 }
 
@@ -389,7 +402,7 @@ export async function addProjectMember(
     push.ev = await pushEventFor(tx, "member_added", actor, projectId, undefined, [userId]);
     return loadProjectMembers(tx, projectId);
   });
-  dispatchPlanPush(push.ev);
+  await dispatchPlanPush(push.ev);
   return result;
 }
 
@@ -890,7 +903,7 @@ export async function createPlan(actor: PlanActorInput, input: CreatePlanInput):
     push.ev = await pushEventFor(tx, "plan_created", actor, input.projectId, { id: created.id, title: input.title });
     return { id: created.id };
   });
-  dispatchPlanPush(push.ev);
+  await dispatchPlanPush(push.ev);
   return result;
 }
 
@@ -970,6 +983,9 @@ export async function updatePlan(
       }
     }
 
+    // 값이 하나도 안 바뀌면 아무것도 하지 않는다(QA D-10) — version 이 오르고 빈 이력·푸시가 남는 것을 막는다.
+    if (assignments.length === 0) return { id: planId, version: current.version };
+
     const version = await bumpPlanVersion(tx, planId, input.version, actor.id, assignments);
     await logChange(tx, {
       companyId: current.companyId,
@@ -985,7 +1001,7 @@ export async function updatePlan(
     push.ev = await pushEventFor(tx, "plan_updated", actor, current.projectId, { id: planId, title: input.title ?? current.title });
     return { id: planId, version };
   });
-  dispatchPlanPush(push.ev);
+  await dispatchPlanPush(push.ev);
   return result;
 }
 
@@ -1022,7 +1038,7 @@ export async function cancelPlan(
     push.ev = await pushEventFor(tx, "plan_cancelled", actor, current.projectId, { id: planId, title: current.title });
     return { id: planId, version };
   });
-  dispatchPlanPush(push.ev);
+  await dispatchPlanPush(push.ev);
   return result;
 }
 
@@ -1268,6 +1284,9 @@ export async function getPlanDetail(actor: PlanActorInput, planId: string): Prom
           FROM expenseone.plan_change_log g
           LEFT JOIN expenseone.users a ON a.id = g.actor_id
          WHERE g.plan_id = ${planId}::uuid
+           -- 메모 이벤트는 스레드가 이미 보여 준다. 여기 섞이면 LIMIT 10 을 메모가 밀어내
+           -- '계획 등록·수정' 이 사라진다(QA D-11).
+           AND g.entity_type IN ('plan', 'link')
          ORDER BY g.created_at DESC, g.id DESC
          LIMIT 10`),
     );
@@ -1340,6 +1359,7 @@ export async function createComment(
   const result = await withPlanTx(async (tx) => {
     const access = await loadAccess(tx, actorAccess(actor));
     const plan = await requirePlanAccess(tx, access, planId);
+    requirePlannedForWrite(plan.status);
 
     const [created] = await tx
       .insert(planComments)
@@ -1362,7 +1382,7 @@ export async function createComment(
     }
     return loadComments(tx, planId, access.userId);
   });
-  dispatchPlanPush(push.ev);
+  await dispatchPlanPush(push.ev);
   return result;
 }
 
@@ -1376,6 +1396,7 @@ export async function updateComment(
   return withPlanTx(async (tx) => {
     const access = await loadAccess(tx, actorAccess(actor));
     const plan = await requirePlanAccess(tx, access, planId);
+    requirePlannedForWrite(plan.status);
     const current = await requireOwnComment(tx, planId, commentId, actor.id);
 
     await tx.execute(sql`UPDATE expenseone.plan_comments
@@ -1405,6 +1426,7 @@ export async function deleteComment(
   return withPlanTx(async (tx) => {
     const access = await loadAccess(tx, actorAccess(actor));
     const plan = await requirePlanAccess(tx, access, planId);
+    requirePlannedForWrite(plan.status);
     const current = await requireOwnComment(tx, planId, commentId, actor.id);
 
     await tx.execute(sql`UPDATE expenseone.plan_comments
@@ -1612,9 +1634,7 @@ export async function linkExpense(
   const result = await withPlanTx(async (tx) => {
     const access = await loadAccess(tx, actorAccess(actor));
     const plan = await requirePlanAccess(tx, access, planId);
-    if (plan.status !== "PLANNED") {
-      throw new PlanError("CONFLICT", "취소되었거나 마감된 계획에는 연결할 수 없습니다.");
-    }
+    requirePlannedForWrite(plan.status);
     const canLinkAll = canLinkAllCompanyRequests(access);
 
     let rows: Array<{ id: string; snapshot_amount: number; snapshot_title: string }>;
@@ -1659,7 +1679,7 @@ export async function linkExpense(
     }
     return { linkId: created.id };
   });
-  dispatchPlanPush(push.ev);
+  await dispatchPlanPush(push.ev);
   return result;
 }
 
@@ -1673,6 +1693,8 @@ export async function unlinkExpense(
   const result = await withPlanTx(async (tx) => {
     const access = await loadAccess(tx, actorAccess(actor));
     const plan = await requirePlanAccess(tx, access, planId);
+    // 연결과 같은 규칙(QA D-07): 취소·마감된 계획은 잠긴다. 스냅샷 합계가 뒤에서 바뀌면 안 된다.
+    requirePlannedForWrite(plan.status);
 
     const row = rowsOf<{ id: string; expense_id: string | null; snapshot_amount: number }>(
       await tx.execute(sql`UPDATE expenseone.plan_expense_links x
@@ -1699,6 +1721,6 @@ export async function unlinkExpense(
     }
     return { linkId: row.id };
   });
-  dispatchPlanPush(push.ev);
+  await dispatchPlanPush(push.ev);
   return result;
 }

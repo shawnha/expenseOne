@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { sendPushToUser } from "@/services/push.service";
 
 // ---------------------------------------------------------------------------
@@ -7,8 +8,13 @@ import { sendPushToUser } from "@/services/push.service";
 // 복제한다. 값을 하나 추가하면 ERP 사본 CHECK 가 깨져 복제가 멈춘다(2026-06 REFUND 사고).
 // 푸시는 그 표를 거치지 않아 ERP 와 무관하다. 알림 종 목록은 ERP 가 CHECK 를 넓힌 뒤 붙인다.
 //
-// 언제 보내나: 트랜잭션이 **커밋된 뒤** 서비스가 dispatchPlanPush 를 부른다. 보내는 일은 요청을
-// 막지 않고(fire-and-forget), 실패해도 저장은 이미 끝나 있다. 본인이 한 일은 본인에게 보내지 않는다.
+// 언제 보내나: 트랜잭션이 **커밋된 뒤** 서비스가 dispatchPlanPush 를 부른다. 실패해도 저장은 이미
+// 끝나 있다. 본인이 한 일은 본인에게 보내지 않는다.
+//
+// 어떻게 보내나(QA D-05): `void sendPushToUser(...)` 로 흘려보내면 응답을 돌려준 순간 Vercel 함수가
+// 얼어 푸시가 사라질 수 있다. 라우트 안에서는 Next 의 `after()` 로 "응답 뒤, 함수가 끝나기 전" 에 보내고
+// (응답은 기다리지 않는다), 요청 밖(테스트·향후 cron)이라 after() 가 없으면 기존 알림 코드처럼
+// `await Promise.allSettled` 로 자리에서 기다린다. 어느 쪽이든 개별 실패는 로그만.
 // ---------------------------------------------------------------------------
 
 export type PlanPushKind =
@@ -79,18 +85,31 @@ export function buildPlanPush(ev: PlanPushEvent): PlanPushMessage {
   }
 }
 
+/** 수신자 전원에게 보내고 개별 실패는 로그만. 푸시 키가 없거나 구독이 없으면 sendPushToUser 가 조용히 건너뛴다. */
+async function sendAll(ev: PlanPushEvent, recipients: string[]): Promise<void> {
+  const msg = buildPlanPush(ev);
+  await Promise.allSettled(
+    recipients.map((userId) =>
+      sendPushToUser(userId, msg.title, msg.body, msg.url).catch((err: unknown) => {
+        console.error("[Plans] push failed:", ev.kind, err instanceof Error ? err.message : err);
+      }),
+    ),
+  );
+}
+
 /**
- * 커밋 뒤에 부른다. 기다리지 않는다. 실패는 로그만 남긴다 — 저장은 이미 끝났고,
- * 푸시 키가 없거나 구독이 없으면 sendPushToUser 가 조용히 건너뛴다.
+ * 커밋 뒤에 부른다(서비스 함수의 트랜잭션 밖). 라우트 안이면 after() 에 맡기고 곧바로 돌아오고,
+ * 요청 밖이면 자리에서 기다린다. 어느 경우에도 던지지 않는다 — 저장은 이미 끝났다.
  */
-export function dispatchPlanPush(ev: PlanPushEvent | null | undefined): void {
+export async function dispatchPlanPush(ev: PlanPushEvent | null | undefined): Promise<void> {
   if (!ev) return;
   const recipients = pickRecipients(ev.candidateIds, ev.actorId);
   if (recipients.length === 0) return;
-  const msg = buildPlanPush(ev);
-  for (const userId of recipients) {
-    void sendPushToUser(userId, msg.title, msg.body, msg.url).catch((err: unknown) => {
-      console.error("[Plans] push failed:", ev.kind, err instanceof Error ? err.message : err);
-    });
+  try {
+    after(() => sendAll(ev, recipients));
+    return;
+  } catch {
+    // after() 는 요청 범위 밖에서 던진다(E468). 그때는 여기서 기다린다.
   }
+  await sendAll(ev, recipients);
 }
