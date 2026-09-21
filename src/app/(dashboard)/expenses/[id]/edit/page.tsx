@@ -56,6 +56,9 @@ export interface ExpenseEditData {
   hasFreelancerWithholding: boolean;
   /** 사입 여부. 승인 후엔 잠금 필드라 요약 카드에만 보여준다. */
   isPurchase: boolean;
+  /** 후지급 플래그. 법카 사용으로 변경 버튼을 숨기는 조건(서버 규칙과 동일). */
+  remainingPaymentRequested: boolean;
+  remainingPaymentApproved: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -152,6 +155,8 @@ async function getExpenseForEdit(id: string): Promise<{
       companyId: expense.company_id ?? null,
       hasFreelancerWithholding: expense.has_freelancer_withholding ?? false,
       isPurchase: expense.is_purchase ?? false,
+      remainingPaymentRequested: expense.remaining_payment_requested ?? false,
+      remainingPaymentApproved: expense.remaining_payment_approved ?? false,
     },
     attachments: (attachmentRows ?? []).map(
       (a: {

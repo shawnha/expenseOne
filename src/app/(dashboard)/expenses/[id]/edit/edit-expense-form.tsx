@@ -40,6 +40,8 @@ import {
 import { FileUpload, FileUploadWithDocType } from "@/components/forms/file-upload";
 import { CompanySelector } from "@/components/forms/company-selector";
 import { CategorySelectField } from "@/components/forms/category-select-field";
+import { ConvertToCardDialog } from "@/components/expenses/convert-to-card-dialog";
+import { canShowConvertButton } from "@/lib/expense-convert";
 import {
   corporateCardFormSchema,
   depositRequestFormSchema,
@@ -1168,6 +1170,10 @@ function DepositRequestEditForm({
         </div>
 
         <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          {/* 법카로 결제한 건이면 승인 없이 바로 법카 사용으로 — 제출 상태에서만(서버가 최종 판단) */}
+          {canShowConvertButton(expense) && (
+            <ConvertToCardDialog expenseId={expense.id} transactionDate={expense.transactionDate} disabled={isSubmitting} />
+          )}
           <Link href={`/expenses/${expense.id}`} className="w-full sm:w-auto">
             <Button type="button" variant="outline" className="w-full rounded-full h-11 glass border-[var(--apple-separator)]">취소</Button>
           </Link>
