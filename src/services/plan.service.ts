@@ -39,6 +39,7 @@ import {
   monthRange,
   normalizePlannedDate,
   plannedDateLabel,
+  toDatePrecision,
   type DatePrecision,
   type LinkForDiff,
 } from "@/lib/plans/diff";
@@ -759,7 +760,7 @@ async function loadPlanCards(tx: PlanTx, access: PlanAccess, f: CardFilters): Pr
   );
 
   return rows.map((r) => {
-    const precision = (r.date_precision === "MONTH" ? "MONTH" : "DAY") as DatePrecision;
+    const precision = toDatePrecision(r.date_precision);
     return {
       id: r.id,
       companyId: r.company_id,
@@ -917,7 +918,7 @@ async function loadPlanFields(tx: PlanTx, planId: string): Promise<PlanFieldRow>
     title: row.title,
     amount: num(row.amount),
     plannedDate: row.planned_date,
-    datePrecision: (row.date_precision === "MONTH" ? "MONTH" : "DAY") as DatePrecision,
+    datePrecision: toDatePrecision(row.date_precision),
     vendorName: row.vendor_name,
     description: row.description,
     status: row.status,
@@ -936,7 +937,7 @@ export async function createPlan(actor: PlanActorInput, input: CreatePlanInput):
     await assertPlannableCompany(tx, input.companyId);
     if (input.brandId) await assertBrandInCompany(tx, input.brandId, input.companyId);
 
-    // MONTH 면 말일로 맞춰 저장한다. 안 맞추면 CHECK cost_plans_month_end 가 INSERT 를 거부한다(5절 5).
+    // 월 단위면 구간 끝날(10일·20일·말일)로 맞춰 저장한다. 안 맞추면 CHECK cost_plans_month_end 가 INSERT 를 거부한다(5절 5).
     const plannedDate = normalizePlannedDate(input.plannedDate, input.datePrecision);
     if (!plannedDate) throw new PlanError("VALIDATION_ERROR", "날짜가 올바르지 않습니다.");
 
@@ -1405,7 +1406,7 @@ export async function getPlanDetail(actor: PlanActorInput, planId: string): Prom
     )[0];
     if (!row) throw new PlanError("NOT_FOUND", "계획을 찾을 수 없습니다.");
 
-    const precision = (row.date_precision === "MONTH" ? "MONTH" : "DAY") as DatePrecision;
+    const precision = toDatePrecision(row.date_precision);
     const amount = num(row.amount);
     const { links, summary } = await loadLinks(tx, planId, amount);
     const comments = await loadComments(tx, planId, access.userId);

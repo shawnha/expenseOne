@@ -5,7 +5,21 @@
 // 서버·브라우저 시간대에 따라 하루가 밀리는 일이 없다. "현재 달"만 KST 로 계산한다.
 // ---------------------------------------------------------------------------
 
-export type DatePrecision = "DAY" | "MONTH";
+/**
+ * 날짜 단위. DAY = 그날. 나머지 셋은 "월 단위" — 초(1~10일)·중순(11~20일)·말(21일~말일).
+ * 저장 날짜는 각 구간의 끝날(10일·20일·말일, CHECK cost_plans_month_end). MONTH 가 '말'인 것은
+ * 0024 이전부터 있던 값을 그대로 쓰기 때문이다.
+ */
+export type DatePrecision = "DAY" | "MONTH_EARLY" | "MONTH_MID" | "MONTH";
+export const MONTH_PARTS = ["MONTH_EARLY", "MONTH_MID", "MONTH"] as const;
+export type MonthPart = (typeof MONTH_PARTS)[number];
+
+/** 화면 말: "10월 초" · "10월 중순" · "10월 말". '10월 중'은 "10월 안에"로 읽혀 중순이라 쓴다. */
+export const MONTH_PART_LABEL: Record<MonthPart, string> = {
+  MONTH_EARLY: "초",
+  MONTH_MID: "중순",
+  MONTH: "말",
+};
 export type CostPlanStatus = "PLANNED" | "CANCELLED" | "CLOSED";
 
 const ISO_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -57,26 +71,48 @@ export function addMonths(key: string, n: number): string {
   return `${year}-${pad2(month)}`;
 }
 
+export function isMonthPart(precision: string | null | undefined): precision is MonthPart {
+  return precision === "MONTH_EARLY" || precision === "MONTH_MID" || precision === "MONTH";
+}
+
+/** DB 의 text 값 → DatePrecision. 모르는 값은 DAY(날짜 그대로 보이는 쪽이 안전하다). */
+export function toDatePrecision(raw: string | null | undefined): DatePrecision {
+  return raw === "DAY" || isMonthPart(raw) ? raw : "DAY";
+}
+
+/** 날짜(일)가 속한 구간: 1~10일 초, 11~20일 중순, 21일~ 말. */
+export function monthPartOfDay(day: number): MonthPart {
+  if (day <= 10) return "MONTH_EARLY";
+  if (day <= 20) return "MONTH_MID";
+  return "MONTH";
+}
+
+/** 그 달 그 구간의 저장 날짜(구간 끝날). */
+export function monthPartDate(year: number, month: number, part: MonthPart): string {
+  if (part === "MONTH") return monthEnd(year, month);
+  return `${year}-${pad2(month)}-${part === "MONTH_EARLY" ? "10" : "20"}`;
+}
+
 /** "YYYY-MM-DD" → "YYYY-MM". */
 export function monthKeyOf(date: string): string {
   return date.slice(0, 7);
 }
 
 /**
- * 저장 전 정규화(SCHEMA.md 5절 5): MONTH 정밀도면 planned_date 는 그 달 말일이어야 한다(CHECK cost_plans_month_end).
- * DAY 면 그대로. 형식이 틀리면 null.
+ * 저장 전 정규화(SCHEMA.md 5절 5): 월 단위면 planned_date 는 그 달 구간 끝날(초 10일·중순 20일·말 말일)이어야
+ * 한다(CHECK cost_plans_month_end). DAY 면 그대로. 형식이 틀리면 null.
  */
 export function normalizePlannedDate(date: string, precision: DatePrecision): string | null {
   const p = parseIsoDate(date);
   if (!p) return null;
-  return precision === "MONTH" ? monthEnd(p.year, p.month) : date;
+  return isMonthPart(precision) ? monthPartDate(p.year, p.month, precision) : date;
 }
 
-/** 카드 표시: DAY → "yyyy.mm.dd", MONTH → "N월 말". */
+/** 카드 표시: DAY → "yyyy.mm.dd", 월 단위 → "N월 초" · "N월 중순" · "N월 말". */
 export function plannedDateLabel(date: string, precision: DatePrecision): string {
   const p = parseIsoDate(date);
   if (!p) return date;
-  if (precision === "MONTH") return `${p.month}월 말`;
+  if (isMonthPart(precision)) return `${p.month}월 ${MONTH_PART_LABEL[precision]}`;
   return `${p.year}.${pad2(p.month)}.${pad2(p.day)}`;
 }
 
