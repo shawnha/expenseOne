@@ -145,6 +145,15 @@ export const cancelPlanSchema = z.object({
 export type CancelPlanInput = z.infer<typeof cancelPlanSchema>;
 
 /**
+ * "ERP 반영함" 표시(대표만). 켜고 끄는 값 하나 — 문자열 "true" 는 받지 않는다(boolean 만).
+ * version 은 받지 않는다: 장부 표시라 version 을 올리지 않으므로 낙관적 잠금 대상이 아니다.
+ */
+export const planErpSchema = z.object({
+  applied: z.boolean(),
+});
+export type PlanErpInput = z.infer<typeof planErpSchema>;
+
+/**
  * 보드·목록 조회. from 이 없으면 서버가 KST 현재 달을 쓴다. brandId="none" 은 공통·미지정만.
  * brandName 은 **이름으로** 거른다(대소문자·양끝 공백 무시) — 법인 '전체' 에서는 같은 이름의 분류가
  * 법인마다 하나씩 있어 id 하나로는 고를 수 없다(QA D2-05). 둘 다 오면 둘 다 건다.
@@ -216,6 +225,7 @@ const FIELD_LABELS: Record<string, string> = {
   expenseId: "입금요청",
   linkId: "연결",
   reason: "사유",
+  applied: "ERP 반영 여부",
   categoryCode: "카테고리 코드",
   from: "시작 달",
   months: "개월 수",

@@ -13,14 +13,27 @@ import {
 } from "react";
 import Link from "next/link";
 import { ContextMenu } from "@base-ui/react/context-menu";
-import { ChevronLeft, ChevronRight, Ellipsis, Link2, MessageCircle, Pencil, Trash2, User as UserIcon } from "lucide-react";
+import {
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  CircleSlash,
+  Ellipsis,
+  Link2,
+  MessageCircle,
+  Pencil,
+  Trash2,
+  User as UserIcon,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CompanyBadge } from "@/components/companies/company-badge";
 import { formatKRW } from "@/lib/utils/expense-utils";
 import { monthKeyOf } from "@/lib/plans/diff";
+import { erpMenuLabel } from "@/lib/plans/erp";
 import type { PlanCard as PlanCardData } from "@/services/plan.service";
 import { usePlanBoard } from "./board-context";
 import { diffBadge, PLAN_STATUS_LABEL } from "./plan-client";
+import { useSubmitLock } from "./use-submit-lock";
 
 // ---------------------------------------------------------------------------
 // 월별 보드의 계획 카드 한 장 (v1.1: 클라이언트 컴포넌트).
@@ -91,6 +104,8 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
   // 취소·마감된 계획은 고칠 게 없다 — 메뉴·스와이프·드래그 전부 끈다(서버도 409 로 거부한다).
   const actionable = board !== null && card.status === "PLANNED";
   const swipeOpen = board?.swipeOpenId === card.id;
+  /** 카드 한 장의 ERP 표시 요청은 한 번에 하나(더블탭·연타). */
+  const withErpLock = useSubmitLock();
   const isDragging = board?.dragging?.id === card.id;
 
   const surfaceRef = useRef<HTMLDivElement>(null);
@@ -435,6 +450,18 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
                   {card.ownerName}
                 </span>
               )}
+              {/* 대표가 ERP 에 반영했다고 표시한 계획. 배지 줄이 아니라 날짜 줄에 붙인다 — 배지 줄이 없던 카드가 한 줄 자라지 않게. */}
+              {card.erpApplied && (
+                <span
+                  role="img"
+                  aria-label="ERP 반영됨"
+                  title="ERP 반영됨"
+                  className="glass-badge glass-badge-green inline-flex shrink-0 items-center gap-1 whitespace-nowrap leading-4"
+                >
+                  <CheckCircle2 className="size-3" aria-hidden="true" />
+                  ERP
+                </span>
+              )}
               {card.vendorName && <span className="truncate">{card.vendorName}</span>}
             </div>
 
@@ -531,6 +558,25 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
                 <ChevronRight className="size-4 text-[var(--apple-secondary-label)]" aria-hidden="true" />
                 다음 달로
               </ContextMenu.Item>
+              {board.isExecutive && (
+                <>
+                  <ContextMenu.Separator className="my-1 h-px bg-[var(--apple-separator)]" />
+                  <ContextMenu.Item
+                    className={MENU_ITEM}
+                    onClick={() => {
+                      closeMenu();
+                      void withErpLock(() => board.toggleErpApplied(card.id));
+                    }}
+                  >
+                    {card.erpApplied ? (
+                      <CircleSlash className="size-4 text-[var(--apple-secondary-label)]" aria-hidden="true" />
+                    ) : (
+                      <CheckCircle2 className="size-4 text-[var(--apple-green)]" aria-hidden="true" />
+                    )}
+                    {erpMenuLabel(card.erpApplied)}
+                  </ContextMenu.Item>
+                </>
+              )}
               <ContextMenu.Separator className="my-1 h-px bg-[var(--apple-separator)]" />
               <ContextMenu.Item
                 className={cn(MENU_ITEM, "text-[var(--apple-red)] data-highlighted:bg-[var(--apple-red)]/10")}

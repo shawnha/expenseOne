@@ -10,12 +10,13 @@ import { formatKRW } from "@/lib/utils/expense-utils";
 import { groupByProject, shouldGroupByProject, type ProjectGroup } from "@/lib/plans/board";
 import { groupByMonth, monthRange, parseMonth, plannedDateLabel } from "@/lib/plans/diff";
 import { moveDateToMonth, shiftDateByMonths } from "@/lib/plans/move";
-import type { BoardMonth, BoardResult, PlanCard } from "@/services/plan.service";
+import { erpToggleToast } from "@/lib/plans/erp";
+import type { BoardMonth, BoardResult, PlanCard, PlanErpState } from "@/services/plan.service";
 import { PlanBoardContext, usePlanBoard, type DragState, type PlanBoardActions } from "./board-context";
 import { PlanCardItem } from "./plan-card";
 import { PlanCreateButton, PlanDialog, type PlanEditTarget } from "./plan-dialog";
 import { ProjectOpenButton } from "./project-dialog";
-import { monthLabel, planFetch } from "./plan-client";
+import { jsonBody, monthLabel, planFetch } from "./plan-client";
 import { DESKTOP_POINTER_QUERY, useMediaQuery } from "./use-media-query";
 
 // ---------------------------------------------------------------------------
@@ -42,10 +43,14 @@ interface MonthBoardProps {
   currentMonth?: string;
 }
 
-/** 서버가 준 카드 위에 겹치는 값. 달 이동이 바꾸는 것은 예정일과 version 뿐이다. */
+/**
+ * 서버가 준 카드 위에 겹치는 값. 달 이동이 바꾸는 것은 예정일과 version 뿐이다.
+ * "ERP 반영함" 표시는 version 을 올리지 않으므로 따로 겹친다.
+ */
 interface LocalPatch {
   plannedDate: string;
   version: number;
+  erpApplied: boolean;
 }
 
 interface DialogState {
@@ -83,6 +88,7 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
           plannedDate: p.plannedDate,
           plannedDateLabel: plannedDateLabel(p.plannedDate, card.datePrecision),
           version: p.version,
+          erpApplied: p.erpApplied,
         };
       }),
     [baseItems, patchMap],
@@ -106,6 +112,7 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
       const merged: LocalPatch = {
         plannedDate: patch.plannedDate ?? map[cardId]?.plannedDate ?? current.plannedDate,
         version: patch.version ?? map[cardId]?.version ?? current.version,
+        erpApplied: patch.erpApplied ?? map[cardId]?.erpApplied ?? current.erpApplied,
       };
       return { board: latest, map: { ...map, [cardId]: merged } };
     });
@@ -201,6 +208,29 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
     [moveTo],
   );
 
+  // --- ERP 반영 표시(대표): 낙관적 갱신 → POST → 실패면 원래대로 -------------------------------
+  // version 을 건드리지 않는 표시라 달 이동과 서로 막지 않는다. 이중 제출은 카드의 useSubmitLock 이 막는다.
+
+  const toggleErpApplied = useCallback(
+    async (cardId: string) => {
+      const card = itemsRef.current.find((c) => c.id === cardId);
+      if (!card || card.status !== "PLANNED") return;
+      const prev = card.erpApplied;
+      const next = !prev;
+      applyPatch(cardId, { erpApplied: next });
+      const res = await planFetch<PlanErpState>(`/api/plans/items/${cardId}/erp`, jsonBody({ applied: next }));
+      if (!res.ok) {
+        applyPatch(cardId, { erpApplied: prev });
+        toast.error(res.message);
+        return;
+      }
+      // 서버가 이미 그 상태였으면(다른 대표가 먼저) 응답이 곧 사실이다.
+      applyPatch(cardId, { erpApplied: res.data.erpAppliedAt !== null });
+      toast.success(erpToggleToast(next));
+    },
+    [applyPatch],
+  );
+
   const actions = useMemo<PlanBoardActions>(
     () => ({
       canDrag,
@@ -212,8 +242,10 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
       openDelete: (card) => setDialog({ card, mode: "cancel" }),
       swipeOpenId,
       setSwipeOpenId,
+      isExecutive: board.isExecutive,
+      toggleErpApplied,
     }),
-    [canDrag, dragging, moveToMonth, shiftMonth, swipeOpenId],
+    [canDrag, dragging, moveToMonth, shiftMonth, swipeOpenId, board.isExecutive, toggleErpApplied],
   );
 
   // --- 묶기 ---------------------------------------------------------------------------

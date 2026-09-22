@@ -14,11 +14,19 @@ import {
   issuesMessage,
   linkExpenseSchema,
   PLAN_AMOUNT_MAX,
+  planErpSchema,
   searchParamsToObject,
   updatePlanSchema,
   unlinkQuerySchema,
 } from "./plan";
 import { monthRange } from "@/lib/plans/diff";
+import {
+  erpAppliedStamp,
+  erpAppliedText,
+  erpMenuLabel,
+  erpToggleToast,
+  kstDateLabel,
+} from "@/lib/plans/erp";
 
 const C = "3f2a9c1e-7b4d-4e8a-9c21-5d6e7f8a9b0c";
 const P = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -206,5 +214,51 @@ describe("boardQuerySchema — brandName (이름 기반 분류 필터, QA D2-05)
     const parsed = boardQuerySchema.parse({ brandId: "none", brandName: "마케팅" });
     assert.equal(parsed.brandId, "none");
     assert.equal(parsed.brandName, "마케팅");
+  });
+});
+
+describe("planErpSchema — ERP 반영 표시(0023)", () => {
+  it("applied 는 boolean 만 받는다", () => {
+    assert.deepEqual(planErpSchema.parse({ applied: true }), { applied: true });
+    assert.deepEqual(planErpSchema.parse({ applied: false }), { applied: false });
+  });
+  it("문자열·숫자·null·빠짐은 거부한다(\"true\" 를 참으로 읽지 않는다)", () => {
+    for (const applied of ["true", "false", 1, 0, null, undefined]) {
+      assert.equal(planErpSchema.safeParse({ applied }).success, false, String(applied));
+    }
+    assert.equal(planErpSchema.safeParse({}).success, false);
+  });
+  it("version 등 다른 칸은 버린다(장부 표시라 낙관적 잠금 대상이 아니다)", () => {
+    assert.deepEqual(planErpSchema.parse({ applied: true, version: 3, erpAppliedById: P }), { applied: true });
+  });
+  it("오류 문구는 한국어", () => {
+    const r = planErpSchema.safeParse({ applied: "yes" });
+    assert.equal(r.success, false);
+    if (!r.success) assert.equal(issuesMessage(r.error), "ERP 반영 여부가 올바르지 않습니다");
+  });
+});
+
+describe("ERP 반영 표시 문구 (lib/plans/erp)", () => {
+  it("날짜는 KST 로 — UTC 자정 전후에도 한국 날짜", () => {
+    assert.equal(kstDateLabel("2026-09-21T15:00:00.000Z"), "2026.09.22");
+    assert.equal(kstDateLabel("2026-09-21T14:59:59.000Z"), "2026.09.21");
+    assert.equal(kstDateLabel("2026-12-31T16:00:00Z"), "2027.01.01");
+    assert.equal(kstDateLabel("nope"), null);
+  });
+  it("표시 = 날짜 · 이름, 이름이 없으면 날짜만, 미반영은 null", () => {
+    assert.equal(erpAppliedStamp("2026-09-22T01:30:00Z", "하승완"), "2026.09.22 · 하승완");
+    assert.equal(erpAppliedStamp("2026-09-22T01:30:00Z", null), "2026.09.22");
+    assert.equal(erpAppliedStamp(null, "하승완"), null);
+  });
+  it("읽기 전용 한 줄", () => {
+    assert.equal(erpAppliedText("2026-09-22T01:30:00Z", "하승완"), "반영됨 · 2026.09.22 · 하승완");
+    assert.equal(erpAppliedText("2026-09-22T01:30:00Z", null), "반영됨 · 2026.09.22");
+    assert.equal(erpAppliedText(null, null), "아직 반영 안 됨");
+  });
+  it("메뉴는 지금 상태의 반대 동작, 토스트는 바뀐 뒤 상태", () => {
+    assert.equal(erpMenuLabel(false), "ERP 반영 표시");
+    assert.equal(erpMenuLabel(true), "ERP 반영 해제");
+    assert.equal(erpToggleToast(true), "ERP 반영으로 표시했습니다.");
+    assert.equal(erpToggleToast(false), "ERP 반영 표시를 해제했습니다.");
   });
 });
