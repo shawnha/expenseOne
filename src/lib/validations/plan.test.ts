@@ -61,6 +61,8 @@ describe("createPlanSchema", () => {
     assert.equal(createPlanSchema.safeParse({ ...ok, vendorName: "x".repeat(201) }).success, false);
     assert.equal(createPlanSchema.safeParse({ ...ok, plannedDate: "2026.10.15" }).success, false);
     assert.equal(createPlanSchema.safeParse({ ...ok, datePrecision: "WEEK" }).success, false);
+    assert.equal(createPlanSchema.safeParse({ ...ok, datePrecision: "MONTH_EARLY" }).success, true);
+    assert.equal(createPlanSchema.safeParse({ ...ok, datePrecision: "MONTH_MID" }).success, true);
     assert.equal(createPlanSchema.safeParse({ ...ok, brandId: "not-a-uuid" }).success, false);
   });
 });

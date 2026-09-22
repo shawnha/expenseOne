@@ -29,6 +29,14 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { CompanyPillGroup } from "@/components/companies/company-pill-group";
 import { PLAN_AMOUNT_MAX } from "@/lib/validations/plan";
+import {
+  MONTH_PART_LABEL,
+  MONTH_PARTS,
+  isMonthPart,
+  monthPartOfDay,
+  type DatePrecision,
+  type MonthPart,
+} from "@/lib/plans/diff";
 import type { BrandOption, CompanyOption, ProjectSummary } from "@/services/plan.service";
 import { fromISODate, jsonBody, planFetch, toISODate } from "./plan-client";
 import { useSubmitLock } from "./use-submit-lock";
@@ -58,11 +66,18 @@ export interface PlanEditTarget {
   title: string;
   amount: number;
   plannedDate: string;
-  datePrecision: "DAY" | "MONTH";
+  datePrecision: DatePrecision;
   vendorName: string | null;
   description: string | null;
   status: string;
 }
+
+/** 월 구간 버튼 아래 작은 글씨. */
+const MONTH_PART_RANGE: Record<MonthPart, string> = {
+  MONTH_EARLY: "1~10일",
+  MONTH_MID: "11~20일",
+  MONTH: "21일~말일",
+};
 
 interface PlanDialogProps {
   open: boolean;
@@ -119,7 +134,7 @@ export function PlanDialog({
   const [date, setDate] = useState<Date | undefined>(
     plan ? fromISODate(plan.plannedDate) : undefined,
   );
-  const [precision, setPrecision] = useState<"DAY" | "MONTH">(plan?.datePrecision ?? "DAY");
+  const [precision, setPrecision] = useState<DatePrecision>(plan?.datePrecision ?? "DAY");
   const [vendorName, setVendorName] = useState(plan?.vendorName ?? "");
   const [description, setDescription] = useState(plan?.description ?? "");
   const [dateOpen, setDateOpen] = useState(false);
@@ -318,10 +333,13 @@ export function PlanDialog({
     [withLock, plan, cancelReason, router, finish, deleteWording],
   );
 
+  const monthMode = isMonthPart(precision);
   const dateLabel = !date
-    ? "날짜 선택"
-    : precision === "MONTH"
-      ? `${date.getMonth() + 1}월 말`
+    ? monthMode
+      ? "달 선택"
+      : "날짜 선택"
+    : monthMode
+      ? `${date.getMonth() + 1}월 ${MONTH_PART_LABEL[precision]}`
       : format(date, "yyyy.MM.dd", { locale: ko });
 
   return (
@@ -514,24 +532,31 @@ export function PlanDialog({
                   role="radiogroup"
                   aria-label="날짜 단위"
                 >
-                  {(["DAY", "MONTH"] as const).map((p) => (
-                    <button
-                      key={p}
-                      type="button"
-                      role="radio"
-                      aria-checked={precision === p}
-                      onClick={() => setPrecision(p)}
-                      className={cn(
-                        // 44px 터치 타깃(DESIGN.md, QA D-08). 컨테이너 p-1 을 더하면 필 높이 52px.
-                        "min-h-11 rounded-full px-4 text-caption1 font-medium transition-all duration-200",
-                        precision === p
-                          ? "bg-[var(--apple-blue)] text-white shadow-[0_1px_4px_rgba(0,122,255,0.25)]"
-                          : "text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)]",
-                      )}
-                    >
-                      {p === "DAY" ? "일 단위" : "월 단위"}
-                    </button>
-                  ))}
+                  {(["DAY", "MONTH"] as const).map((unit) => {
+                    const active = unit === "DAY" ? !monthMode : monthMode;
+                    return (
+                      <button
+                        key={unit}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        onClick={() => {
+                          if (unit === "DAY") setPrecision("DAY");
+                          // 월 단위로 바꿀 때는 고른 날이 속한 구간(초·중순·말)에서 시작한다.
+                          else if (!monthMode) setPrecision(date ? monthPartOfDay(date.getDate()) : "MONTH");
+                        }}
+                        className={cn(
+                          // 44px 터치 타깃(DESIGN.md, QA D-08). 컨테이너 p-1 을 더하면 필 높이 52px.
+                          "min-h-11 rounded-full px-4 text-caption1 font-medium transition-all duration-200",
+                          active
+                            ? "bg-[var(--apple-blue)] text-white shadow-[0_1px_4px_rgba(0,122,255,0.25)]"
+                            : "text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)]",
+                        )}
+                      >
+                        {unit === "DAY" ? "일 단위" : "월 단위"}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
               <Popover open={dateOpen} onOpenChange={setDateOpen}>
@@ -557,10 +582,38 @@ export function PlanDialog({
                   />
                 </PopoverContent>
               </Popover>
-              {precision === "MONTH" && (
-                <p className="text-caption1 text-[var(--apple-secondary-label)]">
-                  월 단위로 저장하면 고른 달의 말일로 잡히고, 화면에는 &lsquo;N월 말&rsquo;로 보입니다.
-                </p>
+              {monthMode && (
+                <>
+                  <div
+                    className="grid grid-cols-3 rounded-full border border-[var(--glass-border)] bg-[var(--apple-system-grouped-background)] p-1"
+                    role="radiogroup"
+                    aria-label="월 구간"
+                  >
+                    {MONTH_PARTS.map((part) => (
+                      <button
+                        key={part}
+                        type="button"
+                        role="radio"
+                        aria-checked={precision === part}
+                        onClick={() => setPrecision(part)}
+                        className={cn(
+                          "flex min-h-11 flex-col items-center justify-center rounded-full px-2 leading-tight transition-all duration-200",
+                          precision === part
+                            ? "bg-[var(--apple-blue)] text-white shadow-[0_1px_4px_rgba(0,122,255,0.25)]"
+                            : "text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)]",
+                        )}
+                      >
+                        <span className="text-caption1 font-medium">{MONTH_PART_LABEL[part]}</span>
+                        <span className={cn("text-caption2", precision === part ? "text-white/80" : "")}>
+                          {MONTH_PART_RANGE[part]}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-caption1 text-[var(--apple-secondary-label)]">
+                    달력에서는 달만 고르면 됩니다. 저장하면 구간의 끝날(10일·20일·말일)로 잡히고, 화면에는 &lsquo;10월 초&rsquo;처럼 보입니다.
+                  </p>
+                </>
               )}
             </div>
 

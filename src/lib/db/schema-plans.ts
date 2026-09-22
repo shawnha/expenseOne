@@ -149,7 +149,7 @@ export const planProjectMembers = expenseSchema.table(
 /**
  * cost_plans -- 계획 항목. 담당자 = createdById(처음 추가한 사람, 바꾸지 않음). KRW·일회성.
  * 법인 경계는 복합 FK: (projectId, companyId)→plan_projects, (brandId, companyId)→plan_brands.
- * datePrecision=MONTH 면 plannedDate 는 말일(CHECK). version = 낙관적 잠금(WHERE version = expected, 0행 → 409).
+ * datePrecision 이 월 단위면 plannedDate 는 구간 끝날 — MONTH_EARLY 10일 · MONTH_MID 20일 · MONTH 말일(CHECK, 0024). version = 낙관적 잠금(WHERE version = expected, 0행 → 409).
  * erpAppliedAt/ById = 대표가 수동으로 단 "ERP 반영함" 표시(0023). 장부 표시라 version 을 올리지 않는다.
  */
 export const costPlans = expenseSchema.table(
@@ -200,10 +200,13 @@ export const costPlans = expenseSchema.table(
     check("cost_plans_title_len", sql`length(btrim(${t.title})) BETWEEN 1 AND 200`),
     check("cost_plans_description_len", sql`${t.description} IS NULL OR length(${t.description}) <= 4000`),
     check("cost_plans_vendor_len", sql`${t.vendorName} IS NULL OR length(btrim(${t.vendorName})) BETWEEN 1 AND 200`),
-    check("cost_plans_date_precision", sql`${t.datePrecision} IN ('DAY', 'MONTH')`),
+    check("cost_plans_date_precision", sql`${t.datePrecision} IN ('DAY', 'MONTH_EARLY', 'MONTH_MID', 'MONTH')`),
     check(
       "cost_plans_month_end",
-      sql`${t.datePrecision} = 'DAY' OR ${t.plannedDate} = (date_trunc('month', ${t.plannedDate}::timestamp) + interval '1 month' - interval '1 day')::date`,
+      sql`${t.datePrecision} = 'DAY'
+        OR (${t.datePrecision} = 'MONTH_EARLY' AND extract(day FROM ${t.plannedDate}) = 10)
+        OR (${t.datePrecision} = 'MONTH_MID' AND extract(day FROM ${t.plannedDate}) = 20)
+        OR (${t.datePrecision} = 'MONTH' AND ${t.plannedDate} = (date_trunc('month', ${t.plannedDate}::timestamp) + interval '1 month' - interval '1 day')::date)`,
     ),
     check("cost_plans_status", sql`${t.status} IN ('PLANNED', 'CANCELLED', 'CLOSED')`),
     check("cost_plans_version_positive", sql`${t.version} >= 1`),
@@ -471,7 +474,7 @@ export const planErpOutbox = expenseSchema.table(
 
 // 상태값 상수 — text + CHECK 와 일치시킨다 (enum 을 만들지 않는다, P5)
 export const COST_PLAN_STATUS = ["PLANNED", "CANCELLED", "CLOSED"] as const;
-export const COST_PLAN_DATE_PRECISION = ["DAY", "MONTH"] as const;
+export const COST_PLAN_DATE_PRECISION = ["DAY", "MONTH_EARLY", "MONTH_MID", "MONTH"] as const;
 export const PLAN_EVIDENCE_DOCUMENT_TYPE = ["ESTIMATE", "INVOICE", "CONTRACT", "RECEIPT", "OTHER"] as const;
 export const PLAN_EVIDENCE_UPLOAD_STATUS = ["PENDING", "UPLOADED", "FAILED"] as const;
 export const PLAN_ERP_EVENT_TYPE = ["UPSERT", "CANCEL"] as const;

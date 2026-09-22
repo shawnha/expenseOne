@@ -40,6 +40,15 @@ describe("moveDateToMonth — MONTH 는 옮긴 달의 말일", () => {
   });
 });
 
+describe("moveDateToMonth — 초·중순은 구간을 지킨 채 옮긴다", () => {
+  it("초는 옮긴 달 10일, 중순은 20일", () => {
+    assert.equal(moveDateToMonth("2026-10-10", "MONTH_EARLY", "2026-11"), "2026-11-10");
+    assert.equal(moveDateToMonth("2026-10-20", "MONTH_MID", "2027-02"), "2027-02-20");
+    assert.equal(shiftDateByMonths("2026-12-10", "MONTH_EARLY", 1), "2027-01-10");
+    assert.equal(shiftDateByMonths("2026-10-20", "MONTH_MID", -1), "2026-09-20");
+  });
+});
+
 describe("moveDateToMonth — 잘못된 입력", () => {
   it("형식·달력 오류는 null", () => {
     assert.equal(moveDateToMonth("2026-02-30", "DAY", "2026-03"), null);

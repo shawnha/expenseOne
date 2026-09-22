@@ -10,12 +10,16 @@ import {
   currentMonthKST,
   daysInMonth,
   groupByMonth,
+  isMonthPart,
   monthEnd,
+  monthPartDate,
+  monthPartOfDay,
   monthRange,
   normalizePlannedDate,
   parseIsoDate,
   parseMonth,
   plannedDateLabel,
+  toDatePrecision,
 } from "./diff";
 
 describe("parseMonth / parseIsoDate", () => {
@@ -58,6 +62,36 @@ describe("normalizePlannedDate (SCHEMA.md 5절 5 — CHECK cost_plans_month_end)
     assert.equal(normalizePlannedDate("2026-02-31", "MONTH"), null);
     assert.equal(normalizePlannedDate("2026/09/03", "DAY"), null);
   });
+
+  it("초는 10일, 중순은 20일로 바꾼다(0024)", () => {
+    assert.equal(normalizePlannedDate("2026-10-03", "MONTH_EARLY"), "2026-10-10");
+    assert.equal(normalizePlannedDate("2026-10-31", "MONTH_EARLY"), "2026-10-10");
+    assert.equal(normalizePlannedDate("2026-02-28", "MONTH_MID"), "2026-02-20");
+    assert.equal(normalizePlannedDate("2026-02-31", "MONTH_MID"), null);
+  });
+});
+
+describe("월 구간 도우미", () => {
+  it("monthPartOfDay: 1~10 초, 11~20 중순, 21~ 말", () => {
+    assert.equal(monthPartOfDay(1), "MONTH_EARLY");
+    assert.equal(monthPartOfDay(10), "MONTH_EARLY");
+    assert.equal(monthPartOfDay(11), "MONTH_MID");
+    assert.equal(monthPartOfDay(20), "MONTH_MID");
+    assert.equal(monthPartOfDay(21), "MONTH");
+    assert.equal(monthPartOfDay(31), "MONTH");
+  });
+  it("monthPartDate: 구간 끝날(윤년 말일 포함)", () => {
+    assert.equal(monthPartDate(2028, 2, "MONTH"), "2028-02-29");
+    assert.equal(monthPartDate(2026, 9, "MONTH_EARLY"), "2026-09-10");
+    assert.equal(monthPartDate(2026, 9, "MONTH_MID"), "2026-09-20");
+  });
+  it("toDatePrecision: 아는 값만 통과, 나머지는 DAY", () => {
+    assert.equal(toDatePrecision("MONTH_MID"), "MONTH_MID");
+    assert.equal(toDatePrecision("MONTH"), "MONTH");
+    assert.equal(toDatePrecision("WEEK"), "DAY");
+    assert.equal(toDatePrecision(null), "DAY");
+    assert.equal(isMonthPart("DAY"), false);
+  });
 });
 
 describe("plannedDateLabel (DESIGN.md yyyy.mm.dd)", () => {
@@ -66,6 +100,10 @@ describe("plannedDateLabel (DESIGN.md yyyy.mm.dd)", () => {
     assert.equal(plannedDateLabel("2026-09-30", "MONTH"), "9월 말");
     assert.equal(plannedDateLabel("2026-12-31", "MONTH"), "12월 말");
     assert.equal(plannedDateLabel("bad", "DAY"), "bad");
+  });
+  it("초·중순도 달 이름에 붙인다", () => {
+    assert.equal(plannedDateLabel("2026-10-10", "MONTH_EARLY"), "10월 초");
+    assert.equal(plannedDateLabel("2026-10-20", "MONTH_MID"), "10월 중순");
   });
 });
 

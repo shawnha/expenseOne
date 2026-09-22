@@ -7,7 +7,8 @@ import { withJosa } from "@/lib/plans/josa";
 // ---------------------------------------------------------------------------
 
 export const COST_PLAN_STATUSES = ["PLANNED", "CANCELLED", "CLOSED"] as const;
-export const DATE_PRECISIONS = ["DAY", "MONTH"] as const;
+/** DAY 와 월 단위 셋(초·중순·말). lib/plans/diff.ts 의 DatePrecision 과 같다. */
+export const DATE_PRECISIONS = ["DAY", "MONTH_EARLY", "MONTH_MID", "MONTH"] as const;
 
 /** integer 칸 상한. 원 단위라 21억 원까지. */
 export const PLAN_AMOUNT_MAX = 2_147_483_647;
@@ -89,7 +90,7 @@ const planFields = {
   title: z.string().trim().min(1, "제목을 입력해주세요").max(200, "제목은 200자 이내로 입력해주세요"),
   amount: amountField,
   plannedDate: isoDateField,
-  datePrecision: z.enum(DATE_PRECISIONS, { message: "날짜 단위는 DAY 또는 MONTH입니다" }),
+  datePrecision: z.enum(DATE_PRECISIONS, { message: "날짜 단위가 올바르지 않습니다(일 단위 또는 월 초·중순·말)" }),
   brandId: uuidField("분류").nullable().optional(),
   vendorName: optionalText(200, "거래처"),
   description: optionalText(4000, "설명"),
