@@ -3,8 +3,8 @@ import { groupByMonth, type MonthGroup, type MonthGroupItem } from "./diff";
 // ---------------------------------------------------------------------------
 // 보드를 프로젝트별 서랍으로 묶는 순수 계산 (DB·React 없음, 단위 테스트 대상)
 //
-// 프로젝트가 최상위다(오너 피드백 v1.1). 필터가 '전체'이고 범위 안에 프로젝트가 둘 이상이면
-// 프로젝트마다 서랍 하나 — 머리에 이름·법인·참여자 수·기간 소계, 몸통에 그 프로젝트의 달 칸.
+// 프로젝트가 최상위다(오너 피드백 v1.1). 범위 안 프로젝트마다 서랍 하나 — 머리에 이름·법인·참여자 수·
+// 기간 소계, 몸통에 그 프로젝트의 달 칸. 하나뿐이어도 서랍으로 보인다(9/22 — 어느 프로젝트인지 머리에 적힌다).
 // ---------------------------------------------------------------------------
 
 export interface BoardProjectRef {
@@ -33,9 +33,25 @@ export interface ProjectGroupItem extends MonthGroupItem {
   companySlug: string;
 }
 
-/** 서랍으로 묶을 조건: 프로젝트 필터가 없고, 범위 안 프로젝트가 둘 이상. */
-export function shouldGroupByProject(projectFilter: string | undefined | null, projectsInScope: number): boolean {
-  return !projectFilter && projectsInScope >= 2;
+/**
+ * 서랍에 올릴 프로젝트. 프로젝트 칩을 골랐으면 그 하나, 아니면 범위 안 전부.
+ * 비어 있으면(고른 프로젝트가 범위 밖 등) 서랍 없이 달 칸만 보인다.
+ */
+export function drawerProjects<P extends { id: string }>(
+  projects: readonly P[],
+  projectFilter: string | undefined | null,
+): P[] {
+  return projectFilter ? projects.filter((p) => p.id === projectFilter) : [...projects];
+}
+
+/** 서랍으로 묶을 조건: 서랍에 올릴 프로젝트가 하나라도 있으면. */
+export function shouldGroupByProject(drawerProjectCount: number): boolean {
+  return drawerProjectCount >= 1;
+}
+
+/** 달별 전체 요약 띠는 서랍이 둘 이상일 때만 — 하나면 서랍 머리 소계와 똑같은 숫자를 두 번 보인다. */
+export function shouldShowSummaryStrip(groupCount: number): boolean {
+  return groupCount >= 2;
 }
 
 /**

@@ -7,7 +7,13 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { CompanyBadge } from "@/components/companies/company-badge";
 import { formatKRW } from "@/lib/utils/expense-utils";
-import { groupByProject, shouldGroupByProject, type ProjectGroup } from "@/lib/plans/board";
+import {
+  drawerProjects,
+  groupByProject,
+  shouldGroupByProject,
+  shouldShowSummaryStrip,
+  type ProjectGroup,
+} from "@/lib/plans/board";
 import { groupByMonth, monthRange, parseMonth, plannedDateLabel } from "@/lib/plans/diff";
 import { moveDateToMonth, shiftDateByMonths } from "@/lib/plans/move";
 import { erpToggleToast } from "@/lib/plans/erp";
@@ -250,11 +256,12 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
 
   // --- 묶기 ---------------------------------------------------------------------------
 
-  const grouped = shouldGroupByProject(projectId, board.projects.length);
+  const shelf = useMemo(() => drawerProjects(board.projects, projectId), [board.projects, projectId]);
+  const grouped = shouldGroupByProject(shelf.length);
   const months = useMemo(() => groupByMonth(items, keys), [items, keys]);
   const groups = useMemo(
-    () => (grouped ? groupByProject(items, board.projects, keys) : []),
-    [grouped, items, board.projects, keys],
+    () => (grouped ? groupByProject(items, shelf, keys) : []),
+    [grouped, items, shelf, keys],
   );
 
   const editTarget: PlanEditTarget | null = dialog
@@ -284,7 +291,7 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
     <PlanBoardContext.Provider value={actions}>
       {grouped ? (
         <div className="flex flex-col gap-4">
-          <SummaryStrip months={months} currentMonth={currentMonth} />
+          {shouldShowSummaryStrip(groups.length) && <SummaryStrip months={months} currentMonth={currentMonth} />}
           {groups.map((group, index) => (
             <ProjectDrawer key={group.project.id} group={group} index={index} currentMonth={currentMonth} />
           ))}
