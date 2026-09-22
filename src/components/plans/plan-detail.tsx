@@ -7,6 +7,7 @@ import { ArrowLeft, EyeOff, Link2, Plus, Search, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -17,11 +18,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { CompanyBadge } from "@/components/companies/company-badge";
 import { formatKRW } from "@/lib/utils/expense-utils";
+import { erpAppliedStamp, erpAppliedText, erpToggleToast } from "@/lib/plans/erp";
 import type {
   LinkCandidate,
   LinkSuggestion,
   PlanChangeRow,
   PlanDetail,
+  PlanErpState,
   PlanLinkRow,
 } from "@/services/plan.service";
 import { CommentThread } from "./comment-thread";
@@ -73,6 +76,9 @@ function logLine(row: PlanChangeRow): { label: string; detail: string | null } {
   const after = (row.after ?? {}) as Record<string, unknown>;
   if (row.entityType === "plan" && row.action === "UPDATE" && after.status === "CANCELLED") {
     return { label: "계획 취소", detail: row.reason };
+  }
+  if (row.entityType === "plan" && row.action === "UPDATE" && typeof after.erpApplied === "boolean") {
+    return { label: after.erpApplied ? "ERP 반영 표시" : "ERP 반영 해제", detail: null };
   }
   const label = LOG_LABEL[`${row.entityType}:${row.action}`] ?? `${row.entityType} ${row.action}`;
   if (row.entityType === "plan" && row.action === "UPDATE") {
@@ -213,6 +219,16 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
             label="마지막 수정"
             value={`${formatStamp(plan.updatedAt)}${plan.updatedByName ? ` · ${plan.updatedByName}` : ""}`}
           />
+          {/* 대표만 켜고 끈다(서버도 403). 취소·마감된 계획은 모두 읽기 전용(서버도 409). */}
+          {detail.isExecutive && canEdit ? (
+            <ErpAppliedToggle
+              planId={plan.id}
+              appliedAt={plan.erpAppliedAt}
+              appliedByName={plan.erpAppliedByName}
+            />
+          ) : (
+            <Field label="ERP 반영" value={erpAppliedText(plan.erpAppliedAt, plan.erpAppliedByName)} />
+          )}
           {plan.description && (
             <div className="sm:col-span-2">
               <dt className="text-caption1 text-[var(--apple-secondary-label)]">설명</dt>
@@ -345,6 +361,83 @@ function Field({ label, value }: { label: string; value: string }) {
     <div>
       <dt className="text-caption1 text-[var(--apple-secondary-label)]">{label}</dt>
       <dd className="mt-0.5 text-footnote text-[var(--apple-label)] break-keep">{value}</dd>
+    </div>
+  );
+}
+
+/** 서버 값 위에 겹치는 방금 누른 값. 서버가 새 값을 주면(appliedAt 이 바뀌면) 버린다. */
+interface ErpOverlay {
+  base: string | null;
+  applied: boolean;
+  at: string | null;
+  byName: string | null;
+}
+
+/**
+ * 상세의 "ERP 반영" 칸(대표). 체크는 먼저 바꾸고(낙관적) 날짜·이름은 응답으로 채운 뒤 router.refresh().
+ * 실패하면 원래대로. version 을 올리지 않는 표시라 열려 있는 수정 다이얼로그와 부딪치지 않는다.
+ */
+function ErpAppliedToggle({
+  planId,
+  appliedAt,
+  appliedByName,
+}: {
+  planId: string;
+  appliedAt: string | null;
+  appliedByName: string | null;
+}) {
+  const router = useRouter();
+  const withLock = useSubmitLock();
+  const [busy, setBusy] = useState(false);
+  const [overlay, setOverlay] = useState<ErpOverlay | null>(null);
+
+  const view =
+    overlay && overlay.base === appliedAt
+      ? overlay
+      : { applied: appliedAt !== null, at: appliedAt, byName: appliedByName };
+  const stamp = erpAppliedStamp(view.at, view.byName);
+
+  const handleChange = useCallback(
+    (next: boolean) =>
+      withLock(async () => {
+        setBusy(true);
+        setOverlay({ base: appliedAt, applied: next, at: null, byName: null });
+        const res = await planFetch<PlanErpState>(`/api/plans/items/${planId}/erp`, jsonBody({ applied: next }));
+        setBusy(false);
+        if (!res.ok) {
+          setOverlay(null);
+          toast.error(res.message);
+          return;
+        }
+        setOverlay({
+          base: appliedAt,
+          applied: res.data.erpAppliedAt !== null,
+          at: res.data.erpAppliedAt,
+          byName: res.data.erpAppliedByName,
+        });
+        toast.success(erpToggleToast(next));
+        router.refresh();
+      }),
+    [withLock, appliedAt, planId, router],
+  );
+
+  return (
+    <div>
+      <dt className="text-caption1 text-[var(--apple-secondary-label)]">ERP 반영</dt>
+      <dd className="flex flex-wrap items-center gap-x-3">
+        {/* 라벨 전체가 누르는 자리(44px). 체크박스 자체는 16px 이라 혼자서는 손가락에 작다. */}
+        <label className="-ml-1 inline-flex min-h-11 cursor-pointer items-center gap-2.5 rounded-xl px-1 text-footnote text-[var(--apple-label)] has-[[data-disabled]]:cursor-default">
+          <Checkbox
+            checked={view.applied}
+            onCheckedChange={(checked) => void handleChange(checked)}
+            disabled={busy}
+          />
+          ERP에 반영함
+        </label>
+        <span className="text-caption2 tabular-nums text-[var(--apple-secondary-label)]">
+          {busy ? "저장 중…" : (stamp ?? "아직 반영 안 됨")}
+        </span>
+      </dd>
     </div>
   );
 }

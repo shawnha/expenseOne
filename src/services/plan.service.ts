@@ -59,6 +59,7 @@ import type {
 //   - DB 는 plans-client 의 withPlanTx 로만. 조회는 readOnly 트랜잭션, 쓰기는 한 트랜잭션에
 //     [권한] → [변경] → [plan_change_log INSERT] (5절 2).
 //   - cost_plans UPDATE 는 항상 `version = version + 1 … WHERE version = $expected`, 0행이면 409.
+//     예외 하나: "ERP 반영함" 표시(setPlanErpApplied)는 장부 표시라 version 을 건드리지 않는다.
 //   - 권한 근거는 대표 행 또는 참여자 행뿐. created_by_id·users.role 은 근거가 아니다(3절).
 //   - 응답에 users.name 말고 다른 사람 정보는 넣지 않는다(5절 9).
 //   - expenses·users 는 **읽기만** 한다. 이 파일에 UPDATE/DELETE/INSERT 대상이 되는 기존 표는 없다(P7·P18).
@@ -663,6 +664,8 @@ export interface PlanCard {
   requestedSum: number;
   diff: number;
   unreadComments: number;
+  /** 대표가 "ERP 반영함" 으로 표시했나(0023). 카드 배지·빠른 메뉴용 — 누가·언제는 상세에서. */
+  erpApplied: boolean;
 }
 
 interface CardFilters {
@@ -717,6 +720,7 @@ async function loadPlanCards(tx: PlanTx, access: PlanAccess, f: CardFilters): Pr
     requested_sum: string | number;
     diff: string | number;
     unread: number;
+    erp_applied: boolean;
   }>(
     await tx.execute(sql`SELECT p.id, p.company_id, c.name AS company_name, c.slug AS company_slug,
                                 p.project_id, j.name AS project_name,
@@ -727,7 +731,8 @@ async function loadPlanCards(tx: PlanTx, access: PlanAccess, f: CardFilters): Pr
                                 coalesce(l.link_count, 0)::int AS link_count,
                                 coalesce(l.requested_sum, 0)::bigint AS requested_sum,
                                 (p.amount - coalesce(l.requested_sum, 0))::bigint AS diff,
-                                coalesce(n.unread, 0)::int AS unread
+                                coalesce(n.unread, 0)::int AS unread,
+                                p.erp_applied_at IS NOT NULL AS erp_applied
         FROM expenseone.cost_plans p
         JOIN expenseone.companies c ON c.id = p.company_id
         JOIN expenseone.plan_projects j ON j.id = p.project_id
@@ -779,6 +784,7 @@ async function loadPlanCards(tx: PlanTx, access: PlanAccess, f: CardFilters): Pr
       requestedSum: num(r.requested_sum),
       diff: num(r.diff),
       unreadComments: num(r.unread),
+      erpApplied: r.erp_applied === true,
     };
   });
 }
@@ -1140,6 +1146,65 @@ async function bumpPlanVersion(
   return num(row.version);
 }
 
+export interface PlanErpState {
+  id: string;
+  erpAppliedAt: string | null;
+  erpAppliedByName: string | null;
+}
+
+async function loadErpState(tx: PlanTx, planId: string): Promise<PlanErpState> {
+  const row = rowsOf<{ erp_applied_at: Date | null; erp_applied_by_name: string | null }>(
+    await tx.execute(sql`SELECT p.erp_applied_at, x.name AS erp_applied_by_name
+        FROM expenseone.cost_plans p
+        LEFT JOIN expenseone.users x ON x.id = p.erp_applied_by_id
+       WHERE p.id = ${planId}::uuid`),
+  )[0];
+  if (!row) throw new PlanError("NOT_FOUND", "계획을 찾을 수 없습니다.");
+  return { id: planId, erpAppliedAt: iso(row.erp_applied_at), erpAppliedByName: row.erp_applied_by_name };
+}
+
+/**
+ * "ERP 반영함" 표시 켜고 끄기(0023) — **대표만**, 예정(PLANNED) 계획만.
+ * 장부 표시라 version 을 올리지 않는다: 누가 수정 다이얼로그를 열어 둔 채여도 이 표시 때문에 그 저장이
+ * 409 가 나면 안 된다. updated_at·updated_by_id 는 짝으로 바꾼다(상세의 '마지막 수정'이 시각과 사람을
+ * 같이 보여 준다). 푸시는 보내지 않는다. 이미 그 상태면 아무것도 하지 않는다(이력·시각 그대로).
+ */
+export async function setPlanErpApplied(
+  actor: PlanActorInput,
+  planId: string,
+  applied: boolean,
+): Promise<PlanErpState> {
+  return withPlanTx(async (tx) => {
+    const access = await loadAccess(tx, actorAccess(actor));
+    requireExecutive(access);
+    const plan = await requirePlanAccess(tx, access, planId, { forUpdate: true });
+    requirePlannedForWrite(plan.status);
+
+    const current = await loadErpState(tx, planId);
+    if ((current.erpAppliedAt !== null) === applied) return current;
+
+    await tx.execute(sql`UPDATE expenseone.cost_plans
+                            SET erp_applied_at = ${applied ? sql`now()` : sql`NULL`},
+                                erp_applied_by_id = ${applied ? sql`${actor.id}::uuid` : sql`NULL`},
+                                updated_by_id = ${actor.id}::uuid,
+                                updated_at = now()
+                          WHERE id = ${planId}::uuid`);
+    await logChange(tx, {
+      companyId: plan.companyId,
+      projectId: plan.projectId,
+      planId,
+      entityType: "plan",
+      entityId: planId,
+      action: "UPDATE",
+      actorId: actor.id,
+      before: { erpApplied: !applied },
+      after: { erpApplied: applied },
+      reason: "ERP 반영 표시",
+    });
+    return loadErpState(tx, planId);
+  });
+}
+
 // --- 계획 상세 -------------------------------------------------------------------
 
 export interface PlanLinkRow extends LinkForDiff {
@@ -1202,6 +1267,10 @@ export interface PlanDetail {
     updatedByName: string | null;
     createdAt: string;
     updatedAt: string;
+    /** "ERP 반영함" 표시 시각(0023). NULL = 미반영. */
+    erpAppliedAt: string | null;
+    /** 표시한 대표 이름. 사용자가 물리 삭제되면 NULL(시각은 남는다). */
+    erpAppliedByName: string | null;
   };
   summary: { requestedSum: number; linkCount: number; diff: number };
   links: PlanLinkRow[];
@@ -1315,19 +1384,23 @@ export async function getPlanDetail(actor: PlanActorInput, planId: string): Prom
       updated_by_name: string | null;
       created_at: Date;
       updated_at: Date;
+      erp_applied_at: Date | null;
+      erp_applied_by_name: string | null;
     }>(
       await tx.execute(sql`SELECT p.id, p.company_id, c.name AS company_name, c.slug AS company_slug,
                                   p.project_id, j.name AS project_name, p.brand_id, b.name AS brand_name,
                                   p.title, p.amount, p.planned_date::text AS planned_date, p.date_precision,
                                   p.vendor_name, p.description, p.status, p.version,
                                   p.created_by_id, u.name AS owner_name, w.name AS updated_by_name,
-                                  p.created_at, p.updated_at
+                                  p.created_at, p.updated_at,
+                                  p.erp_applied_at, x.name AS erp_applied_by_name
           FROM expenseone.cost_plans p
           JOIN expenseone.companies c ON c.id = p.company_id
           JOIN expenseone.plan_projects j ON j.id = p.project_id
           LEFT JOIN expenseone.plan_brands b ON b.id = p.brand_id
           LEFT JOIN expenseone.users u ON u.id = p.created_by_id
           LEFT JOIN expenseone.users w ON w.id = p.updated_by_id
+          LEFT JOIN expenseone.users x ON x.id = p.erp_applied_by_id
          WHERE p.id = ${planId}::uuid AND j.deleted_at IS NULL`),
     )[0];
     if (!row) throw new PlanError("NOT_FOUND", "계획을 찾을 수 없습니다.");
@@ -1384,6 +1457,8 @@ export async function getPlanDetail(actor: PlanActorInput, planId: string): Prom
         updatedByName: row.updated_by_name,
         createdAt: iso(row.created_at) ?? "",
         updatedAt: iso(row.updated_at) ?? "",
+        erpAppliedAt: iso(row.erp_applied_at),
+        erpAppliedByName: row.erp_applied_by_name,
       },
       summary,
       links,

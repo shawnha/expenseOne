@@ -32,6 +32,10 @@ export interface PlanBoardActions {
   /** 스와이프로 열린 카드는 한 장만. */
   swipeOpenId: string | null;
   setSwipeOpenId: (id: string | null) => void;
+  /** 대표만 카드 메뉴에 "ERP 반영 표시/해제" 가 보인다(서버도 403 으로 막는다). */
+  isExecutive: boolean;
+  /** "ERP 반영함" 표시 뒤집기. 낙관적으로 먼저 바꾸고 POST, 실패하면 되돌린다. 이중 제출은 카드가 막는다. */
+  toggleErpApplied: (cardId: string) => Promise<void>;
 }
 
 export const PlanBoardContext = createContext<PlanBoardActions | null>(null);
