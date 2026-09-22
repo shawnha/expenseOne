@@ -16,6 +16,7 @@ import { CompanyPillGroup } from "@/components/companies/company-pill-group";
 import type { BoardResult } from "@/services/plan.service";
 import { monthLabel, shiftMonth } from "./plan-client";
 import { ProjectDialog } from "./project-dialog";
+import { ProjectChipActions } from "./project-chip-actions";
 
 // ---------------------------------------------------------------------------
 // 달 이동 + 필터. 상태는 전부 URL 에 둔다 — 뒤로 가기가 통하고, 링크를 그대로 건네줄 수 있고,
@@ -46,6 +47,8 @@ export function PlanToolbar({ board, currentMonth }: PlanToolbarProps) {
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
+  /** 선택된 프로젝트 칩의 관리 메뉴(⋯ 또는 칩 오른쪽 클릭). */
+  const [chipMenuOpen, setChipMenuOpen] = useState(false);
 
   const companyId = searchParams.get("companyId") ?? "";
   const projectId = searchParams.get("projectId") ?? "";
@@ -187,13 +190,35 @@ export function PlanToolbar({ board, currentMonth }: PlanToolbarProps) {
         >
           <ProjectChip label="전체" selected={!projectId} onClick={() => setParams({ projectId: null })} />
           {projectsInScope.map((p) => (
-            <ProjectChip
-              key={p.id}
-              label={p.name}
-              hint={mixedCompanies ? p.companyName : undefined}
-              selected={projectId === p.id}
-              onClick={() => setParams({ projectId: p.id })}
-            />
+            <div key={p.id} className="flex shrink-0 items-center">
+              <ProjectChip
+                label={p.name}
+                hint={mixedCompanies ? p.companyName : undefined}
+                selected={projectId === p.id}
+                onClick={() => setParams({ projectId: p.id })}
+                onContextMenu={(e) => {
+                  // 데스크톱 오른쪽 클릭: 그 프로젝트를 고르고 관리 메뉴를 연다.
+                  e.preventDefault();
+                  if (projectId !== p.id) setParams({ projectId: p.id });
+                  setChipMenuOpen(true);
+                }}
+              />
+              {projectId === p.id && (
+                <ProjectChipActions
+                  project={p}
+                  open={chipMenuOpen}
+                  onOpenChange={setChipMenuOpen}
+                  onManageMembers={() => {
+                    setChipMenuOpen(false);
+                    setProjectDialogOpen(true);
+                  }}
+                  onDeleted={() => {
+                    setParams({ projectId: null });
+                    router.refresh();
+                  }}
+                />
+              )}
+            </div>
           ))}
           {unknownProject && (
             <ProjectChip label="선택한 프로젝트" selected onClick={() => setParams({ projectId: null })} />
@@ -276,11 +301,13 @@ function ProjectChip({
   hint,
   selected,
   onClick,
+  onContextMenu,
 }: {
   label: string;
   hint?: string;
   selected: boolean;
   onClick: () => void;
+  onContextMenu?: (e: React.MouseEvent<HTMLButtonElement>) => void;
 }) {
   return (
     <Button
@@ -292,6 +319,7 @@ function ProjectChip({
       size="sm"
       className="min-h-11 shrink-0 rounded-full max-w-[60vw] sm:max-w-64"
       onClick={onClick}
+      onContextMenu={onContextMenu}
     >
       <span className="truncate">{label}</span>
       {hint && <span className="shrink-0 text-[11px] font-normal opacity-70">· {hint}</span>}
