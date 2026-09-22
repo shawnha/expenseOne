@@ -4,7 +4,13 @@
  */
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { groupByProject, shouldGroupByProject, type BoardProjectRef } from "./board";
+import {
+  drawerProjects,
+  groupByProject,
+  shouldGroupByProject,
+  shouldShowSummaryStrip,
+  type BoardProjectRef,
+} from "./board";
 
 const projects: BoardProjectRef[] = [
   { id: "p1", name: "리브랜딩", companyId: "c1", companyName: "코리아", companySlug: "korea", memberCount: 3 },
@@ -23,12 +29,23 @@ const item = (id: string, projectId: string, plannedDate: string, amount: number
   status,
 });
 
-describe("shouldGroupByProject", () => {
-  it("필터 없음 + 프로젝트 2개 이상일 때만", () => {
-    assert.equal(shouldGroupByProject(undefined, 2), true);
-    assert.equal(shouldGroupByProject("", 5), true);
-    assert.equal(shouldGroupByProject(undefined, 1), false);
-    assert.equal(shouldGroupByProject("p1", 3), false);
+describe("drawerProjects / shouldGroupByProject / shouldShowSummaryStrip", () => {
+  it("필터가 없으면 범위 안 전부, 있으면 그 하나", () => {
+    assert.deepEqual(drawerProjects(projects, undefined).map((p) => p.id), ["p1", "p2"]);
+    assert.deepEqual(drawerProjects(projects, "").map((p) => p.id), ["p1", "p2"]);
+    assert.deepEqual(drawerProjects(projects, "p2").map((p) => p.id), ["p2"]);
+    assert.deepEqual(drawerProjects(projects, "gone"), []);
+  });
+
+  it("프로젝트가 하나뿐이어도 서랍으로 묶는다(이름이 머리에 보이게)", () => {
+    assert.equal(shouldGroupByProject(1), true);
+    assert.equal(shouldGroupByProject(3), true);
+    assert.equal(shouldGroupByProject(0), false);
+  });
+
+  it("요약 띠는 서랍이 둘 이상일 때만", () => {
+    assert.equal(shouldShowSummaryStrip(1), false);
+    assert.equal(shouldShowSummaryStrip(2), true);
   });
 });
 
