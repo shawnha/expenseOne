@@ -151,6 +151,7 @@ export const planProjectMembers = expenseSchema.table(
  * 법인 경계는 복합 FK: (projectId, companyId)→plan_projects, (brandId, companyId)→plan_brands.
  * datePrecision 이 월 단위면 plannedDate 는 구간 끝날 — MONTH_EARLY 10일 · MONTH_MID 20일 · MONTH 말일(CHECK, 0024). version = 낙관적 잠금(WHERE version = expected, 0행 → 409).
  * erpAppliedAt/ById = 대표가 수동으로 단 "ERP 반영함" 표시(0023). 장부 표시라 version 을 올리지 않는다.
+ * paidAt/ById = 참여자 누구나 다는 "지급 완료" 표시(0025). 같은 이유로 version 을 올리지 않는다.
  */
 export const costPlans = expenseSchema.table(
   "cost_plans",
@@ -174,6 +175,8 @@ export const costPlans = expenseSchema.table(
     deletedById: uuid("deleted_by_id").references(() => users.id, { onDelete: "set null" }),
     erpAppliedAt: timestamp("erp_applied_at", { withTimezone: true }),
     erpAppliedById: uuid("erp_applied_by_id").references(() => users.id, { onDelete: "set null" }),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    paidById: uuid("paid_by_id").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -212,6 +215,7 @@ export const costPlans = expenseSchema.table(
     check("cost_plans_version_positive", sql`${t.version} >= 1`),
     check("cost_plans_soft_delete_pair", sql`${t.deletedById} IS NULL OR ${t.deletedAt} IS NOT NULL`),
     check("cost_plans_erp_applied_pair", sql`${t.erpAppliedById} IS NULL OR ${t.erpAppliedAt} IS NOT NULL`),
+    check("cost_plans_paid_pair", sql`${t.paidById} IS NULL OR ${t.paidAt} IS NOT NULL`),
   ],
 );
 

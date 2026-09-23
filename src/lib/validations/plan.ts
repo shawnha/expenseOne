@@ -154,6 +154,11 @@ export const planErpSchema = z.object({
 });
 export type PlanErpInput = z.infer<typeof planErpSchema>;
 
+export const planPaidSchema = z.object({
+  paid: z.boolean(),
+});
+export type PlanPaidInput = z.infer<typeof planPaidSchema>;
+
 /**
  * 보드·목록 조회. from 이 없으면 서버가 KST 현재 달을 쓴다. brandId="none" 은 공통·미지정만.
  * brandName 은 **이름으로** 거른다(대소문자·양끝 공백 무시) — 법인 '전체' 에서는 같은 이름의 분류가
@@ -227,6 +232,7 @@ const FIELD_LABELS: Record<string, string> = {
   linkId: "연결",
   reason: "사유",
   applied: "ERP 반영 여부",
+  paid: "지급 완료 여부",
   categoryCode: "카테고리 코드",
   from: "시작 달",
   months: "개월 수",

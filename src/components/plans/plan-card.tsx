@@ -30,6 +30,7 @@ import { CompanyBadge } from "@/components/companies/company-badge";
 import { formatKRW } from "@/lib/utils/expense-utils";
 import { monthKeyOf } from "@/lib/plans/diff";
 import { erpMenuLabel } from "@/lib/plans/erp";
+import { paidMenuLabel } from "@/lib/plans/paid";
 import type { PlanCard as PlanCardData } from "@/services/plan.service";
 import { usePlanBoard } from "./board-context";
 import { diffBadge, PLAN_STATUS_LABEL } from "./plan-client";
@@ -101,11 +102,15 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
   const board = usePlanBoard();
   const diff = diffBadge(card.diff, card.linkCount);
   const cancelled = card.status === "CANCELLED";
+  /** 지급 완료로 표시된 계획은 한 줄로 접는다(0025) — 이미 나간 돈이라 매번 다 볼 일이 없다. */
+  const paid = card.paid && !cancelled;
   // 취소·마감된 계획은 고칠 게 없다 — 메뉴·스와이프·드래그 전부 끈다(서버도 409 로 거부한다).
   const actionable = board !== null && card.status === "PLANNED";
   const swipeOpen = board?.swipeOpenId === card.id;
   /** 카드 한 장의 ERP 표시 요청은 한 번에 하나(더블탭·연타). */
   const withErpLock = useSubmitLock();
+  /** 지급 완료 표시도 마찬가지. */
+  const withPaidLock = useSubmitLock();
   const isDragging = board?.dragging?.id === card.id;
 
   const surfaceRef = useRef<HTMLDivElement>(null);
@@ -418,12 +423,29 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
             prefetch={false}
             draggable={false}
             className={cn(
-              "glass-card block p-4 apple-press",
+              "glass-card block apple-press",
+              paid ? "px-4 py-2.5" : "p-4",
               "transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]",
               cancelled && "opacity-60",
+              paid && "opacity-65",
               draggable && "cursor-grab active:cursor-grabbing",
             )}
           >
+            {paid ? (
+              /* 접힌 줄: 체크 · 제목 · 날짜 · 금액. 나머지(분류·담당자·배지)는 상세에서 본다. */
+              <div className={cn("flex items-center gap-2", actionable && "pr-10")}>
+                <CheckCircle2 className="size-4 shrink-0 text-[var(--apple-green)]" aria-hidden="true" />
+                <span className="truncate text-footnote font-medium text-[var(--apple-label)]">{card.title}</span>
+                <span className="ml-auto shrink-0 text-caption2 tabular-nums text-[var(--apple-secondary-label)]">
+                  {card.plannedDateLabel}
+                </span>
+                <span className="shrink-0 text-footnote font-semibold tabular-nums text-[var(--apple-secondary-label)]">
+                  {formatKRW(card.amount)}
+                </span>
+                <span className="sr-only">지급 완료</span>
+              </div>
+            ) : (
+              <>
             {/* 법인 · 프로젝트 · 분류 — "…" 버튼 자리(오른쪽 44px)를 비워 둔다 */}
             <div className={cn("flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-[var(--apple-secondary-label)]", actionable && "pr-10")}>
               {showCompany && <CompanyBadge name={card.companyName} slug={card.companySlug} />}
@@ -485,6 +507,8 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
                   </span>
                 )}
               </div>
+            )}
+              </>
             )}
           </Link>
 
@@ -557,6 +581,21 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
               >
                 <ChevronRight className="size-4 text-[var(--apple-secondary-label)]" aria-hidden="true" />
                 다음 달로
+              </ContextMenu.Item>
+              <ContextMenu.Separator className="my-1 h-px bg-[var(--apple-separator)]" />
+              <ContextMenu.Item
+                className={MENU_ITEM}
+                onClick={() => {
+                  closeMenu();
+                  void withPaidLock(() => board.togglePaid(card.id));
+                }}
+              >
+                {card.paid ? (
+                  <CircleSlash className="size-4 text-[var(--apple-secondary-label)]" aria-hidden="true" />
+                ) : (
+                  <CheckCircle2 className="size-4 text-[var(--apple-green)]" aria-hidden="true" />
+                )}
+                {paidMenuLabel(card.paid)}
               </ContextMenu.Item>
               {board.isExecutive && (
                 <>

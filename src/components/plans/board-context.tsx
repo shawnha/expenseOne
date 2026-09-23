@@ -36,6 +36,8 @@ export interface PlanBoardActions {
   isExecutive: boolean;
   /** "ERP 반영함" 표시 뒤집기. 낙관적으로 먼저 바꾸고 POST, 실패하면 되돌린다. 이중 제출은 카드가 막는다. */
   toggleErpApplied: (cardId: string) => Promise<void>;
+  /** "지급 완료" 표시 뒤집기(참여자 누구나). 표시하면 카드가 접히고 그 달 맨 아래로 내려간다. */
+  togglePaid: (cardId: string) => Promise<void>;
 }
 
 export const PlanBoardContext = createContext<PlanBoardActions | null>(null);

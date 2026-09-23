@@ -146,11 +146,25 @@ describe("groupByMonth", () => {
     assert.equal(g[0].total, 350);
     assert.equal(g[0].count, 3);
     assert.deepEqual(g[0].items.map((i) => i.id), ["a", "b", "c"]);
-    assert.deepEqual(g[1], { month: "2026-10", total: 0, count: 0, items: [] });
+    assert.deepEqual(g[1], { month: "2026-10", total: 0, count: 0, unpaidTotal: 0, paidCount: 0, items: [] });
     assert.equal(g[2].total, 40);
     assert.equal(g[3].count, 0);
     // 범위 밖(e)은 어디에도 없다
     assert.equal(g.flatMap((x) => x.items).some((i) => i.id === "e"), false);
+  });
+
+  it("지급 완료(0025)는 합계엔 남고 미지급 합계에서만 빠진다", () => {
+    const g = groupByMonth(
+      [
+        { id: "a", plannedDate: "2026-09-05", amount: 100, status: "PLANNED", paid: true },
+        { id: "b", plannedDate: "2026-09-20", amount: 250, status: "PLANNED" },
+        { id: "c", plannedDate: "2026-09-25", amount: 999, status: "CANCELLED", paid: true },
+      ],
+      ["2026-09"],
+    );
+    assert.equal(g[0].total, 350);
+    assert.equal(g[0].unpaidTotal, 250);
+    assert.equal(g[0].paidCount, 1);
   });
 });
 

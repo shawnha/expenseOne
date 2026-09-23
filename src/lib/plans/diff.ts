@@ -144,6 +144,8 @@ export interface MonthGroupItem {
   plannedDate: string;
   amount: number;
   status: CostPlanStatus | string;
+  /** 지급 완료 표시(0025). 없으면 아직 안 나간 것으로 센다. */
+  paid?: boolean;
 }
 
 export interface MonthGroup<T extends MonthGroupItem> {
@@ -152,19 +154,26 @@ export interface MonthGroup<T extends MonthGroupItem> {
   total: number;
   /** 이 달의 항목 수(상태 무관) */
   count: number;
+  /** total 에서 지급 완료를 뺀 값 = 아직 나갈 돈 */
+  unpaidTotal: number;
+  /** 지급 완료로 표시된 PLANNED 항목 수 */
+  paidCount: number;
   items: T[];
 }
 
 /** 항목을 달별로 묶는다. keys 순서대로, 항목이 없는 달도 빈 그룹으로 낸다. 범위 밖 항목은 버린다. */
 export function groupByMonth<T extends MonthGroupItem>(items: readonly T[], keys: readonly string[]): MonthGroup<T>[] {
   const map = new Map<string, MonthGroup<T>>();
-  for (const k of keys) map.set(k, { month: k, total: 0, count: 0, items: [] });
+  for (const k of keys) map.set(k, { month: k, total: 0, count: 0, unpaidTotal: 0, paidCount: 0, items: [] });
   for (const it of items) {
     const g = map.get(monthKeyOf(it.plannedDate));
     if (!g) continue;
     g.items.push(it);
     g.count += 1;
-    if (it.status === "PLANNED") g.total += it.amount;
+    if (it.status !== "PLANNED") continue;
+    g.total += it.amount;
+    if (it.paid) g.paidCount += 1;
+    else g.unpaidTotal += it.amount;
   }
   return keys.map((k) => map.get(k)!);
 }
