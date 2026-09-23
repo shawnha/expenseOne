@@ -15,6 +15,7 @@ import Link from "next/link";
 import { ContextMenu } from "@base-ui/react/context-menu";
 import {
   CheckCircle2,
+  Circle,
   ChevronLeft,
   ChevronRight,
   CircleSlash,
@@ -433,8 +434,7 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
           >
             {paid ? (
               /* 접힌 줄: 체크 · 제목 · 날짜 · 금액. 나머지(분류·담당자·배지)는 상세에서 본다. */
-              <div className={cn("flex items-center gap-2", actionable && "pr-10")}>
-                <CheckCircle2 className="size-4 shrink-0 text-[var(--apple-green)]" aria-hidden="true" />
+              <div className={cn("flex min-h-8 items-center gap-2", actionable && "pr-[5.5rem]")}>
                 <span className="truncate text-footnote font-medium text-[var(--apple-label)]">{card.title}</span>
                 <span className="ml-auto shrink-0 text-caption2 tabular-nums text-[var(--apple-secondary-label)]">
                   {card.plannedDateLabel}
@@ -447,7 +447,7 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
             ) : (
               <>
             {/* 법인 · 프로젝트 · 분류 — "…" 버튼 자리(오른쪽 44px)를 비워 둔다 */}
-            <div className={cn("flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-[var(--apple-secondary-label)]", actionable && "pr-10")}>
+            <div className={cn("flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-[var(--apple-secondary-label)]", actionable && "pr-[5.5rem]")}>
               {showCompany && <CompanyBadge name={card.companyName} slug={card.companySlug} />}
               <span className="truncate">
                 {showProject && card.projectName}
@@ -456,7 +456,7 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
               </span>
             </div>
 
-            <p className={cn("mt-1 text-[15px] font-semibold leading-tight text-[var(--apple-label)] truncate", actionable && "pr-10")}>
+            <p className={cn("mt-1 text-[15px] font-semibold leading-tight text-[var(--apple-label)] truncate", actionable && "pr-[5.5rem]")}>
               {card.title}
             </p>
             <p className="mt-1 text-[17px] font-semibold tabular-nums text-[var(--apple-label)]">
@@ -512,6 +512,31 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
             )}
           </Link>
 
+          {/* 지급 완료 체크. 메뉴를 거치지 않고 카드에서 바로 누른다(오너 피드백 9/23).
+              "…" 와 같은 규칙으로 링크의 형제다(44px, z-10). 접힌 카드에서는 세로 가운데. */}
+          {actionable && board && (
+            <button
+              type="button"
+              aria-label={`${card.title} ${paidMenuLabel(card.paid)}`}
+              aria-pressed={card.paid}
+              title={paidMenuLabel(card.paid)}
+              onClick={() => {
+                void withPaidLock(() => board.togglePaid(card.id));
+              }}
+              className={cn(
+                "absolute right-11 z-10 flex size-11 items-center justify-center rounded-full transition-colors hover:bg-[var(--apple-tertiary-system-fill)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--apple-blue)]",
+                paid ? "top-1/2 -translate-y-1/2" : "top-1.5",
+                card.paid ? "text-[var(--apple-green)]" : "text-[var(--apple-tertiary-label)] hover:text-[var(--apple-green)]",
+              )}
+            >
+              {card.paid ? (
+                <CheckCircle2 className="size-5" aria-hidden="true" />
+              ) : (
+                <Circle className="size-5" aria-hidden="true" />
+              )}
+            </button>
+          )}
+
           {/* 키보드·마우스용 메뉴 버튼. 링크 안에 버튼을 넣을 수 없어 형제로 띄운다(44px, z-10: 링크 자식의 z-1 위).
               포인터 이벤트는 일부러 막지 않는다 — 표면의 pointerdown 이 지난 제스처의 click 억제를 풀어야
               이 버튼의 click 이 살아남는다. */}
@@ -527,7 +552,8 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
                 setMenuOpen(true);
               }}
               className={cn(
-                "absolute right-1.5 top-1.5 z-10 flex size-11 items-center justify-center rounded-full text-[var(--apple-secondary-label)] transition-colors hover:bg-[var(--apple-tertiary-system-fill)] hover:text-[var(--apple-label)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--apple-blue)]",
+                "absolute right-1.5 z-10 flex size-11 items-center justify-center rounded-full text-[var(--apple-secondary-label)] transition-colors hover:bg-[var(--apple-tertiary-system-fill)] hover:text-[var(--apple-label)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--apple-blue)]",
+                paid ? "top-1/2 -translate-y-1/2" : "top-1.5",
                 menuOpen && "bg-[var(--apple-tertiary-system-fill)] text-[var(--apple-label)]",
               )}
             >
