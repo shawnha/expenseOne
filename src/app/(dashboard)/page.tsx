@@ -12,6 +12,7 @@ import Link from "next/link";
 import { ExpenseTabList } from "@/components/dashboard/expense-tab-list";
 import { MonthNavigator } from "@/components/dashboard/month-navigator";
 import { TiltCard } from "@/components/layout/tilt-card";
+import { PlansEntryLink } from "@/components/plans/plans-entry-link";
 
 // ---------------------------------------------------------------------------
 // Label maps
@@ -273,6 +274,9 @@ async function DashboardContent({ month }: { month?: string }) {
           </TiltCard>
         ))}
       </div>
+
+      {/* 비용계획 바로가기 — 모바일엔 사이드바가 없어 여기가 사실상 유일한 눈에 띄는 입구다. */}
+      <PlansEntryLink />
 
       {/* Tab filter + Recent expenses */}
       <ExpenseTabList expenses={recentExpenses} />

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { PlansEntryLink } from "@/components/plans/plans-entry-link";
 import { getAuthUser, getCachedClient } from "@/lib/supabase/cached";
 import { SettingsForm } from "./settings-form";
 
@@ -23,6 +24,7 @@ export default async function SettingsPage() {
           <h1 className="text-lg sm:text-xl font-semibold text-[var(--apple-label)]">설정</h1>
           <p className="text-sm text-[var(--apple-secondary-label)]">계정 정보를 확인하고 수정하세요.</p>
         </div>
+        <PlansEntryLink />
         <SettingsForm user={user} />
       </div>
     );
@@ -66,6 +68,7 @@ export default async function SettingsPage() {
         <h1 className="text-title3 text-[var(--apple-label)]">설정</h1>
         <p className="text-footnote text-[var(--apple-secondary-label)]">계정 정보를 확인하고 수정하세요.</p>
       </div>
+      <PlansEntryLink />
       <SettingsForm user={user} />
     </div>
   );
