@@ -26,11 +26,11 @@ import {
 import { normalizeBizNo } from "@/lib/validations/expense";
 import type { PurchaseLineInput } from "@/lib/validations/expense";
 import {
-  findLockedChanges,
-  isApprovedDepositLocked,
-  lockedChangeMessage,
-  omitLockedFields,
-} from "@/lib/expense-edit-lock";
+  approvedEditNoticeMessage,
+  findMoneyFieldChanges,
+  isApprovedDepositEdit,
+  type MoneyFieldKey,
+} from "@/lib/expense-approved-edit";
 import type {
   CreateExpenseInput,
   RefundSubmitInput,
@@ -43,6 +43,7 @@ import {
   notifyExpenseRejected,
   notifyNewDepositRequest,
   notifyApprovalReverted,
+  notifyApprovedExpenseEdited,
 } from "./notification.service";
 import { notifySlackCorporateCard, notifySlackDepositRequest, notifySlackRefund, updateSlackExpenseMessage, deleteSlackExpenseMessage } from "./slack.service";
 import { sendPushToAdmins } from "./push.service";
@@ -1033,13 +1034,12 @@ export async function updateExpense(
     throw new AppError("VALIDATION_ERROR", "사입 건에만 납품처 약국을 입력할 수 있습니다.");
   }
 
-  // 승인된 입금요청 잠금 (비관리자).
-  // 승인은 "이 금액을 이 계좌로 보낸다"는 결정이라, 승인 뒤에 요청자가 금액·계좌를
-  // 바꾸면 승인한 내용과 지급할 내용이 어긋난다. 잠금 필드가 실제로 바뀌었으면
-  // 거부하고, 같은 값이면(구버전 PWA는 폼 전체를 보낸다) 빼고 허용 필드만 저장한다 —
-  // 영수증 보충·제목 수정은 그대로 되도록. 판단 기준은 **DB에서 읽은** status다.
-  let editInput = input;
-  if (isApprovedDepositLocked(userRole, expense)) {
+  // 승인된 입금요청을 작성자가 고치는 경우 — **막지 않는다**(오너 결정 2026-09-23).
+  // 대신 돈 관련 칸(금액·계좌·회사·선지급·원천징수·거래일·사입)이 실제로 바뀌었으면
+  // 저장한 뒤 관리자에게 알린다. 판단 기준은 **DB에서 읽은** status·type 이다.
+  const editInput = input;
+  let moneyChanges: MoneyFieldKey[] = [];
+  if (isApprovedDepositEdit(userRole, expense)) {
     // 줄 비교가 필요할 때만 조회한다. 입력 순서(sortOrder)로 읽어야 순서 비교가 맞다.
     const currentLines =
       input.purchaseLines !== undefined
@@ -1056,11 +1056,7 @@ export async function updateExpense(
             .orderBy(asc(purchaseInvoiceLines.sortOrder))
         : [];
 
-    const lockedChanges = findLockedChanges(expense, input, currentLines);
-    if (lockedChanges.length > 0) {
-      throw new AppError("FORBIDDEN", lockedChangeMessage(lockedChanges));
-    }
-    editInput = omitLockedFields(input);
+    moneyChanges = findMoneyFieldChanges(expense, input, currentLines);
   }
 
   // 4. Update -- include ownership + eligibility checks in the WHERE clause
@@ -1149,7 +1145,6 @@ export async function updateExpense(
     "currency",
     "amountOriginal",
   ];
-  // 잠금으로 뺀 필드(같은 값이라 저장하지 않은 것)는 재게시 사유가 아니다.
   const touchesSlack = Object.keys(editInput).some((k) =>
     SLACK_RELEVANT_FIELDS.includes(k),
   );
@@ -1203,6 +1198,24 @@ export async function updateExpense(
       } catch (err) {
         console.error("[Slack] 메시지 수정 실패:", err);
       }
+    }
+  }
+
+  // 승인 뒤 돈이 바뀌었으면 관리자에게 알린다. 알림이 실패해도 수정은 이미 끝난 일이다.
+  if (moneyChanges.length > 0) {
+    try {
+      const [editor] = await db
+        .select({ name: users.name })
+        .from(users)
+        .where(eq(users.id, userId));
+      await notifyApprovedExpenseEdited(
+        updated.id,
+        updated.title,
+        approvedEditNoticeMessage(editor?.name ?? "누군가", updated.title, moneyChanges),
+        userId,
+      );
+    } catch (err) {
+      console.error("[Notification] 승인 후 수정 알림 실패:", err);
     }
   }
 
