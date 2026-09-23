@@ -4,7 +4,6 @@ import React, { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { toast } from "sonner";
@@ -493,28 +492,18 @@ function CorporateCardEditForm({
 // Deposit Request Edit Form
 // ---------------------------------------------------------------------------
 
-/**
- * 승인된 입금요청 수정용 스키마.
- *
- * 승인 후엔 금액·계좌·회사·선지급·원천징수가 잠겨서(서버가 바뀐 값이면 403)
- * 입력칸 대신 읽기 전용 카드로 보여준다. 그런데 숨긴 필드가 원래 스키마의
- * 필수/범위 검사에 걸리면(예: 예전에 은행명 없이 등록된 건) 고칠 칸도 없이
- * 저장이 막힌다. 그래서 잠금 필드는 타입만 맞추고 값 검사는 푼다 — 어차피
- * PATCH 본문에 싣지 않는다. 타입이 DepositRequestFormData와 같아서 폼 제네릭을
- * 그대로 쓸 수 있다.
- */
-const approvedDepositRequestFormSchema = depositRequestFormSchema.extend({
-  amount: z.number(),
-  bankName: z.string(),
-  accountHolder: z.string(),
-  accountNumber: z.string(),
-  isPrePaid: z.boolean(),
-  prePaidPercentage: z.number().nullish(),
-});
-
-/** 승인 모드 요약 카드 아래 안내. 서버 403 문구와 같은 방향으로 맞춘다. */
-const APPROVED_LOCK_NOTICE =
-  "승인된 입금요청은 금액·계좌·회사·선지급·원천징수를 바꿀 수 없습니다. 변경이 필요하면 관리자에게 승인 취소를 요청해주세요.";
+/** 승인된 요청을 고칠 때 위에 뜨는 안내(비관리자). 막지는 않고, 무슨 일이 일어나는지만 알린다. */
+function ApprovedEditNotice() {
+  return (
+    <div className="flex items-start gap-2.5 rounded-xl border border-[rgba(0,122,255,0.2)] bg-[rgba(0,122,255,0.1)] p-4">
+      <Lock className="mt-0.5 size-4 shrink-0 text-[var(--apple-blue)]" aria-hidden="true" />
+      <p className="text-[13px] leading-relaxed text-[var(--apple-label)]">
+        이미 승인된 요청입니다. 무엇이든 고칠 수 있지만, 금액·계좌·회사·선지급·원천징수·거래일을 바꾸면
+        관리자에게 알림이 갑니다. 이미 송금이 끝난 건이면 고치기 전에 관리자와 먼저 이야기해주세요.
+      </p>
+    </div>
+  );
+}
 
 /**
  * USD 등 외화 건의 금액 잠금 카드.
@@ -547,82 +536,6 @@ function ForeignCurrencyAmountLock({ expense }: { expense: ExpenseEditData }) {
   );
 }
 
-/**
- * 승인된 입금요청의 잠금 필드 요약 카드.
- *
- * 입력칸을 disabled로만 두면 "왜 안 눌리지"가 되고, 아예 숨기면 무엇으로
- * 승인받았는지 확인할 길이 없다. 그래서 값은 읽기 전용으로 보여주고, 바꾸려면
- * 어떻게 해야 하는지를 바로 아래에 적는다.
- */
-function ApprovedDepositLockedSummary({
-  expense,
-  companyName,
-}: {
-  expense: ExpenseEditData;
-  companyName: string | null;
-}) {
-  // 선지급 비율이 없는 옛 건은 상세 화면과 같게 "예"로만 표시한다.
-  const prePaidLabel = expense.isPrePaid
-    ? expense.prePaidPercentage != null
-      ? `${expense.prePaidPercentage}%`
-      : "예"
-    : "아니오";
-
-  return (
-    <div className="glass p-6">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="text-subheadline font-semibold text-[var(--apple-label)]">승인된 요청 정보</h2>
-        <span className="glass-badge glass-badge-green shrink-0">승인됨</span>
-      </div>
-
-      {/* 금액 — USD 건은 원문 통화와 원화 환산을 같이 보여준다 */}
-      <div className="mb-4 rounded-xl bg-[rgba(0,0,0,0.04)] p-4 dark:bg-[rgba(255,255,255,0.06)]">
-        <span className="text-[13px] text-[var(--apple-secondary-label)]">금액</span>
-        <p className="text-xl font-semibold tabular-nums text-[var(--apple-label)] break-words">
-          {formatExpenseAmount(expense.amount, expense.currency, expense.amountOriginal)}
-        </p>
-      </div>
-
-      <dl className="grid gap-4 sm:grid-cols-2">
-        <LockedInfoRow label="회사" value={companyName ?? "-"} />
-        <LockedInfoRow label="선지급" value={prePaidLabel} />
-        <LockedInfoRow
-          label="프리랜서 원천징수"
-          value={expense.hasFreelancerWithholding ? "적용 (-3.3%)" : "미적용"}
-        />
-        {expense.isPurchase && <LockedInfoRow label="사입" value="사입 건" />}
-        <LockedInfoRow label="은행명" value={expense.bankName || "-"} />
-        <LockedInfoRow label="예금주" value={expense.accountHolder || "-"} />
-        <LockedInfoRow label="계좌번호" value={expense.accountNumber || "-"} mono />
-      </dl>
-
-      <div className="mt-5 flex items-start gap-2.5 rounded-xl border border-[rgba(0,122,255,0.2)] bg-[rgba(0,122,255,0.1)] p-4">
-        <Lock className="mt-0.5 size-4 shrink-0 text-[var(--apple-blue)]" aria-hidden="true" />
-        <p className="text-[13px] leading-relaxed text-[var(--apple-label)]">{APPROVED_LOCK_NOTICE}</p>
-      </div>
-    </div>
-  );
-}
-
-function LockedInfoRow({
-  label,
-  value,
-  mono = false,
-}: {
-  label: string;
-  value: string;
-  /** 계좌번호처럼 숫자를 대조하는 값 — 고정폭 숫자 + 좁은 화면에서 아무 데서나 줄바꿈 */
-  mono?: boolean;
-}) {
-  return (
-    <div className="flex min-w-0 flex-col gap-0.5">
-      <dt className="text-[13px] text-[var(--apple-secondary-label)]">{label}</dt>
-      <dd className={cn("text-sm font-medium text-[var(--apple-label)]", mono ? "break-all tabular-nums" : "break-words")}>
-        {value}
-      </dd>
-    </div>
-  );
-}
 
 function DepositRequestEditForm({
   expense,
@@ -633,11 +546,11 @@ function DepositRequestEditForm({
   viewerCardLastFour = null,
 }: EditExpenseFormProps) {
   const router = useRouter();
-  // 승인된 요청 모드 — 영수증 보충·제목/카테고리/긴급/납입 기일/설명만 고친다.
-  // 수정 화면 진입 시점의 상태 기준. 편집 중에 승인되면 서버가 잠금 필드
-  // 변경을 403으로 막고, 그때 화면을 새로고침해 이 모드로 바꾼다.
-  // ADMIN은 서버 잠금 대상이 아니므로 잠그지 않는다.
-  const isApprovedMode = expense.status === "APPROVED" && !viewerIsAdmin;
+  // 승인된 요청도 전부 고칠 수 있다(오너 결정 2026-09-23 — 잠금 해제). 다만 **바꾼 칸만** 보낸다:
+  // 영수증만 보충했는데 폼 전체를 보내면 서버가 Slack 메시지를 지우고 "수정되었습니다"로
+  // 다시 올려, 이미 끝난 건이 채널에 할 일처럼 뜬다. 금액·계좌를 실제로 바꾸면 서버가
+  // 관리자에게 알림을 보낸다(비관리자일 때).
+  const approvedEdit = expense.status === "APPROVED";
   const [newFiles, setNewFiles] = useState<FileWithPreview[]>([]);
   const [keptAttachments, setKeptAttachments] =
     useState<ExistingAttachment[]>(existingAttachments);
@@ -671,8 +584,7 @@ function DepositRequestEditForm({
   const [userCompanyId, setUserCompanyId] = useState<string | null>(null);
 
   useEffect(() => {
-    // 승인 모드엔 회사 선택기가 없어서 기본 회사를 알 필요가 없다.
-    if (isApprovedMode) return;
+
     let cancelled = false;
     fetch("/api/profile")
       .then((res) => (res.ok ? res.json() : null))
@@ -684,7 +596,7 @@ function DepositRequestEditForm({
     return () => {
       cancelled = true;
     };
-  }, [isApprovedMode]);
+  }, []);
 
   const handleCompanyChange = useCallback((newCompanyId: string, _currency?: string) => {
     void _currency;
@@ -698,9 +610,7 @@ function DepositRequestEditForm({
     setValue,
     formState: { errors, isDirty, dirtyFields },
   } = useForm<DepositRequestFormData>({
-    resolver: isApprovedMode
-      ? zodResolver(approvedDepositRequestFormSchema)
-      : zodResolver(depositRequestFormSchema),
+    resolver: zodResolver(depositRequestFormSchema),
     shouldFocusError: true,
     defaultValues: {
       title: expense.title,
@@ -835,21 +745,30 @@ function DepositRequestEditForm({
     if (!validateFiles()) return;
     setIsSubmitting(true);
     try {
-      // 승인된 요청은 허용 필드 중 **실제로 바꾼 것만** 보낸다.
-      // - 잠금 필드를 안 보내야 "안 바꿨는데 403"이 날 여지가 없다.
-      // - 안 바꾼 필드까지 보내면 서버가 키 존재만 보고 Slack 메시지를 지우고
-      //   "수정되었습니다"로 다시 올린다 — 영수증만 보충해도 승인된 건이
-      //   채널에 할 일처럼 다시 뜬다. 바꾼 게 없으면 PATCH 자체를 건너뛴다.
+      // 승인된 요청은 **실제로 바꾼 칸만** 보낸다(위 approvedEdit 설명). 바꾼 게 없으면
+      // PATCH 자체를 건너뛴다 — 첨부만 손봤을 때 Slack 재게시를 부르지 않기 위해서다.
       const approvedPatch: Record<string, unknown> = {};
-      if (isApprovedMode) {
+      if (approvedEdit) {
         if (dirtyFields.title) approvedPatch.title = data.title;
         if (dirtyFields.description) approvedPatch.description = data.description || null;
         if (dirtyFields.category) approvedPatch.category = data.category;
         if (dirtyFields.isUrgent) approvedPatch.isUrgent = data.isUrgent;
         if (dirtyFields.dueDate) approvedPatch.dueDate = data.dueDate ? formatDateISO(data.dueDate) : null;
+        // 외화 건은 amount를 보내지 않는다(아래 일반 경로와 같은 이유).
+        if (dirtyFields.amount && !isForeignCurrency) approvedPatch.amount = data.amount;
+        if (dirtyFields.bankName) approvedPatch.bankName = data.bankName;
+        if (dirtyFields.accountHolder) approvedPatch.accountHolder = data.accountHolder;
+        if (dirtyFields.accountNumber) approvedPatch.accountNumber = data.accountNumber;
+        if (dirtyFields.isPrePaid) approvedPatch.isPrePaid = data.isPrePaid;
+        if (dirtyFields.prePaidPercentage) approvedPatch.prePaidPercentage = data.prePaidPercentage ?? null;
+        // 회사·원천징수는 react-hook-form 밖의 상태라 처음 값과 직접 견준다.
+        if (companyId && companyId !== (expense.companyId ?? "")) approvedPatch.companyId = companyId;
+        if (freelancerDeduction !== (expense.hasFreelancerWithholding ?? false)) {
+          approvedPatch.hasFreelancerWithholding = freelancerDeduction;
+        }
       }
-      const skipPatch = isApprovedMode && Object.keys(approvedPatch).length === 0;
-      const payload = isApprovedMode
+      const skipPatch = approvedEdit && Object.keys(approvedPatch).length === 0;
+      const payload = approvedEdit
         ? approvedPatch
         : {
             title: data.title,
@@ -1000,43 +919,35 @@ function DepositRequestEditForm({
         <div>
           <h1 className="text-title3 text-[var(--apple-label)]">입금요청 수정</h1>
           <p className="text-sm text-[var(--apple-secondary-label)] mt-0.5">
-            {isApprovedMode
-              ? "승인된 요청은 제목·카테고리·긴급·납입 기일·설명과 첨부파일만 수정할 수 있습니다."
+            {approvedEdit
+              ? "이미 승인된 요청입니다. 금액·계좌를 바꾸면 관리자에게 알림이 갑니다."
               : "입금요청서를 수정합니다."}
           </p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit, onValidationErrorDeposit)} noValidate>
-        {isApprovedMode && (
-          <ApprovedDepositLockedSummary
-            expense={expense}
-            companyName={initialCompanies.find((c) => c.id === expense.companyId)?.name ?? null}
-          />
-        )}
+        {approvedEdit && !viewerIsAdmin && <ApprovedEditNotice />}
 
-        <div className={cn("glass p-6", isApprovedMode && "mt-4")}>
+        <div className={cn("glass p-6", approvedEdit && !viewerIsAdmin && "mt-4")}>
           <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-1">기본 정보</h2>
           <p className="text-[13px] text-[var(--apple-secondary-label)] mb-5"><span className="text-[var(--apple-red)]">*</span> 필수 항목</p>
           <div className="space-y-5">
-            {!isApprovedMode && (
-              <CompanySelector
-                value={companyId}
-                onChange={handleCompanyChange}
-                userCompanyId={userCompanyId}
-                initialCompanies={initialCompanies}
-              />
-            )}
+            <CompanySelector
+              value={companyId}
+              onChange={handleCompanyChange}
+              userCompanyId={userCompanyId}
+              initialCompanies={initialCompanies}
+            />
             <div className="space-y-1.5">
               <Label htmlFor="title">제목 <span className="text-[var(--apple-red)]">*</span></Label>
               <Input id="title" placeholder="예: 외주 개발비 지급 요청" aria-invalid={!!errors.title} {...register("title")} />
               {errors.title && <p className="text-xs text-[var(--apple-red)]">{errors.title.message}</p>}
             </div>
-            {/* 금액·VAT·원천징수 — 승인 후엔 잠금이라 위 요약 카드에서만 보여준다 */}
-            {!isApprovedMode && isForeignCurrency && (
+            {isForeignCurrency && (
               <ForeignCurrencyAmountLock expense={expense} />
             )}
-            {!isApprovedMode && !isForeignCurrency && (
+            {!isForeignCurrency && (
               <div className="space-y-1.5">
                 <Label htmlFor="amount">금액 <span className="text-[var(--apple-red)]">*</span></Label>
                 <InputGroup>
@@ -1101,16 +1012,13 @@ function DepositRequestEditForm({
                   <p className="text-[12px] text-[var(--apple-secondary-label)]">빠른 처리가 필요한 경우 체크해주세요</p>
                 </div>
               </label>
-              {/* 선지급 — 승인 후엔 잠금(요약 카드에 표시) */}
-              {!isApprovedMode && (
-                <label className="flex items-center gap-3 cursor-pointer select-none px-3 py-2.5 rounded-xl glass-subtle hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)] transition-colors">
-                  <input type="checkbox" {...register("isPrePaid")} className="size-4 rounded border-[rgba(0,0,0,0.15)] dark:border-[rgba(255,255,255,0.2)] text-[var(--apple-blue)] focus:ring-[var(--apple-blue)] cursor-pointer" />
-                  <div>
-                    <span className="text-sm font-medium text-[var(--apple-label)]">선지급</span>
-                    <p className="text-[12px] text-[var(--apple-secondary-label)]">사전에 지급이 필요한 경우 체크해주세요</p>
-                  </div>
-                </label>
-              )}
+              <label className="flex items-center gap-3 cursor-pointer select-none px-3 py-2.5 rounded-xl glass-subtle hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)] transition-colors">
+                <input type="checkbox" {...register("isPrePaid")} className="size-4 rounded border-[rgba(0,0,0,0.15)] dark:border-[rgba(255,255,255,0.2)] text-[var(--apple-blue)] focus:ring-[var(--apple-blue)] cursor-pointer" />
+                <div>
+                  <span className="text-sm font-medium text-[var(--apple-label)]">선지급</span>
+                  <p className="text-[12px] text-[var(--apple-secondary-label)]">사전에 지급이 필요한 경우 체크해주세요</p>
+                </div>
+              </label>
             </div>
             {/* 카테고리 — 프리셋 + 내가 쓰던 것 + 직접 입력 */}
             <Controller name="category" control={control} render={({ field }) => (
@@ -1121,7 +1029,7 @@ function DepositRequestEditForm({
                 error={errors.category?.message}
               />
             )} />
-            {isApprovedMode && dueDateField}
+
             <div className="space-y-1.5">
               <Label htmlFor="description">설명</Label>
               <Textarea id="description" placeholder="추가 설명을 입력해주세요 (선택사항)" rows={3} {...register("description")} />
@@ -1130,31 +1038,28 @@ function DepositRequestEditForm({
           </div>
         </div>
 
-        {/* 입금 정보 — 승인 후엔 계좌가 잠겨서 요약 카드로 대신한다 */}
-        {!isApprovedMode && (
-          <div className="glass p-6 mt-4">
-            <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-5">입금 정보</h2>
-            <div className="space-y-5">
-              <div className="space-y-1.5">
-                <Label htmlFor="bankName">은행명 <span className="text-[var(--apple-red)]">*</span></Label>
-                <Input id="bankName" placeholder="예: 국민은행" aria-invalid={!!errors.bankName} {...register("bankName")} />
-                {errors.bankName && <p className="text-xs text-[var(--apple-red)]">{errors.bankName.message}</p>}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="accountHolder">예금주 <span className="text-[var(--apple-red)]">*</span></Label>
-                <Input id="accountHolder" placeholder="예: 홍길동" aria-invalid={!!errors.accountHolder} {...register("accountHolder")} />
-                {errors.accountHolder && <p className="text-xs text-[var(--apple-red)]">{errors.accountHolder.message}</p>}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="accountNumber">계좌번호 <span className="text-[var(--apple-red)]">*</span></Label>
-                <Input id="accountNumber" placeholder="예: 123-456-789012" aria-invalid={!!errors.accountNumber} {...register("accountNumber")} />
-                {errors.accountNumber && <p className="text-xs text-[var(--apple-red)]">{errors.accountNumber.message}</p>}
-              </div>
-
-              {dueDateField}
+        <div className="glass p-6 mt-4">
+          <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-5">입금 정보</h2>
+          <div className="space-y-5">
+            <div className="space-y-1.5">
+              <Label htmlFor="bankName">은행명 <span className="text-[var(--apple-red)]">*</span></Label>
+              <Input id="bankName" placeholder="예: 국민은행" aria-invalid={!!errors.bankName} {...register("bankName")} />
+              {errors.bankName && <p className="text-xs text-[var(--apple-red)]">{errors.bankName.message}</p>}
             </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="accountHolder">예금주 <span className="text-[var(--apple-red)]">*</span></Label>
+              <Input id="accountHolder" placeholder="예: 홍길동" aria-invalid={!!errors.accountHolder} {...register("accountHolder")} />
+              {errors.accountHolder && <p className="text-xs text-[var(--apple-red)]">{errors.accountHolder.message}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="accountNumber">계좌번호 <span className="text-[var(--apple-red)]">*</span></Label>
+              <Input id="accountNumber" placeholder="예: 123-456-789012" aria-invalid={!!errors.accountNumber} {...register("accountNumber")} />
+              {errors.accountNumber && <p className="text-xs text-[var(--apple-red)]">{errors.accountNumber.message}</p>}
+            </div>
+
+            {dueDateField}
           </div>
-        )}
+        </div>
 
         {existingAttachments.length > 0 && (
           <div className="glass p-6 mt-4">

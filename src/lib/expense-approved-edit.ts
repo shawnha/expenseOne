@@ -1,10 +1,10 @@
 /**
- * 승인된 입금요청 수정 잠금 — 순수 함수 모듈
+ * 승인된 입금요청의 "돈 관련 칸" 감시 — 순수 함수 모듈
  *
- * 입금요청 승인은 "이 금액을 이 계좌로 보낸다"는 관리자의 결정이다. 승인 뒤에
- * 요청자가 금액·계좌를 바꿀 수 있으면 승인한 내용과 실제 지급할 내용이 어긋난다.
- * 그래서 비관리자가 APPROVED 입금요청을 고칠 때는 지급 판단에 쓰인 필드를 잠그고,
- * 제목·설명처럼 기록 정리용 필드만 허용한다.
+ * 입금요청 승인은 "이 금액을 이 계좌로 보낸다"는 관리자의 결정이다. 승인 뒤에 그 값이 바뀌면
+ * 승인한 내용과 실제 지급할 내용이 어긋난다. 2026-09-17에는 이걸 **막았지만**, 작성자가 자기 건을
+ * 고치지 못해 실무가 막혔다 — 2026-09-23 오너 결정으로 **막지 않고 알린다**: 작성자가 금액·계좌를
+ * 바꾸면 저장은 되고, 관리자에게 알림이 간다(Slack 메시지도 바뀐 값으로 다시 올라간다).
  *
  * 서버(updateExpense)와 화면이 같은 규칙을 봐야 하고 단위 테스트도 따로 돌려야
  * 해서 DB·Next는 import하지 않는다. 타입만 가져온다.
@@ -19,41 +19,41 @@ import type { PurchaseLineInput, UpdateExpenseInput } from "@/lib/validations/ex
 // 막기 위해서다.
 // ---------------------------------------------------------------------------
 
-export type EditFieldPolicy = "locked" | "allowed" | "ignored";
+export type EditFieldPolicy = "money" | "record" | "ignored";
 
 export const EDIT_FIELD_POLICY = {
-  // 지급 판단에 쓰인 값 — 승인 후에는 관리자만 바꾼다
-  amount: "locked",
-  companyId: "locked",
-  bankName: "locked",
-  accountHolder: "locked",
-  accountNumber: "locked",
-  isPrePaid: "locked",
-  prePaidPercentage: "locked",
-  hasFreelancerWithholding: "locked",
-  transactionDate: "locked",
-  isPurchase: "locked",
-  purchaseLines: "locked",
-  // 기록 정리용 — 영수증 보충·오타 수정은 승인 후에도 된다
-  title: "allowed",
-  description: "allowed",
-  category: "allowed",
-  isUrgent: "allowed",
-  dueDate: "allowed",
-  merchantName: "allowed",
-  branch: "allowed",
+  // 지급 판단에 쓰인 값 — 승인 뒤에 바뀌면 관리자에게 알린다
+  amount: "money",
+  companyId: "money",
+  bankName: "money",
+  accountHolder: "money",
+  accountNumber: "money",
+  isPrePaid: "money",
+  prePaidPercentage: "money",
+  hasFreelancerWithholding: "money",
+  transactionDate: "money",
+  isPurchase: "money",
+  purchaseLines: "money",
+  // 기록 정리용 — 바뀌어도 알리지 않는다
+  title: "record",
+  description: "record",
+  category: "record",
+  isUrgent: "record",
+  dueDate: "record",
+  merchantName: "record",
+  branch: "record",
   // 비관리자가 보낸 status는 updateExpense가 원래 무시한다
   status: "ignored",
 } as const satisfies Record<keyof UpdateExpenseInput, EditFieldPolicy>;
 
 type Policy = typeof EDIT_FIELD_POLICY;
 
-export type LockedFieldKey = {
-  [K in keyof Policy]: Policy[K] extends "locked" ? K : never;
+export type MoneyFieldKey = {
+  [K in keyof Policy]: Policy[K] extends "money" ? K : never;
 }[keyof Policy];
 
-/** 에러 메시지·화면 안내에 쓰는 이름. 메시지에 나오는 순서도 이 순서다. */
-export const LOCKED_FIELD_LABELS = {
+/** 알림 문구에 쓰는 이름. 문구에 나오는 순서도 이 순서다. */
+export const MONEY_FIELD_LABELS = {
   amount: "금액",
   companyId: "회사",
   bankName: "은행명",
@@ -65,19 +65,20 @@ export const LOCKED_FIELD_LABELS = {
   transactionDate: "거래일",
   isPurchase: "사입 여부",
   purchaseLines: "사입 약국 내역",
-} as const satisfies Record<LockedFieldKey, string>;
+} as const satisfies Record<MoneyFieldKey, string>;
 
-export const LOCKED_FIELD_KEYS = Object.keys(LOCKED_FIELD_LABELS) as LockedFieldKey[];
+export const MONEY_FIELD_KEYS = Object.keys(MONEY_FIELD_LABELS) as MoneyFieldKey[];
 
 // ---------------------------------------------------------------------------
 // 적용 조건
 // ---------------------------------------------------------------------------
 
 /**
- * 잠금이 걸리는가. status는 **DB에서 읽은 현재 값**을 넘겨야 한다 — 요청 본문의
- * status를 넘기면 비관리자가 값을 바꿔 보내는 것만으로 잠금을 피할 수 있다.
+ * 이 수정이 "승인된 입금요청을 작성자가 고치는" 경우인가 — 알림 대상 판단.
+ * status는 **DB에서 읽은 현재 값**을 넘겨야 한다. 관리자가 직접 고친 건은 알리지 않는다
+ * (승인한 사람이 바꾼 것이라 알릴 대상이 곧 자기 자신이다).
  */
-export function isApprovedDepositLocked(
+export function isApprovedDepositEdit(
   userRole: string | null | undefined,
   expense: { type: string; status: string },
 ): boolean {
@@ -93,7 +94,7 @@ export function isApprovedDepositLocked(
 // ---------------------------------------------------------------------------
 
 /** 비교에 필요한 현재 비용 값. DB 행(expenses.$inferSelect)을 그대로 넘기면 된다. */
-export interface LockableExpense {
+export interface MoneyComparableExpense {
   amount: number;
   companyId: string | null;
   bankName: string | null;
@@ -107,7 +108,7 @@ export interface LockableExpense {
 }
 
 /** 현재 저장된 사입 줄. sortOrder 순서로 읽어 넘겨야 순서 비교가 맞다. */
-export interface LockablePurchaseLine {
+export interface ComparablePurchaseLine {
   pharmacyName: string;
   pharmacyBizNo: string | null;
   supplyAmount: number;
@@ -116,9 +117,9 @@ export interface LockablePurchaseLine {
 }
 
 type ChangeCheck = (
-  current: LockableExpense,
+  current: MoneyComparableExpense,
   input: UpdateExpenseInput,
-  currentLines: readonly LockablePurchaseLine[],
+  currentLines: readonly ComparablePurchaseLine[],
 ) => boolean;
 
 /**
@@ -154,7 +155,7 @@ function purchaseLineSignature(line: {
 
 function purchaseLinesChanged(
   next: readonly PurchaseLineInput[],
-  current: readonly LockablePurchaseLine[],
+  current: readonly ComparablePurchaseLine[],
 ): boolean {
   if (next.length !== current.length) return true;
   return next.some(
@@ -164,7 +165,7 @@ function purchaseLinesChanged(
 
 /**
  * 필드별 "바뀌었나" 판단. 키가 undefined면 호출 전에 걸러지므로 여기서는
- * 값이 온 경우만 본다. satisfies로 잠금 필드마다 판단이 하나씩 있게 강제한다.
+ * 값이 온 경우만 본다. satisfies로 돈 관련 필드마다 판단이 하나씩 있게 강제한다.
  */
 const IS_CHANGED = {
   amount: (c, i) => i.amount !== c.amount,
@@ -186,35 +187,30 @@ const IS_CHANGED = {
   transactionDate: (c, i) => i.transactionDate !== c.transactionDate,
   isPurchase: (c, i) => i.isPurchase !== c.isPurchase,
   purchaseLines: (_c, i, lines) => purchaseLinesChanged(i.purchaseLines ?? [], lines),
-} satisfies Record<LockedFieldKey, ChangeCheck>;
+} satisfies Record<MoneyFieldKey, ChangeCheck>;
 
 /**
- * 입력에서 **실제로 값이 바뀐** 잠금 필드 키를 돌려준다(LOCKED_FIELD_LABELS 순서).
- * 빈 배열이면 잠금 필드는 전부 그대로이거나 아예 안 온 것이다.
+ * 입력에서 **실제로 값이 바뀐** 돈 관련 키를 돌려준다(MONEY_FIELD_LABELS 순서).
+ * 빈 배열이면 돈 관련 칸은 전부 그대로이거나 아예 안 온 것이다.
  *
  * @param currentLines 현재 사입 줄. input.purchaseLines가 올 때만 쓰인다.
  */
-export function findLockedChanges(
-  current: LockableExpense,
+export function findMoneyFieldChanges(
+  current: MoneyComparableExpense,
   input: UpdateExpenseInput,
-  currentLines: readonly LockablePurchaseLine[],
-): LockedFieldKey[] {
-  return LOCKED_FIELD_KEYS.filter(
+  currentLines: readonly ComparablePurchaseLine[],
+): MoneyFieldKey[] {
+  return MONEY_FIELD_KEYS.filter(
     (key) => input[key] !== undefined && IS_CHANGED[key](current, input, currentLines),
   );
 }
 
-/** 잠금 필드를 뺀 입력. 같은 값으로 온 잠금 필드는 저장할 이유가 없다. */
-export function omitLockedFields(input: UpdateExpenseInput): UpdateExpenseInput {
-  const rest: UpdateExpenseInput = { ...input };
-  for (const key of LOCKED_FIELD_KEYS) {
-    delete rest[key];
-  }
-  return rest;
-}
-
-/** 403 응답 메시지. 수정 폼은 error.message를 그대로 보여준다. */
-export function lockedChangeMessage(keys: readonly LockedFieldKey[]): string {
-  const names = keys.map((key) => LOCKED_FIELD_LABELS[key]).join(", ");
-  return `승인된 입금요청은 ${names}을(를) 수정할 수 없습니다. 변경이 필요하면 관리자에게 승인 취소를 요청해주세요.`;
+/** 관리자 알림 문구. 승인 뒤 바뀐 칸을 그대로 읽어 준다. */
+export function approvedEditNoticeMessage(
+  editorName: string,
+  title: string,
+  keys: readonly MoneyFieldKey[],
+): string {
+  const names = keys.map((key) => MONEY_FIELD_LABELS[key]).join(", ");
+  return `${editorName}님이 승인된 입금요청 "${title}"의 ${names}을(를) 수정했습니다.`;
 }

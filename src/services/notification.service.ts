@@ -345,6 +345,50 @@ export async function notifyNewDepositRequest(
 }
 
 // ---------------------------------------------------------------------------
+// notifyApprovedExpenseEdited -- 승인된 입금요청의 돈 관련 칸이 바뀌면 관리자에게 알림
+//
+// 2026-09-23 오너 결정으로 작성자도 승인 뒤 수정이 된다(막지 않는다). 대신 승인한 내용과
+// 지급할 내용이 조용히 어긋나지 않도록 알린다. 알림 종류는 새로 만들지 않고
+// NEW_DEPOSIT_REQUEST 를 그대로 쓴다 — notification_type 에 값을 더하면 ERP 복제가 멈춘다.
+// ---------------------------------------------------------------------------
+export async function notifyApprovedExpenseEdited(
+  expenseId: string,
+  expenseTitle: string,
+  message: string,
+  editorId: string,
+) {
+  const admins = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.role, "ADMIN"), eq(users.isActive, true)));
+
+  // 고친 사람이 관리자면 자기 자신에게는 보내지 않는다.
+  const recipients = admins.filter((a) => a.id !== editorId);
+  if (recipients.length === 0) return [];
+
+  const created = await db
+    .insert(notifications)
+    .values(
+      recipients.map((admin) => ({
+        recipientId: admin.id,
+        type: "NEW_DEPOSIT_REQUEST" as const,
+        title: "승인된 입금요청이 수정되었습니다",
+        message,
+        relatedExpenseId: expenseId,
+      })),
+    )
+    .returning();
+
+  await sendPushToAdmins(
+    "승인된 입금요청 수정",
+    message,
+    expenseUrl(expenseId),
+  ).catch((err) => console.error("[Push] 승인 후 수정 알림 실패:", err));
+
+  return created;
+}
+
+// ---------------------------------------------------------------------------
 // notifyApprovalReverted -- 승인 번복 시 요청자에게 알림
 // ---------------------------------------------------------------------------
 export async function notifyApprovalReverted(
