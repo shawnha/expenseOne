@@ -17,7 +17,8 @@ import {
 import { groupByMonth, monthRange, parseMonth, plannedDateLabel } from "@/lib/plans/diff";
 import { moveDateToMonth, shiftDateByMonths } from "@/lib/plans/move";
 import { erpToggleToast } from "@/lib/plans/erp";
-import type { BoardMonth, BoardResult, PlanCard, PlanErpState } from "@/services/plan.service";
+import { paidToggleToast, unpaidNote } from "@/lib/plans/paid";
+import type { BoardMonth, BoardResult, PlanCard, PlanErpState, PlanPaidState } from "@/services/plan.service";
 import { PlanBoardContext, usePlanBoard, type DragState, type PlanBoardActions } from "./board-context";
 import { PlanCardItem } from "./plan-card";
 import { PlanCreateButton, PlanDialog, type PlanEditTarget } from "./plan-dialog";
@@ -51,12 +52,13 @@ interface MonthBoardProps {
 
 /**
  * 서버가 준 카드 위에 겹치는 값. 달 이동이 바꾸는 것은 예정일과 version 뿐이다.
- * "ERP 반영함" 표시는 version 을 올리지 않으므로 따로 겹친다.
+ * "ERP 반영함"·"지급 완료" 표시는 version 을 올리지 않으므로 따로 겹친다.
  */
 interface LocalPatch {
   plannedDate: string;
   version: number;
   erpApplied: boolean;
+  paid: boolean;
 }
 
 interface DialogState {
@@ -84,7 +86,7 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
   });
   const patchMap = patches.board === board ? patches.map : undefined;
 
-  const items = useMemo(
+  const patchedItems = useMemo(
     () =>
       baseItems.map((card) => {
         const p = patchMap?.[card.id];
@@ -95,10 +97,21 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
           plannedDateLabel: plannedDateLabel(p.plannedDate, card.datePrecision),
           version: p.version,
           erpApplied: p.erpApplied,
+          paid: p.paid,
         };
       }),
     [baseItems, patchMap],
   );
+
+  // 지급 완료는 달 안에서 맨 아래로(서버 ORDER BY 와 같은 규칙). 표시를 켠 그 자리에서 바로 내려가야
+  // 하므로 서버 응답을 기다리지 않고 여기서 다시 세운다. 같은 무리 안에서는 서버가 준 순서 그대로.
+  const items = useMemo(() => {
+    if (!patchedItems.some((c) => c.paid)) return patchedItems;
+    return patchedItems
+      .map((card, index) => ({ card, index }))
+      .sort((a, b) => Number(a.card.paid) - Number(b.card.paid) || a.index - b.index)
+      .map((x) => x.card);
+  }, [patchedItems]);
 
   // 비동기 흐름(PATCH 응답·토스트의 되돌리기)이 **그때의** 최신 카드·보드를 읽을 수 있게.
   // 되돌리기는 몇 초 뒤에 눌리는데 그 사이 서버가 보드를 새로 줬을 수 있다.
@@ -119,6 +132,7 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
         plannedDate: patch.plannedDate ?? map[cardId]?.plannedDate ?? current.plannedDate,
         version: patch.version ?? map[cardId]?.version ?? current.version,
         erpApplied: patch.erpApplied ?? map[cardId]?.erpApplied ?? current.erpApplied,
+        paid: patch.paid ?? map[cardId]?.paid ?? current.paid,
       };
       return { board: latest, map: { ...map, [cardId]: merged } };
     });
@@ -237,6 +251,28 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
     [applyPatch],
   );
 
+  // --- 지급 완료 표시(참여자 누구나): ERP 표시와 같은 낙관적 흐름 ------------------------------
+
+  const togglePaid = useCallback(
+    async (cardId: string) => {
+      const card = itemsRef.current.find((c) => c.id === cardId);
+      if (!card || card.status !== "PLANNED") return;
+      const prev = card.paid;
+      const next = !prev;
+      applyPatch(cardId, { paid: next });
+      const res = await planFetch<PlanPaidState>(`/api/plans/items/${cardId}/paid`, jsonBody({ paid: next }));
+      if (!res.ok) {
+        applyPatch(cardId, { paid: prev });
+        toast.error(res.message);
+        return;
+      }
+      // 서버가 이미 그 상태였으면(다른 참여자가 먼저) 응답이 곧 사실이다.
+      applyPatch(cardId, { paid: res.data.paidAt !== null });
+      toast.success(paidToggleToast(next));
+    },
+    [applyPatch],
+  );
+
   const actions = useMemo<PlanBoardActions>(
     () => ({
       canDrag,
@@ -250,8 +286,9 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
       setSwipeOpenId,
       isExecutive: board.isExecutive,
       toggleErpApplied,
+      togglePaid,
     }),
-    [canDrag, dragging, moveToMonth, shiftMonth, swipeOpenId, board.isExecutive, toggleErpApplied],
+    [canDrag, dragging, moveToMonth, shiftMonth, swipeOpenId, board.isExecutive, toggleErpApplied, togglePaid],
   );
 
   // --- 묶기 ---------------------------------------------------------------------------
@@ -413,6 +450,7 @@ function MonthColumn({
 
   const highlight = accepts && over;
   const compact = compactWhenEmpty && month.items.length === 0;
+  const note = unpaidNote(month.unpaidTotal, month.paidCount);
 
   return (
     <>
@@ -450,6 +488,8 @@ function MonthColumn({
               {formatKRW(month.total)}
             </p>
             <p className="text-caption2 text-[var(--apple-secondary-label)] tabular-nums">{month.count}건</p>
+            {/* 지급 완료가 있을 때만 "아직 나갈 돈" 을 따로 적는다(0025) — 없으면 합계와 같은 말이다. */}
+            {note && <p className="text-caption2 text-[var(--apple-secondary-label)] tabular-nums">{note}</p>}
           </div>
         </header>
 

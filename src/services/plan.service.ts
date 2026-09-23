@@ -667,6 +667,8 @@ export interface PlanCard {
   unreadComments: number;
   /** 대표가 "ERP 반영함" 으로 표시했나(0023). 카드 배지·빠른 메뉴용 — 누가·언제는 상세에서. */
   erpApplied: boolean;
+  /** 돈이 나갔다고 표시했나(0025). 표시된 카드는 한 줄로 접히고 그 달 맨 아래로 간다. */
+  paid: boolean;
 }
 
 interface CardFilters {
@@ -722,6 +724,7 @@ async function loadPlanCards(tx: PlanTx, access: PlanAccess, f: CardFilters): Pr
     diff: string | number;
     unread: number;
     erp_applied: boolean;
+    paid: boolean;
   }>(
     await tx.execute(sql`SELECT p.id, p.company_id, c.name AS company_name, c.slug AS company_slug,
                                 p.project_id, j.name AS project_name,
@@ -733,7 +736,8 @@ async function loadPlanCards(tx: PlanTx, access: PlanAccess, f: CardFilters): Pr
                                 coalesce(l.requested_sum, 0)::bigint AS requested_sum,
                                 (p.amount - coalesce(l.requested_sum, 0))::bigint AS diff,
                                 coalesce(n.unread, 0)::int AS unread,
-                                p.erp_applied_at IS NOT NULL AS erp_applied
+                                p.erp_applied_at IS NOT NULL AS erp_applied,
+                                p.paid_at IS NOT NULL AS paid
         FROM expenseone.cost_plans p
         JOIN expenseone.companies c ON c.id = p.company_id
         JOIN expenseone.plan_projects j ON j.id = p.project_id
@@ -756,7 +760,8 @@ async function loadPlanCards(tx: PlanTx, access: PlanAccess, f: CardFilters): Pr
        WHERE p.deleted_at IS NULL AND j.deleted_at IS NULL
          AND p.planned_date >= ${f.fromDate}::date AND p.planned_date < ${f.toDate}::date
          AND ${projectScopeSql(access, sql`p.project_id`)}${statusFilter}${companyFilter}${projectFilter}${brandFilter}${brandNameFilter}
-       ORDER BY p.planned_date, p.created_at`),
+       -- 지급 완료는 달 안에서 맨 아래로(0025). 보드·목록이 같은 순서를 쓴다.
+       ORDER BY (p.paid_at IS NOT NULL), p.planned_date, p.created_at`),
   );
 
   return rows.map((r) => {
@@ -786,6 +791,7 @@ async function loadPlanCards(tx: PlanTx, access: PlanAccess, f: CardFilters): Pr
       diff: num(r.diff),
       unreadComments: num(r.unread),
       erpApplied: r.erp_applied === true,
+      paid: r.paid === true,
     };
   });
 }
@@ -794,6 +800,10 @@ export interface BoardMonth {
   month: string;
   total: number;
   count: number;
+  /** total 에서 지급 완료(0025)를 뺀 값 = 아직 나갈 돈. */
+  unpaidTotal: number;
+  /** 지급 완료로 표시된 항목 수. */
+  paidCount: number;
   items: PlanCard[];
 }
 
@@ -1206,6 +1216,64 @@ export async function setPlanErpApplied(
   });
 }
 
+export interface PlanPaidState {
+  id: string;
+  paidAt: string | null;
+  paidByName: string | null;
+}
+
+async function loadPaidState(tx: PlanTx, planId: string): Promise<PlanPaidState> {
+  const row = rowsOf<{ paid_at: Date | null; paid_by_name: string | null }>(
+    await tx.execute(sql`SELECT p.paid_at, x.name AS paid_by_name
+        FROM expenseone.cost_plans p
+        LEFT JOIN expenseone.users x ON x.id = p.paid_by_id
+       WHERE p.id = ${planId}::uuid`),
+  )[0];
+  if (!row) throw new PlanError("NOT_FOUND", "계획을 찾을 수 없습니다.");
+  return { id: planId, paidAt: iso(row.paid_at), paidByName: row.paid_by_name };
+}
+
+/**
+ * "지급 완료" 표시 켜고 끄기(0025) — **참여자 누구나**(ERP 표시와 달리 대표 전용이 아니다), 예정(PLANNED) 계획만.
+ * version 을 올리지 않는다(0023 과 같은 이유): 누가 수정 다이얼로그를 열어 둔 채여도 이 표시 때문에
+ * 그 저장이 409 가 나면 안 된다. 푸시는 보내지 않는다 — 돈이 나간 뒤의 정리 표시라 알릴 일이 아니다.
+ * 이미 그 상태면 아무것도 하지 않는다(이력·시각 그대로).
+ */
+export async function setPlanPaid(
+  actor: PlanActorInput,
+  planId: string,
+  paid: boolean,
+): Promise<PlanPaidState> {
+  return withPlanTx(async (tx) => {
+    const access = await loadAccess(tx, actorAccess(actor));
+    const plan = await requirePlanAccess(tx, access, planId, { forUpdate: true });
+    requirePlannedForWrite(plan.status);
+
+    const current = await loadPaidState(tx, planId);
+    if ((current.paidAt !== null) === paid) return current;
+
+    await tx.execute(sql`UPDATE expenseone.cost_plans
+                            SET paid_at = ${paid ? sql`now()` : sql`NULL`},
+                                paid_by_id = ${paid ? sql`${actor.id}::uuid` : sql`NULL`},
+                                updated_by_id = ${actor.id}::uuid,
+                                updated_at = now()
+                          WHERE id = ${planId}::uuid`);
+    await logChange(tx, {
+      companyId: plan.companyId,
+      projectId: plan.projectId,
+      planId,
+      entityType: "plan",
+      entityId: planId,
+      action: "UPDATE",
+      actorId: actor.id,
+      before: { paid: !paid },
+      after: { paid },
+      reason: "지급 완료 표시",
+    });
+    return loadPaidState(tx, planId);
+  });
+}
+
 // --- 계획 상세 -------------------------------------------------------------------
 
 export interface PlanLinkRow extends LinkForDiff {
@@ -1272,6 +1340,10 @@ export interface PlanDetail {
     erpAppliedAt: string | null;
     /** 표시한 대표 이름. 사용자가 물리 삭제되면 NULL(시각은 남는다). */
     erpAppliedByName: string | null;
+    /** "지급 완료" 표시 시각(0025). NULL = 아직 안 나감. */
+    paidAt: string | null;
+    /** 표시한 사람 이름. 사용자가 물리 삭제되면 NULL(시각은 남는다). */
+    paidByName: string | null;
   };
   summary: { requestedSum: number; linkCount: number; diff: number };
   links: PlanLinkRow[];
@@ -1387,6 +1459,8 @@ export async function getPlanDetail(actor: PlanActorInput, planId: string): Prom
       updated_at: Date;
       erp_applied_at: Date | null;
       erp_applied_by_name: string | null;
+      paid_at: Date | null;
+      paid_by_name: string | null;
     }>(
       await tx.execute(sql`SELECT p.id, p.company_id, c.name AS company_name, c.slug AS company_slug,
                                   p.project_id, j.name AS project_name, p.brand_id, b.name AS brand_name,
@@ -1394,7 +1468,8 @@ export async function getPlanDetail(actor: PlanActorInput, planId: string): Prom
                                   p.vendor_name, p.description, p.status, p.version,
                                   p.created_by_id, u.name AS owner_name, w.name AS updated_by_name,
                                   p.created_at, p.updated_at,
-                                  p.erp_applied_at, x.name AS erp_applied_by_name
+                                  p.erp_applied_at, x.name AS erp_applied_by_name,
+                                  p.paid_at, pb.name AS paid_by_name
           FROM expenseone.cost_plans p
           JOIN expenseone.companies c ON c.id = p.company_id
           JOIN expenseone.plan_projects j ON j.id = p.project_id
@@ -1402,6 +1477,7 @@ export async function getPlanDetail(actor: PlanActorInput, planId: string): Prom
           LEFT JOIN expenseone.users u ON u.id = p.created_by_id
           LEFT JOIN expenseone.users w ON w.id = p.updated_by_id
           LEFT JOIN expenseone.users x ON x.id = p.erp_applied_by_id
+          LEFT JOIN expenseone.users pb ON pb.id = p.paid_by_id
          WHERE p.id = ${planId}::uuid AND j.deleted_at IS NULL`),
     )[0];
     if (!row) throw new PlanError("NOT_FOUND", "계획을 찾을 수 없습니다.");
@@ -1460,6 +1536,8 @@ export async function getPlanDetail(actor: PlanActorInput, planId: string): Prom
         updatedAt: iso(row.updated_at) ?? "",
         erpAppliedAt: iso(row.erp_applied_at),
         erpAppliedByName: row.erp_applied_by_name,
+        paidAt: iso(row.paid_at),
+        paidByName: row.paid_by_name,
       },
       summary,
       links,

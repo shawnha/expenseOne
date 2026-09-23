@@ -19,12 +19,14 @@ import { Input } from "@/components/ui/input";
 import { CompanyBadge } from "@/components/companies/company-badge";
 import { formatKRW } from "@/lib/utils/expense-utils";
 import { erpAppliedStamp, erpAppliedText, erpToggleToast } from "@/lib/plans/erp";
+import { paidStamp, paidText, paidToggleToast } from "@/lib/plans/paid";
 import type {
   LinkCandidate,
   LinkSuggestion,
   PlanChangeRow,
   PlanDetail,
   PlanErpState,
+  PlanPaidState,
   PlanLinkRow,
 } from "@/services/plan.service";
 import { CommentThread } from "./comment-thread";
@@ -79,6 +81,9 @@ function logLine(row: PlanChangeRow): { label: string; detail: string | null } {
   }
   if (row.entityType === "plan" && row.action === "UPDATE" && typeof after.erpApplied === "boolean") {
     return { label: after.erpApplied ? "ERP 반영 표시" : "ERP 반영 해제", detail: null };
+  }
+  if (row.entityType === "plan" && row.action === "UPDATE" && typeof after.paid === "boolean") {
+    return { label: after.paid ? "지급 완료 표시" : "지급 완료 해제", detail: null };
   }
   const label = LOG_LABEL[`${row.entityType}:${row.action}`] ?? `${row.entityType} ${row.action}`;
   if (row.entityType === "plan" && row.action === "UPDATE") {
@@ -219,6 +224,12 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
             label="마지막 수정"
             value={`${formatStamp(plan.updatedAt)}${plan.updatedByName ? ` · ${plan.updatedByName}` : ""}`}
           />
+          {/* 지급 완료는 참여자 누구나. 취소·마감된 계획은 읽기 전용(서버도 409). */}
+          {canEdit ? (
+            <PaidToggle planId={plan.id} paidAt={plan.paidAt} paidByName={plan.paidByName} />
+          ) : (
+            <Field label="지급" value={paidText(plan.paidAt, plan.paidByName)} />
+          )}
           {/* 대표만 켜고 끈다(서버도 403). 취소·마감된 계획은 모두 읽기 전용(서버도 409). */}
           {detail.isExecutive && canEdit ? (
             <ErpAppliedToggle
@@ -373,6 +384,15 @@ interface ErpOverlay {
   byName: string | null;
 }
 
+interface PaidOverlay {
+  /** 이 겹침이 딛고 선 서버 값. 서버가 새 값을 주면(base 가 달라지면) 겹침을 버린다. */
+  base: string | null;
+  paid: boolean;
+  at: string | null;
+  byName: string | null;
+}
+
+
 /**
  * 상세의 "ERP 반영" 칸(대표). 체크는 먼저 바꾸고(낙관적) 날짜·이름은 응답으로 채운 뒤 router.refresh().
  * 실패하면 원래대로. version 을 올리지 않는 표시라 열려 있는 수정 다이얼로그와 부딪치지 않는다.
@@ -436,6 +456,71 @@ function ErpAppliedToggle({
         </label>
         <span className="text-caption2 tabular-nums text-[var(--apple-secondary-label)]">
           {busy ? "저장 중…" : (stamp ?? "아직 반영 안 됨")}
+        </span>
+      </dd>
+    </div>
+  );
+}
+
+/**
+ * 상세의 "지급" 칸(참여자 누구나). ErpAppliedToggle 과 같은 흐름 — 체크를 먼저 바꾸고 날짜·이름은 응답으로.
+ */
+function PaidToggle({
+  planId,
+  paidAt,
+  paidByName,
+}: {
+  planId: string;
+  paidAt: string | null;
+  paidByName: string | null;
+}) {
+  const router = useRouter();
+  const withLock = useSubmitLock();
+  const [busy, setBusy] = useState(false);
+  const [overlay, setOverlay] = useState<PaidOverlay | null>(null);
+
+  const view =
+    overlay && overlay.base === paidAt ? overlay : { paid: paidAt !== null, at: paidAt, byName: paidByName };
+  const stamp = paidStamp(view.at, view.byName);
+
+  const handleChange = useCallback(
+    (next: boolean) =>
+      withLock(async () => {
+        setBusy(true);
+        setOverlay({ base: paidAt, paid: next, at: null, byName: null });
+        const res = await planFetch<PlanPaidState>(`/api/plans/items/${planId}/paid`, jsonBody({ paid: next }));
+        setBusy(false);
+        if (!res.ok) {
+          setOverlay(null);
+          toast.error(res.message);
+          return;
+        }
+        setOverlay({
+          base: paidAt,
+          paid: res.data.paidAt !== null,
+          at: res.data.paidAt,
+          byName: res.data.paidByName,
+        });
+        toast.success(paidToggleToast(next));
+        router.refresh();
+      }),
+    [withLock, paidAt, planId, router],
+  );
+
+  return (
+    <div>
+      <dt className="text-caption1 text-[var(--apple-secondary-label)]">지급</dt>
+      <dd className="flex flex-wrap items-center gap-x-3">
+        <label className="-ml-1 inline-flex min-h-11 cursor-pointer items-center gap-2.5 rounded-xl px-1 text-footnote text-[var(--apple-label)] has-[[data-disabled]]:cursor-default">
+          <Checkbox
+            checked={view.paid}
+            onCheckedChange={(checked) => void handleChange(checked)}
+            disabled={busy}
+          />
+          지급 완료
+        </label>
+        <span className="text-caption2 tabular-nums text-[var(--apple-secondary-label)]">
+          {busy ? "저장 중…" : (stamp ?? "아직 안 나감")}
         </span>
       </dd>
     </div>
