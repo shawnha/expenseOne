@@ -20,6 +20,7 @@ import {
   ShoppingBag,
   FileText,
   Repeat,
+  ReceiptText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PlansNavGate, PlansNavIcon } from "@/components/plans/plans-nav-gate";
@@ -55,6 +56,13 @@ const PLANS_QUICK_ACTION: QuickAction = {
   gated: true,
 };
 
+/** 세금계산서 발행 요청 목록 — 새 요청은 가운데 「제출」 탭에서도 고를 수 있다. */
+const TAX_INVOICE_QUICK_ACTION: QuickAction = {
+  label: "세금계산서",
+  href: "/tax-invoices",
+  icon: ReceiptText,
+};
+
 function getTabItems(isAdmin: boolean, badge: number): TabItem[] {
   return [
     { label: "홈", href: "/", icon: Home },
@@ -69,6 +77,7 @@ function getTabItems(isAdmin: boolean, badge: number): TabItem[] {
         ? [
             { label: "반복 입금요청", href: "/expenses/recurring", icon: Repeat },
             PLANS_QUICK_ACTION,
+            TAX_INVOICE_QUICK_ACTION,
             { label: "대시보드", href: "/admin", icon: LayoutDashboard },
             { label: "전체 비용", href: "/admin/expenses", icon: Receipt },
             { label: "승인 대기", href: "/admin/pending", icon: Clock },
@@ -84,6 +93,7 @@ function getTabItems(isAdmin: boolean, badge: number): TabItem[] {
         : [
             { label: "반복 입금요청", href: "/expenses/recurring", icon: Repeat },
             PLANS_QUICK_ACTION,
+            TAX_INVOICE_QUICK_ACTION,
             { label: "설정", href: "/settings", icon: Settings },
           ],
     },

@@ -445,3 +445,72 @@ export async function notifyApprovalReverted(
 
   return notification;
 }
+
+// ---------------------------------------------------------------------------
+// 세금계산서 발행 요청(drizzle/0026) 알림. 알림 종류는 새로 만들지 않는다 — notification_type 에
+// 값을 더하면 ERP 복제 CHECK 가 멈춘다. 요청은 NEW_DEPOSIT_REQUEST, 발행 완료는 DEPOSIT_APPROVED 를
+// 빌려 쓰고, 누르면 linkUrl(세금계산서 화면)로 간다.
+// ---------------------------------------------------------------------------
+
+function appUrl(path: string): string {
+  const base = process.env.NEXT_PUBLIC_APP_URL || "https://expenseone.vercel.app";
+  return `${base}${path}`;
+}
+
+/** 새 발행 요청 → 관리자 전원(요청한 사람이 관리자면 본인 제외). */
+export async function notifyTaxInvoiceRequested(args: {
+  requestId: string;
+  requesterId: string;
+  requesterName: string;
+  buyerName: string;
+  total: number;
+}) {
+  const admins = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.role, "ADMIN"), eq(users.isActive, true)));
+  const recipients = admins.filter((a) => a.id !== args.requesterId);
+  if (recipients.length === 0) return [];
+
+  const link = `/tax-invoices?focus=${args.requestId}`;
+  const message = `${args.requesterName}님이 "${args.buyerName}" 세금계산서 발행을 요청했습니다 (${args.total.toLocaleString("ko-KR")}원).`;
+  const created = await db
+    .insert(notifications)
+    .values(
+      recipients.map((admin) => ({
+        recipientId: admin.id,
+        type: "NEW_DEPOSIT_REQUEST" as const,
+        title: "세금계산서 발행 요청",
+        message,
+        linkUrl: link,
+      })),
+    )
+    .returning();
+
+  await sendPushToAdmins("세금계산서 발행 요청", message, appUrl(link)).catch((err) =>
+    console.error("[Push] 세금계산서 요청 알림 실패:", err),
+  );
+  return created;
+}
+
+/** 발행 완료 → 요청한 사람. */
+export async function notifyTaxInvoiceIssued(args: {
+  requestId: string;
+  requesterId: string;
+  buyerName: string;
+  total: number;
+}) {
+  const link = `/tax-invoices?focus=${args.requestId}`;
+  const message = `"${args.buyerName}" 세금계산서가 발행되었습니다 (${args.total.toLocaleString("ko-KR")}원).`;
+  const created = await createNotification({
+    recipientId: args.requesterId,
+    type: "DEPOSIT_APPROVED",
+    title: "세금계산서 발행 완료",
+    message,
+    linkUrl: link,
+  });
+  await sendPushToUser(args.requesterId, "세금계산서 발행 완료", message, appUrl(link)).catch((err) =>
+    console.error("[Push] 세금계산서 발행 알림 실패:", err),
+  );
+  return created;
+}
