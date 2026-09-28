@@ -39,6 +39,7 @@ import {
   planFetch,
   PLAN_STATUS_LABEL,
 } from "./plan-client";
+import { UnseenChanges } from "./unseen-changes";
 import { useSubmitLock } from "./use-submit-lock";
 
 // ---------------------------------------------------------------------------
@@ -107,7 +108,7 @@ interface PlanDetailViewProps {
 }
 
 export function PlanDetailView({ detail }: PlanDetailViewProps) {
-  const { plan, summary, links, comments, changeLog, canEdit } = detail;
+  const { plan, summary, links, comments, changeLog, canEdit, unseen } = detail;
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
@@ -163,6 +164,9 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
           비용계획
         </Link>
       </div>
+
+      {/* 지난번 보신 뒤 다른 사람이 바꾼 것(0027). 보여 준 뒤 본 기록을 남긴다. */}
+      {unseen && <UnseenChanges planId={plan.id} unseen={unseen} currentPrecision={plan.datePrecision} />}
 
       {/* 머리 */}
       <section className="glass p-4 sm:p-5 animate-fade-up">
@@ -310,6 +314,11 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
                 <li key={row.id} className="flex items-baseline justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-footnote text-[var(--apple-label)]">
+                      {row.isNew && (
+                        <span className="glass-badge glass-badge-orange mr-1.5 align-[1px]" title="지난번 보신 뒤의 변경">
+                          새
+                        </span>
+                      )}
                       {line.label}
                       {row.actorName && (
                         <span className="text-[var(--apple-secondary-label)]"> · {row.actorName}</span>

@@ -8,11 +8,20 @@ import {
   planComments,
   planProjectMembers,
   planProjects,
+  planSeen,
+  planSeenAll,
 } from "@/lib/db/schema-plans";
 import { users } from "@/lib/db/schema";
 import { dbErrorCode, PlanError, mapDbError } from "@/lib/plans/errors";
 import { num, rowsOf } from "@/lib/plans/rows";
 import { containsPattern } from "@/lib/plans/search";
+import {
+  SEEN_BASELINE,
+  summarizeChanges,
+  type ChangeEntry,
+  type ChangeKind,
+  type ChangeMark,
+} from "@/lib/plans/changes";
 import {
   rankSuggestions,
   SUGGEST_AMOUNT_MAX_RATIO,
@@ -669,6 +678,54 @@ export interface PlanCard {
   erpApplied: boolean;
   /** 돈이 나갔다고 표시했나(0025). 표시된 카드는 한 줄로 접히고 그 달 맨 아래로 간다. */
   paid: boolean;
+  /** 내가 마지막으로 본 뒤 **다른 사람이** 추가·수정·취소했으면 그 요약(0027). 없으면 null. */
+  change: ChangeMark | null;
+}
+
+// --- "지난번 본 뒤 바뀐 것" (drizzle/0027, lib/plans/changes.ts) ------------------------------
+//
+// 계획 P 의 기준 시각 = 가장 늦은 것:
+//   ① 「모두 확인함」 시각(없으면 SEEN_BASELINE)  ② P 상세를 연 시각  ③ 내가 P 에 마지막으로 뭔가 한 시각
+// ③ 덕분에 남이 바꾼 계획을 내가 곧바로 고쳤다면(=이미 봤다) 다시 표시하지 않는다.
+// 그 뒤 **다른 사람이** 남긴 plan·link 이력만 센다(메모는 카드의 '새 메모'가 따로 센다).
+
+function seenThresholdSql(userId: string, planIdColumn: SQL): SQL {
+  return sql`GREATEST(
+      coalesce((SELECT sa.seen_at FROM expenseone.plan_seen_all sa WHERE sa.user_id = ${userId}::uuid),
+               ${SEEN_BASELINE}::timestamptz),
+      coalesce((SELECT s.seen_at FROM expenseone.plan_seen s
+                 WHERE s.user_id = ${userId}::uuid AND s.plan_id = ${planIdColumn}), '-infinity'::timestamptz),
+      coalesce((SELECT max(m.created_at) FROM expenseone.plan_change_log m
+                 WHERE m.plan_id = ${planIdColumn} AND m.actor_id = ${userId}::uuid), '-infinity'::timestamptz))`;
+}
+
+/** 계획 하나의 안 본 이력을 JSON 배열로(없으면 NULL). LATERAL 안에서 쓴다. */
+function unseenChangesSql(userId: string, planIdColumn: SQL): SQL {
+  return sql`(SELECT json_agg(json_build_object(
+                'entityType', g.entity_type, 'action', g.action, 'before', g.before_data, 'after', g.after_data,
+                'reason', g.reason, 'actorName', ua.name, 'at', g.created_at) ORDER BY g.created_at)
+         FROM expenseone.plan_change_log g
+         LEFT JOIN expenseone.users ua ON ua.id = g.actor_id
+        WHERE g.plan_id = ${planIdColumn} AND g.entity_type IN ('plan', 'link')
+          AND g.actor_id IS DISTINCT FROM ${userId}::uuid
+          AND g.created_at > ${seenThresholdSql(userId, planIdColumn)})`;
+}
+
+/** DB 의 json 배열 → ChangeEntry[]. 시각은 ISO(UTC)로 맞춘다 — 문자열 비교로 순서를 가린다. */
+function parseChangeEntries(raw: unknown): ChangeEntry[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((x) => {
+    const o = (x ?? {}) as Record<string, unknown>;
+    return {
+      entityType: String(o.entityType ?? ""),
+      action: String(o.action ?? ""),
+      before: o.before ?? null,
+      after: o.after ?? null,
+      reason: typeof o.reason === "string" ? o.reason : null,
+      actorName: typeof o.actorName === "string" ? o.actorName : null,
+      at: new Date(String(o.at)).toISOString(),
+    };
+  });
 }
 
 interface CardFilters {
@@ -725,6 +782,7 @@ async function loadPlanCards(tx: PlanTx, access: PlanAccess, f: CardFilters): Pr
     unread: number;
     erp_applied: boolean;
     paid: boolean;
+    changes: unknown;
   }>(
     await tx.execute(sql`SELECT p.id, p.company_id, c.name AS company_name, c.slug AS company_slug,
                                 p.project_id, j.name AS project_name,
@@ -737,7 +795,8 @@ async function loadPlanCards(tx: PlanTx, access: PlanAccess, f: CardFilters): Pr
                                 (p.amount - coalesce(l.requested_sum, 0))::bigint AS diff,
                                 coalesce(n.unread, 0)::int AS unread,
                                 p.erp_applied_at IS NOT NULL AS erp_applied,
-                                p.paid_at IS NOT NULL AS paid
+                                p.paid_at IS NOT NULL AS paid,
+                                ch.changes
         FROM expenseone.cost_plans p
         JOIN expenseone.companies c ON c.id = p.company_id
         JOIN expenseone.plan_projects j ON j.id = p.project_id
@@ -757,6 +816,7 @@ async function loadPlanCards(tx: PlanTx, access: PlanAccess, f: CardFilters): Pr
              AND cm.author_id IS DISTINCT FROM ${access.userId}::uuid
              AND cm.created_at > coalesce(r.last_read_at, '-infinity'::timestamptz)
         ) n ON true
+        LEFT JOIN LATERAL (SELECT ${unseenChangesSql(access.userId, sql`p.id`)} AS changes) ch ON true
        WHERE p.deleted_at IS NULL AND j.deleted_at IS NULL
          AND p.planned_date >= ${f.fromDate}::date AND p.planned_date < ${f.toDate}::date
          AND ${projectScopeSql(access, sql`p.project_id`)}${statusFilter}${companyFilter}${projectFilter}${brandFilter}${brandNameFilter}
@@ -792,6 +852,7 @@ async function loadPlanCards(tx: PlanTx, access: PlanAccess, f: CardFilters): Pr
       unreadComments: num(r.unread),
       erpApplied: r.erp_applied === true,
       paid: r.paid === true,
+      change: summarizeChanges(parseChangeEntries(r.changes)),
     };
   });
 }
@@ -827,6 +888,64 @@ export interface BoardResult {
   companies: CompanyOption[];
   projects: BoardProject[];
   brands: BrandOption[];
+  /** 지난번 본 뒤 다른 사람이 바꾼 계획(보이는 달과 무관하게 전부). 보드 위 알림 띠. */
+  changes: UnseenPlanSummary;
+}
+
+export interface UnseenPlanItem {
+  planId: string;
+  title: string;
+  projectName: string;
+  plannedDateLabel: string;
+  status: string;
+  mark: ChangeMark;
+}
+
+export interface UnseenPlanSummary {
+  total: number;
+  counts: Record<ChangeKind, number>;
+  /** 최근 바뀐 것부터, 최대 50. */
+  items: UnseenPlanItem[];
+}
+
+const UNSEEN_LIST_LIMIT = 50;
+
+/** 범위 안(참여 프로젝트, 대표는 전부) 계획 중 안 본 변경이 있는 것. 취소된 계획도 포함 — 취소도 소식이다. */
+async function loadUnseenSummary(tx: PlanTx, access: PlanAccess): Promise<UnseenPlanSummary> {
+  const rows = rowsOf<{
+    id: string;
+    title: string;
+    status: string;
+    planned_date: string;
+    date_precision: string;
+    project_name: string;
+    changes: unknown;
+  }>(
+    await tx.execute(sql`SELECT p.id, p.title, p.status, p.planned_date::text AS planned_date, p.date_precision,
+                                j.name AS project_name, ch.changes
+        FROM expenseone.cost_plans p
+        JOIN expenseone.plan_projects j ON j.id = p.project_id AND j.deleted_at IS NULL
+        CROSS JOIN LATERAL (SELECT ${unseenChangesSql(access.userId, sql`p.id`)} AS changes) ch
+       WHERE p.deleted_at IS NULL AND ch.changes IS NOT NULL
+         AND ${projectScopeSql(access, sql`p.project_id`)}`),
+  );
+  const items: UnseenPlanItem[] = [];
+  const counts: Record<ChangeKind, number> = { NEW: 0, UPDATED: 0, CANCELLED: 0 };
+  for (const r of rows) {
+    const mark = summarizeChanges(parseChangeEntries(r.changes));
+    if (!mark) continue;
+    counts[mark.kind] += 1;
+    items.push({
+      planId: r.id,
+      title: r.title,
+      projectName: r.project_name,
+      plannedDateLabel: plannedDateLabel(r.planned_date, toDatePrecision(r.date_precision)),
+      status: r.status,
+      mark,
+    });
+  }
+  items.sort((a, b) => (a.mark.at < b.mark.at ? 1 : a.mark.at > b.mark.at ? -1 : 0));
+  return { total: items.length, counts, items: items.slice(0, UNSEEN_LIST_LIMIT) };
 }
 
 /** 월별 보드. 달 묶기·합계는 순수 함수(diff.ts)로 — 취소·마감은 합계에서 빠진다. */
@@ -864,6 +983,7 @@ export async function getBoard(actor: PlanActorInput, query: BoardQueryInput): P
         canDelete: access.isExecutive || p.createdById === actor.id,
       })),
       brands,
+      changes: await loadUnseenSummary(tx, access),
     };
   }, { readOnly: true });
 }
@@ -1310,6 +1430,15 @@ export interface PlanChangeRow {
   createdAt: string;
   before: unknown;
   after: unknown;
+  /** 내가 마지막으로 본 뒤 다른 사람이 남긴 이력인가(0027). */
+  isNew: boolean;
+}
+
+/** 상세 위쪽 "지난번 보신 뒤 바뀐 내용". 이력 10줄 제한과 무관하게 안 본 것 전부. */
+export interface PlanUnseenChanges {
+  entries: ChangeEntry[];
+  /** 이력 속 분류·프로젝트 id → 이름(이전 → 이후를 이름으로 적기 위해). */
+  names: Record<string, string>;
 }
 
 export interface PlanDetail {
@@ -1349,11 +1478,36 @@ export interface PlanDetail {
   links: PlanLinkRow[];
   comments: PlanCommentRow[];
   changeLog: PlanChangeRow[];
+  /** 안 본 변경이 없으면 null. 화면은 이걸 보여 준 뒤 본 기록(POST …/seen)을 남긴다. */
+  unseen: PlanUnseenChanges | null;
   canEdit: boolean;
   isExecutive: boolean;
 }
 
 const iso = (v: Date | string | null): string | null => (v == null ? null : new Date(v).toISOString());
+
+/** 이력 before/after 에 나오는 분류·프로젝트 id 의 이름. 지워진 분류·프로젝트도 이름은 남아 있다. */
+async function loadChangeNames(tx: PlanTx, entries: ChangeEntry[]): Promise<Record<string, string>> {
+  const ids = new Set<string>();
+  const uuid = /^[0-9a-f-]{36}$/i;
+  for (const e of entries) {
+    for (const side of [e.before, e.after]) {
+      const o = (side ?? {}) as Record<string, unknown>;
+      for (const key of ["brandId", "projectId"]) {
+        const v = o[key];
+        if (typeof v === "string" && uuid.test(v)) ids.add(v);
+      }
+    }
+  }
+  if (ids.size === 0) return {};
+  const list = [...ids];
+  const rows = rowsOf<{ id: string; name: string }>(
+    await tx.execute(sql`SELECT id, name FROM expenseone.plan_brands WHERE id IN (${sql.join(list.map((i) => sql`${i}::uuid`), sql`, `)})
+                         UNION ALL
+                         SELECT id, name FROM expenseone.plan_projects WHERE id IN (${sql.join(list.map((i) => sql`${i}::uuid`), sql`, `)})`),
+  );
+  return Object.fromEntries(rows.map((r) => [r.id, r.name]));
+}
 
 async function loadLinks(tx: PlanTx, planId: string, planAmount: number) {
   const rows = rowsOf<{
@@ -1487,6 +1641,16 @@ export async function getPlanDetail(actor: PlanActorInput, planId: string): Prom
     const { links, summary } = await loadLinks(tx, planId, amount);
     const comments = await loadComments(tx, planId, access.userId);
 
+    // 안 본 변경(0027): 기준 시각은 보드와 같은 식. 이력 줄마다 "새" 표시, 위쪽 요약은 전부.
+    const seen = rowsOf<{ threshold: Date; changes: unknown }>(
+      await tx.execute(sql`SELECT ${seenThresholdSql(access.userId, sql`${planId}::uuid`)} AS threshold,
+                                  ${unseenChangesSql(access.userId, sql`${planId}::uuid`)} AS changes`),
+    )[0];
+    const seenThreshold = seen?.threshold ? new Date(seen.threshold).getTime() : Number.POSITIVE_INFINITY;
+    const unseenEntries = parseChangeEntries(seen?.changes);
+    const unseen: PlanUnseenChanges | null =
+      unseenEntries.length > 0 ? { entries: unseenEntries, names: await loadChangeNames(tx, unseenEntries) } : null;
+
     const historyRows = rowsOf<{
       id: string;
       entity_type: string;
@@ -1555,7 +1719,9 @@ export async function getPlanDetail(actor: PlanActorInput, planId: string): Prom
         // 화면(logLine)은 메모 이력에서 라벨과 시각만 쓰므로 통째로 가린다.
         before: g.entity_type === "comment" ? null : g.before_data,
         after: g.entity_type === "comment" ? null : g.after_data,
+        isNew: g.actor_id !== access.userId && new Date(g.created_at).getTime() > seenThreshold,
       })),
+      unseen,
       // 접근할 수 있으면 곧 수정할 수 있다(등급 없음). 취소·마감된 계획만 잠근다.
       canEdit: row.status === "PLANNED",
       isExecutive: access.isExecutive,
@@ -1686,6 +1852,61 @@ async function requireOwnComment(
     throw new PlanError("FORBIDDEN", "본인이 쓴 메모만 수정하거나 지울 수 있습니다.");
   }
   return { body: row.body };
+}
+
+/** 상세를 열었다 = 그 계획의 변경을 봤다. 이력에는 남기지 않는다(보는 기록이지 변경이 아니다). */
+export async function markPlanSeen(actor: PlanActorInput, planId: string): Promise<{ seenAt: string }> {
+  return withPlanTx(async (tx) => {
+    const access = await loadAccess(tx, actorAccess(actor));
+    await requirePlanAccess(tx, access, planId);
+    const [row] = await tx
+      .insert(planSeen)
+      .values({ userId: actor.id, planId })
+      .onConflictDoUpdate({ target: [planSeen.userId, planSeen.planId], set: { seenAt: sql`now()` } })
+      .returning({ seenAt: planSeen.seenAt });
+    return { seenAt: iso(row.seenAt) ?? "" };
+  });
+}
+
+/** 보드의 「모두 확인함」. 지금까지의 변경 표시를 전부 지운다(계획별 기록은 그대로 둬도 된다 — 더 늦은 쪽이 이긴다). */
+export async function markAllPlansSeen(actor: PlanActorInput): Promise<{ seenAt: string }> {
+  return withPlanTx(async (tx) => {
+    const [row] = await tx
+      .insert(planSeenAll)
+      .values({ userId: actor.id })
+      .onConflictDoUpdate({ target: planSeenAll.userId, set: { seenAt: sql`now()` } })
+      .returning({ seenAt: planSeenAll.seenAt });
+    return { seenAt: iso(row.seenAt) ?? "" };
+  });
+}
+
+/**
+ * 사이드 메뉴 숫자: 나에게 새 소식이 있는 계획 수 = 안 본 변경(추가·수정·취소·연결)이 있거나 안 읽은 메모가 있는 것.
+ * 모든 화면에서 불리므로 가볍게 — EXISTS 두 개, 계획 수백 건 규모.
+ */
+export async function countPlanAttention(actor: PlanActorInput): Promise<number> {
+  return withPlanTx(async (tx) => {
+    const access = await loadAccess(tx, actorAccess(actor));
+    const uid = access.userId;
+    const rows = rowsOf<{ n: number }>(
+      await tx.execute(sql`SELECT count(*)::int AS n
+          FROM expenseone.cost_plans p
+          JOIN expenseone.plan_projects j ON j.id = p.project_id AND j.deleted_at IS NULL
+         WHERE p.deleted_at IS NULL
+           AND ${projectScopeSql(access, sql`p.project_id`)}
+           AND (EXISTS (SELECT 1 FROM expenseone.plan_change_log g
+                         WHERE g.plan_id = p.id AND g.entity_type IN ('plan', 'link')
+                           AND g.actor_id IS DISTINCT FROM ${uid}::uuid
+                           AND g.created_at > ${seenThresholdSql(uid, sql`p.id`)})
+                OR EXISTS (SELECT 1 FROM expenseone.plan_comments cm
+                             LEFT JOIN expenseone.plan_comment_reads r
+                                    ON r.plan_id = cm.plan_id AND r.user_id = ${uid}::uuid
+                            WHERE cm.plan_id = p.id AND cm.deleted_at IS NULL
+                              AND cm.author_id IS DISTINCT FROM ${uid}::uuid
+                              AND cm.created_at > coalesce(r.last_read_at, '-infinity'::timestamptz)))`),
+    );
+    return num(rows[0]?.n ?? 0);
+  }, { readOnly: true });
 }
 
 /** 스레드를 열 때 읽음 위치를 올린다. 이력에는 남기지 않는다(감사 대상이 아니다). */

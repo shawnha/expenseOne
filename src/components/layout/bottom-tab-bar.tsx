@@ -24,6 +24,7 @@ import {
 import { cn } from "@/lib/utils";
 import { PlansNavGate, PlansNavIcon } from "@/components/plans/plans-nav-gate";
 import { useRealtimeNotifications } from "@/hooks/use-realtime-notifications";
+import { badgeCount, badgeText, useNavBadges, type NavBadges } from "@/components/layout/use-nav-badges";
 
 interface BottomTabBarProps {
   userId: string;
@@ -37,6 +38,8 @@ interface QuickAction {
   icon: React.ComponentType<{ className?: string }>;
   /** 비용계획 스위치가 켜진 사람에게만(PlansNavGate). */
   gated?: boolean;
+  /** 줄 오른쪽 숫자(GET /api/nav/badges). */
+  badgeKey?: keyof NavBadges;
 }
 
 interface TabItem {
@@ -44,6 +47,8 @@ interface TabItem {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   badge?: number;
+  /** 알림 탭만 true — 누르면 실시간 알림 증가분을 비운다. 다른 탭의 숫자(메뉴 숫자)는 건드리지 않는다. */
+  resetsNotifications?: boolean;
   quickActions?: QuickAction[];
 }
 
@@ -53,25 +58,28 @@ const PLANS_QUICK_ACTION: QuickAction = {
   href: "/plans",
   icon: PlansNavIcon,
   gated: true,
+  badgeKey: "plans",
 };
 
-function getTabItems(isAdmin: boolean, badge: number): TabItem[] {
+function getTabItems(isAdmin: boolean, badge: number, menuBadge: number): TabItem[] {
   return [
     { label: "홈", href: "/", icon: Home },
     { label: "비용", href: "/expenses", icon: Receipt },
     { label: "제출", href: "/expenses/new", icon: Plus },
-    { label: "알림", href: "/notifications", icon: Bell, badge },
+    { label: "알림", href: "/notifications", icon: Bell, badge, resetsNotifications: true },
     {
       label: isAdmin ? "관리" : "설정",
       href: isAdmin ? "/admin" : "/settings",
       icon: LayoutGrid,
+      // 안의 빠른 메뉴(비용계획·승인 대기)에 새 소식이 있으면 그 합 — 길게 눌러 열면 줄마다 숫자가 있다.
+      badge: menuBadge,
       quickActions: isAdmin
         ? [
             { label: "반복 입금요청", href: "/expenses/recurring", icon: Repeat },
             PLANS_QUICK_ACTION,
             { label: "대시보드", href: "/admin", icon: LayoutDashboard },
             { label: "전체 비용", href: "/admin/expenses", icon: Receipt },
-            { label: "승인 대기", href: "/admin/pending", icon: Clock },
+            { label: "승인 대기", href: "/admin/pending", icon: Clock, badgeKey: "pending" },
             { label: "리포트", href: "/admin/reports", icon: BarChart3 },
             { label: "사업소득", href: "/admin/freelancers", icon: UserCheck },
             { label: "마트/약국", href: "/admin/mart-pharmacy", icon: ShoppingBag },
@@ -112,11 +120,13 @@ function QuickActionsPopover({
   onClose,
   onNavigate,
   pathname,
+  badges,
 }: {
   actions: NonNullable<TabItem["quickActions"]>;
   onClose: () => void;
   onNavigate: (href: string) => void;
   pathname: string;
+  badges: NavBadges;
 }) {
   const popoverRef = useRef<HTMLDivElement>(null);
 
@@ -175,6 +185,11 @@ function QuickActionsPopover({
                 )}
               />
               <span className="text-[14px] font-medium">{action.label}</span>
+              {action.badgeKey && badgeCount(badges[action.badgeKey]) != null && (
+                <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--apple-red)] px-1.5 text-[11px] font-bold text-white tabular-nums">
+                  {badgeText(badgeCount(badges[action.badgeKey])!)}
+                </span>
+              )}
             </button>
           );
           return action.gated ? <PlansNavGate key={action.href}>{row}</PlansNavGate> : row;
@@ -197,7 +212,9 @@ export function BottomTabBar({ userId, isAdmin, unreadCount }: BottomTabBarProps
   const longPressTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const longPressTriggered = useRef(false);
 
-  const tabs = getTabItems(isAdmin, totalUnread);
+  const navBadges = useNavBadges();
+  const menuBadge = (badgeCount(navBadges.plans) ?? 0) + (isAdmin ? (badgeCount(navBadges.pending) ?? 0) : 0);
+  const tabs = getTabItems(isAdmin, totalUnread, menuBadge);
   const allHrefs = tabs.map((t) => t.href);
   const isSubmitTab = (href: string) => href === "/expenses/new";
 
@@ -226,6 +243,7 @@ export function BottomTabBar({ userId, isAdmin, unreadCount }: BottomTabBarProps
           onClose={() => setQuickActionsOpen(false)}
           onNavigate={(href) => router.push(href)}
           pathname={pathname}
+          badges={navBadges}
         />
       )}
 
@@ -289,7 +307,7 @@ export function BottomTabBar({ userId, isAdmin, unreadCount }: BottomTabBarProps
                 href={tab.href}
                 prefetch={true}
                 onClick={(e) => {
-                  if (tab.badge) resetDelta();
+                  if (tab.resetsNotifications && tab.badge) resetDelta();
                   if (hasQuickActions && longPressTriggered.current) {
                     e.preventDefault();
                     longPressTriggered.current = false;

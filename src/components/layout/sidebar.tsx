@@ -23,6 +23,7 @@ import {
 import { cn } from "@/lib/utils";
 import { ExpenseOneLogo } from "@/components/layout/expense-one-logo";
 import { PlansNavGate, PlansNavIcon } from "@/components/plans/plans-nav-gate";
+import { badgeCount, badgeText, useNavBadges, type NavBadges } from "@/components/layout/use-nav-badges";
 import type { User } from "@/types";
 
 interface NavItem {
@@ -31,6 +32,10 @@ interface NavItem {
   icon: React.ReactNode;
   /** 비용계획 스위치가 켜진 사람에게만 보이는 항목(PlansNavGate). */
   gated?: boolean;
+  /** 아이콘 위 숫자(GET /api/nav/badges). 오너 요청 2026-09-28 — 무엇에 새 소식이 있는지 메뉴에서 바로. */
+  badgeKey?: keyof NavBadges;
+  /** 숫자의 뜻(툴팁·스크린리더). */
+  badgeLabel?: string;
 }
 
 const mainNavItems: NavItem[] = [
@@ -42,13 +47,15 @@ const mainNavItems: NavItem[] = [
     href: "/plans",
     icon: <PlansNavIcon className="size-[18px]" />,
     gated: true,
+    badgeKey: "plans",
+    badgeLabel: "새 소식이 있는 계획",
   },
 ];
 
 const adminNavItems: NavItem[] = [
   { label: "대시보드", href: "/admin", icon: <LayoutDashboard className="size-[18px] [stroke-width:1.8]" /> },
   { label: "전체 비용", href: "/admin/expenses", icon: <Receipt className="size-[18px] [stroke-width:1.8]" /> },
-  { label: "승인 대기", href: "/admin/pending", icon: <Clock className="size-[18px] [stroke-width:1.8]" /> },
+  { label: "승인 대기", href: "/admin/pending", icon: <Clock className="size-[18px] [stroke-width:1.8]" />, badgeKey: "pending", badgeLabel: "승인 대기" },
   { label: "리포트", href: "/admin/reports", icon: <BarChart3 className="size-[18px] [stroke-width:1.8]" /> },
   { label: "사업소득", href: "/admin/freelancers", icon: <UserCheck className="size-[18px] [stroke-width:1.8]" /> },
   { label: "마트/약국", href: "/admin/mart-pharmacy", icon: <ShoppingBag className="size-[18px] [stroke-width:1.8]" /> },
@@ -72,9 +79,12 @@ interface SidebarProps {
 function RailNavLink({
   item,
   isActive,
+  badge = null,
 }: {
   item: NavItem;
   isActive: boolean;
+  /** 0 이면 null — 숫자를 그리지 않는다. */
+  badge?: number | null;
 }) {
   const iconRef = useRef<HTMLSpanElement>(null);
 
@@ -92,7 +102,8 @@ function RailNavLink({
       href={item.href}
       prefetch={true}
       onClick={handleClick}
-      title={item.label}
+      title={badge ? `${item.label} · ${item.badgeLabel ?? "새 소식"} ${badge}` : item.label}
+      aria-label={badge ? `${item.label}, ${item.badgeLabel ?? "새 소식"} ${badge}건` : item.label}
       className={cn(
         "group relative flex items-center justify-center size-9 rounded-xl apple-press overflow-hidden",
         "transition-all duration-[350ms] ease-[cubic-bezier(0.25,1,0.5,1)]",
@@ -114,9 +125,19 @@ function RailNavLink({
       >
         {item.icon}
       </span>
+      {/* 숫자 배지 — 링크가 overflow-hidden 이라 안쪽 모서리에 둔다(탭 바 알림 배지와 같은 빨강). */}
+      {badge != null && (
+        <span
+          aria-hidden="true"
+          className="absolute right-0 top-0 z-[2] flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--apple-red)] px-1 text-[10px] font-bold leading-none text-white tabular-nums shadow-[0_2px_6px_rgba(255,59,48,0.35)]"
+        >
+          {badgeText(badge)}
+        </span>
+      )}
       {/* Tooltip */}
       <span className="pointer-events-none absolute left-full ml-2 px-2 py-1 rounded-lg bg-[var(--apple-label)] text-[var(--apple-system-background)] text-xs font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
         {item.label}
+        {badge != null && ` · ${item.badgeLabel ?? "새 소식"} ${badge}`}
       </span>
     </Link>
   );
@@ -126,6 +147,8 @@ function RailNavLink({
 function RailContent({ user }: { user: User }) {
   const pathname = usePathname();
   const isAdmin = user.role === "ADMIN";
+  const badges = useNavBadges();
+  const badgeFor = (item: NavItem) => (item.badgeKey ? badgeCount(badges[item.badgeKey]) : null);
   function isActive(href: string) {
     if (href === "/") return pathname === "/";
     if (href === "/admin") return pathname === "/admin";
@@ -144,7 +167,7 @@ function RailContent({ user }: { user: User }) {
       {/* Navigation */}
       <nav className="flex flex-1 flex-col items-center gap-1.5 overflow-y-auto py-2 w-full px-2">
         {mainNavItems.map((item) => {
-          const link = <RailNavLink key={item.href} item={item} isActive={isActive(item.href)} />;
+          const link = <RailNavLink key={item.href} item={item} isActive={isActive(item.href)} badge={badgeFor(item)} />;
           // 게이트는 렌더를 막을 뿐 계획 코드를 끌어오지 않는다 — 사이드바는 모든 화면에 있다.
           return item.gated ? <PlansNavGate key={item.href}>{link}</PlansNavGate> : link;
         })}
@@ -153,7 +176,7 @@ function RailContent({ user }: { user: User }) {
           <div className="mt-4 flex flex-col items-center gap-1.5 w-full">
             <div className="w-6 h-px bg-[var(--apple-separator)] opacity-50 mb-1" />
             {adminNavItems.map((item) => (
-              <RailNavLink key={item.href} item={item} isActive={isActive(item.href)} />
+              <RailNavLink key={item.href} item={item} isActive={isActive(item.href)} badge={badgeFor(item)} />
             ))}
           </div>
         )}

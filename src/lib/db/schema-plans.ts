@@ -295,6 +295,32 @@ export const planComments = expenseSchema.table(
 );
 
 /**
+ * plan_seen / plan_seen_all -- "어디까지 봤나"(drizzle/0027). 다른 사람이 추가·수정·취소한 계획을 보드와
+ * 사이드 메뉴에 표시하는 기준. plan_seen 은 상세를 열 때, plan_seen_all 은 「모두 확인함」 때 UPSERT.
+ * plan_seen_all 행이 없으면 코드의 기준 시각(lib/plans/changes.ts SEEN_BASELINE)부터 센다.
+ */
+export const planSeen = expenseSchema.table(
+  "plan_seen",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    planId: uuid("plan_id")
+      .notNull()
+      .references(() => costPlans.id, { onDelete: "cascade" }),
+    seenAt: timestamp("seen_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.planId] }), index("idx_plan_seen_plan").on(t.planId)],
+);
+
+export const planSeenAll = expenseSchema.table("plan_seen_all", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  seenAt: timestamp("seen_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
  * plan_comment_reads -- 사용자별 메모 읽음 위치. 스레드를 열 때 UPSERT.
  */
 export const planCommentReads = expenseSchema.table(
