@@ -568,6 +568,22 @@ export async function getExpenses(
 // getPendingRemainingPayments -- 후지급 승인 대기 목록 (관리자 승인 대기 큐용)
 //   부분 선지급 건 중 후지급이 요청됐지만 아직 승인되지 않은 비용
 // ---------------------------------------------------------------------------
+/**
+ * 사이드 메뉴 「승인 대기」 숫자 — 승인 대기 화면(/admin/pending)과 같은 기준:
+ * 제출된 입금요청 + 후지급 요청(선지급 승인 뒤 잔금 요청이 아직 승인 안 된 것).
+ */
+export async function countPendingApprovals(): Promise<number> {
+  const [row] = await db
+    .select({
+      n: sql<number>`count(*) FILTER (WHERE ${expenses.status} = 'SUBMITTED')
+                   + count(*) FILTER (WHERE ${expenses.status} = 'APPROVED' AND ${expenses.isPrePaid}
+                                        AND ${expenses.remainingPaymentRequested} AND NOT ${expenses.remainingPaymentApproved})`,
+    })
+    .from(expenses)
+    .where(eq(expenses.type, "DEPOSIT_REQUEST"));
+  return Number(row?.n ?? 0);
+}
+
 export async function getPendingRemainingPayments(company?: string) {
   const conditions: ReturnType<typeof eq>[] = [
     eq(expenses.isPrePaid, true),

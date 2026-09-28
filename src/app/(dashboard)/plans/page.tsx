@@ -9,6 +9,7 @@ import { getBoard, type BoardResult } from "@/services/plan.service";
 import { MonthBoard } from "@/components/plans/month-board";
 import { PlanToolbar } from "@/components/plans/plan-toolbar";
 import { PlanCreateButton } from "@/components/plans/plan-dialog";
+import { ChangeBanner } from "@/components/plans/change-banner";
 
 // ---------------------------------------------------------------------------
 // /plans — 월별 비용계획 보드.
@@ -68,6 +69,9 @@ export default async function PlansPage({ searchParams }: PlansPageProps) {
         {/* 프로젝트 만들기·참여자는 툴바의 '＋ 프로젝트' 칩이 연다(프로젝트가 최상위, v1.1). */}
         <PlanCreateButton defaultCompanyId={query.companyId} defaultProjectId={query.projectId} />
       </header>
+
+      {/* 지난번 보신 뒤 다른 사람이 추가·수정·취소한 계획(0027) — 비용계획에서 제일 먼저 봐야 할 것 */}
+      <ChangeBanner summary={board.changes} />
 
       <PlanToolbar board={board} currentMonth={currentMonth} />
 

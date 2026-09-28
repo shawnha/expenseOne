@@ -32,6 +32,7 @@ import { formatKRW } from "@/lib/utils/expense-utils";
 import { monthKeyOf } from "@/lib/plans/diff";
 import { erpMenuLabel } from "@/lib/plans/erp";
 import { paidMenuLabel } from "@/lib/plans/paid";
+import { CHANGE_KIND_LABEL, changeShortText, type ChangeKind } from "@/lib/plans/changes";
 import type { PlanCard as PlanCardData } from "@/services/plan.service";
 import { usePlanBoard } from "./board-context";
 import { diffBadge, PLAN_STATUS_LABEL } from "./plan-client";
@@ -71,6 +72,23 @@ const LONG_PRESS_RELEASE_GRACE_MS = 600;
 const SPRING = "transform 0.38s cubic-bezier(0.25, 0.8, 0.25, 1.05)";
 const EASE = "transform 0.28s cubic-bezier(0.25, 0.1, 0.25, 1)";
 
+/** 지난번 본 뒤 다른 사람이 바꾼 카드(0027) — 알약 색과 카드 테두리. 새로 추가 = 파랑, 변경 = 주황, 취소 = 회색. */
+const CHANGE_PILL: Record<ChangeKind, string> = {
+  NEW: "glass-badge glass-badge-blue",
+  UPDATED: "glass-badge glass-badge-orange",
+  CANCELLED: "glass-badge glass-badge-gray",
+};
+const CHANGE_RING: Record<ChangeKind, string> = {
+  NEW: "ring-2 ring-[var(--apple-blue)]/55",
+  UPDATED: "ring-2 ring-[var(--apple-orange)]/60",
+  CANCELLED: "ring-2 ring-[var(--apple-secondary-label)]/35",
+};
+const CHANGE_DOT: Record<ChangeKind, string> = {
+  NEW: "bg-[var(--apple-blue)]",
+  UPDATED: "bg-[var(--apple-orange)]",
+  CANCELLED: "bg-[var(--apple-secondary-label)]",
+};
+
 const MENU_ITEM =
   "flex min-h-11 w-full cursor-default select-none items-center gap-2.5 rounded-xl px-3 text-[15px] text-[var(--apple-label)] outline-none data-highlighted:bg-[var(--apple-tertiary-system-fill)] data-disabled:opacity-40";
 
@@ -105,6 +123,11 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
   const cancelled = card.status === "CANCELLED";
   /** 지급 완료로 표시된 계획은 한 줄로 접는다(0025) — 이미 나간 돈이라 매번 다 볼 일이 없다. */
   const paid = card.paid && !cancelled;
+  /** 지난번 본 뒤 다른 사람이 추가·수정·취소했나(0027). 상세를 열면 사라진다. */
+  const change = card.change;
+  const changeTitle = change
+    ? `${changeShortText(change)}${change.actorName ? ` · ${change.actorName}` : ""} · 지난번 보신 뒤의 변경 — 열면 무엇이 바뀌었는지 보입니다`
+    : undefined;
   // 취소·마감된 계획은 고칠 게 없다 — 메뉴·스와이프·드래그 전부 끈다(서버도 409 로 거부한다).
   const actionable = board !== null && card.status === "PLANNED";
   const swipeOpen = board?.swipeOpenId === card.id;
@@ -429,12 +452,18 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
               "transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]",
               cancelled && "opacity-60",
               paid && "opacity-65",
+              change && CHANGE_RING[change.kind],
               draggable && "cursor-grab active:cursor-grabbing",
             )}
           >
             {paid ? (
               /* 접힌 줄: 체크 · 제목 · 날짜 · 금액. 나머지(분류·담당자·배지)는 상세에서 본다. */
               <div className={cn("flex min-h-8 items-center gap-2", actionable && "pr-[5.5rem]")}>
+                {change && (
+                  <span className={cn("size-2 shrink-0 rounded-full", CHANGE_DOT[change.kind])} title={changeTitle}>
+                    <span className="sr-only">{CHANGE_KIND_LABEL[change.kind]}</span>
+                  </span>
+                )}
                 <span className="truncate text-footnote font-medium text-[var(--apple-label)]">{card.title}</span>
                 <span className="ml-auto shrink-0 text-caption2 tabular-nums text-[var(--apple-secondary-label)]">
                   {card.plannedDateLabel}
@@ -448,6 +477,12 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
               <>
             {/* 법인 · 프로젝트 · 분류 — "…" 버튼 자리(오른쪽 44px)를 비워 둔다 */}
             <div className={cn("flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-[var(--apple-secondary-label)]", actionable && "pr-[5.5rem]")}>
+              {change && (
+                <span className={cn(CHANGE_PILL[change.kind], "whitespace-nowrap")} title={changeTitle}>
+                  {changeShortText(change)}
+                  {change.actorName && <span className="font-normal opacity-80"> · {change.actorName}</span>}
+                </span>
+              )}
               {showCompany && <CompanyBadge name={card.companyName} slug={card.companySlug} />}
               <span className="truncate">
                 {showProject && card.projectName}

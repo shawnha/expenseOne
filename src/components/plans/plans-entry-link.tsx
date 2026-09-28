@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { PlansNavGate, PlansNavIcon } from "./plans-nav-gate";
+import { badgeCount, badgeText, useNavBadges } from "@/components/layout/use-nav-badges";
 
 // ---------------------------------------------------------------------------
 // "비용계획" 바로가기 한 줄.
@@ -13,6 +14,7 @@ import { PlansNavGate, PlansNavIcon } from "./plans-nav-gate";
 // ---------------------------------------------------------------------------
 
 export function PlansEntryLink({ subtitle = "앞으로 나갈 돈을 달별로 세워 두고, 실제 입금요청과 맞춰 봅니다." }: { subtitle?: string }) {
+  const news = badgeCount(useNavBadges().plans);
   return (
     <PlansNavGate>
       <Link
@@ -24,8 +26,15 @@ export function PlansEntryLink({ subtitle = "앞으로 나갈 돈을 달별로 �
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-[15px] font-semibold text-[var(--apple-label)]">비용계획</span>
-          <span className="block truncate text-[12px] text-[var(--apple-secondary-label)]">{subtitle}</span>
+          <span className="block truncate text-[12px] text-[var(--apple-secondary-label)]">
+            {news != null ? `추가·변경·새 메모가 있는 계획 ${news}건 — 눌러서 확인` : subtitle}
+          </span>
         </span>
+        {news != null && (
+          <span className="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-[var(--apple-red)] px-2 text-[12px] font-bold text-white tabular-nums">
+            {badgeText(news)}
+          </span>
+        )}
         <ChevronRight className="size-4 shrink-0 text-[var(--apple-tertiary-label)]" aria-hidden="true" />
       </Link>
     </PlansNavGate>
