@@ -36,6 +36,7 @@ async function getExpensesData(searchParams: Record<string, string | string[] | 
   const page = Math.max(1, parseInt(pageStr, 10) || 1);
 
   const QUERY_TIMEOUT_MS = 8000;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   const result = await Promise.race([
     getExpenses(
       {
@@ -57,17 +58,17 @@ async function getExpensesData(searchParams: Record<string, string | string[] | 
       data: never[];
       meta: { page: number; totalPages: number; total: number };
       totalAmount: number;
-    }>((resolve) =>
-      setTimeout(() => {
+    }>((resolve) => {
+      timer = setTimeout(() => {
         console.error("[ExpensesPage] query timeout, falling back to empty");
         resolve({
           data: [],
           meta: { page: 1, totalPages: 0, total: 0 },
           totalAmount: 0,
         });
-      }, QUERY_TIMEOUT_MS),
-    ),
-  ]);
+      }, QUERY_TIMEOUT_MS);
+    }),
+  ]).finally(() => clearTimeout(timer)); // 쿼리가 먼저 끝나면 뒤늦은 "timeout" 오탐 로그를 막는다(레이아웃과 같은 방식).
 
   const expenses = result.data.map((item) => ({
     id: item.id,

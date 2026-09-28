@@ -121,12 +121,13 @@ async function getDashboardData(monthKey?: string) {
   // staring at a permanent skeleton — we'd rather show zeros and let them
   // refresh. The retry on next request usually succeeds.
   const QUERY_TIMEOUT_MS = 8000;
-  const timeoutPromise = new Promise<{ data: null; count: null }>((resolve) =>
-    setTimeout(() => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<{ data: null; count: null }>((resolve) => {
+    timer = setTimeout(() => {
       console.error("[Dashboard] query timeout, falling back to zeros");
       resolve({ data: null, count: null });
-    }, QUERY_TIMEOUT_MS),
-  );
+    }, QUERY_TIMEOUT_MS);
+  });
 
   const [
     approvedExpensesRes,
@@ -140,7 +141,7 @@ async function getDashboardData(monthKey?: string) {
     Promise.race([pendingCountQ.then((r) => ({ data: r.data, count: r.count })), timeoutPromise]),
     Promise.race([approvedCountQ.then((r) => ({ data: r.data, count: r.count })), timeoutPromise]),
     Promise.race([recentQ.then((r) => ({ data: r.data, count: r.count })), timeoutPromise]),
-  ]);
+  ]).finally(() => clearTimeout(timer)); // 쿼리가 먼저 끝나면 뒤늦은 "timeout" 오탐 로그를 막는다(레이아웃과 같은 방식).
 
   const approvedExpenses = approvedExpensesRes.data ?? [];
   const submittedCount = submittedCountRes.count ?? 0;
