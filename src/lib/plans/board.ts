@@ -1,4 +1,4 @@
-import { groupByMonth, type MonthGroup, type MonthGroupItem } from "./diff";
+import { addMonths, groupByMonth, type MonthGroup, type MonthGroupItem } from "./diff";
 
 // ---------------------------------------------------------------------------
 // 보드를 프로젝트별 서랍으로 묶는 순수 계산 (DB·React 없음, 단위 테스트 대상)
@@ -92,4 +92,55 @@ export function groupByProject<T extends ProjectGroupItem>(
       count: months.reduce((sum, m) => sum + m.count, 0),
     };
   });
+}
+
+// ---------------------------------------------------------------------------
+// 모바일 달 탭 — 한 달씩 보기(오너 요청 9/29: "월별로 빠르게 넘어갈 수 있는 방법").
+// 모바일은 달 네 칸이 프로젝트마다 세로로 쌓여, 11월을 보려면 9·10월 카드를 전부 지나야 했다.
+// 탭으로 한 달만 남기고, ‹ › 는 한 달씩 — 범위 끝에서는 범위를 한 달 민다(주소의 from).
+// ---------------------------------------------------------------------------
+
+/** 달 탭의 '전체'(네 달 모두). */
+export const ALL_MONTHS = "ALL";
+
+/** 처음 여는 달: 이번 달이 범위 안이면 이번 달, 아니면 범위의 첫 달. */
+export function defaultMobileMonth(keys: readonly string[], currentMonth: string | undefined): string {
+  return currentMonth && keys.includes(currentMonth) ? currentMonth : (keys[0] ?? ALL_MONTHS);
+}
+
+export interface MobileMonthState {
+  /** 사용자가 고른 탭(달 키 또는 ALL_MONTHS). 아직 안 골랐으면 null. */
+  selected: string | null;
+  /** 범위를 미는 중에 고른 달 — 새 범위가 도착해야 보일 수 있다. */
+  pending: string | null;
+}
+
+/** 지금 보여 줄 탭. 새 범위를 기다리는 동안에는 보던 달을 유지한다(기본값으로 튀지 않게). */
+export function resolveMobileMonth(
+  keys: readonly string[],
+  state: MobileMonthState,
+  currentMonth: string | undefined,
+): string {
+  if (state.pending && keys.includes(state.pending)) return state.pending;
+  if (state.selected === ALL_MONTHS) return ALL_MONTHS;
+  if (state.selected && keys.includes(state.selected)) return state.selected;
+  return defaultMobileMonth(keys, currentMonth);
+}
+
+/**
+ * ‹ › 한 번. month 는 다음에 보일 탭, from 은 범위를 옮겨야 할 때만 새 시작 달(아니면 null).
+ * '전체'를 보는 중이면 툴바의 ‹ › 와 같다 — 범위만 한 달.
+ */
+export function stepMobileMonth(
+  keys: readonly string[],
+  shown: string,
+  delta: 1 | -1,
+): { month: string; from: string | null } {
+  const from = keys[0];
+  if (shown === ALL_MONTHS || !keys.includes(shown)) {
+    return { month: ALL_MONTHS, from: from ? addMonths(from, delta) : null };
+  }
+  const target = addMonths(shown, delta);
+  if (keys.includes(target)) return { month: target, from: null };
+  return { month: target, from: addMonths(from, delta) };
 }

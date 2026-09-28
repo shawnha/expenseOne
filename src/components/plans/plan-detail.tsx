@@ -218,7 +218,7 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
 
       {/* 필드 */}
       <section className="glass p-4 sm:p-5" aria-label="상세 정보">
-        <dl className="grid gap-3 sm:grid-cols-2">
+        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="거래처" value={plan.vendorName ?? "-"} />
           <Field label="분류" value={plan.brandName ?? "공통"} />
           <Field label="프로젝트" value={plan.projectName} />

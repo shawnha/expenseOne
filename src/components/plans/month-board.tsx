@@ -1,17 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { useRouter } from "next/navigation";
-import { CalendarRange, ChevronDown, Users } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type DragEvent } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { CalendarRange, ChevronDown, ChevronLeft, ChevronRight, Users } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { CompanyBadge } from "@/components/companies/company-badge";
 import { formatKRW } from "@/lib/utils/expense-utils";
 import {
+  ALL_MONTHS,
   drawerProjects,
   groupByProject,
+  resolveMobileMonth,
   shouldGroupByProject,
   shouldShowSummaryStrip,
+  stepMobileMonth,
+  type MobileMonthState,
   type ProjectGroup,
 } from "@/lib/plans/board";
 import { groupByMonth, monthRange, parseMonth, plannedDateLabel } from "@/lib/plans/diff";
@@ -291,6 +295,54 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
     [canDrag, dragging, moveToMonth, shiftMonth, swipeOpenId, board.isExecutive, toggleErpApplied, togglePaid],
   );
 
+  // --- 모바일 달 탭: 한 달씩 보기(lib/plans/board.ts) ------------------------------------
+  // 데스크톱·태블릿(sm 이상)은 달을 나란히 놓으므로 탭이 없다 — 숨기는 것도 CSS(max-sm:hidden)라 영향이 없다.
+
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [monthTab, setMonthTab] = useState<MobileMonthState>({ selected: null, pending: null });
+  const [rangePending, startRangeTransition] = useTransition();
+  const shownMonth = resolveMobileMonth(keys, monthTab, currentMonth);
+  const tabsTopRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * 탭을 바꾸면 보드 첫머리로 — 아래쪽에서 바꾸면 짧아진 목록 밑의 빈 곳에 남는다.
+   * 스크롤 상자는 창이 아니라 main 이다(레이아웃). 표시(0px)가 main 위로 지나갔을 때만 올린다.
+   */
+  const revealBoardTop = useCallback(() => {
+    const anchor = tabsTopRef.current;
+    const scroller = anchor?.closest("main");
+    if (anchor && scroller && anchor.getBoundingClientRect().top < scroller.getBoundingClientRect().top) {
+      anchor.scrollIntoView({ block: "start" });
+    }
+  }, []);
+
+  const selectMonth = useCallback(
+    (month: string) => {
+      setMonthTab({ selected: month, pending: null });
+      revealBoardTop();
+    },
+    [revealBoardTop],
+  );
+
+  const stepMonth = useCallback(
+    (delta: 1 | -1) => {
+      const step = stepMobileMonth(keys, shownMonth, delta);
+      if (step.from === null) {
+        selectMonth(step.month);
+        return;
+      }
+      // 범위 끝: 주소의 from 을 한 달 밀고(툴바 ‹ › 와 같은 URL), 새 범위가 오면 그 달을 연다.
+      // 새 범위가 오기 전까지는 보던 탭(shownMonth)을 그대로 둔다 — 기본값(이번 달)으로 튀지 않게.
+      setMonthTab({ selected: step.month === ALL_MONTHS ? ALL_MONTHS : shownMonth, pending: step.month });
+      const next = new URLSearchParams(searchParams.toString());
+      next.set("from", step.from);
+      startRangeTransition(() => router.push(`${pathname}?${next.toString()}`, { scroll: false }));
+      revealBoardTop();
+    },
+    [keys, shownMonth, selectMonth, searchParams, pathname, router, revealBoardTop],
+  );
+
   // --- 묶기 ---------------------------------------------------------------------------
 
   const shelf = useMemo(() => drawerProjects(board.projects, projectId), [board.projects, projectId]);
@@ -326,15 +378,33 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
 
   return (
     <PlanBoardContext.Provider value={actions}>
+      {/* 달 탭을 바꿀 때 스크롤을 올릴 자리. 높이 0 — 부모 flex 의 gap(모바일 16px)은 -mb-4 로 상쇄한다. */}
+      <div ref={tabsTopRef} aria-hidden="true" className="-mb-4 sm:hidden" />
+      <MonthTabs
+        months={months}
+        shown={shownMonth}
+        currentMonth={currentMonth}
+        busy={rangePending}
+        onSelect={selectMonth}
+        onStep={stepMonth}
+      />
       {grouped ? (
         <div className="flex flex-col gap-4">
           {shouldShowSummaryStrip(groups.length) && <SummaryStrip months={months} currentMonth={currentMonth} />}
           {groups.map((group, index) => (
-            <ProjectDrawer key={group.project.id} group={group} index={index} currentMonth={currentMonth} />
+            <ProjectDrawer
+              key={group.project.id}
+              group={group}
+              index={index}
+              currentMonth={currentMonth}
+              mobileMonth={shownMonth}
+            />
           ))}
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        // grid-cols-1(= minmax(0,1fr)) 이 없으면 모바일의 암묵 열이 가장 긴 한 줄짜리 제목만큼 넓어져
+        // 카드가 화면 밖으로 밀린다(9/29 오너 제보, 390px 에서 열 451px).
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {months.map((month, index) => (
             <MonthColumn
               key={month.month}
@@ -343,6 +413,7 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
               currentMonth={currentMonth}
               showCompany={showCompany}
               showProject
+              hiddenOnMobile={shownMonth !== ALL_MONTHS && month.month !== shownMonth}
             />
           ))}
         </div>
@@ -380,6 +451,7 @@ function MonthColumn({
   showProject,
   dropProjectId,
   compactWhenEmpty = false,
+  hiddenOnMobile = false,
 }: {
   month: BoardMonth;
   index: number;
@@ -393,6 +465,8 @@ function MonthColumn({
    * 세로로 쌓이면 프로젝트 5개에 8화면이 넘는다. 모바일엔 드래그가 없으니 드롭 대상도 필요 없다.
    */
   compactWhenEmpty?: boolean;
+  /** 모바일 달 탭에서 다른 달을 고른 상태 — sm 미만에서만 숨긴다. */
+  hiddenOnMobile?: boolean;
 }) {
   const board = usePlanBoardStrict();
   const dragging = board.dragging;
@@ -454,7 +528,7 @@ function MonthColumn({
 
   return (
     <>
-      {compact && (
+      {compact && !hiddenOnMobile && (
         <p className="flex min-h-11 items-center justify-between gap-2 rounded-2xl border border-dashed border-[var(--apple-separator)] px-4 text-footnote text-[var(--apple-secondary-label)] sm:hidden">
           <span className="inline-flex items-center gap-1.5">
             {monthLabel(month.month)}
@@ -467,7 +541,7 @@ function MonthColumn({
         aria-label={monthLabel(month.month)}
         className={cn(
           "flex flex-col gap-2.5 rounded-[22px] transition-[box-shadow,background-color] duration-150 animate-fade-up",
-          compact && "max-sm:hidden",
+          (compact || hiddenOnMobile) && "max-sm:hidden",
           accepts && "ring-2 ring-[var(--apple-blue)]/25",
           highlight && "bg-[var(--apple-blue)]/8 ring-[var(--apple-blue)]",
         )}
@@ -559,10 +633,13 @@ function ProjectDrawer({
   group,
   index,
   currentMonth,
+  mobileMonth,
 }: {
   group: ProjectGroup<PlanCard>;
   index: number;
   currentMonth?: string;
+  /** 모바일 달 탭(ALL_MONTHS 면 네 달 모두). */
+  mobileMonth: string;
 }) {
   const { project } = group;
   const [collapsed, setCollapsed] = useState(false);
@@ -635,7 +712,8 @@ function ProjectDrawer({
             />
           </div>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          // grid-cols-1 — 위 보드 격자와 같은 이유(모바일에서 긴 제목이 열을 넓히지 않게).
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {group.months.map((month, i) => (
               <MonthColumn
                 key={month.month}
@@ -647,12 +725,105 @@ function ProjectDrawer({
                 showProject={false}
                 dropProjectId={project.id}
                 compactWhenEmpty
+                hiddenOnMobile={mobileMonth !== ALL_MONTHS && month.month !== mobileMonth}
               />
             ))}
           </div>
         )}
       </div>
     </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 모바일 달 탭 — 스크롤해도 헤더 밑에 붙어 있다. ‹ › 는 한 달씩(범위 끝이면 범위를 민다).
+// main 의 위 패딩(16px)만큼 -top-4 로 올려야 헤더에 딱 붙는다(top-0 이면 틈으로 카드가 비친다).
+// 바뀐 계획이 있는 달은 탭에 점을 찍는다 — 한 달만 보여도 다른 달의 새 소식을 놓치지 않게.
+// ---------------------------------------------------------------------------
+
+function MonthTabs({
+  months,
+  shown,
+  currentMonth,
+  busy,
+  onSelect,
+  onStep,
+}: {
+  months: BoardMonth[];
+  shown: string;
+  currentMonth?: string;
+  busy: boolean;
+  onSelect: (month: string) => void;
+  onStep: (delta: 1 | -1) => void;
+}) {
+  const tabs = [
+    { key: ALL_MONTHS, label: "전체", changed: false, current: false },
+    ...months.map((m) => ({
+      key: m.month,
+      label: `${Number(m.month.slice(5))}월`,
+      changed: m.items.some((c) => c.change !== null),
+      current: m.month === currentMonth,
+    })),
+  ];
+  const stepClass =
+    "flex size-11 shrink-0 items-center justify-center rounded-full text-[var(--apple-secondary-label)] transition-colors active:bg-[var(--apple-tertiary-system-fill)] disabled:opacity-40";
+
+  return (
+    <nav
+      aria-label="달 고르기"
+      className={cn(
+        "glass-header sticky -top-4 z-20 -mx-4 border-b border-[var(--glass-border)] px-2 py-1.5 sm:hidden",
+        busy && "opacity-70",
+      )}
+    >
+      <div className="flex items-center gap-1">
+        <button type="button" aria-label="이전 달" className={stepClass} disabled={busy} onClick={() => onStep(-1)}>
+          <ChevronLeft className="size-5" aria-hidden="true" />
+        </button>
+        <div
+          role="radiogroup"
+          aria-label="보이는 달"
+          className="grid min-w-0 flex-1 gap-0.5 rounded-full border border-[var(--glass-border)] bg-[var(--apple-system-grouped-background)] p-1"
+          style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
+        >
+          {tabs.map((t) => {
+            const selected = t.key === shown;
+            return (
+              <button
+                key={t.key}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                aria-label={t.key === ALL_MONTHS ? "네 달 모두" : `${monthLabel(t.key)}${t.current ? " (이번 달)" : ""}${t.changed ? ", 바뀐 계획 있음" : ""}`}
+                onClick={() => onSelect(t.key)}
+                className={cn(
+                  "relative min-h-9 truncate rounded-full px-1 text-[13px] font-medium tabular-nums transition-all duration-200",
+                  selected
+                    ? "bg-[var(--apple-blue)] text-white shadow-[0_2px_8px_rgba(0,122,255,0.25)]"
+                    : t.current
+                      ? "text-[var(--apple-blue)]"
+                      : "text-[var(--apple-secondary-label)]",
+                )}
+              >
+                {t.label}
+                {t.changed && (
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "absolute right-1.5 top-1.5 size-1.5 rounded-full",
+                      selected ? "bg-white" : "bg-[var(--apple-orange)]",
+                    )}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <button type="button" aria-label="다음 달" className={stepClass} disabled={busy} onClick={() => onStep(1)}>
+          <ChevronRight className="size-5" aria-hidden="true" />
+        </button>
+      </div>
+    </nav>
   );
 }
 
