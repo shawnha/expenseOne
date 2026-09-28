@@ -20,6 +20,7 @@ import {
   ShoppingBag,
   FileText,
   Repeat,
+  ReceiptText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PlansNavGate, PlansNavIcon } from "@/components/plans/plans-nav-gate";
@@ -61,6 +62,14 @@ const PLANS_QUICK_ACTION: QuickAction = {
   badgeKey: "plans",
 };
 
+/** 세금계산서 발행 요청 목록 — 새 요청은 가운데 「제출」 탭에서도 고를 수 있다. */
+const TAX_INVOICE_QUICK_ACTION: QuickAction = {
+  label: "세금계산서",
+  href: "/tax-invoices",
+  icon: ReceiptText,
+  badgeKey: "taxInvoices",
+};
+
 function getTabItems(isAdmin: boolean, badge: number, menuBadge: number): TabItem[] {
   return [
     { label: "홈", href: "/", icon: Home },
@@ -77,6 +86,7 @@ function getTabItems(isAdmin: boolean, badge: number, menuBadge: number): TabIte
         ? [
             { label: "반복 입금요청", href: "/expenses/recurring", icon: Repeat },
             PLANS_QUICK_ACTION,
+            TAX_INVOICE_QUICK_ACTION,
             { label: "대시보드", href: "/admin", icon: LayoutDashboard },
             { label: "전체 비용", href: "/admin/expenses", icon: Receipt },
             { label: "승인 대기", href: "/admin/pending", icon: Clock, badgeKey: "pending" },
@@ -92,6 +102,7 @@ function getTabItems(isAdmin: boolean, badge: number, menuBadge: number): TabIte
         : [
             { label: "반복 입금요청", href: "/expenses/recurring", icon: Repeat },
             PLANS_QUICK_ACTION,
+            TAX_INVOICE_QUICK_ACTION,
             { label: "설정", href: "/settings", icon: Settings },
           ],
     },
@@ -213,7 +224,9 @@ export function BottomTabBar({ userId, isAdmin, unreadCount }: BottomTabBarProps
   const longPressTriggered = useRef(false);
 
   const navBadges = useNavBadges();
-  const menuBadge = (badgeCount(navBadges.plans) ?? 0) + (isAdmin ? (badgeCount(navBadges.pending) ?? 0) : 0);
+  const menuBadge =
+    (badgeCount(navBadges.plans) ?? 0) +
+    (isAdmin ? (badgeCount(navBadges.pending) ?? 0) + (badgeCount(navBadges.taxInvoices) ?? 0) : 0);
   const tabs = getTabItems(isAdmin, totalUnread, menuBadge);
   const allHrefs = tabs.map((t) => t.href);
   const isSubmitTab = (href: string) => href === "/expenses/new";

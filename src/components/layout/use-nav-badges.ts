@@ -17,9 +17,11 @@ export interface NavBadges {
   plans: number | null;
   /** 승인 대기(관리자만). */
   pending: number | null;
+  /** 세금계산서 발행 대기(관리자만). */
+  taxInvoices: number | null;
 }
 
-const EMPTY: NavBadges = { plans: null, pending: null };
+const EMPTY: NavBadges = { plans: null, pending: null, taxInvoices: null };
 let state: NavBadges = EMPTY;
 const listeners = new Set<() => void>();
 let inFlight: Promise<void> | null = null;
@@ -47,8 +49,9 @@ export function refreshNavBadges(force = false): Promise<void> {
       const next: NavBadges = {
         plans: typeof json.data.plans === "number" ? json.data.plans : null,
         pending: typeof json.data.pending === "number" ? json.data.pending : null,
+        taxInvoices: typeof json.data.taxInvoices === "number" ? json.data.taxInvoices : null,
       };
-      if (next.plans !== state.plans || next.pending !== state.pending) {
+      if (next.plans !== state.plans || next.pending !== state.pending || next.taxInvoices !== state.taxInvoices) {
         state = next;
         emit();
       }

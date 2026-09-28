@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CreditCard, Banknote, ArrowRight, Undo2 } from "lucide-react";
+import { CreditCard, Banknote, ArrowRight, Undo2, ReceiptText } from "lucide-react";
 import { TiltCard } from "@/components/layout/tilt-card";
 
 const expenseTypes = [
@@ -23,6 +23,13 @@ const expenseTypes = [
     href: "/expenses/new/refund",
     icon: <Undo2 className="size-6 text-[var(--apple-red)]" />,
   },
+  {
+    // 비용이 아니라 매출 쪽이지만, 직원이 "뭔가 올릴 때" 찾는 자리가 여기라 같이 둔다.
+    title: "세금계산서 발행 요청",
+    description: "약국·의원 등에 판 건의 세금계산서를 요청합니다. 관리자가 발행하면 알림이 옵니다.",
+    href: "/tax-invoices/new",
+    icon: <ReceiptText className="size-6 text-[var(--apple-purple)]" />,
+  },
 ] as const;
 
 export default function NewExpensePage() {
@@ -31,7 +38,7 @@ export default function NewExpensePage() {
       <div className="animate-fade-up">
         <h1 className="text-title3 text-[var(--apple-label)]">비용 제출</h1>
         <p className="mt-1 text-footnote text-[var(--apple-secondary-label)]">
-          제출할 비용 유형을 선택해주세요.
+          제출할 유형을 선택해주세요.
         </p>
       </div>
 
