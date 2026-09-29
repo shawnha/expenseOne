@@ -9,6 +9,10 @@ import {
   groupByProject,
   shouldGroupByProject,
   shouldShowSummaryStrip,
+  ALL_MONTHS,
+  defaultMobileMonth,
+  resolveMobileMonth,
+  stepMobileMonth,
   type BoardProjectRef,
 } from "./board";
 
@@ -93,5 +97,46 @@ describe("groupByProject", () => {
     const groups = groupByProject([item("far", "p1", "2027-01-01", 500)], projects, keys);
     assert.equal(groups[0].total, 0);
     assert.equal(groups[0].count, 0);
+  });
+});
+
+describe("모바일 달 탭 (한 달씩 보기)", () => {
+  const range = ["2026-09", "2026-10", "2026-11", "2026-12"];
+
+  it("기본은 이번 달, 이번 달이 범위 밖이면 범위의 첫 달", () => {
+    assert.equal(defaultMobileMonth(range, "2026-10"), "2026-10");
+    assert.equal(defaultMobileMonth(range, "2026-08"), "2026-09");
+    assert.equal(defaultMobileMonth(range, undefined), "2026-09");
+  });
+
+  it("고른 달이 범위 안이면 그 달, 전체면 전체, 범위 밖이면 기본값", () => {
+    assert.equal(resolveMobileMonth(range, { selected: "2026-11", pending: null }, "2026-09"), "2026-11");
+    assert.equal(resolveMobileMonth(range, { selected: ALL_MONTHS, pending: null }, "2026-09"), ALL_MONTHS);
+    assert.equal(resolveMobileMonth(range, { selected: "2027-02", pending: null }, "2026-09"), "2026-09");
+    assert.equal(resolveMobileMonth(range, { selected: null, pending: null }, "2026-10"), "2026-10");
+  });
+
+  it("범위를 옮기는 중(pending)에는 새 달이 들어올 때까지 지금 보던 달을 유지한다", () => {
+    // 12월에서 › → 새 범위(10월~1월)가 오기 전: 1월은 아직 없으니 12월 그대로
+    assert.equal(resolveMobileMonth(range, { selected: "2026-12", pending: "2027-01" }, "2026-09"), "2026-12");
+    // 새 범위가 오면 1월
+    const next = ["2026-10", "2026-11", "2026-12", "2027-01"];
+    assert.equal(resolveMobileMonth(next, { selected: "2026-12", pending: "2027-01" }, "2026-09"), "2027-01");
+  });
+
+  it("› 는 범위 안이면 다음 달만 고르고, 끝이면 범위를 한 달 민다", () => {
+    assert.deepEqual(stepMobileMonth(range, "2026-10", 1), { month: "2026-11", from: null });
+    assert.deepEqual(stepMobileMonth(range, "2026-12", 1), { month: "2027-01", from: "2026-10" });
+    assert.deepEqual(stepMobileMonth(range, "2026-09", -1), { month: "2026-08", from: "2026-08" });
+  });
+
+  it("전체를 보는 중에는 ‹ › 가 범위만 한 달 민다", () => {
+    assert.deepEqual(stepMobileMonth(range, ALL_MONTHS, 1), { month: ALL_MONTHS, from: "2026-10" });
+    assert.deepEqual(stepMobileMonth(range, ALL_MONTHS, -1), { month: ALL_MONTHS, from: "2026-08" });
+  });
+
+  it("연도를 넘긴다", () => {
+    const winter = ["2026-10", "2026-11", "2026-12", "2027-01"];
+    assert.deepEqual(stepMobileMonth(winter, "2027-01", 1), { month: "2027-02", from: "2026-11" });
   });
 });

@@ -491,7 +491,9 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
               </span>
             </div>
 
-            <p className={cn("mt-1 text-[15px] font-semibold leading-tight text-[var(--apple-label)] truncate", actionable && "pr-[5.5rem]")}>
+            {/* 두 줄까지 — 모바일 카드 폭(오른쪽 버튼 자리 빼고 ~210px)에서 한 줄 말줄임이면 제목 대부분이 잘린다.
+                anywhere 는 공백 없는 긴 제목(리뷰작업_바이와이즈_…)도 칸 안에서 꺾는다. */}
+            <p className={cn("mt-1 line-clamp-2 break-keep text-[15px] font-semibold leading-tight text-[var(--apple-label)] [overflow-wrap:anywhere]", actionable && "pr-[5.5rem]")}>
               {card.title}
             </p>
             <p className="mt-1 text-[17px] font-semibold tabular-nums text-[var(--apple-label)]">
