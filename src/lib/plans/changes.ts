@@ -109,6 +109,27 @@ export function changeShortText(mark: ChangeMark): string {
 
 // --- 상세 화면: 무엇이 → 무엇으로 -----------------------------------------------------------
 
+/**
+ * 보드 띠에서 줄 하나를 「확인」했을 때 화면에 남길 요약(2026-10-01 오너: "개별적으로 확인한 것만 할 수 없나").
+ * 서버에 본 기록(POST …/seen)을 남긴 뒤 새로 그려질 때까지, 그 줄을 빼고 건수·종류별 수를 함께 줄인다.
+ * 목록은 최근 50건으로 잘려 있을 수 있으므로 total 은 **목록에서 실제로 뺀 줄 수만큼만** 줄인다.
+ */
+export function dismissFromSummary<
+  T extends { planId: string; mark: { kind: ChangeKind } },
+  S extends { total: number; counts: Record<ChangeKind, number>; items: T[] },
+>(summary: S, dismissed: ReadonlySet<string>): S {
+  const removed = summary.items.filter((i) => dismissed.has(i.planId));
+  if (removed.length === 0) return summary;
+  const counts = { ...summary.counts };
+  for (const r of removed) counts[r.mark.kind] = Math.max(0, counts[r.mark.kind] - 1);
+  return {
+    ...summary,
+    total: Math.max(0, summary.total - removed.length),
+    counts,
+    items: summary.items.filter((i) => !dismissed.has(i.planId)),
+  };
+}
+
 export interface ChangeLine {
   label: string;
   before?: string;
