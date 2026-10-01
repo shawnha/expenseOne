@@ -824,3 +824,25 @@ export async function notifySlackText(text: string): Promise<SlackMessageRef | n
   }
   return postMessage(primary, text);
 }
+
+/**
+ * 한 사람에게 DM(봇과의 대화)으로 보낸다. 이메일로 primary 워크스페이스의 사용자를 찾는다
+ * (users:read.email). 채널 ID 자리에 사용자 ID 를 넣으면 chat:write 만으로 앱 DM 에 올라간다.
+ *
+ * 사용자를 못 찾거나 전송이 실패하면 null — 채널로 대신 올릴지는 부르는 쪽이 정한다
+ * (놓치면 안 되는 알림은 폴백해야 한다).
+ */
+export async function notifySlackDirect(email: string, text: string): Promise<SlackMessageRef | null> {
+  const token = process.env.SLACK_BOT_TOKEN;
+  if (!token) {
+    console.warn("[Slack] SLACK_BOT_TOKEN 이 없어 DM 을 건너뜁니다.");
+    return null;
+  }
+  const target: SlackTarget = { key: "default", token, channel: "" };
+  const userId = await lookupSlackUserByEmail(target, email);
+  if (!userId) {
+    console.error("[Slack] DM 받을 사용자를 이메일로 찾지 못했습니다.");
+    return null;
+  }
+  return postMessage({ ...target, channel: userId }, text);
+}
