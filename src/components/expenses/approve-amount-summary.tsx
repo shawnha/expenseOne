@@ -1,4 +1,5 @@
 import { formatExpenseAmount } from "@/lib/utils/expense-utils";
+import { withholdingSummary } from "@/lib/utils/deposit-amount";
 
 interface ApproveAmountSummaryProps {
   amount: number;
@@ -6,6 +7,11 @@ interface ApproveAmountSummaryProps {
   amountOriginal?: number | null;
   isPrePaid?: boolean;
   prePaidPercentage?: number | null;
+  /**
+   * 원천징수 3.3% 체크 여부. 넘기면 「공제함/공제 안 함」 줄을 덧붙인다(2026-10-01 오너 — 승인=송금 직전이라
+   * 여기서 확인돼야 한다). 안 넘기면(undefined) 줄 없음.
+   */
+  hasFreelancerWithholding?: boolean;
 }
 
 /**
@@ -24,12 +30,19 @@ export function ApproveAmountSummary({
   amountOriginal,
   isPrePaid,
   prePaidPercentage,
+  hasFreelancerWithholding,
 }: ApproveAmountSummaryProps) {
   const isPartialPrePaid =
     isPrePaid === true && prePaidPercentage != null && prePaidPercentage < 100;
+  const withholding = hasFreelancerWithholding === undefined ? null : <WithholdingLine amount={amount} applied={hasFreelancerWithholding} />;
 
   if (!isPartialPrePaid) {
-    return <>금액: {formatExpenseAmount(amount, currency, amountOriginal)}</>;
+    return (
+      <>
+        금액: {formatExpenseAmount(amount, currency, amountOriginal)}
+        {withholding}
+      </>
+    );
   }
 
   // 잔금은 총액에서 빼서 구한다. 양쪽을 따로 반올림하면 합이 총액과 어긋난다.
@@ -56,6 +69,21 @@ export function ApproveAmountSummary({
       </span>
       <br />총 {formatExpenseAmount(amount, currency, amountOriginal)} · 후지급{" "}
       {formatExpenseAmount(remainingAmount, currency, remainingOriginal)} 예정
+      {withholding}
+    </>
+  );
+}
+
+/** 「원천징수 3.3%: 공제함 — 지급액 …」 한 줄. 공제했으면 눈에 띄게(주황). */
+function WithholdingLine({ amount, applied }: { amount: number; applied: boolean }) {
+  const s = withholdingSummary(amount, applied);
+  return (
+    <>
+      <br />
+      <span className={s.applied ? "font-semibold text-[var(--apple-orange)]" : undefined}>
+        원천징수 3.3%: {s.label}
+        {s.detail && ` — ${s.detail}`}
+      </span>
     </>
   );
 }

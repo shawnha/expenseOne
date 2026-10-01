@@ -26,6 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { AdminQuickEditDialog } from "@/components/expenses/admin-quick-edit-dialog";
 import { PrePaidBadge } from "@/components/expenses/pre-paid-badge";
+import { WithholdingBadge } from "@/components/expenses/withholding-badge";
 import { CompanyBadge } from "@/components/companies/company-badge";
 import type { ExpenseType, ExpenseStatus } from "@/types";
 
@@ -50,6 +51,8 @@ interface ExpenseRow {
   companySlug?: string | null;
   isPrePaid?: boolean;
   prePaidPercentage?: number | null;
+  /** 제출자가 원천징수 3.3% 를 체크했나 — 체크했으면 amount 가 실지급액이다. */
+  hasFreelancerWithholding?: boolean;
   remainingPaymentRequested?: boolean;
   remainingPaymentApproved?: boolean;
 }
@@ -354,6 +357,7 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
                       <span className="truncate">{expense.title}</span>
                       {expense.isUrgent && <span className="glass-badge glass-badge-red shrink-0">긴급</span>}
                       <PrePaidBadge isPrePaid={expense.isPrePaid} percentage={expense.prePaidPercentage} />
+                      <WithholdingBadge applied={expense.hasFreelancerWithholding} />
                       {expense.autoClassified && <span className="glass-badge glass-badge-blue shrink-0">자동분류</span>}
                     </span>
                   </TableCell>
@@ -607,6 +611,7 @@ function MobileExpenseCard({
             <span className="text-sm font-medium text-[var(--apple-label)] truncate">{expense.title}</span>
             {expense.isUrgent && <span className="glass-badge glass-badge-red shrink-0">긴급</span>}
             <PrePaidBadge isPrePaid={expense.isPrePaid} percentage={expense.prePaidPercentage} />
+            <WithholdingBadge applied={expense.hasFreelancerWithholding} />
             {expense.autoClassified && <span className="glass-badge glass-badge-blue shrink-0">자동분류</span>}
           </span>
           <span className="flex items-center gap-1.5 shrink-0">

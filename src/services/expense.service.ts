@@ -235,6 +235,7 @@ export async function createExpense(
         isPrePaid: expense.isPrePaid ?? false,
         prePaidPercentage: expense.prePaidPercentage,
         description: expense.description,
+        hasFreelancerWithholding: expense.hasFreelancerWithholding ?? false,
       }),
     ]);
     // Save Slack message ts (primary + mirror)
@@ -1201,6 +1202,7 @@ export async function updateExpense(
           isUrgent: updated.isUrgent,
           isPrePaid: updated.isPrePaid,
           prePaidPercentage: updated.prePaidPercentage,
+          hasFreelancerWithholding: updated.hasFreelancerWithholding,
         });
         // 재게시 결과로 좌표를 항상 덮어쓴다. 한쪽이 실패해 null이 되면
         // 그 좌표는 지워져야 한다 — 이미 삭제된 메시지를 가리키게 두면

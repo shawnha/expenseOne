@@ -53,6 +53,7 @@ async function getPendingExpenses(company?: string): Promise<PendingExpense[]> {
     isUrgent: item.isUrgent ?? false,
     isPrePaid: item.isPrePaid ?? false,
     prePaidPercentage: item.prePaidPercentage ?? null,
+    hasFreelancerWithholding: item.hasFreelancerWithholding ?? false,
     companyName: item.companyName ?? null,
     companySlug: item.companySlug ?? null,
   }));

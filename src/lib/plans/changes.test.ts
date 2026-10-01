@@ -4,7 +4,14 @@
  */
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { changeShortText, describeChange, entryFields, summarizeChanges, type ChangeEntry } from "./changes";
+import {
+  changeShortText,
+  describeChange,
+  dismissFromSummary,
+  entryFields,
+  summarizeChanges,
+  type ChangeEntry,
+} from "./changes";
 
 const e = (p: Partial<ChangeEntry>): ChangeEntry => ({
   entityType: "plan",
@@ -110,5 +117,40 @@ describe("describeChange", () => {
   it("모르는 분류 id 는 (알 수 없음)", () => {
     const d = describeChange(e({ before: { brandId: "zz" }, after: { brandId: null } }), ctx);
     assert.deepEqual(d.lines, [{ label: "분류", before: "(알 수 없음)", after: "(없음)" }]);
+  });
+});
+
+describe("dismissFromSummary — 하나씩 확인함(보드 띠의 ✓)", () => {
+  const mark = (kind: "NEW" | "UPDATED" | "CANCELLED") => ({ kind, fields: [], actorName: null, at: "2026-09-28T00:00:00.000Z", count: 1 });
+  const summary = {
+    total: 4,
+    counts: { NEW: 2, UPDATED: 1, CANCELLED: 1 },
+    items: [
+      { planId: "a", mark: mark("NEW") },
+      { planId: "b", mark: mark("NEW") },
+      { planId: "c", mark: mark("UPDATED") },
+      { planId: "d", mark: mark("CANCELLED") },
+    ],
+  };
+
+  it("확인한 줄을 빼고 건수·종류별 수를 함께 줄인다", () => {
+    const next = dismissFromSummary(summary, new Set(["b", "c"]));
+    assert.deepEqual(next.items.map((i) => i.planId), ["a", "d"]);
+    assert.equal(next.total, 2);
+    assert.deepEqual(next.counts, { NEW: 1, UPDATED: 0, CANCELLED: 1 });
+  });
+
+  it("목록에 없는 id 는 무시한다(건수를 두 번 빼지 않는다)", () => {
+    const next = dismissFromSummary(summary, new Set(["zz"]));
+    assert.equal(next, summary);
+  });
+
+  it("목록이 50건으로 잘려 있어도 total 은 확인한 만큼만 준다", () => {
+    const big = { ...summary, total: 70 };
+    assert.equal(dismissFromSummary(big, new Set(["a"])).total, 69);
+  });
+
+  it("빈 집합이면 그대로", () => {
+    assert.equal(dismissFromSummary(summary, new Set()), summary);
   });
 });

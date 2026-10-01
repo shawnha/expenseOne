@@ -131,3 +131,23 @@ export function resolveEditedAmount(
 ): number {
   return calcActive ? calcDepositAmount(typed, "KRW", vat, freelancer) : typed;
 }
+
+/**
+ * 원천징수(3.3%) 체크 여부를 사람이 읽는 말로(2026-10-01 오너: "올린 사람이 체크한 건지 안 한 건지 헷갈린다").
+ * 체크하면 저장되는 amount 는 3.3% 를 뺀 **실지급액**이다 — 그래서 공제 전 금액과 원천징수액은
+ * amount ÷ (1 − 3.3%) 로 되짚는다(각 단계 반올림 때문에 ±1원, 그래서 "약").
+ * 상세·목록 칩·승인 확인·Slack 이 같은 문장을 쓴다.
+ */
+export function withholdingSummary(
+  amountKRW: number,
+  applied: boolean,
+): { applied: boolean; label: "공제함" | "공제 안 함"; detail: string | null } {
+  if (!applied) return { applied: false, label: "공제 안 함", detail: null };
+  const gross = Math.round(amountKRW / (1 - FREELANCER_WITHHOLDING_RATE));
+  const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
+  return {
+    applied: true,
+    label: "공제함",
+    detail: `지급액 ${won(amountKRW)} · 원천징수 약 ${won(gross - amountKRW)} (공제 전 약 ${won(gross)})`,
+  };
+}

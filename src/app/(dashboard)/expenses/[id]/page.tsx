@@ -24,6 +24,8 @@ import { AdminApproveReject } from "@/components/expenses/admin-approve-reject";
 import { RevertApprovalButton } from "@/components/expenses/revert-approval-button";
 import { AdminQuickEditButton } from "@/components/expenses/admin-quick-edit-button";
 import { PrePaidBadge } from "@/components/expenses/pre-paid-badge";
+import { WithholdingBadge } from "@/components/expenses/withholding-badge";
+import { withholdingSummary } from "@/lib/utils/deposit-amount";
 import type {
   ExpenseType,
   ExpenseStatus,
@@ -140,6 +142,7 @@ async function getExpenseDetail(id: string) {
         isUrgent: result.isUrgent ?? false,
         isPrePaid: result.isPrePaid ?? false,
         prePaidPercentage: result.prePaidPercentage ?? null,
+        hasFreelancerWithholding: result.hasFreelancerWithholding ?? false,
         dueDate: result.dueDate ?? null,
         remainingPaymentRequested: result.remainingPaymentRequested ?? false,
         remainingPaymentApproved: result.remainingPaymentApproved ?? false,
@@ -284,6 +287,11 @@ export default async function ExpenseDetailPage({
       heroCaption = `총 ${formatAmount(expense.amount)}원 · 후지급 ${formatAmount(remainingAmount)}원 예정`;
     }
   }
+  // 원천징수 3.3% 를 체크한 건은 저장된 금액이 이미 실지급액이다 — 머리 금액이 무엇인지 말해 준다(2026-10-01).
+  const withholding = withholdingSummary(expense.amount, expense.hasFreelancerWithholding);
+  if (withholding.applied && !isPartialPrePaid && !isRefund) {
+    heroLabel = "지급액 (3.3% 공제 후)";
+  }
 
   return (
     <div className="flex flex-col gap-5 max-w-3xl">
@@ -329,6 +337,7 @@ export default async function ExpenseDetailPage({
               percentage={expense.prePaidPercentage}
               className="animate-spring-pop"
             />
+            <WithholdingBadge applied={expense.hasFreelancerWithholding} className="animate-spring-pop" />
             {/* 부분 선지급 건은 '승인'만으로는 후지급 완료 여부를 알 수 없어 별도 배지로 표시.
                 목록(ExpenseTable)과 같은 3단계·같은 색을 쓴다 — 요청 전 회색(할 일 없음),
                 요청됨 주황(승인 필요), 완료 초록. */}
@@ -379,6 +388,7 @@ export default async function ExpenseDetailPage({
               expenseAmountOriginal={expense.amountOriginal}
               isPrePaid={expense.isPrePaid}
               prePaidPercentage={expense.prePaidPercentage}
+              hasFreelancerWithholding={isDepositRequest ? expense.hasFreelancerWithholding : undefined}
             />
           )}
           {canRevertApproval && (
@@ -466,6 +476,11 @@ export default async function ExpenseDetailPage({
             {expense.isPrePaid && (
               <InfoRow label="선지급" value={expense.prePaidPercentage != null ? `${expense.prePaidPercentage}%` : "Y"} />
             )}
+            {/* 체크 안 했어도 적는다 — "올린 사람이 한 건지 안 한 건지" 를 칸이 없는 것으로 짐작하게 두지 않는다. */}
+            <InfoRow
+              label="원천징수 3.3%"
+              value={withholding.detail ? `${withholding.label} — ${withholding.detail}` : withholding.label}
+            />
           </div>
         )}
 

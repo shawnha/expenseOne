@@ -24,9 +24,11 @@ interface AdminApproveRejectProps {
   expenseAmountOriginal?: number | null;
   isPrePaid?: boolean;
   prePaidPercentage?: number | null;
+  /** 원천징수 3.3% 체크 여부 — 입금요청 승인 확인에 적는다. */
+  hasFreelancerWithholding?: boolean;
 }
 
-export function AdminApproveReject({ expenseId, expenseTitle, expenseAmount, expenseCurrency, expenseAmountOriginal, isPrePaid, prePaidPercentage }: AdminApproveRejectProps) {
+export function AdminApproveReject({ expenseId, expenseTitle, expenseAmount, expenseCurrency, expenseAmountOriginal, isPrePaid, prePaidPercentage, hasFreelancerWithholding }: AdminApproveRejectProps) {
   const router = useRouter();
   const [approveOpen, setApproveOpen] = useState(false);
   const [approving, setApproving] = useState(false);
@@ -112,6 +114,7 @@ export function AdminApproveReject({ expenseId, expenseTitle, expenseAmount, exp
                 amountOriginal={expenseAmountOriginal}
                 isPrePaid={isPrePaid}
                 prePaidPercentage={prePaidPercentage}
+                hasFreelancerWithholding={hasFreelancerWithholding}
               />
             </DialogDescription>
           </DialogHeader>
