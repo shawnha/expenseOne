@@ -12,6 +12,7 @@
 // ---------------------------------------------------------------------------
 
 import { getCategoryLabel, formatExpenseAmount } from "@/lib/utils/expense-utils";
+import { withholdingSummary } from "@/lib/utils/deposit-amount";
 import { db } from "@/lib/db";
 import { companies } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -396,6 +397,15 @@ export async function notifySlackCorporateCard(params: {
 /**
  * 입금요청 제출 → 제출자 멘션 + 상세 정보
  */
+/**
+ * 입금요청의 원천징수 줄. 체크 안 했어도 「공제 안 함」으로 적는다 — 오너가 "올린 사람이 체크한 건지
+ * 안 한 건지 헷갈린다"(2026-10-01). 체크했으면 금액이 이미 실지급액이라 내역을 함께.
+ */
+function withholdingSlackLine(amountKRW: number, applied: boolean): string {
+  const s = withholdingSummary(amountKRW, applied);
+  return s.detail ? `• 원천징수 3.3%: *${s.label}* (${s.detail})` : `• 원천징수 3.3%: ${s.label}`;
+}
+
 export async function notifySlackDepositRequest(params: {
   submitterEmail: string;
   submitterName: string;
@@ -411,6 +421,8 @@ export async function notifySlackDepositRequest(params: {
   isPrePaid?: boolean;
   prePaidPercentage?: number | null;
   description?: string | null;
+  /** 원천징수 3.3% 체크 여부 — 입금요청엔 늘 「공제함/공제 안 함」 줄을 적는다. */
+  hasFreelancerWithholding?: boolean;
 }): Promise<SlackPostResult> {
   const companyName = await getCompanyName(params.companyId);
 
@@ -438,6 +450,7 @@ export async function notifySlackDepositRequest(params: {
         const pct = params.prePaidPercentage;
         lines.push(pct != null && pct < 100 ? `• 선지급: 예 (${pct}%)` : `• 선지급: 예`);
       }
+      lines.push(withholdingSlackLine(params.amount, params.hasFreelancerWithholding ?? false));
       if (params.description && params.description.trim()) {
         // Truncate description to 500 chars for Slack readability
         const memo = params.description.trim();
@@ -695,6 +708,8 @@ export async function updateSlackExpenseMessage(params: {
   isUrgent?: boolean;
   isPrePaid?: boolean;
   prePaidPercentage?: number | null;
+  /** 원천징수 3.3% 체크 여부(입금요청만 줄을 적는다). */
+  hasFreelancerWithholding?: boolean;
 }): Promise<SlackPostResult> {
   // 1. 기존 메시지 삭제 — 저장된 좌표 기준이므로 회사가 바뀐 수정이어도
   //    예전 워크스페이스에 남은 메시지까지 정확히 제거된다.
@@ -731,6 +746,9 @@ export async function updateSlackExpenseMessage(params: {
       if (!isCorporateCard && params.isPrePaid) {
         const pct = params.prePaidPercentage;
         lines.push(pct != null && pct < 100 ? `• 선지급: 예 (${pct}%)` : `• 선지급: 예`);
+      }
+      if (!isCorporateCard) {
+        lines.push(withholdingSlackLine(params.amount, params.hasFreelancerWithholding ?? false));
       }
       if (params.description?.trim()) {
         const memo = params.description.trim();

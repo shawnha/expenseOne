@@ -10,6 +10,7 @@ import {
   calcDepositBreakdownKRW,
   FREELANCER_WITHHOLDING_RATE,
   resolveEditedAmount,
+  withholdingSummary,
 } from "./deposit-amount";
 import { depositRequestFormSchema } from "../validations/expense-form";
 
@@ -337,6 +338,33 @@ describe("calcDepositBreakdownKRW", () => {
           }
         }
       }
+    }
+  });
+});
+
+describe("withholdingSummary — 3.3% 공제 여부를 화면·Slack 에 그대로 적는다", () => {
+  it("체크 안 했으면 '공제 안 함', 내역 없음", () => {
+    assert.deepEqual(withholdingSummary(100_000, false), { applied: false, label: "공제 안 함", detail: null });
+  });
+
+  it("체크했으면 금액은 실지급액 — 공제 전·원천징수액을 되짚어 적는다", () => {
+    assert.deepEqual(withholdingSummary(96_700, true), {
+      applied: true,
+      label: "공제함",
+      detail: "지급액 96,700원 · 원천징수 약 3,300원 (공제 전 약 100,000원)",
+    });
+  });
+
+  it("부가세 포함 건도 같은 식(총액 110,000 → 실지급 106,370)", () => {
+    assert.equal(withholdingSummary(106_370, true).detail, "지급액 106,370원 · 원천징수 약 3,630원 (공제 전 약 110,000원)");
+  });
+
+  it("calcDepositAmount 와 왕복이 맞는다(반올림 ±1원 안)", () => {
+    for (const base of [12_345, 999_999, 3_000_000, 1]) {
+      const paid = calcDepositAmount(base, "KRW", false, true);
+      const s = withholdingSummary(paid, true);
+      const gross = Number(s.detail!.match(/공제 전 약 ([\d,]+)원/)![1].replace(/,/g, ""));
+      assert.ok(Math.abs(gross - base) <= 1, `${base} → ${paid} → ${gross}`);
     }
   });
 });
