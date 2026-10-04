@@ -5,7 +5,7 @@ import { deleteAttachment } from "@/services/attachment.service";
 type RouteContext = { params: Promise<{ id: string }> };
 
 // ---------------------------------------------------------------------------
-// DELETE /api/attachments/[id] -- delete an attachment (owner only)
+// DELETE /api/attachments/[id] -- delete an attachment (올린 사람 또는 관리자, lib/expense-edit-access.ts)
 // ---------------------------------------------------------------------------
 export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
@@ -15,7 +15,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     const user = await requireAuth();
     const id = validateUUID((await context.params).id);
 
-    const deleted = await deleteAttachment(id, user.id);
+    const deleted = await deleteAttachment(id, { id: user.id, role: user.role });
 
     return NextResponse.json({ data: deleted });
   } catch (err) {

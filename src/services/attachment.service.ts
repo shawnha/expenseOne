@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { canDeleteAttachment, canUploadAttachment } from "@/lib/expense-edit-access";
 import { attachments, expenses } from "@/lib/db/schema";
 import { eq, sum } from "drizzle-orm";
 import { createClient as createServerClient } from "@supabase/supabase-js";
@@ -92,8 +93,10 @@ export async function uploadAttachment(params: {
   expenseId: string;
   documentType: string;
   uploadedById: string;
+  /** 관리자는 남의 비용에도 올린다(2026-10-04). uploadedById 는 올린 관리자 그대로 — 누가 올렸는지 남는다. */
+  uploaderRole: "MEMBER" | "ADMIN";
 }) {
-  const { file, expenseId, documentType, uploadedById } = params;
+  const { file, expenseId, documentType, uploadedById, uploaderRole } = params;
 
   // 1. Validate MIME type (Content-Type header)
   if (!ALLOWED_MIME_TYPES.includes(file.type)) {
@@ -134,7 +137,7 @@ export async function uploadAttachment(params: {
     );
   }
 
-  // 4. Verify expense exists AND the uploader owns the expense
+  // 4. Verify expense exists AND the uploader may attach (작성자 또는 관리자 — lib/expense-edit-access.ts)
   const [expense] = await db
     .select({ id: expenses.id, submittedById: expenses.submittedById, status: expenses.status, type: expenses.type })
     .from(expenses)
@@ -144,17 +147,18 @@ export async function uploadAttachment(params: {
     throw new AppError("NOT_FOUND", "비용을 찾을 수 없습니다.");
   }
 
-  if (expense.submittedById !== uploadedById) {
-    throw new AppError("FORBIDDEN", "본인이 제출한 비용에만 파일을 첨부할 수 있습니다.");
-  }
-
   // REJECTED / CANCELLED stays blocked — those are dead-end states.
   // APPROVED is now allowed: deposit requests sometimes need late
   // receipts (e.g. 영수증 보충), and corporate-card entries are
   // auto-APPROVED at creation so the initial upload has to land here too.
   // Audit trail is preserved by the delete restriction below.
-  if (expense.status === "REJECTED" || expense.status === "CANCELLED") {
-    throw new AppError("FORBIDDEN", "반려/취소된 비용에는 파일을 첨부할 수 없습니다.");
+  if (!canUploadAttachment(expense, { id: uploadedById, role: uploaderRole })) {
+    throw new AppError(
+      "FORBIDDEN",
+      expense.status === "REJECTED" || expense.status === "CANCELLED"
+        ? "반려/취소된 비용에는 파일을 첨부할 수 없습니다."
+        : "본인이 제출한 비용에만 파일을 첨부할 수 있습니다.",
+    );
   }
 
   // 5. Upload to Supabase Storage
@@ -206,7 +210,7 @@ export async function uploadAttachment(params: {
 // ---------------------------------------------------------------------------
 export async function deleteAttachment(
   attachmentId: string,
-  userId: string,
+  actor: { id: string; role: "MEMBER" | "ADMIN" },
 ) {
   // 1. Find the attachment
   const [attachment] = await db
@@ -218,11 +222,7 @@ export async function deleteAttachment(
     throw new AppError("NOT_FOUND", "첨부파일을 찾을 수 없습니다.");
   }
 
-  // 2. Check ownership
-  if (attachment.uploadedById !== userId) {
-    throw new AppError("FORBIDDEN", "본인이 업로드한 파일만 삭제할 수 있습니다.");
-  }
-
+  // 2. 권한 — 올린 사람 또는 관리자(2026-10-04, lib/expense-edit-access.ts).
   // REJECTED는 dead-end이므로 첨부 삭제 차단. APPROVED는 후속으로
   // 영수증을 교체하는 케이스가 있어 허용 — 새 영수증을 올린 뒤 옛 것을
   // 지우는 흐름을 막으면 사용자가 같은 비용에 영수증 2장을 남기게 된다.
@@ -231,8 +231,13 @@ export async function deleteAttachment(
     .from(expenses)
     .where(eq(expenses.id, attachment.expenseId));
 
-  if (expense && expense.status === "REJECTED") {
-    throw new AppError("FORBIDDEN", "반려된 비용의 첨부파일은 삭제할 수 없습니다.");
+  if (!canDeleteAttachment(attachment, expense, actor)) {
+    throw new AppError(
+      "FORBIDDEN",
+      expense?.status === "REJECTED"
+        ? "반려된 비용의 첨부파일은 삭제할 수 없습니다."
+        : "본인이 업로드한 파일만 삭제할 수 있습니다.",
+    );
   }
 
   // 3. Delete from Supabase Storage

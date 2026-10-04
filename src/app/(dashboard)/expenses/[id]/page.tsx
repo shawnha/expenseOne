@@ -23,6 +23,7 @@ import { ApproveRemainingButton } from "@/components/expenses/approve-remaining-
 import { AdminApproveReject } from "@/components/expenses/admin-approve-reject";
 import { RevertApprovalButton } from "@/components/expenses/revert-approval-button";
 import { AdminQuickEditButton } from "@/components/expenses/admin-quick-edit-button";
+import { canEditExpense } from "@/lib/expense-edit-access";
 import { PrePaidBadge } from "@/components/expenses/pre-paid-badge";
 import { WithholdingBadge } from "@/components/expenses/withholding-badge";
 import { withholdingSummary } from "@/lib/utils/deposit-amount";
@@ -216,16 +217,11 @@ export default async function ExpenseDetailPage({
   const refundableRemaining =
     (isUSD ? (expense.amountOriginal ?? 0) : expense.amount) - refundedTotal;
 
-  const canEdit = (() => {
-    if (!isOwner) return false;
-    if (isCorporateCard) {
-      return expense.status === "APPROVED" || expense.status === "SUBMITTED";
-    }
-    if (isDepositRequest) {
-      return expense.status === "SUBMITTED" || expense.status === "APPROVED";
-    }
-    return false;
-  })();
+  // 수정 화면 진입과 **같은 함수**(lib/expense-edit-access.ts) — 작성자 또는 관리자, 제출·승인만, 반품 불가.
+  const canEdit = canEditExpense(
+    { type: expense.type, status: expense.status, submittedById: expense.submittedById },
+    { id: currentUserId, role: userRole },
+  );
 
   const canCancel = isOwner && !isRefund && (expense.status === "SUBMITTED" || expense.status === "APPROVED");
   const isAdmin = userRole === "ADMIN";
@@ -354,14 +350,16 @@ export default async function ExpenseDetailPage({
           <h1 className="text-title3 text-[var(--apple-label)]">{expense.title}</h1>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {isAdmin && (
+          {/* 관리자가 남의 건을 고칠 때는 주황 버튼 — 내 것이 아니라는 표시. 버튼도 canEdit 을 따른다
+              (예전엔 관리자에게 늘 보여 반품·반려 건에서 눌러도 되돌아왔다). */}
+          {canEdit && isAdmin && !isOwner && (
             <AdminQuickEditButton
               expense={{
                 id: expense.id,
               }}
             />
           )}
-          {canEdit && !isAdmin && (
+          {canEdit && (!isAdmin || isOwner) && (
             <Link
               href={`/expenses/${id}/edit`}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full glass text-sm font-medium text-[var(--apple-label)] hover:bg-[rgba(0,0,0,0.05)] dark:hover:bg-[rgba(255,255,255,0.08)] transition-colors apple-press"

@@ -2,6 +2,10 @@ import { redirect } from "next/navigation";
 import { getAuthUser, getCachedClient, getCachedCurrentUser } from "@/lib/supabase/cached";
 import { getActiveCompanies } from "@/services/company.service";
 import { getMyCustomCategories } from "@/services/category.service";
+import { db } from "@/lib/db";
+import { users } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
+import { canEditExpense } from "@/lib/expense-edit-access";
 import type {
   ExpenseType,
   ExpenseStatus,
@@ -68,11 +72,13 @@ export interface ExpenseEditData {
 async function getExpenseForEdit(id: string): Promise<{
   expense: ExpenseEditData;
   attachments: ExistingAttachment[];
+  /** 작성자. 관리자가 남의 건을 고칠 때 카드·카테고리는 작성자 것을 쓴다. */
+  submittedById: string;
 } | null> {
   const supabase = await getCachedClient();
-  const authUser = await getAuthUser();
+  const [authUser, viewer] = await Promise.all([getAuthUser(), getCachedCurrentUser()]);
 
-  if (!authUser) {
+  if (!authUser || !viewer) {
     redirect("/login");
   }
 
@@ -86,42 +92,19 @@ async function getExpenseForEdit(id: string): Promise<{
     return null;
   }
 
-  // Only the owner can edit
-  if (expense.submitted_by_id !== authUser.id) {
-    return null;
-  }
-
   const expenseType = expense.type as ExpenseType;
   const expenseStatus = expense.status as ExpenseStatus;
 
-  // 반품 건은 수정 불가 — 삭제 후 재등록
-  if (expenseType === "REFUND") {
+  // 누가·어느 상태에서 고칠 수 있나 — 상세 화면의 「수정」 버튼과 **같은 함수**를 본다
+  // (lib/expense-edit-access.ts). 작성자 또는 관리자(2026-10-04), 제출·승인만, 반품 불가.
+  // 예전엔 여기만 "작성자만"이라, 관리자에게 보이는 수정 버튼을 누르면 상세로 되돌아왔다.
+  if (
+    !canEditExpense(
+      { type: expenseType, status: expenseStatus, submittedById: expense.submitted_by_id },
+      { id: authUser.id, role: viewer.role },
+    )
+  ) {
     return null;
-  }
-
-  // 법카사용: 등록 후 기간 제한 없이 수정 가능. 상세 화면의 수정 버튼 조건과
-  // 동일하게 맞춘다(APPROVED / SUBMITTED).
-  //
-  // 예전엔 "등록 7일 이내"만 허용했는데, 상세 화면은 그 조건을 안 보고 버튼을
-  // 띄워서 누르면 아무 설명 없이 되돌아왔다 — 사용자에겐 "새로고침만 된다"로
-  // 보였고 승인/제출 상태 법카 553건 중 504건이 그 상태였다. 영수증을 나중에
-  // 붙이는 일이 흔해서 실무가 막혔다.
-  //
-  // 한쪽에만 조건을 두면 같은 문제가 재발한다. 조건을 바꿀 땐 상세 화면의
-  // canEdit(`[id]/page.tsx`)도 같이 볼 것.
-  if (expenseType === "CORPORATE_CARD") {
-    if (expenseStatus !== "SUBMITTED" && expenseStatus !== "APPROVED") {
-      return null;
-    }
-  }
-
-  // Deposit request: SUBMITTED is fully editable; APPROVED stays editable so
-  // the submitter can attach late receipts (e.g. 영수증 보충) without the
-  // admin having to revert the approval. REJECTED / CANCELLED are dead-end.
-  if (expenseType === "DEPOSIT_REQUEST") {
-    if (expenseStatus !== "SUBMITTED" && expenseStatus !== "APPROVED") {
-      return null;
-    }
   }
 
   // Fetch attachments
@@ -131,6 +114,7 @@ async function getExpenseForEdit(id: string): Promise<{
     .eq("expense_id", id);
 
   return {
+    submittedById: expense.submitted_by_id,
     expense: {
       id: expense.id,
       type: expenseType,
@@ -195,19 +179,15 @@ export default async function EditExpensePage({ params }: EditExpensePageProps) 
     redirect(`/expenses/${id}?error=edit_not_allowed`);
   }
 
-  // 수정 화면도 본인 화면이다 — getAuthUser는 캐시되므로 위 권한 확인과
-  // 같은 요청을 다시 때리지 않는다.
-  const authUser = await getAuthUser();
-  // 카드 끝 4자리는 캐시 프로필(getCachedCurrentUser)에 없다. 설정 화면과 같은 방식으로
-  // 본인 행만 읽는다 — 법카 변경 전에 "카드 내역이 안 합쳐진다"를 미리 알리기 위해서다.
-  const supabase = await getCachedClient();
-  const [companies, myCategories, viewer, viewerCard] = await Promise.all([
+  // 카드·카테고리는 **작성자** 것이다. 관리자가 남의 건을 고칠 때(2026-10-04) 관리자 카드로 "카드 내역이
+  // 안 합쳐진다"를 판단하면 틀린다 — 법카 변경(convertDepositRequestToCard)은 작성자 카드를 붙인다.
+  // 남의 사용자 행이라 RLS 와 무관하게 서버 DB 로 읽는다.
+  const ownerId = result.submittedById;
+  const [companies, myCategories, viewer, ownerCard] = await Promise.all([
     getActiveCompanies(),
-    authUser ? getMyCustomCategories(authUser.id) : Promise.resolve<string[]>([]),
+    getMyCustomCategories(ownerId),
     getCachedCurrentUser(),
-    authUser
-      ? supabase.from("users").select("card_last_four").eq("id", authUser.id).maybeSingle()
-      : Promise.resolve({ data: null }),
+    db.select({ cardLastFour: users.cardLastFour }).from(users).where(eq(users.id, ownerId)),
   ]);
   const initialCompanies: CompanyOption[] = companies.map((c) => ({
     id: c.id,
@@ -223,7 +203,7 @@ export default async function EditExpensePage({ params }: EditExpensePageProps) 
       initialCompanies={initialCompanies}
       myCategories={myCategories}
       viewerIsAdmin={viewer?.role === "ADMIN"}
-      viewerCardLastFour={(viewerCard.data?.card_last_four ?? null) as string | null}
+      viewerCardLastFour={ownerCard[0]?.cardLastFour ?? null}
     />
   );
 }
