@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
       expenseId: parsed.data.expenseId,
       documentType: parsed.data.documentType,
       uploadedById: user.id,
+      uploaderRole: user.role,
     });
 
     return NextResponse.json({ data: attachment }, { status: 201 });
