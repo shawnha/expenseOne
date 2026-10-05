@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { expenses, purchaseInvoiceLines, users } from "@/lib/db/schema";
 import { and, eq, isNull, lte, inArray } from "drizzle-orm";
-import { sendPushToAdmins } from "@/services/push.service";
+import { sendPushToAdmins, sendPushToUser } from "@/services/push.service";
 import { notifySlackDirect, notifySlackText } from "@/services/slack.service";
 import { deriveInvoiceAmounts, invoiceDueDate } from "@/services/expense.service";
 import {
@@ -23,6 +23,8 @@ import {
 // Slack 은 #99-expenses 채널이 아니라 오너에게 DM(2026-10-01 오너 요청) — 관리 업무라 채널 전체가
 // 볼 일이 아니다. DM 이 실패하면(사용자 조회 실패 등) 예전처럼 채널에 올린다: 이 알림은 조용히
 // 사라지면 안 된다(두 번 놓친 경로).
+// 휴대폰 푸시도 같은 한 사람에게만(2026-10-05 오너: "나한테만 와야 하는데 전체에게 가는 것 같다" —
+// 남은 경로가 관리자 전원 푸시였다). 그 사람을 앱 사용자에서 못 찾으면 관리자 전원으로 폴백.
 // ---------------------------------------------------------------------------
 
 /** DM 받을 사람. 바꾸려면 환경변수로(배포 없이). */
@@ -97,8 +99,20 @@ export async function runInvoiceReminder() {
 
   /** 수동 실행(/api/cron/invoice-reminder) 결과로 어디로 갔는지 보이게. */
   const delivery: { slack: "dm" | "channel" | "none" } = { slack: "none" };
+  const [recipient] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.email, REMINDER_DM_EMAIL), eq(users.isActive, true)));
+
+  const sendPush = () => {
+    const title = `${push.emoji} ${push.title}`;
+    if (recipient) return sendPushToUser(recipient.id, title, push.body, link);
+    console.error("[InvoiceReminder] 푸시 받을 사용자를 찾지 못해 관리자 전원에게 보냅니다.");
+    return sendPushToAdmins(title, push.body, link);
+  };
+
   await Promise.allSettled([
-    sendPushToAdmins(`${push.emoji} ${push.title}`, push.body, link),
+    sendPush(),
     (async () => {
       if (await notifySlackDirect(REMINDER_DM_EMAIL, text)) {
         delivery.slack = "dm";
