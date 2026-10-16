@@ -127,7 +127,7 @@ export default async function AdminPendingPage({ searchParams }: PendingPageProp
                   <span className="text-sm font-semibold tabular-nums text-[var(--apple-label)]">
                     후지급 {item.remainingAmount.toLocaleString("ko-KR")}원
                   </span>
-                  <ApproveRemainingButton expenseId={item.id} remainingAmount={item.remainingAmount} expenseTitle={item.title} />
+                  <ApproveRemainingButton expenseId={item.id} remainingAmount={item.remainingAmount} expenseTitle={item.title} accountHolder={item.accountHolder} />
                 </div>
               </li>
             ))}

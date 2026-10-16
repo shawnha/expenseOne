@@ -678,6 +678,7 @@ export async function getPendingRemainingPayments(company?: string) {
       isPrePaid: expenses.isPrePaid,
       prePaidPercentage: expenses.prePaidPercentage,
       prePaidFixedAmount: expensePrePaidAmounts.amount,
+      accountHolder: expenses.accountHolder,
       dueDate: expenses.dueDate,
       updatedAt: expenses.updatedAt,
       submitterName: users.name,
