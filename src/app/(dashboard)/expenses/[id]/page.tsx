@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
+  BellRing,
+  CheckCircle2,
+  Circle,
+  Clock,
   Download,
   Eye,
   Undo2,
@@ -424,6 +428,37 @@ export default async function ExpenseDetailPage({
           )}
         </div>
 
+        {/* 후지급 안내 — 요청/승인해야 할 사람이 맨 아래까지 내려가지 않아도 보이게 히어로 바로 아래에 둔다. */}
+        {isPartialPrePaid && expense.status === "APPROVED" && !expense.remainingPaymentApproved && (
+          (isAdmin && expense.remainingPaymentRequested) ? (
+            <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-[rgba(255,149,0,0.35)] bg-[rgba(255,149,0,0.08)] p-4 sm:flex-row sm:items-center">
+              <BellRing className="size-5 shrink-0 text-[var(--apple-orange)]" aria-hidden="true" />
+              <p className="flex-1 text-sm font-medium text-[var(--apple-label)]">
+                후지급 요청이 들어왔습니다 · 잔금 {formatAmount(remainingAmount)}원 송금 후 승인
+              </p>
+              <ApproveRemainingButton
+                expenseId={expense.id}
+                remainingAmount={remainingAmount}
+                expenseTitle={expense.title}
+                accountHolder={expense.accountHolder}
+                className="h-10 w-full px-6 sm:w-auto"
+              />
+            </div>
+          ) : isOwner && !expense.remainingPaymentRequested ? (
+            <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-[rgba(0,122,255,0.3)] bg-[rgba(0,122,255,0.08)] p-4">
+              <p className="text-sm font-medium text-[var(--apple-label)]">
+                선지급 {formatAmount(prePaidAmount)}원 지급됨 · 잔금 {formatAmount(remainingAmount)}원은 후지급 요청을 해야 받을 수 있어요
+              </p>
+              <RequestRemainingButton expenseId={expense.id} className="h-11 w-full text-base" />
+            </div>
+          ) : isOwner && expense.remainingPaymentRequested ? (
+            <div className="mb-5 flex items-center gap-2.5 rounded-2xl bg-[rgba(0,0,0,0.04)] p-4 dark:bg-[rgba(255,255,255,0.06)]">
+              <Clock className="size-4 shrink-0 text-[var(--apple-orange)]" aria-hidden="true" />
+              <p className="text-sm text-[var(--apple-secondary-label)]">후지급 요청함 — 관리자 승인 대기 중</p>
+            </div>
+          ) : null
+        )}
+
         <div className="grid gap-4 sm:grid-cols-2">
           {/* 회사는 어느 법인의 지출인지를 정하는 값이라 상세에 반드시 보여야 한다.
               지금까지 조회조차 안 해서(companyId만 있고 이름이 없었다) 빠져 있었다. */}
@@ -488,7 +523,12 @@ export default async function ExpenseDetailPage({
                   <span className="font-medium text-[var(--apple-label)] tabular-nums">{formatAmount(expense.amount)}원</span>
                 </div>
                 <div className="flex justify-between gap-3 text-[var(--apple-blue)]">
-                  <span>
+                  <span className="inline-flex items-center gap-1.5">
+                    {expense.status === "APPROVED" ? (
+                      <CheckCircle2 className="size-4 shrink-0 text-[var(--apple-green)]" aria-hidden="true" />
+                    ) : (
+                      <Clock className="size-4 shrink-0 text-[var(--apple-orange)]" aria-hidden="true" />
+                    )}
                     선지급금{prePaidPctText}
                     <span className="ml-1.5 text-[var(--apple-tertiary-label)]">
                       {expense.status === "APPROVED" ? "지급완료" : "승인 대기"}
@@ -497,7 +537,14 @@ export default async function ExpenseDetailPage({
                   <span className="font-medium tabular-nums">{formatAmount(prePaidAmount)}원</span>
                 </div>
                 <div className="flex justify-between gap-3">
-                  <span>
+                  <span className="inline-flex items-center gap-1.5">
+                    {expense.remainingPaymentApproved ? (
+                      <CheckCircle2 className="size-4 shrink-0 text-[var(--apple-green)]" aria-hidden="true" />
+                    ) : expense.remainingPaymentRequested ? (
+                      <Clock className="size-4 shrink-0 text-[var(--apple-orange)]" aria-hidden="true" />
+                    ) : (
+                      <Circle className="size-4 shrink-0 text-[var(--apple-tertiary-label)]" aria-hidden="true" />
+                    )}
                     후지급금{remainingPctText}
                     <span className="ml-1.5 text-[var(--apple-tertiary-label)]">
                       {expense.remainingPaymentApproved
@@ -509,26 +556,6 @@ export default async function ExpenseDetailPage({
                   </span>
                   <span className="font-medium text-[var(--apple-label)] tabular-nums">{formatAmount(remainingAmount)}원</span>
                 </div>
-              </div>
-
-              <div className="mt-3 flex items-center gap-2">
-                {expense.remainingPaymentApproved ? (
-                  <span className="glass-badge glass-badge-green">후지급 승인완료</span>
-                ) : expense.remainingPaymentRequested ? (
-                  <>
-                    {userRole === "ADMIN" ? (
-                      <ApproveRemainingButton expenseId={expense.id} />
-                    ) : isOwner ? (
-                      <span className="text-sm text-[var(--apple-secondary-label)]">후지급 요청됨 - 승인 대기 중</span>
-                    ) : (
-                      <span className="glass-badge glass-badge-orange">후지급 요청됨</span>
-                    )}
-                  </>
-                ) : (
-                  isOwner && expense.status === "APPROVED" && (
-                    <RequestRemainingButton expenseId={expense.id} />
-                  )
-                )}
               </div>
             </div>
         )}
