@@ -148,6 +148,9 @@ const depositRequestSubmitBase = z.object({
   isUrgent: z.boolean().optional().default(false),
   isPrePaid: z.boolean().optional().default(false),
   prePaidPercentage: z.number().int().min(1).max(100).optional().nullable(),
+  // 선지급을 금액으로 정했을 때의 선지급금(원). 있으면 서버가 pre_paid_percentage 를 환산 비율로 덮어쓴다.
+  // 총액보다 작아야 하고 원화 건만 — 총액(환산·원천징수 뒤)을 아는 서버(expense.service)가 검사한다.
+  prePaidFixedAmount: z.number().int("선지급 금액은 정수여야 합니다").positive("선지급 금액은 0보다 커야 합니다").optional().nullable(),
   dueDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "날짜 형식은 YYYY-MM-DD여야 합니다")
@@ -213,6 +216,8 @@ export const updateExpenseSchema = z.object({
   isUrgent: z.boolean().optional(),
   isPrePaid: z.boolean().optional(),
   prePaidPercentage: z.number().int().min(1).max(100).optional().nullable(),
+  // null = 금액 지정 해제(비율로 계산). 키를 안 보내면 그대로 둔다.
+  prePaidFixedAmount: z.number().int().positive().optional().nullable(),
   dueDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)

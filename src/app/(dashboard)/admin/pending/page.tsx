@@ -53,6 +53,7 @@ async function getPendingExpenses(company?: string): Promise<PendingExpense[]> {
     isUrgent: item.isUrgent ?? false,
     isPrePaid: item.isPrePaid ?? false,
     prePaidPercentage: item.prePaidPercentage ?? null,
+    prePaidFixedAmount: item.prePaidFixedAmount ?? null,
     hasFreelancerWithholding: item.hasFreelancerWithholding ?? false,
     companyName: item.companyName ?? null,
     companySlug: item.companySlug ?? null,
@@ -114,7 +115,9 @@ export default async function AdminPendingPage({ searchParams }: PendingPageProp
                     {item.companyName ? ` · ${item.companyName}` : ""}
                     {" · 총 "}
                     {formatExpenseAmount(item.amount, item.currency, item.amountOriginal)}
-                    {` · 선지급 ${item.prePaidPercentage}% 완료`}
+                    {item.prePaidFixedAmount != null
+                      ? ` · 선지급 ${item.prePaidAmount.toLocaleString("ko-KR")}원 완료`
+                      : ` · 선지급 ${item.prePaidPercentage}% 완료`}
                     {item.dueDate ? ` · 기일 ${item.dueDate.replace(/-/g, ".")}` : ""}
                   </p>
                 </div>

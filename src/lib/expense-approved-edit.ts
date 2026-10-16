@@ -30,6 +30,7 @@ export const EDIT_FIELD_POLICY = {
   accountNumber: "money",
   isPrePaid: "money",
   prePaidPercentage: "money",
+  prePaidFixedAmount: "money",
   hasFreelancerWithholding: "money",
   transactionDate: "money",
   isPurchase: "money",
@@ -61,6 +62,7 @@ export const MONEY_FIELD_LABELS = {
   accountNumber: "계좌번호",
   isPrePaid: "선지급 여부",
   prePaidPercentage: "선지급 비율",
+  prePaidFixedAmount: "선지급 금액",
   hasFreelancerWithholding: "원천징수",
   transactionDate: "거래일",
   isPurchase: "사입 여부",
@@ -102,6 +104,8 @@ export interface MoneyComparableExpense {
   accountNumber: string | null;
   isPrePaid: boolean;
   prePaidPercentage: number | null;
+  /** 금액으로 정한 선지급금(expense_pre_paid_amounts). 없으면 null. */
+  prePaidFixedAmount?: number | null;
   hasFreelancerWithholding: boolean;
   transactionDate: string;
   isPurchase: boolean;
@@ -181,6 +185,8 @@ const IS_CHANGED = {
   // 폼은 선지급이 아니면 null을 보낸다. DB의 null과 같게 본다.
   prePaidPercentage: (c, i) =>
     (i.prePaidPercentage ?? null) !== (c.prePaidPercentage ?? null),
+  prePaidFixedAmount: (c, i) =>
+    (i.prePaidFixedAmount ?? null) !== (c.prePaidFixedAmount ?? null),
   hasFreelancerWithholding: (c, i) =>
     i.hasFreelancerWithholding !== c.hasFreelancerWithholding,
   // 둘 다 YYYY-MM-DD 문자열(drizzle date mode: "string")

@@ -27,6 +27,7 @@ import { canEditExpense } from "@/lib/expense-edit-access";
 import { PrePaidBadge } from "@/components/expenses/pre-paid-badge";
 import { WithholdingBadge } from "@/components/expenses/withholding-badge";
 import { withholdingSummary } from "@/lib/utils/deposit-amount";
+import { prePaidShareText, prePaidSplit } from "@/lib/utils/pre-paid";
 import type {
   ExpenseType,
   ExpenseStatus,
@@ -143,6 +144,7 @@ async function getExpenseDetail(id: string) {
         isUrgent: result.isUrgent ?? false,
         isPrePaid: result.isPrePaid ?? false,
         prePaidPercentage: result.prePaidPercentage ?? null,
+        prePaidFixedAmount: result.prePaidFixedAmount ?? null,
         hasFreelancerWithholding: result.hasFreelancerWithholding ?? false,
         dueDate: result.dueDate ?? null,
         remainingPaymentRequested: result.remainingPaymentRequested ?? false,
@@ -238,15 +240,14 @@ export default async function ExpenseDetailPage({
   // 상단에 총액만 크게 띄우면 실제 송금 담당자가 얼마를 보내야 하는지 헷갈린다
   // (50% 선지급인데 총액 509,080원만 보고 전액 송금할 위험). 그래서 히어로에는
   // "지금 보내야 할 금액"을 두고 총액은 바로 아래 캡션으로 내린다.
-  const isPartialPrePaid =
-    isDepositRequest &&
-    expense.isPrePaid &&
-    expense.prePaidPercentage != null &&
-    expense.prePaidPercentage < 100;
-  const prePaidAmount = isPartialPrePaid
-    ? Math.round((expense.amount * expense.prePaidPercentage!) / 100)
-    : 0;
-  const remainingAmount = isPartialPrePaid ? expense.amount - prePaidAmount : 0;
+  // 계산은 lib/utils/pre-paid 한 곳에서 — 금액으로 정한 선지급은 그 금액 그대로다.
+  const prePaid = isDepositRequest ? prePaidSplit(expense) : null;
+  const isPartialPrePaid = prePaid != null;
+  const prePaidAmount = prePaid?.prePaidAmount ?? 0;
+  const remainingAmount = prePaid?.remainingAmount ?? 0;
+  // 「(30%)」 꼬리. 금액으로 정한 건은 붙이지 않는다 — 환산 비율은 정확한 값이 아니다.
+  const prePaidPctText = prePaid?.percentage != null ? ` (${prePaid.percentage}%)` : "";
+  const remainingPctText = prePaid?.percentage != null ? ` (${100 - prePaid.percentage}%)` : "";
 
   // 단계별로 히어로에 들어갈 금액이 바뀐다. 그러지 않으면 후지급 차례에서
   // 똑같은 혼란(총액을 보고 전액 송금)이 반복된다.
@@ -256,28 +257,19 @@ export default async function ExpenseDetailPage({
   // 히어로가 부분 금액일 때는 원문 금액도 같은 비율로 쪼갠다.
   let heroAmountOriginal = expense.amountOriginal;
   let heroCaption: string | null = null;
-  if (isPartialPrePaid) {
-    const pct = expense.prePaidPercentage!;
-    // amountOriginal은 센트 정수라 원화와 똑같이 반올림 후 차감해야 합이 맞는다.
-    const prePaidOriginal =
-      expense.amountOriginal != null
-        ? Math.round((expense.amountOriginal * pct) / 100)
-        : null;
-    const remainingOriginal =
-      expense.amountOriginal != null && prePaidOriginal != null
-        ? expense.amountOriginal - prePaidOriginal
-        : null;
+  if (prePaid) {
+    const { prePaidOriginal, remainingOriginal } = prePaid;
     if (expense.remainingPaymentApproved) {
       // 전액 지급이 끝난 뒤에는 총액이 다시 기준 금액이 된다.
       heroLabel = "총 금액 (지급 완료)";
       heroCaption = `선지급 ${formatAmount(prePaidAmount)}원 + 후지급 ${formatAmount(remainingAmount)}원`;
     } else if (expense.remainingPaymentRequested) {
-      heroLabel = `후지급 금액 (${100 - pct}%)`;
+      heroLabel = `후지급 금액${remainingPctText}`;
       heroAmount = remainingAmount;
       heroAmountOriginal = remainingOriginal;
       heroCaption = `총 ${formatAmount(expense.amount)}원 · 선지급 ${formatAmount(prePaidAmount)}원 지급 완료`;
     } else {
-      heroLabel = `선지급 금액 (${pct}%)`;
+      heroLabel = `선지급 금액${prePaidPctText}`;
       heroAmount = prePaidAmount;
       heroAmountOriginal = prePaidOriginal;
       heroCaption = `총 ${formatAmount(expense.amount)}원 · 후지급 ${formatAmount(remainingAmount)}원 예정`;
@@ -331,6 +323,7 @@ export default async function ExpenseDetailPage({
             <PrePaidBadge
               isPrePaid={expense.isPrePaid}
               percentage={expense.prePaidPercentage}
+              fixedAmount={expense.prePaidFixedAmount}
               className="animate-spring-pop"
             />
             <WithholdingBadge applied={expense.hasFreelancerWithholding} className="animate-spring-pop" />
@@ -386,6 +379,7 @@ export default async function ExpenseDetailPage({
               expenseAmountOriginal={expense.amountOriginal}
               isPrePaid={expense.isPrePaid}
               prePaidPercentage={expense.prePaidPercentage}
+              prePaidFixedAmount={expense.prePaidFixedAmount}
               hasFreelancerWithholding={isDepositRequest ? expense.hasFreelancerWithholding : undefined}
             />
           )}
@@ -472,7 +466,7 @@ export default async function ExpenseDetailPage({
               <InfoRow label="긴급" value="Y" />
             )}
             {expense.isPrePaid && (
-              <InfoRow label="선지급" value={expense.prePaidPercentage != null ? `${expense.prePaidPercentage}%` : "Y"} />
+              <InfoRow label="선지급" value={prePaid ? prePaidShareText(prePaid) : expense.prePaidPercentage != null ? `${expense.prePaidPercentage}%` : "Y"} />
             )}
             {/* 체크 안 했어도 적는다 — "올린 사람이 한 건지 안 한 건지" 를 칸이 없는 것으로 짐작하게 두지 않는다. */}
             <InfoRow
@@ -495,7 +489,7 @@ export default async function ExpenseDetailPage({
                 </div>
                 <div className="flex justify-between gap-3 text-[var(--apple-blue)]">
                   <span>
-                    선지급금 ({expense.prePaidPercentage}%)
+                    선지급금{prePaidPctText}
                     <span className="ml-1.5 text-[var(--apple-tertiary-label)]">
                       {expense.status === "APPROVED" ? "지급완료" : "승인 대기"}
                     </span>
@@ -504,7 +498,7 @@ export default async function ExpenseDetailPage({
                 </div>
                 <div className="flex justify-between gap-3">
                   <span>
-                    후지급금 ({100 - expense.prePaidPercentage!}%)
+                    후지급금{remainingPctText}
                     <span className="ml-1.5 text-[var(--apple-tertiary-label)]">
                       {expense.remainingPaymentApproved
                         ? "지급완료"

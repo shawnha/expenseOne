@@ -57,6 +57,7 @@ import {
   formatDateISO,
 } from "@/lib/validations/expense-form";
 import { calcDepositAmount, calcDepositBreakdownKRW } from "@/lib/utils/deposit-amount";
+import { percentageForAmount, prePaidSplit } from "@/lib/utils/pre-paid";
 import { countUploadFailures, uploadFailureMessage } from "@/lib/utils/upload-results";
 import { resolveCreatedExpenseId } from "@/lib/utils/submit-result";
 import type { DocumentType } from "@/types";
@@ -197,6 +198,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
       isUrgent: false,
       isPrePaid: false,
       prePaidPercentage: null,
+      prePaidFixedAmount: null,
       dueDate: null,
     },
   });
@@ -224,7 +226,15 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
     setAmountDisplay("");
     setSupplyAmount(0);
     setValue("amount", 0, { shouldValidate: false });
-  }, [currency, setValue]);
+    // 금액 지정은 원화 건만 — 외화로 바꾸면 비율로 돌린다.
+    if (newCurrency !== "KRW") {
+      setPrePaidUnit("percent");
+      if (getValues("prePaidFixedAmount") != null) {
+        setValue("prePaidFixedAmount", null);
+        setValue("prePaidPercentage", 50);
+      }
+    }
+  }, [currency, setValue, getValues]);
 
   // Warn on unsaved changes (browser close / refresh)
   useUnsavedChanges(isDirty || files.length > 0);
@@ -234,6 +244,28 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
   const watchedIsPrePaid = watch("isPrePaid");
   const watchedPrePaidPercentage = watch("prePaidPercentage");
   const [prePaidMode, setPrePaidMode] = useState<"full" | "partial">("full");
+  // 부분 선지급을 비율로 정할지 금액으로 정할지. 금액은 원화 건만.
+  const [prePaidUnit, setPrePaidUnit] = useState<"percent" | "amount">("percent");
+  const watchedPrePaidFixedAmount = watch("prePaidFixedAmount") ?? null;
+  const watchedAmount = watch("amount");
+  const changePrePaidUnit = useCallback(
+    (unit: "percent" | "amount") => {
+      setPrePaidUnit(unit);
+      if (unit === "percent") {
+        setValue("prePaidFixedAmount", null);
+        setValue("prePaidPercentage", 50);
+      }
+    },
+    [setValue],
+  );
+  // 금액 지정은 저장될 금액(원화 = amount 필드, 원천징수 뒤)보다 작아야 한다. 서버도 같은 검사를 한다.
+  const prePaidFixedError =
+    prePaidUnit === "amount" &&
+    watchedPrePaidFixedAmount != null &&
+    watchedAmount > 0 &&
+    watchedPrePaidFixedAmount >= watchedAmount
+      ? `총 금액(${formatAmount(watchedAmount)}원)보다 작아야 합니다`
+      : null;
 
   // 지난번 계좌 불러오기. 채우는 칸은 데이터로 정했다(autofill.service 참고):
   // 계좌·은행은 항상, 카테고리는 **비어 있을 때만**, 회사는 **직접 고르지 않았을
@@ -408,6 +440,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
       isUrgent: "긴급",
       isPrePaid: "선지급",
       prePaidPercentage: "선지급 비율",
+      prePaidFixedAmount: "선지급 금액",
     };
     const messages = Object.entries(fieldErrors)
       .map(([key, err]) => {
@@ -422,6 +455,17 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
   const onSubmit = async (data: DepositRequestFormData) => {
     if (!validateFiles()) {
       return;
+    }
+    const byAmount = data.isPrePaid && prePaidMode === "partial" && prePaidUnit === "amount";
+    if (byAmount) {
+      if (data.prePaidFixedAmount == null) {
+        toast.error("선지급: 선지급 금액을 입력해주세요");
+        return;
+      }
+      if (data.prePaidFixedAmount >= data.amount) {
+        toast.error(`선지급: 선지급 금액은 총 금액(${formatAmount(data.amount)}원)보다 작아야 합니다`);
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -443,7 +487,9 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
           transactionDate: formatDateISO(new Date()),
           isUrgent: data.isUrgent || false,
           isPrePaid: data.isPrePaid || false,
-          prePaidPercentage: data.prePaidPercentage ?? null,
+          // 금액으로 정했으면 비율은 서버가 환산해 적는다(보낸 값은 버린다).
+          prePaidPercentage: byAmount ? percentageForAmount(data.prePaidFixedAmount!, data.amount) : (data.prePaidPercentage ?? null),
+          prePaidFixedAmount: byAmount ? data.prePaidFixedAmount : null,
           dueDate: data.dueDate ? formatDateISO(data.dueDate) : null,
           companyId: companyId || undefined,
           hasFreelancerWithholding: freelancerDeduction,
@@ -754,6 +800,8 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
                         checked={field.value ?? false}
                         onChange={(e) => {
                           field.onChange(e.target.checked);
+                          setValue("prePaidFixedAmount", null);
+                          setPrePaidUnit("percent");
                           if (!e.target.checked) {
                             setValue("prePaidPercentage", null);
                             setPrePaidMode("full");
@@ -779,6 +827,8 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
                             onClick={() => {
                               setPrePaidMode("full");
                               setValue("prePaidPercentage", 100);
+                              setValue("prePaidFixedAmount", null);
+                              setPrePaidUnit("percent");
                             }}
                             className={cn(
                               "px-4 py-2 rounded-full text-sm font-medium transition-all",
@@ -807,29 +857,80 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
                         </div>
 
                         {prePaidMode === "partial" && (
-                          <div className="space-y-1.5">
-                            <Label htmlFor="prePaidPercentage">선지급 비율</Label>
-                            <div className="relative w-32">
-                              <Input
-                                id="prePaidPercentage"
-                                type="number"
-                                min={1}
-                                max={99}
-                                value={watchedPrePaidPercentage ?? 50}
-                                onChange={(e) => {
-                                  const val = parseInt(e.target.value, 10);
-                                  if (!isNaN(val) && val >= 1 && val <= 99) {
-                                    setValue("prePaidPercentage", val);
-                                  }
-                                }}
-                                className="pr-8"
-                              />
-                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--apple-secondary-label)] pointer-events-none">%</span>
-                            </div>
+                          <div className="space-y-2">
+                            {/* 비율 / 금액 — 계약금처럼 금액이 먼저 정해진 건은 비율로 바꾸면 반올림만큼 어긋난다.
+                                금액 지정은 원화 건만(외화는 환율이 바뀌면 원화 금액이 흔들린다). */}
+                            {currency === "KRW" && (
+                              <div className="inline-flex rounded-full glass-subtle p-0.5" role="radiogroup" aria-label="선지급 입력 방식">
+                                {(["percent", "amount"] as const).map((u) => (
+                                  <button
+                                    key={u}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={prePaidUnit === u}
+                                    onClick={() => changePrePaidUnit(u)}
+                                    className={cn(
+                                      "px-3.5 py-1.5 rounded-full text-[13px] font-medium transition-all",
+                                      prePaidUnit === u
+                                        ? "bg-[var(--apple-blue)] text-white shadow-sm"
+                                        : "text-[var(--apple-label)]",
+                                    )}
+                                  >
+                                    {u === "percent" ? "비율(%)" : "금액(원)"}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            {prePaidUnit === "percent" ? (
+                              <div className="space-y-1.5">
+                                <Label htmlFor="prePaidPercentage">선지급 비율</Label>
+                                <div className="relative w-32">
+                                  <Input
+                                    id="prePaidPercentage"
+                                    type="number"
+                                    min={1}
+                                    max={99}
+                                    value={watchedPrePaidPercentage ?? 50}
+                                    onChange={(e) => {
+                                      const val = parseInt(e.target.value, 10);
+                                      if (!isNaN(val) && val >= 1 && val <= 99) {
+                                        setValue("prePaidPercentage", val);
+                                      }
+                                    }}
+                                    className="pr-8"
+                                  />
+                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--apple-secondary-label)] pointer-events-none">%</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-1.5">
+                                <Label htmlFor="prePaidFixedAmount">선지급 금액</Label>
+                                <div className="relative w-48">
+                                  <Input
+                                    id="prePaidFixedAmount"
+                                    inputMode="numeric"
+                                    autoComplete="off"
+                                    placeholder="0"
+                                    value={watchedPrePaidFixedAmount != null ? formatAmount(watchedPrePaidFixedAmount) : ""}
+                                    onChange={(e) => {
+                                      const digits = e.target.value.replace(/[^0-9]/g, "");
+                                      setValue("prePaidFixedAmount", digits ? parseInt(digits, 10) : null);
+                                    }}
+                                    className="pr-8 tabular-nums"
+                                    aria-invalid={prePaidFixedError != null}
+                                    aria-describedby={prePaidFixedError ? "prePaidFixedAmount-error" : undefined}
+                                  />
+                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--apple-secondary-label)] pointer-events-none">원</span>
+                                </div>
+                                {prePaidFixedError && (
+                                  <p id="prePaidFixedAmount-error" className="text-[12px] text-[var(--apple-red)]">{prePaidFixedError}</p>
+                                )}
+                              </div>
+                            )}
                           </div>
                         )}
 
-                        {supplyAmount > 0 && watchedPrePaidPercentage != null && watchedPrePaidPercentage < 100 && (() => {
+                        {prePaidMode === "partial" && supplyAmount > 0 && (() => {
                           const bd = calcDepositBreakdownKRW(
                             supplyAmount,
                             currency,
@@ -844,29 +945,28 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
                               </div>
                             );
                           }
-                          const totalBeforeWithholding = bd.totalBeforeWithholdingKRW;
-                          const withholdingAmount = bd.withholdingKRW;
-                          const prePaidAmount = Math.round(totalBeforeWithholding * watchedPrePaidPercentage / 100);
-                          const postPaidAmount = totalBeforeWithholding - prePaidAmount - withholdingAmount;
+                          // 서버(상세·승인·Slack)와 같은 기준으로 나눈다 — 저장되는 금액(원천징수 뒤 실지급액)을
+                          // lib/utils/pre-paid 로. 예전엔 공제 전 금액으로 나눠 3.3% 건의 미리보기가 실제 승인액과 달랐다.
+                          const split = prePaidSplit({
+                            amount: bd.finalKRW,
+                            isPrePaid: true,
+                            prePaidPercentage: prePaidUnit === "amount" ? 1 : (watchedPrePaidPercentage ?? 50),
+                            prePaidFixedAmount: prePaidUnit === "amount" ? watchedPrePaidFixedAmount : null,
+                          });
+                          if (!split || (prePaidUnit === "amount" && !split.byAmount)) return null;
                           return (
                             <div className="px-3 py-2 text-[13px] text-[var(--apple-secondary-label)] space-y-0.5 border border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)] rounded-xl">
                               <div className="flex justify-between">
-                                <span>총 금액</span>
-                                <span>{formatAmount(totalBeforeWithholding)}원</span>
+                                <span>{freelancerDeduction ? "총 지급액 (3.3% 공제 후)" : "총 금액"}</span>
+                                <span className="tabular-nums">{formatAmount(bd.finalKRW)}원</span>
                               </div>
                               <div className="flex justify-between text-[var(--apple-blue)]">
-                                <span>선지급금 ({watchedPrePaidPercentage}%)</span>
-                                <span>{formatAmount(prePaidAmount)}원</span>
+                                <span>선지급금{split.percentage != null ? ` (${split.percentage}%)` : ""}</span>
+                                <span className="tabular-nums">{formatAmount(split.prePaidAmount)}원</span>
                               </div>
-                              {freelancerDeduction && (
-                                <div className="flex justify-between text-[var(--apple-red)]">
-                                  <span>원천징수 (3.3%)</span>
-                                  <span>-{formatAmount(withholdingAmount)}원</span>
-                                </div>
-                              )}
                               <div className="flex justify-between font-medium text-[var(--apple-label)] pt-1 border-t border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)]">
                                 <span>후지급금</span>
-                                <span>{formatAmount(postPaidAmount)}원</span>
+                                <span className="tabular-nums">{formatAmount(split.remainingAmount)}원</span>
                               </div>
                             </div>
                           );

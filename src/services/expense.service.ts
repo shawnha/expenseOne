@@ -5,6 +5,7 @@ import {
   users,
   companies,
   purchaseInvoiceLines,
+  expensePrePaidAmounts,
 } from "@/lib/db/schema";
 import {
   eq,
@@ -50,10 +51,53 @@ import { sendPushToAdmins } from "./push.service";
 import { AppError } from "./attachment.service";
 import { getExchangeRate, convertToKRW } from "./exchange-rate.service";
 import { formatExpenseAmount } from "@/lib/utils/expense-utils";
+import { planPrePaidFixedCreate, planPrePaidFixedUpdate, prePaidSplit, type PrePaidFixedWrite } from "@/lib/utils/pre-paid";
 
 // ---------------------------------------------------------------------------
 // createExpense
 // ---------------------------------------------------------------------------
+/**
+ * 금액으로 정한 선지급금(원). 비율로 정한 건·선지급 아님은 null.
+ * 선지급금을 계산하는 곳(알림·Slack·후지급 라우트)은 이 값을 lib/utils/pre-paid 에 같이 넘겨야 한다.
+ */
+export async function getPrePaidFixedAmount(expenseId: string): Promise<number | null> {
+  const [row] = await db
+    .select({ amount: expensePrePaidAmounts.amount })
+    .from(expensePrePaidAmounts)
+    .where(eq(expensePrePaidAmounts.expenseId, expenseId));
+  return row?.amount ?? null;
+}
+
+/** 여러 건의 금액 지정 선지급금. supabase 로 읽는 화면(홈 최근 내역)이 칩에 금액을 붙일 때 쓴다. */
+export async function getPrePaidFixedAmounts(expenseIds: string[]): Promise<Map<string, number>> {
+  if (expenseIds.length === 0) return new Map();
+  const rows = await db
+    .select({ expenseId: expensePrePaidAmounts.expenseId, amount: expensePrePaidAmounts.amount })
+    .from(expensePrePaidAmounts)
+    .where(inArray(expensePrePaidAmounts.expenseId, expenseIds));
+  return new Map(rows.map((r) => [r.expenseId, r.amount]));
+}
+
+/** 선지급 금액 표(expense_pre_paid_amounts)에 계획대로 쓴다. 트랜잭션 안에서 부른다. */
+async function writePrePaidFixed(
+  tx: Pick<typeof db, "insert" | "delete">,
+  expenseId: string,
+  write: PrePaidFixedWrite,
+) {
+  if (write === "none") return;
+  if (write === "delete") {
+    await tx.delete(expensePrePaidAmounts).where(eq(expensePrePaidAmounts.expenseId, expenseId));
+    return;
+  }
+  await tx
+    .insert(expensePrePaidAmounts)
+    .values({ expenseId, amount: write.amount })
+    .onConflictDoUpdate({
+      target: expensePrePaidAmounts.expenseId,
+      set: { amount: write.amount, updatedAt: new Date() },
+    });
+}
+
 export async function createExpense(
   // 반품(REFUND)은 createRefund에서 별도 처리 — 여기서는 제외
   input: Exclude<CreateExpenseInput, { type: "REFUND" }>,
@@ -113,6 +157,7 @@ export async function createExpense(
   }
 
   type NewExpense = typeof expenses.$inferInsert;
+  let prePaidWrite: PrePaidFixedWrite = "none";
 
   const baseData: Partial<NewExpense> = {
     type: input.type,
@@ -159,12 +204,27 @@ export async function createExpense(
     baseData.isPrePaid = input.isPrePaid ?? false;
     baseData.prePaidPercentage = input.prePaidPercentage ?? null;
     baseData.dueDate = input.dueDate ?? null;
+    // 선지급을 금액으로 정했으면 그 금액은 별도 표에, 비율 칸엔 환산 비율(ERP·필터·칩용)을 적는다.
+    const plan = planPrePaidFixedCreate({
+      amount: finalAmount,
+      currency,
+      isPrePaid: baseData.isPrePaid,
+      prePaidFixedAmount: input.prePaidFixedAmount,
+    });
+    if (!plan.ok) throw new AppError("VALIDATION_ERROR", plan.message);
+    if (plan.prePaidPercentage !== undefined) baseData.prePaidPercentage = plan.prePaidPercentage;
+    prePaidWrite = plan.write;
   }
 
-  const [expense] = await db
-    .insert(expenses)
-    .values(baseData as NewExpense)
-    .returning();
+  // 비용과 선지급 금액은 한 번에 — 금액 줄만 빠지면 환산 비율로 계산돼 실제 송금액과 어긋난다.
+  const expense = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(expenses)
+      .values(baseData as NewExpense)
+      .returning();
+    await writePrePaidFixed(tx, row.id, prePaidWrite);
+    return row;
+  });
 
   // 약국 줄. 한 번 들여온 물건을 여러 약국에 나눠 납품할 수 있어서 배열이다.
   if (input.isPurchase && input.purchaseLines?.length) {
@@ -234,6 +294,7 @@ export async function createExpense(
         isUrgent: expense.isUrgent ?? false,
         isPrePaid: expense.isPrePaid ?? false,
         prePaidPercentage: expense.prePaidPercentage,
+        prePaidFixedAmount: typeof prePaidWrite === "object" ? prePaidWrite.amount : null,
         description: expense.description,
         hasFreelancerWithholding: expense.hasFreelancerWithholding ?? false,
       }),
@@ -527,11 +588,13 @@ export async function getExpenses(
         attachmentCount: attachmentCountSq.attachmentCount,
         companyName: companies.name,
         companySlug: companies.slug,
+        prePaidFixedAmount: expensePrePaidAmounts.amount,
       })
       .from(expenses)
       .leftJoin(users, eq(expenses.submittedById, users.id))
       .leftJoin(attachmentCountSq, eq(expenses.id, attachmentCountSq.expenseId))
       .leftJoin(companies, eq(expenses.companyId, companies.id))
+      .leftJoin(expensePrePaidAmounts, eq(expensePrePaidAmounts.expenseId, expenses.id))
       .where(whereClause)
       .orderBy(remainingPaymentPriority, orderFn(orderColumn))
       .limit(limit)
@@ -550,6 +613,7 @@ export async function getExpenses(
   return {
     data: items.map((row) => ({
       ...row.expense,
+      prePaidFixedAmount: row.prePaidFixedAmount ?? null,
       submitter: row.submitter,
       attachmentCount: Number(row.attachmentCount ?? 0),
       companyName: row.companyName ?? null,
@@ -611,7 +675,9 @@ export async function getPendingRemainingPayments(company?: string) {
       amount: expenses.amount,
       currency: expenses.currency,
       amountOriginal: expenses.amountOriginal,
+      isPrePaid: expenses.isPrePaid,
       prePaidPercentage: expenses.prePaidPercentage,
+      prePaidFixedAmount: expensePrePaidAmounts.amount,
       dueDate: expenses.dueDate,
       updatedAt: expenses.updatedAt,
       submitterName: users.name,
@@ -621,16 +687,17 @@ export async function getPendingRemainingPayments(company?: string) {
     .from(expenses)
     .leftJoin(users, eq(expenses.submittedById, users.id))
     .leftJoin(companies, eq(expenses.companyId, companies.id))
+    .leftJoin(expensePrePaidAmounts, eq(expensePrePaidAmounts.expenseId, expenses.id))
     .where(and(...conditions))
     .orderBy(desc(expenses.updatedAt));
 
   return rows.map((row) => {
-    const pct = row.prePaidPercentage ?? 0;
-    const prePaidAmount = Math.round((row.amount * pct) / 100);
+    // 계산은 lib/utils/pre-paid 한 곳에서 — 금액으로 정한 건은 그 금액이 그대로 나온다.
+    const split = prePaidSplit(row);
     return {
       ...row,
-      prePaidAmount,
-      remainingAmount: row.amount - prePaidAmount,
+      prePaidAmount: split?.prePaidAmount ?? 0,
+      remainingAmount: split?.remainingAmount ?? row.amount,
     };
   });
 }
@@ -933,10 +1000,12 @@ export async function getExpenseById(
         name: companies.name,
         slug: companies.slug,
       },
+      prePaidFixedAmount: expensePrePaidAmounts.amount,
     })
     .from(expenses)
     .leftJoin(users, eq(expenses.submittedById, users.id))
     .leftJoin(companies, eq(expenses.companyId, companies.id))
+    .leftJoin(expensePrePaidAmounts, eq(expensePrePaidAmounts.expenseId, expenses.id))
     .where(eq(expenses.id, expenseId));
 
   if (!result) {
@@ -998,6 +1067,7 @@ export async function getExpenseById(
 
   return {
     ...result.expense,
+    prePaidFixedAmount: result.prePaidFixedAmount ?? null,
     submitter: result.submitter,
     company: result.company,
     attachments: expenseAttachments,
@@ -1051,10 +1121,32 @@ export async function updateExpense(
     throw new AppError("VALIDATION_ERROR", "사입 건에만 납품처 약국을 입력할 수 있습니다.");
   }
 
+  // 선지급 금액 지정 — 별도 표(expense_pre_paid_amounts)와 비율 칸(환산 비율)을 함께 맞춘다.
+  // 총액이 바뀌면 남은 금액 지정이 여전히 총액보다 작은지 다시 본다(lib/utils/pre-paid).
+  const currentFixed = await getPrePaidFixedAmount(expenseId);
+  const prePaidPlan = planPrePaidFixedUpdate(
+    {
+      amount: expense.amount,
+      currency: expense.currency,
+      isPrePaid: expense.isPrePaid,
+      prePaidPercentage: expense.prePaidPercentage,
+      prePaidFixedAmount: currentFixed,
+    },
+    input,
+  );
+  if (!prePaidPlan.ok) throw new AppError("VALIDATION_ERROR", prePaidPlan.message);
+  // 금액 지정이 남으면 비율 칸은 서버가 정한 환산 비율이다(화면이 보낸 값은 버린다).
+  // 안 보냈고 그대로면 키를 넣지 않는다 — 넣으면 제목만 고쳐도 Slack 이 다시 올라간다.
+  const pctOverride =
+    prePaidPlan.prePaidPercentage !== undefined &&
+    (input.prePaidPercentage !== undefined || prePaidPlan.prePaidPercentage !== expense.prePaidPercentage)
+      ? { prePaidPercentage: prePaidPlan.prePaidPercentage }
+      : {};
+
   // 승인된 입금요청을 작성자가 고치는 경우 — **막지 않는다**(오너 결정 2026-09-23).
   // 대신 돈 관련 칸(금액·계좌·회사·선지급·원천징수·거래일·사입)이 실제로 바뀌었으면
   // 저장한 뒤 관리자에게 알린다. 판단 기준은 **DB에서 읽은** status·type 이다.
-  const editInput = input;
+  const editInput: UpdateExpenseInput = { ...input, ...pctOverride };
   let moneyChanges: MoneyFieldKey[] = [];
   if (isApprovedDepositEdit(userRole, expense)) {
     // 줄 비교가 필요할 때만 조회한다. 입력 순서(sortOrder)로 읽어야 순서 비교가 맞다.
@@ -1073,7 +1165,7 @@ export async function updateExpense(
             .orderBy(asc(purchaseInvoiceLines.sortOrder))
         : [];
 
-    moneyChanges = findMoneyFieldChanges(expense, input, currentLines);
+    moneyChanges = findMoneyFieldChanges({ ...expense, prePaidFixedAmount: currentFixed }, editInput, currentLines);
   }
 
   // 4. Update -- include ownership + eligibility checks in the WHERE clause
@@ -1110,6 +1202,8 @@ export async function updateExpense(
   // 약국 줄은 별도 테이블이라 updateSet에 섞이면 안 된다. 아래에서 따로 처리한다.
   const purchaseLines = (restInput as { purchaseLines?: PurchaseLineInput[] }).purchaseLines;
   delete (updateSet as { purchaseLines?: unknown }).purchaseLines;
+  // 선지급 금액도 별도 표다(아래 트랜잭션에서 writePrePaidFixed).
+  delete (updateSet as { prePaidFixedAmount?: unknown }).prePaidFixedAmount;
 
   // Admin can explicitly set status. Non-admin edits no longer auto-reset
   // an APPROVED deposit request back to SUBMITTED — the common case is the
@@ -1121,11 +1215,16 @@ export async function updateExpense(
     updateSet.status = inputStatus;
   }
 
-  const [updated] = await db
-    .update(expenses)
-    .set(updateSet)
-    .where(and(...updateConditions))
-    .returning();
+  // 비율 칸과 금액 표는 한 번에 바뀌어야 한다 — 한쪽만 바뀌면 화면마다 다른 선지급금이 나온다.
+  const updated = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(expenses)
+      .set(updateSet)
+      .where(and(...updateConditions))
+      .returning();
+    if (row) await writePrePaidFixed(tx, expenseId, prePaidPlan.write);
+    return row;
+  });
 
   if (!updated) {
     throw new AppError(
@@ -1158,6 +1257,7 @@ export async function updateExpense(
     "isUrgent",
     "isPrePaid",
     "prePaidPercentage",
+    "prePaidFixedAmount",
     "companyId",
     "currency",
     "amountOriginal",
@@ -1202,6 +1302,12 @@ export async function updateExpense(
           isUrgent: updated.isUrgent,
           isPrePaid: updated.isPrePaid,
           prePaidPercentage: updated.prePaidPercentage,
+          prePaidFixedAmount:
+            typeof prePaidPlan.write === "object"
+              ? prePaidPlan.write.amount
+              : prePaidPlan.write === "delete"
+                ? null
+                : currentFixed,
           hasFreelancerWithholding: updated.hasFreelancerWithholding,
         });
         // 재게시 결과로 좌표를 항상 덮어쓴다. 한쪽이 실패해 null이 되면
@@ -1487,6 +1593,7 @@ export async function approveExpense(
       description: expense.description,
       isPrePaid: expense.isPrePaid,
       prePaidPercentage: expense.prePaidPercentage,
+      prePaidFixedAmount: await getPrePaidFixedAmount(expense.id),
     },
   );
 
