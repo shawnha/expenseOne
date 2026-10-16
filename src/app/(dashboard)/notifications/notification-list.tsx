@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCheck, Loader2 } from "lucide-react";
+import { BellRing, CheckCheck, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import type { Notification } from "@/types";
@@ -198,6 +198,14 @@ export default function NotificationList({
                 }`}
                 aria-label={`${notification.title} - ${notification.isRead ? "읽음" : "읽지 않음"}`}
               >
+                {notification.type === "REMAINING_PAYMENT_REQUEST" && (
+                  <span
+                    className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-[rgba(255,149,0,0.14)]"
+                    aria-hidden="true"
+                  >
+                    <BellRing className="size-4 text-[var(--apple-orange)]" />
+                  </span>
+                )}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <p

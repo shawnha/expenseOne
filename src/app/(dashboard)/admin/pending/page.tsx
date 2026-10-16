@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BellRing } from "lucide-react";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { getCachedCurrentUser } from "@/lib/supabase/cached";
@@ -92,6 +93,7 @@ export default async function AdminPendingPage({ searchParams }: PendingPageProp
       {remainingPayments.length > 0 && (
         <div className="glass p-3 sm:p-4 lg:p-5 animate-fade-up-1">
           <div className="flex items-center gap-2 mb-4">
+            <BellRing className="size-4 text-[var(--apple-orange)]" aria-hidden="true" />
             <h2 className="text-subheadline font-semibold text-[var(--apple-label)]">후지급 승인 대기</h2>
             <span className="glass-badge glass-badge-orange animate-spring-pop">{remainingPayments.length}건</span>
           </div>
@@ -100,7 +102,7 @@ export default async function AdminPendingPage({ searchParams }: PendingPageProp
             {remainingPayments.map((item) => (
               <li
                 key={item.id}
-                className="flex flex-col sm:flex-row sm:items-center gap-3 px-3.5 py-3 rounded-xl border border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)]"
+                className="flex flex-col sm:flex-row sm:items-center gap-3 px-3.5 py-3 rounded-xl border border-[rgba(255,149,0,0.35)] bg-[rgba(255,149,0,0.06)]"
               >
                 <div className="flex-1 min-w-0">
                   <Link

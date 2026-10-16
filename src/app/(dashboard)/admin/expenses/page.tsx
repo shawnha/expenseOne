@@ -86,12 +86,13 @@ async function getAdminExpensesData(searchParams: Record<string, string | string
   return {
     expenses,
     meta: { page: result.meta.page, totalPages: result.meta.totalPages, total: result.meta.total },
+    currentUserId: user.id,
   };
 }
 
 export default async function AdminExpensesPage({ searchParams }: AdminExpensesPageProps) {
   const resolvedParams = await searchParams;
-  const { expenses, meta } = await getAdminExpensesData(resolvedParams);
+  const { expenses, meta, currentUserId } = await getAdminExpensesData(resolvedParams);
 
   return (
     <div className="flex flex-col gap-4 sm:gap-5 lg:gap-6">
@@ -127,7 +128,7 @@ export default async function AdminExpensesPage({ searchParams }: AdminExpensesP
       ) : (
         <>
           <div className="animate-fade-up-2">
-            <ExpenseTable expenses={expenses as never[]} showSubmitter={true} isAdmin={true} />
+            <ExpenseTable expenses={expenses as never[]} showSubmitter={true} isAdmin={true} currentUserId={currentUserId} />
           </div>
           <Pagination
             page={meta.page}

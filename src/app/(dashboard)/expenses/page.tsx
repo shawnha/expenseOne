@@ -90,13 +90,14 @@ async function getExpensesData(searchParams: Record<string, string | string[] | 
   return {
     expenses,
     meta: { page: result.meta.page, totalPages: result.meta.totalPages, total: result.meta.total },
+    currentUserId: user.id,
     userRole: user.role,
   };
 }
 
 export default async function ExpensesPage({ searchParams }: ExpensesPageProps) {
   const resolvedParams = await searchParams;
-  const { expenses, meta } = await getExpensesData(resolvedParams);
+  const { expenses, meta, currentUserId } = await getExpensesData(resolvedParams);
 
   return (
     <div className="flex flex-col gap-4 sm:gap-5 lg:gap-6">
@@ -139,7 +140,7 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
       ) : (
         <>
           <div className="animate-fade-up-2">
-            <ExpenseTable expenses={expenses} showSubmitter={false} />
+            <ExpenseTable expenses={expenses} showSubmitter={false} currentUserId={currentUserId} />
           </div>
           <Pagination
             page={meta.page}
