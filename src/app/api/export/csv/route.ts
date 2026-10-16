@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, errorResponse, handleError } from "@/lib/api-utils";
 import { csvExportQuerySchema } from "@/lib/validations/expense";
 import { db } from "@/lib/db";
-import { expenses, users, companies } from "@/lib/db/schema";
+import { expenses, users, companies, expensePrePaidAmounts } from "@/lib/db/schema";
 import { eq, and, gte, lte, desc, isNull, inArray } from "drizzle-orm";
 import Papa from "papaparse";
+import { prePaidSplit } from "@/lib/utils/pre-paid";
 import { getCategoryLabel, getBranchLabel } from "@/lib/utils/expense-utils";
 
 // ---------------------------------------------------------------------------
@@ -103,10 +104,12 @@ export async function GET(request: NextRequest) {
         submitterName: users.name,
         submitterEmail: users.email,
         companyName: companies.name,
+        prePaidFixedAmount: expensePrePaidAmounts.amount,
       })
       .from(expenses)
       .leftJoin(users, eq(expenses.submittedById, users.id))
       .leftJoin(companies, eq(expenses.companyId, companies.id))
+      .leftJoin(expensePrePaidAmounts, eq(expensePrePaidAmounts.expenseId, expenses.id))
       .where(whereClause)
       .orderBy(desc(expenses.createdAt))
       // TODO: 데이터가 10,000건 이상으로 증가할 경우 스트리밍 응답(ReadableStream)으로
@@ -136,7 +139,10 @@ export async function GET(request: NextRequest) {
       // 약국별 상세는 /api/export/purchase-invoice (한 줄 = 계산서 한 장).
       "사입": row.expense.isPurchase ? "Y" : "N",
       "선지급": row.expense.isPrePaid ? "Y" : "N",
+      // 금액으로 정한 건은 비율이 환산값이다 — 선지급금액 열이 정확한 값.
       "선지급비율": row.expense.prePaidPercentage ?? "",
+      "선지급금액": prePaidSplit({ ...row.expense, prePaidFixedAmount: row.prePaidFixedAmount })?.prePaidAmount ?? "",
+      "선지급금액지정": row.prePaidFixedAmount != null ? "Y" : "N",
       "후지급승인": row.expense.remainingPaymentApproved ? "Y" : "N",
       "제출자": row.submitterName ?? "",
       "제출자이메일": row.submitterEmail ?? "",

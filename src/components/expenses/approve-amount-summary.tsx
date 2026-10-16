@@ -1,5 +1,6 @@
 import { formatExpenseAmount } from "@/lib/utils/expense-utils";
 import { withholdingSummary } from "@/lib/utils/deposit-amount";
+import { prePaidSplit } from "@/lib/utils/pre-paid";
 
 interface ApproveAmountSummaryProps {
   amount: number;
@@ -7,6 +8,8 @@ interface ApproveAmountSummaryProps {
   amountOriginal?: number | null;
   isPrePaid?: boolean;
   prePaidPercentage?: number | null;
+  /** 금액으로 정한 선지급금(원). 있으면 비율 대신 이 금액이 이번 지급액이다. */
+  prePaidFixedAmount?: number | null;
   /**
    * 원천징수 3.3% 체크 여부. 넘기면 「공제함/공제 안 함」 줄을 덧붙인다(2026-10-01 오너 — 승인=송금 직전이라
    * 여기서 확인돼야 한다). 안 넘기면(undefined) 줄 없음.
@@ -30,13 +33,14 @@ export function ApproveAmountSummary({
   amountOriginal,
   isPrePaid,
   prePaidPercentage,
+  prePaidFixedAmount,
   hasFreelancerWithholding,
 }: ApproveAmountSummaryProps) {
-  const isPartialPrePaid =
-    isPrePaid === true && prePaidPercentage != null && prePaidPercentage < 100;
+  // 계산은 lib/utils/pre-paid 한 곳에서(잔금 = 총액 − 선지급금, USD 원문도 같은 방식).
+  const split = prePaidSplit({ amount, amountOriginal, isPrePaid, prePaidPercentage, prePaidFixedAmount });
   const withholding = hasFreelancerWithholding === undefined ? null : <WithholdingLine amount={amount} applied={hasFreelancerWithholding} />;
 
-  if (!isPartialPrePaid) {
+  if (!split) {
     return (
       <>
         금액: {formatExpenseAmount(amount, currency, amountOriginal)}
@@ -45,27 +49,15 @@ export function ApproveAmountSummary({
     );
   }
 
-  // 잔금은 총액에서 빼서 구한다. 양쪽을 따로 반올림하면 합이 총액과 어긋난다.
-  const prePaidAmount = Math.round((amount * prePaidPercentage!) / 100);
-  const remainingAmount = amount - prePaidAmount;
-
   // USD 건(HOI)은 "$X (₩Y)"로 표시된다. 원화만 쪼개면 이번 지급액은 원화,
-  // 총액은 달러 기준이 되어 서로 비교가 안 되므로 원문 금액도 같은 비율로 쪼갠다.
-  // amountOriginal은 센트 정수라 원화와 똑같이 반올림 후 차감해야 합이 맞는다.
-  const prePaidOriginal =
-    amountOriginal != null
-      ? Math.round((amountOriginal * prePaidPercentage!) / 100)
-      : null;
-  const remainingOriginal =
-    amountOriginal != null && prePaidOriginal != null
-      ? amountOriginal - prePaidOriginal
-      : null;
+  // 총액은 달러 기준이 되어 서로 비교가 안 되므로 원문 금액도 같은 방식으로 쪼갠다.
+  const { prePaidAmount, remainingAmount, prePaidOriginal, remainingOriginal } = split;
 
   return (
     <>
       <span className="font-semibold text-[var(--apple-label)]">
         이번 지급액: {formatExpenseAmount(prePaidAmount, currency, prePaidOriginal)}{" "}
-        (선지급 {prePaidPercentage}%)
+        (선지급{split.percentage != null ? ` ${split.percentage}%` : ""})
       </span>
       <br />총 {formatExpenseAmount(amount, currency, amountOriginal)} · 후지급{" "}
       {formatExpenseAmount(remainingAmount, currency, remainingOriginal)} 예정
