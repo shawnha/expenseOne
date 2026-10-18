@@ -107,7 +107,7 @@ interface LogEntry {
  * 이력은 추가만 한다(UPDATE·DELETE 없음). companyId 는 항상 계획·사업의 법인이어야 한다 —
  * 다르면 복합 FK 가 거부한다(V-SECURITY-3, T21).
  */
-async function logChange(tx: PlanTx, entry: LogEntry): Promise<void> {
+export async function logChange(tx: PlanTx, entry: LogEntry): Promise<void> {
   await tx.insert(planChangeLog).values({
     companyId: entry.companyId,
     projectId: entry.projectId ?? null,

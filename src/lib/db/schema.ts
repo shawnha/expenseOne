@@ -262,10 +262,11 @@ export const recurringExpenses = expenseSchema.table(
     description: text("description"),
     amount: integer("amount").notNull(),
     currency: varchar("currency", { length: 3 }).notNull().default("KRW"),
-    category: varchar("category", { length: 100 }).notNull(),
-    bankName: varchar("bank_name", { length: 50 }).notNull(),
-    accountHolder: varchar("account_holder", { length: 100 }).notNull(),
-    accountNumber: varchar("account_number", { length: 50 }).notNull(),
+    /** AUTO 는 넷 다 필수(CHECK recurring_auto_needs_account). 비용계획에서 만든 반복은 계좌를 모를 수 있다(0029). */
+    category: varchar("category", { length: 100 }),
+    bankName: varchar("bank_name", { length: 50 }),
+    accountHolder: varchar("account_holder", { length: 100 }),
+    accountNumber: varchar("account_number", { length: 50 }),
     companyId: uuid("company_id").notNull().references(() => companies.id),
     /** 이 사람이 제출한 것으로 만들어진다. 생성 알림도 이 사람에게 간다. */
     submittedById: uuid("submitted_by_id")
@@ -288,6 +289,20 @@ export const recurringExpenses = expenseSchema.table(
     /** 켜면 템플릿 첨부를 **복사**해서 붙인다. */
     attachFiles: boolean("attach_files").notNull().default(false),
 
+    /**
+     * 예정일에 무엇을 하나(0029). AUTO = 같은 금액으로 입금요청 자동 제출, REMIND = 등록자에게 알림만
+     * (금액은 사람이 넣어 올린다), NONE = 입금요청 없음(비용계획에만 표시).
+     */
+    requestMode: text("request_mode").notNull().default("AUTO"),
+    /** 비용계획에 미리 깔 프로젝트. NULL 이면 비용계획에 안 나온다. 법인은 company_id 와 같아야 한다(복합 FK). */
+    planProjectId: uuid("plan_project_id"),
+    planBrandId: uuid("plan_brand_id"),
+    /** 깔리는 계획의 날짜 정밀도(DAY · MONTH_EARLY · MONTH_MID · MONTH). */
+    planDatePrecision: text("plan_date_precision").notNull().default("DAY"),
+    /** 회차 범위. starts_on 이전·ends_on 이후 날짜는 만들지 않는다. */
+    startsOn: date("starts_on", { mode: "string" }),
+    endsOn: date("ends_on", { mode: "string" }),
+
     isActive: boolean("is_active").notNull().default(true),
     /**
      * 다음 생성 예정일. cron은 이 값만 보고 고른다 — 조회가 단순하고,
@@ -306,6 +321,36 @@ export const recurringExpenses = expenseSchema.table(
     check("recurring_amount_positive", sql`${table.amount} > 0`),
     index("idx_recurring_due").on(table.nextRunDate).where(sql`is_active = true`),
     index("idx_recurring_submitter").on(table.submittedById),
+  ],
+);
+
+/**
+ * recurring_occurrences -- 반복의 회차(예정일) 하나 = 한 줄 (0029)
+ *
+ * (반복, 날짜) UNIQUE 가 "같은 회차를 두 번 만들지 않는다"의 근거다. 비용계획을 미리 깔 때(plan_id)와
+ * 예정일 처리(run_at, expense_id) 모두 이 줄을 기준으로 한다.
+ * plan_version = 우리가 마지막으로 쓴 cost_plans.version. 같으면 사람이 안 건드린 계획이라 반복을 고칠 때 같이 고친다.
+ * expense_id 는 FK 가 없다 — expenses 에 RI 트리거를 붙이지 않는다(결합 검토 P2). 읽을 때 JOIN 으로 거른다.
+ */
+export const recurringOccurrences = expenseSchema.table(
+  "recurring_occurrences",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    recurringExpenseId: uuid("recurring_expense_id")
+      .notNull()
+      .references(() => recurringExpenses.id, { onDelete: "cascade" }),
+    occurrenceDate: date("occurrence_date", { mode: "string" }).notNull(),
+    planId: uuid("plan_id"),
+    planVersion: integer("plan_version"),
+    expenseId: uuid("expense_id"),
+    runAt: timestamp("run_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("recurring_occurrences_once").on(table.recurringExpenseId, table.occurrenceDate),
+    uniqueIndex("recurring_occurrences_plan_key").on(table.planId).where(sql`plan_id IS NOT NULL`),
+    uniqueIndex("recurring_occurrences_expense_key").on(table.expenseId).where(sql`expense_id IS NOT NULL`),
   ],
 );
 
