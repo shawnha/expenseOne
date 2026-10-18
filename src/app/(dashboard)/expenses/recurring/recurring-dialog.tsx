@@ -265,6 +265,8 @@ export function RecurringDialog({ open, onOpenChange, row, companies, categories
       toast.success(row ? "저장했어요" : "반복 지급을 등록했어요");
       const sync = j?.data?.planSync;
       if (sync && "error" in sync && sync.error) toast.warning(String(sync.error));
+      else if (sync && typeof sync.skipped === "string" && sync.skipped)
+        toast.warning(`비용계획에 깔지 못했어요: ${sync.skipped}`);
       else if (sync && typeof sync.created === "number" && sync.created > 0)
         toast.success(`비용계획에 ${sync.created}건 깔았어요`);
       onSaved();
@@ -415,7 +417,7 @@ export function RecurringDialog({ open, onOpenChange, row, companies, categories
         <div>
           <label className={labelCls}>입금요청은 어떻게 할까요?</label>
           <div role="radiogroup" className="flex flex-col gap-2">
-            {MODES.map((m) => {
+            {MODES.filter((m) => m.value !== "NONE" || planAvail === "on" || form.requestMode === "NONE").map((m) => {
               const on = form.requestMode === m.value;
               return (
                 <button
@@ -450,7 +452,11 @@ export function RecurringDialog({ open, onOpenChange, row, companies, categories
             <div>
               <label className={labelCls}>카테고리{isAuto && <Req />}</label>
               <select className={fieldCls} value={form.category} onChange={(e) => set("category", e.target.value)}>
-                {!isAuto && <option value="">선택 안 함</option>}
+                {isAuto ? (
+                  <option value="" disabled>카테고리를 골라주세요</option>
+                ) : (
+                  <option value="">선택 안 함</option>
+                )}
                 {categories.map((c) => (
                   <option key={c.value} value={c.value}>{c.label}</option>
                 ))}

@@ -103,6 +103,8 @@ export function RecurringManager({ rows, companies, categories, defaultCompanyId
       toast.success(row.isActive ? "일시중지했어요" : "다시 시작해요");
       const sync = j?.data?.planSync;
       if (sync && "error" in sync && sync.error) toast.warning(String(sync.error));
+      else if (sync && typeof sync.skipped === "string" && sync.skipped)
+        toast.warning(`비용계획에 깔지 못했어요: ${sync.skipped}`);
       refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "변경하지 못했어요.");
@@ -233,15 +235,21 @@ export function RecurringManager({ rows, companies, categories, defaultCompanyId
                   >
                     <Pencil className="size-3.5" /> 수정
                   </button>
-                  <button
-                    type="button"
-                    disabled={busy === r.id || pending}
-                    onClick={() => toggleActive(r)}
-                    className="inline-flex h-9 items-center gap-1 rounded-full border border-[var(--apple-separator)] px-3 text-[13px] text-[var(--apple-secondary-label)] disabled:opacity-50"
-                  >
-                    {r.isActive ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
-                    {r.isActive ? "일시중지" : "재개"}
-                  </button>
+                  {ended ? (
+                    <span className="text-[12px] text-[var(--apple-secondary-label)]">
+                      끝남 — 끝나는 날을 바꾸면 다시 시작할 수 있어요
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={busy === r.id || pending}
+                      onClick={() => toggleActive(r)}
+                      className="inline-flex h-9 items-center gap-1 rounded-full border border-[var(--apple-separator)] px-3 text-[13px] text-[var(--apple-secondary-label)] disabled:opacity-50"
+                    >
+                      {r.isActive ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
+                      {r.isActive ? "일시중지" : "재개"}
+                    </button>
+                  )}
                   <button
                     type="button"
                     disabled={busy === r.id || pending}

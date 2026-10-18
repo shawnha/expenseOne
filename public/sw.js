@@ -1,6 +1,6 @@
 // ExpenseOne Service Worker — NetworkFirst HTML + CacheFirst static + Web Push
-// mvdrshdw is replaced at build time by next.config.ts
-const CACHE_NAME = "expenseone-mvdrshdw";
+// mvdslom0 is replaced at build time by next.config.ts
+const CACHE_NAME = "expenseone-mvdslom0";
 
 const APP_SHELL = ["/offline.html", "/splash-shell.html"];
 
