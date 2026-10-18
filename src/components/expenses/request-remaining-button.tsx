@@ -5,12 +5,14 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface RequestRemainingButtonProps {
   expenseId: string;
+  className?: string;
 }
 
-export function RequestRemainingButton({ expenseId }: RequestRemainingButtonProps) {
+export function RequestRemainingButton({ expenseId, className }: RequestRemainingButtonProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -43,7 +45,7 @@ export function RequestRemainingButton({ expenseId }: RequestRemainingButtonProp
     <Button
       onClick={handleClick}
       disabled={isLoading}
-      className="rounded-full bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] text-white text-sm font-medium"
+      className={cn("rounded-full bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] text-white text-sm font-medium", className)}
     >
       {isLoading ? (
         <>

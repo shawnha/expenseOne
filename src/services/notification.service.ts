@@ -3,6 +3,7 @@ import { notifications, users } from "@/lib/db/schema";
 import { eq, and, desc, count, lt, inArray } from "drizzle-orm";
 import { notifySlackApproved, notifySlackApprovalReverted } from "./slack.service";
 import { sendPushToUser, sendPushToAdmins } from "./push.service";
+import { prePaidSplit } from "@/lib/utils/pre-paid";
 
 // ---------------------------------------------------------------------------
 // createNotification
@@ -216,13 +217,20 @@ export async function notifyExpenseApproved(
     description?: string | null;
     isPrePaid?: boolean;
     prePaidPercentage?: number | null;
+    prePaidFixedAmount?: number | null;
   },
 ) {
+  // 부분 선지급이면 "잔금은 후지급 요청을 해야 나간다"를 승인 알림에서 바로 말한다 —
+  // 상세 맨 아래 버튼만으로는 요청해야 한다는 걸 몰라 잔금이 묵었다(2026-10-16 오너).
+  const split = extra ? prePaidSplit(extra) : null;
+  const message = split
+    ? `"${expenseTitle}" 선지급 ${split.prePaidAmount.toLocaleString("ko-KR")}원이 승인되었습니다. 잔금 ${split.remainingAmount.toLocaleString("ko-KR")}원은 상세 화면에서 후지급 요청을 해주세요.`
+    : `"${expenseTitle}" 입금요청이 승인되었습니다.`;
   const notification = await createNotification({
     recipientId: submitterId,
     type: "DEPOSIT_APPROVED",
     title: "입금요청이 승인되었습니다",
-    message: `"${expenseTitle}" 입금요청이 승인되었습니다.`,
+    message,
     relatedExpenseId: expenseId,
   });
 
@@ -245,6 +253,7 @@ export async function notifyExpenseApproved(
         description: extra.description,
         isPrePaid: extra.isPrePaid,
         prePaidPercentage: extra.prePaidPercentage,
+        prePaidFixedAmount: extra.prePaidFixedAmount,
       }).catch((err) => console.error("[Slack] 승인 알림 실패:", err)),
     );
   }
@@ -253,7 +262,7 @@ export async function notifyExpenseApproved(
     sendPushToUser(
       submitterId,
       "입금요청 승인",
-      `"${expenseTitle}" 입금요청이 승인되었습니다.`,
+      message,
       expenseUrl(expenseId),
     ).catch((err) => console.error("[Push] 승인 알림 실패:", err)),
   );

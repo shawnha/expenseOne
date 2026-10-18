@@ -385,6 +385,24 @@ export const recurringExpenseAttachments = expenseSchema.table(
 );
 
 /**
+ * expense_pre_paid_amounts -- 금액으로 정한 부분 선지급 (0028)
+ *
+ * 비율(expenses.pre_paid_percentage, 정수 %)로는 "계약금 300만원"을 정확히 못 적는다.
+ * 금액으로 정한 건만 여기 한 줄을 두고, 있으면 이 금액이 이긴다(lib/utils/pre-paid.ts).
+ * expenses 에 컬럼을 붙이지 않으려고 따로 뒀다. pre_paid_percentage 에는 환산 비율(1~99)을
+ * 같이 적어 ERP·필터·칩이 계속 "부분 선지급"으로 알아보게 한다.
+ */
+export const expensePrePaidAmounts = expenseSchema.table("expense_pre_paid_amounts", {
+  expenseId: uuid("expense_id")
+    .primaryKey()
+    .references(() => expenses.id, { onDelete: "cascade" }),
+  /** 선지급금(원). 0 < amount < expenses.amount. */
+  amount: integer("amount").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
  * purchase_invoice_lines -- 사입 건의 약국별 납품/발행 줄
  *
  * 사입 한 번으로 들여온 물건을 **여러 약국에 나눠 납품**할 수 있다. 세금계산서는

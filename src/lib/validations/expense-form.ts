@@ -107,6 +107,8 @@ export const depositRequestFormSchema = z.object({
   isUrgent: z.boolean(),
   isPrePaid: z.boolean(),
   prePaidPercentage: z.number().int().min(1).max(100).nullish(),
+  /** 선지급을 금액으로 정했을 때의 선지급금(원). 총액 대비 검사는 폼(화면 총액)과 서버가 한다. */
+  prePaidFixedAmount: z.number().int().positive("선지급 금액을 입력해주세요").nullish(),
   dueDate: z.date({ message: "납입 기일을 선택해주세요" }).nullish(),
   description: z.string().max(2000, "설명은 2000자 이내로 입력해주세요").optional().or(z.literal("")),
 });
