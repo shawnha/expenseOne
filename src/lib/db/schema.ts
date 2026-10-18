@@ -344,6 +344,8 @@ export const recurringOccurrences = expenseSchema.table(
     planVersion: integer("plan_version"),
     expenseId: uuid("expense_id"),
     runAt: timestamp("run_at", { withTimezone: true }),
+    /** 사람이 알림 폼으로 올리는 중(선점). 두 탭 동시 제출 방지. 2분 지나면 버려진 것으로 본다. */
+    reservedAt: timestamp("reserved_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

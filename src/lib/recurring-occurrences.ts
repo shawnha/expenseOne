@@ -34,21 +34,90 @@ export function monthEndAfter(today: string, months: number): string {
   return `${ty}-${String(tm).padStart(2, "0")}-${String(lastDayOfMonth(ty, tm)).padStart(2, "0")}`;
 }
 
-/** [from, to] 안의 예정일들. 양 끝 포함. */
+/**
+ * 기준 회차(anchor)에서 nextRunAfter 로 이어 가며 [from, to] 안에 드는 예정일들. 양 끝 포함.
+ *
+ * **반드시 기준점에서 이어 간다.** from 에서 새로 세면(firstRunOnOrAfter(from)) 격월·분기·격주 반복은 창 시작일이
+ * 기준점이 돼 날마다 다른 달이 나온다(오늘 10-18 이면 10·12월, 11-10 이면 11·1월) — 맞는 계획을 지웠다 다시 깔고,
+ * cron 의 처리 날짜(nextRunDate 를 nextRunAfter 로 이어 감)와도 어긋난다.
+ * anchor 는 그 자체가 회차다(starts_on, 옛 행은 next_run_date).
+ */
 export function occurrenceDatesBetween(
   schedule: Schedule,
+  anchor: string,
   from: string,
   to: string,
   cap: number = MAX_OCCURRENCES_PER_PASS,
 ): string[] {
   const out: string[] = [];
   if (from > to) return out;
-  let d = firstRunOnOrAfter(schedule, from);
+  let d = firstOnOrAfterFromAnchor(schedule, anchor, from);
   while (d <= to && out.length < cap) {
     out.push(d);
     d = nextRunAfter(schedule, d);
   }
   return out;
+}
+
+/** 기준 회차에서 이어 가며 from 이상인 첫 회차. */
+export function firstOnOrAfterFromAnchor(schedule: Schedule, anchor: string, from: string): string {
+  let d = anchor;
+  // 매주 반복도 10년이면 520번 — 그 이상은 기준점이 잘못된 것이다.
+  for (let i = 0; d < from && i < 1000; i++) d = nextRunAfter(schedule, d);
+  return d;
+}
+
+function addDaysIso(iso: string, days: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d + days));
+  return t.toISOString().slice(0, 10);
+}
+
+function shiftMonthStart(iso: string, months: number): string {
+  const [y, m] = iso.split("-").map(Number);
+  const total = y * 12 + (m - 1) + months;
+  return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, "0")}-01`;
+}
+
+/**
+ * 주기(며칠·간격·요일)를 바꿨을 때 새 기준 회차. 옛 시작일은 새 주기의 회차가 아니라 기준점으로 못 쓴다.
+ * 이 날 이후 첫 회차부터 다시 센다:
+ * - 오늘(지난 날로 거슬러 가지 않는다)
+ * - 옛 시작일이 든 달의 1일(입금요청 폼의 「매달 반복」은 이번 달 건을 방금 올려 다음 달부터 시작한다 — 그 뜻을 지킨다)
+ * - 마지막으로 처리한 회차 다음 주기(이번 달 회차를 이미 처리했는데 날짜를 25일로 옮기면 같은 달에 또 나가면 안 된다)
+ */
+export function restartAnchor(args: {
+  schedule: Schedule;
+  today: string;
+  previousStartsOn: string | null;
+  lastRunDate: string | null;
+}): string {
+  const { schedule, today } = args;
+  const interval = Math.max(1, schedule.intervalCount || 1);
+  let floor = today;
+  if (args.previousStartsOn) {
+    const ms = monthStartOf(args.previousStartsOn);
+    if (ms > floor) floor = ms;
+  }
+  if (args.lastRunDate) {
+    const afterLast =
+      schedule.frequency === "WEEKLY"
+        ? addDaysIso(args.lastRunDate, 7 * (interval - 1) + 1)
+        : schedule.frequency === "MONTHLY"
+          ? shiftMonthStart(args.lastRunDate, interval)
+          : shiftMonthStart(args.lastRunDate, 1); // 매년: 그 달만 넘기면 firstRunOnOrAfter 가 다음 해로 간다
+    if (afterLast > floor) floor = afterLast;
+  }
+  return firstMatchingOnOrAfter(schedule, floor);
+}
+
+/**
+ * from 이후(포함) 그 주기의 날짜·요일에 맞는 첫날 — **기준 회차를 새로 잡을 때** 쓴다.
+ * firstRunOnOrAfter 는 간격이 2 이상이면 "이번 후보가 지났으면 +간격"으로 계산해 첫 회차를 한 주기 건너뛴다
+ * (격주 월요일을 10-20 에 만들면 10-26 이 아니라 11-02). 기준점은 그 자체가 회차라 간격 1 로 찾는다.
+ */
+export function firstMatchingOnOrAfter(schedule: Schedule, from: string): string {
+  return firstRunOnOrAfter({ ...schedule, intervalCount: 1 }, from);
 }
 
 /**

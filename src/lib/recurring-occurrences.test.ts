@@ -12,6 +12,7 @@ import {
   planOccurrenceSync,
   planWindow,
   recurringConfigError,
+  restartAnchor,
   type DesiredPlanFields,
   type ExistingOccurrence,
 } from "./recurring-occurrences";
@@ -69,13 +70,43 @@ describe("반복 지급 회차 (lib/recurring-occurrences)", () => {
   });
 
   it("창 안의 날짜들", () => {
-    assert.deepEqual(occurrenceDatesBetween(monthly(25), "2026-10-01", "2027-01-31"), [
+    assert.deepEqual(occurrenceDatesBetween(monthly(25), "2026-10-25", "2026-10-01", "2027-01-31"), [
       "2026-10-25",
       "2026-11-25",
       "2026-12-25",
       "2027-01-25",
     ]);
-    assert.equal(occurrenceDatesBetween({ frequency: "WEEKLY", intervalCount: 1, weekday: 1 }, "2026-01-01", "2027-12-31").length, 24);
+    assert.equal(occurrenceDatesBetween({ frequency: "WEEKLY", intervalCount: 1, weekday: 1 }, "2026-01-05", "2026-01-01", "2027-12-31").length, 24);
+  });
+
+  it("격월·분기·격주는 기준 회차에서 이어 간다 — 오늘이 바뀌어도 같은 날짜들", () => {
+    const bi: Schedule = { frequency: "MONTHLY", intervalCount: 2, dayOfMonth: 25 };
+    const want = ["2026-12-25", "2027-02-25"];
+    for (const today of ["2026-11-01", "2026-11-10", "2026-12-01"]) {
+      assert.deepEqual(occurrenceDatesBetween(bi, "2026-10-25", today, "2027-02-28"), want, today);
+    }
+    const q: Schedule = { frequency: "MONTHLY", intervalCount: 3, dayOfMonth: 31 };
+    assert.deepEqual(occurrenceDatesBetween(q, "2026-11-30", "2026-12-01", "2027-06-30"), ["2027-02-28", "2027-05-31"]);
+    const biweekly: Schedule = { frequency: "WEEKLY", intervalCount: 2, weekday: 1 };
+    // 기준 11-02(월) → 11-16, 11-30 … 오늘이 11-10 이어도 11-09 가 아니라 11-16
+    assert.deepEqual(occurrenceDatesBetween(biweekly, "2026-11-02", "2026-11-10", "2026-12-01"), ["2026-11-16", "2026-11-30"]);
+  });
+
+  describe("주기를 바꿨을 때 새 기준 회차", () => {
+    const m = (day: number): Schedule => ({ frequency: "MONTHLY", intervalCount: 1, dayOfMonth: day });
+    it("입금요청 폼에서 다음 달부터로 만든 반복(11-25) — 10일로 바꾸면 11-10(12-10 으로 건너뛰지 않음)", () => {
+      assert.equal(restartAnchor({ schedule: m(10), today: "2026-10-20", previousStartsOn: "2026-11-25", lastRunDate: null }), "2026-11-10");
+    });
+    it("아직 처리 전(시작 10-25) — 20일로 바꾸면 오늘 10-20", () => {
+      assert.equal(restartAnchor({ schedule: m(20), today: "2026-10-20", previousStartsOn: "2026-10-25", lastRunDate: null }), "2026-10-20");
+    });
+    it("이번 달 10-05 를 이미 처리 — 25일로 바꿔도 이번 달에 또 안 나가고 11-25", () => {
+      assert.equal(restartAnchor({ schedule: m(25), today: "2026-10-18", previousStartsOn: "2026-09-05", lastRunDate: "2026-10-05" }), "2026-11-25");
+    });
+    it("격월은 마지막 처리에서 두 달 뒤부터", () => {
+      const bi: Schedule = { frequency: "MONTHLY", intervalCount: 2, dayOfMonth: 25 };
+      assert.equal(restartAnchor({ schedule: bi, today: "2026-10-18", previousStartsOn: null, lastRunDate: "2026-10-05" }), "2026-12-25");
+    });
   });
 
   it("월 단위 계획 날짜는 구간 끝날로", () => {

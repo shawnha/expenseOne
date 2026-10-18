@@ -56,6 +56,7 @@ interface TemplateRow {
   plan_date_precision: string;
   starts_on: string | null;
   ends_on: string | null;
+  next_run_date: string;
 }
 
 async function lockTemplate(tx: PlanTx, recurringId: string): Promise<TemplateRow | null> {
@@ -64,7 +65,8 @@ async function lockTemplate(tx: PlanTx, recurringId: string): Promise<TemplateRo
       await tx.execute(sql`SELECT r.id, r.title, r.amount, r.currency, r.company_id, r.submitted_by_id,
                                   r.account_holder, r.frequency, r.interval_count, r.day_of_month,
                                   r.month_of_year, r.weekday, r.is_active, r.plan_project_id, r.plan_brand_id,
-                                  r.plan_date_precision, r.starts_on::text AS starts_on, r.ends_on::text AS ends_on
+                                  r.plan_date_precision, r.starts_on::text AS starts_on, r.ends_on::text AS ends_on,
+                                  r.next_run_date::text AS next_run_date
                              FROM expenseone.recurring_expenses r
                             WHERE r.id = ${recurringId}::uuid
                               FOR UPDATE OF r`),
@@ -187,6 +189,17 @@ export async function syncRecurringPlans(
       if (!flagOn) {
         skipped = "비용계획 스위치 꺼짐";
       } else {
+        // 계획 화면(createPlan)과 같은 규칙: 활성 원화 법인, 활성 분류만. 꺼졌으면 새로 깔지 않는다(이미 깐 건 그대로).
+        const usable = rowsOf<{ company_ok: boolean; brand_ok: boolean }>(
+          await tx.execute(sql`SELECT EXISTS (SELECT 1 FROM expenseone.companies c
+                                               WHERE c.id = ${t.company_id}::uuid AND c.is_active = true
+                                                 AND coalesce(c.currency, 'KRW') = 'KRW') AS company_ok,
+                                      (${t.plan_brand_id}::uuid IS NULL OR EXISTS (
+                                         SELECT 1 FROM expenseone.plan_brands b
+                                          WHERE b.id = ${t.plan_brand_id}::uuid AND b.is_active = true)) AS brand_ok`),
+        )[0];
+        if (!usable?.company_ok) return { ...result, skipped: "비용계획을 쓸 수 없는 회사" };
+        if (!usable?.brand_ok) return { ...result, skipped: "분류가 꺼져 있음" };
         // 등록자가 그 프로젝트를 볼 수 있어야 깐다(참여자에서 빠졌거나 프로젝트가 삭제됐으면 404).
         const ownerAccess = await loadAccess(tx, { userId: t.submitted_by_id, role: "MEMBER" });
         try {
@@ -210,7 +223,9 @@ export async function syncRecurringPlans(
     if (skipped) return { ...result, skipped };
 
     const window = planWindow({ startsOn: t.starts_on, endsOn: t.ends_on }, today, opts.floor);
-    const dates = desired && window ? occurrenceDatesBetween(scheduleOf(t), window.from, window.to) : [];
+    // 기준 회차 = 시작일(옛 행은 다음 처리일). cron 의 처리 날짜와 같은 사슬이어야 계획과 입금요청이 같은 날에 붙는다.
+    const anchor = t.starts_on ?? t.next_run_date;
+    const dates = desired && window ? occurrenceDatesBetween(scheduleOf(t), anchor, window.from, window.to) : [];
     // 창 시작부터 읽는다 — 이번 달 앞쪽에 이미 처리된 회차가 "없는 날"로 보이면 다시 깔린다.
     const existing = await loadExistingOccurrences(tx, t.id, window && window.from < today ? window.from : today);
     const plan = planOccurrenceSync({ desired, dates, existing, today });
@@ -335,8 +350,13 @@ export async function materializeRecurringPlans(today: string = todayKST()) {
   const targets = await withPlanTx(
     async (tx) =>
       rowsOf<{ id: string; submitted_by_id: string; title: string }>(
-        await tx.execute(sql`SELECT id, submitted_by_id, title FROM expenseone.recurring_expenses
-                              WHERE is_active AND plan_project_id IS NOT NULL ORDER BY created_at`),
+        // 켜진 반복 + 멈췄거나 비용계획을 껐는데 안 건드린 미래 계획이 남은 반복(화면에서 정리하다 실패한 경우 여기서 마저 걷는다).
+        await tx.execute(sql`SELECT r.id, r.submitted_by_id, r.title FROM expenseone.recurring_expenses r
+                              WHERE (r.is_active AND r.plan_project_id IS NOT NULL)
+                                 OR EXISTS (SELECT 1 FROM expenseone.recurring_occurrences o
+                                             WHERE o.recurring_expense_id = r.id AND o.plan_id IS NOT NULL
+                                               AND o.run_at IS NULL AND o.occurrence_date >= ${today}::date)
+                              ORDER BY r.created_at`),
       ),
     { readOnly: true },
   );
@@ -416,6 +436,41 @@ export async function claimOccurrence(recurringId: string, date: string): Promis
   });
 }
 
+/**
+ * 사람이 알림 폼으로 이 회차 입금요청을 올리기 직전에 선점한다. 아직 입금요청이 없고, 다른 탭이 2분 안에 선점하지
+ * 않았을 때만 성공. 두 탭(푸시 링크·알림 목록)에서 동시에 올려 같은 달이 두 번 올라가는 것을 막는다 — 입금요청은
+ * 다른 DB 연결(db)로 만들어 한 트랜잭션으로 못 묶으므로 조건부 UPDATE 로 먼저 자리를 잡는다.
+ * 지워진 입금요청을 가리키는 회차(expense_id 는 FK 가 없다)는 빈 것으로 본다.
+ */
+export async function reserveOccurrence(occurrenceId: string, ownerId: string): Promise<"ok" | "not_found" | "taken"> {
+  return withPlanTx(async (tx) => {
+    const row = rowsOf<{ id: string }>(
+      await tx.execute(sql`UPDATE expenseone.recurring_occurrences o SET reserved_at = now(), updated_at = now()
+                            FROM expenseone.recurring_expenses r
+                           WHERE o.id = ${occurrenceId}::uuid AND r.id = o.recurring_expense_id
+                             AND r.submitted_by_id = ${ownerId}::uuid
+                             AND NOT EXISTS (SELECT 1 FROM expenseone.expenses e WHERE e.id = o.expense_id)
+                             AND (o.reserved_at IS NULL OR o.reserved_at < now() - interval '2 minutes')
+                       RETURNING o.id`),
+    )[0];
+    if (row) return "ok";
+    const exists = rowsOf<{ id: string }>(
+      await tx.execute(sql`SELECT o.id FROM expenseone.recurring_occurrences o
+                             JOIN expenseone.recurring_expenses r ON r.id = o.recurring_expense_id
+                            WHERE o.id = ${occurrenceId}::uuid AND r.submitted_by_id = ${ownerId}::uuid`),
+    )[0];
+    return exists ? "taken" : "not_found";
+  });
+}
+
+/** 선점을 푼다(입금요청 만들기가 실패했을 때). */
+export async function releaseReservation(occurrenceId: string): Promise<void> {
+  await withPlanTx(async (tx) => {
+    await tx.execute(sql`UPDATE expenseone.recurring_occurrences SET reserved_at = NULL, updated_at = now()
+                          WHERE id = ${occurrenceId}::uuid`);
+  });
+}
+
 /** 자동 제출이 실패했을 때 처리 표시를 되돌린다(다음 cron 이 다시 시도하게). */
 export async function releaseOccurrence(occurrenceId: string): Promise<void> {
   await withPlanTx(async (tx) => {
@@ -448,7 +503,8 @@ export async function attachExpenseToOccurrence(
       throw new PlanError("CONFLICT", "이 회차에는 이미 입금요청이 올라가 있습니다.");
     }
     await tx.execute(sql`UPDATE expenseone.recurring_occurrences
-                            SET expense_id = ${expenseId}::uuid, run_at = coalesce(run_at, now()), updated_at = now()
+                            SET expense_id = ${expenseId}::uuid, run_at = coalesce(run_at, now()),
+                                reserved_at = NULL, updated_at = now()
                           WHERE id = ${occurrenceId}::uuid`);
     if (!occ.plan_id) return { linkedPlanId: null };
 

@@ -16,7 +16,15 @@
 --   expense_id   이 회차의 입금요청. **FK 를 걸지 않는다** — expenses 에 RI 트리거가 붙으면 결합 검토 P2 위반,
 --                expenses 는 물리 삭제라 지워지면 dangling 이 되는데 읽는 쪽이 JOIN 으로 거른다.
 --   run_at       예정일 처리(자동 제출 또는 알림)를 한 시각. NULL = 아직.
+--   reserved_at  사람이 알림 폼으로 이 회차 입금요청을 올리는 중(조건부 UPDATE 로 선점). 두 탭에서 동시에 올려
+--                같은 달이 두 번 올라가는 것을 막는다. 2분 지나면 버려진 것으로 본다.
 -- 새 표 규칙: 같은 트랜잭션에서 RLS + REVOKE.
+--
+-- ⚠️ 배포 순서: 이 파일을 07:00~08:30 창에 먼저 적용하고 확인한 뒤 PR 을 main 에 머지한다.
+--    거꾸로 하면 비용계획 보드·상세(recurring_occurrences 조인)와 반복 지급 화면이 오류(42P01·42703)로 열리지 않는다.
+--    이 파일만 먼저 적용해도 옛 코드는 그대로 돈다(새 칸은 기본값이 있고, 옛 등록 코드는 계좌·카테고리를 늘 넣는다).
+-- 잠금: ALTER recurring_expenses(ACCESS EXCLUSIVE, 0건·cron 만 읽음), FK 검증으로 plan_projects·plan_brands·cost_plans 에
+--    SHARE ROW EXCLUSIVE 를 잠깐 — 그 사이 계획 쓰기가 기다린다. lock_timeout 3s 라 못 잡으면 통째로 실패(재시도).
 SET lock_timeout = '3s';
 SET statement_timeout = '30s';
 BEGIN;
@@ -55,6 +63,7 @@ CREATE TABLE expenseone.recurring_occurrences (
   plan_version integer,
   expense_id uuid,
   run_at timestamptz,
+  reserved_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT recurring_occurrences_once UNIQUE (recurring_expense_id, occurrence_date),

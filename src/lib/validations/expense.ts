@@ -372,13 +372,13 @@ export const recurringExpenseBaseSchema = z.object({
   companyId: z.string().uuid("회사를 선택해주세요"),
 
   frequency: z.enum(recurringFrequencies),
-  intervalCount: z.number().int().min(1).max(12).optional(),
-  dayOfMonth: z.number().int().min(1).max(31).nullable().optional(),
+  intervalCount: z.number().int().min(1, "간격은 1~12로 골라주세요").max(12, "간격은 1~12로 골라주세요").optional(),
+  dayOfMonth: z.number().int().min(1, "날짜는 1~31일로 골라주세요").max(31, "날짜는 1~31일로 골라주세요").nullable().optional(),
   monthOfYear: z.number().int().min(1).max(12).nullable().optional(),
   weekday: z.number().int().min(0).max(6).nullable().optional(),
 
   /** 납입 기일을 생성일로부터 며칠 뒤로. null이면 기일 없음. */
-  dueDateOffsetDays: z.number().int().min(0).max(90).nullable().optional(),
+  dueDateOffsetDays: z.number().int().min(0, "납입 기일은 0~90일로 입력해주세요").max(90, "납입 기일은 0~90일로 입력해주세요").nullable().optional(),
   attachFiles: z.boolean().optional(),
   isActive: z.boolean().optional(),
 

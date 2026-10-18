@@ -2,13 +2,14 @@ import { db } from "@/lib/db";
 import {
   recurringExpenses,
   recurringExpenseAttachments,
+  recurringOccurrences,
   attachments,
   companies,
   expenses,
   users,
 } from "@/lib/db/schema";
 import { planBrands, planProjects } from "@/lib/db/schema-plans";
-import { and, eq, lte, asc, desc, count, sql } from "drizzle-orm";
+import { and, eq, lte, asc, desc, count, isNotNull, sql } from "drizzle-orm";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createExpense } from "@/services/expense.service";
 import { createNotification } from "@/services/notification.service";
@@ -19,6 +20,8 @@ import {
   claimOccurrence,
   getOccurrence,
   releaseOccurrence,
+  releaseReservation,
+  reserveOccurrence,
   syncRecurringPlans,
   todayKST,
   type SyncResult,
@@ -30,12 +33,19 @@ import { PlanError } from "@/lib/plans/errors";
 import { rowsOf } from "@/lib/plans/rows";
 import {
   nextRunAfter,
-  firstRunOnOrAfter,
   describeSchedule,
   dueDateFor,
   type Schedule,
 } from "@/lib/recurring-schedule";
-import { recurringConfigError, toRequestMode, type RequestMode } from "@/lib/recurring-occurrences";
+import {
+  firstMatchingOnOrAfter,
+  firstOnOrAfterFromAnchor,
+  monthStartOf,
+  recurringConfigError,
+  restartAnchor,
+  toRequestMode,
+  type RequestMode,
+} from "@/lib/recurring-occurrences";
 import {
   recurringScheduleIssue,
   type RecurringExpenseInput,
@@ -89,9 +99,13 @@ function toSchedule(r: {
   };
 }
 
-/** 다음 처리일. 시작일 전이면 시작일부터, 아니면 오늘부터(오늘 포함). */
-function firstRunFrom(schedule: Schedule, startsOn: string | null, today: string): string {
-  return firstRunOnOrAfter(schedule, startsOn && startsOn > today ? startsOn : today);
+/** 이 반복에서 마지막으로 처리(자동 제출·알림)한 회차 날짜. 없으면 null. */
+async function lastRunOccurrenceDate(recurringId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ d: sql<string | null>`max(${recurringOccurrences.occurrenceDate})::text` })
+    .from(recurringOccurrences)
+    .where(and(eq(recurringOccurrences.recurringExpenseId, recurringId), isNotNull(recurringOccurrences.runAt)));
+  return row?.d ?? null;
 }
 
 function planErrorToApp(err: unknown): never {
@@ -124,13 +138,18 @@ async function assertPlanTarget(
         if (project.companyId !== t.companyId) {
           throw new PlanError("VALIDATION_ERROR", "반복의 회사와 비용계획 프로젝트의 법인이 다릅니다.");
         }
-        if (t.planBrandId) {
-          const ok = rowsOf<{ ok: boolean }>(
-            await tx.execute(sql`SELECT EXISTS (SELECT 1 FROM expenseone.plan_brands b
-                                   WHERE b.id = ${t.planBrandId}::uuid AND b.company_id = ${t.companyId}::uuid) AS ok`),
-          )[0]?.ok;
-          if (!ok) throw new PlanError("VALIDATION_ERROR", "분류가 이 법인 것이 아닙니다.");
-        }
+        // 계획 화면(createPlan)과 같은 규칙 — 활성 원화 법인, 활성 분류.
+        const ok = rowsOf<{ company_ok: boolean; brand_ok: boolean }>(
+          await tx.execute(sql`SELECT EXISTS (SELECT 1 FROM expenseone.companies c
+                                               WHERE c.id = ${t.companyId}::uuid AND c.is_active = true
+                                                 AND coalesce(c.currency, 'KRW') = 'KRW') AS company_ok,
+                                      (${t.planBrandId}::uuid IS NULL OR EXISTS (
+                                         SELECT 1 FROM expenseone.plan_brands b
+                                          WHERE b.id = ${t.planBrandId}::uuid AND b.company_id = ${t.companyId}::uuid
+                                            AND b.is_active = true)) AS brand_ok`),
+        )[0];
+        if (!ok?.company_ok) throw new PlanError("VALIDATION_ERROR", "이 회사는 비용계획에 쓸 수 없습니다.");
+        if (!ok?.brand_ok) throw new PlanError("VALIDATION_ERROR", "분류가 이 법인 것이 아니거나 꺼져 있습니다.");
       },
       { readOnly: true },
     );
@@ -278,9 +297,13 @@ export async function createRecurringExpense(input: RecurringExpenseInput, actor
     monthOfYear: input.monthOfYear ?? null,
     weekday: input.weekday ?? null,
   });
-  // 시작일 = 고른 날 또는 오늘 이후 첫 회차. 처리는 오늘 이전으로 거슬러 가지 않는다.
-  const startsOn = t.startsOn ?? firstRunOnOrAfter(schedule, today);
-  const nextRunDate = firstRunFrom(schedule, startsOn, today);
+  // 시작일 = 기준 회차. 고른 날(주기에 맞는 날로 맞춤) 또는 오늘 이후 첫 회차.
+  // 처리는 오늘 이전으로 거슬러 가지 않는다 — 기준 회차에서 이어 가며 오늘 이상인 첫 회차부터.
+  const startsOn = firstMatchingOnOrAfter(schedule, t.startsOn ?? today);
+  if (t.endsOn && t.endsOn < startsOn) {
+    throw new AppError("VALIDATION_ERROR", "끝나는 날이 첫 회차보다 앞입니다.");
+  }
+  const nextRunDate = firstOnOrAfterFromAnchor(schedule, startsOn, today);
 
   const [created] = await db
     .insert(recurringExpenses)
@@ -323,11 +346,14 @@ export async function createRecurringExpense(input: RecurringExpenseInput, actor
   }
 
   // 처음 만들 때는 시작일이 이번 달 앞쪽이어도(계획 화면에서 지난 날짜로 만든 경우) 그날부터 깐다.
-  const planSync = created.planProjectId ? await syncPlansQuietly(created.id, actor.id, startsOn) : null;
+  // 지난달 이전까지는 내려가지 않는다 — 아무도 처리하지 않을 지난 카드가 쌓이고, 매주 반복이면 상한(24)을 지난 카드가 채운다.
+  const monthStart = monthStartOf(today);
+  const planFloor = startsOn > monthStart ? startsOn : monthStart;
+  const planSync = created.planProjectId ? await syncPlansQuietly(created.id, actor.id, planFloor) : null;
   return { ...created, copiedAttachments, planSync };
 }
 
-const SCHEDULE_KEYS = ["frequency", "intervalCount", "dayOfMonth", "monthOfYear", "weekday", "startsOn"] as const;
+const SCHEDULE_KEYS = ["frequency", "intervalCount", "dayOfMonth", "monthOfYear", "weekday"] as const;
 
 export async function updateRecurringExpense(id: string, input: RecurringExpenseUpdateInput, actor: RecurringActor) {
   const existing = await requireOwnTemplate(id, actor);
@@ -348,19 +374,43 @@ export async function updateRecurringExpense(id: string, input: RecurringExpense
     await assertPlanTarget(actor, merged);
   }
 
-  // 다음 처리일을 다시 잡는 경우:
-  //  - 주기·시작일이 바뀜 — 안 그러면 옛 주기의 날짜에 한 번 더 처리되고 나서야 새 주기가 먹힌다.
-  //  - 멈췄다가 다시 켬 — 멈춘 동안 밀린 회차를 한꺼번에 따라잡으면 입금요청·알림이 몰려 나간다.
+  // 기준 회차(starts_on)·다음 처리일을 다시 잡는 경우:
+  //  - 시작일을 직접 고름 → 그날(주기에 맞춤)이 새 기준.
+  //  - 주기만 바뀜 → 옛 시작일은 새 주기의 회차가 아니다. restartAnchor 가 오늘·옛 시작 달·마지막 처리 회차를 보고 새 기준을 잡는다
+  //    (입금요청 폼에서 다음 달부터로 만든 반복의 날짜를 바꿔도 한 달 건너뛰지 않고, 이번 달 처리를 마친 반복이 같은 달에 또 나가지 않게).
+  //  - 멈췄다가 다시 켬 → 밀린 회차를 한꺼번에 따라잡지 않고 오늘 이후 첫 회차부터.
+  const schedule = toSchedule(merged);
   const scheduleChanged = SCHEDULE_KEYS.some((k) => input[k] !== undefined && input[k] !== existing[k]);
+  const startPicked = input.startsOn != null && input.startsOn !== existing.startsOn;
   const resumed = input.isActive === true && !existing.isActive;
+  let startsOn = merged.startsOn;
+  if (startPicked) {
+    startsOn = firstMatchingOnOrAfter(schedule, input.startsOn!);
+  } else if (scheduleChanged) {
+    startsOn = restartAnchor({
+      schedule,
+      today,
+      previousStartsOn: existing.startsOn,
+      lastRunDate: await lastRunOccurrenceDate(id),
+    });
+  }
   const nextRunDate =
-    scheduleChanged || resumed ? firstRunFrom(toSchedule(merged), merged.startsOn, today) : existing.nextRunDate;
+    startPicked || scheduleChanged || resumed
+      ? firstOnOrAfterFromAnchor(schedule, startsOn ?? existing.nextRunDate, today)
+      : existing.nextRunDate;
+  if (merged.endsOn && startsOn && merged.endsOn < startsOn) {
+    throw new AppError("VALIDATION_ERROR", "끝나는 날이 첫 회차보다 앞입니다.");
+  }
+  if (merged.isActive && merged.endsOn && nextRunDate > merged.endsOn && (resumed || startPicked || scheduleChanged)) {
+    throw new AppError("VALIDATION_ERROR", "끝나는 날이 지났어요. 끝나는 날을 먼저 바꿔 주세요.");
+  }
 
   const [updated] = await db
     .update(recurringExpenses)
     .set({
       ...stripUndefined(input),
       planBrandId: merged.planBrandId,
+      startsOn,
       nextRunDate,
       updatedAt: new Date(),
     })
@@ -385,7 +435,11 @@ export async function deleteRecurringExpense(id: string, actor: RecurringActor) 
   if (existing.planProjectId) {
     await db.update(recurringExpenses).set({ isActive: false }).where(eq(recurringExpenses.id, id));
     const r = await syncPlansQuietly(id, actor.id);
-    if ("error" in r) throw new AppError("INTERNAL_ERROR", "비용계획 정리에 실패해 삭제하지 않았습니다. 잠시 후 다시 시도해주세요.");
+    if ("error" in r) {
+      // 삭제를 안 했으니 멈춤도 되돌린다 — 안 그러면 '삭제 안 됨'인데 처리가 조용히 멈춘다.
+      await db.update(recurringExpenses).set({ isActive: existing.isActive }).where(eq(recurringExpenses.id, id));
+      throw new AppError("INTERNAL_ERROR", "비용계획 정리에 실패해 삭제하지 않았습니다. 잠시 후 다시 시도해주세요.");
+    }
   }
 
   const files = await db
@@ -574,8 +628,8 @@ export interface RecurringPrefill {
 /** 알림 링크(/expenses/new/deposit-request?occurrence=…)로 들어왔을 때. 등록자·관리자만. */
 export async function getRecurringPrefill(occurrenceId: string, actor: RecurringActor): Promise<RecurringPrefill | null> {
   const occ = await getOccurrence(occurrenceId);
-  if (!occ) return null;
-  if (actor.role !== "ADMIN" && occ.submittedById !== actor.id) return null;
+  // 등록자 본인만(관리자도 대신 올리지 않는다 — reserveOccurrenceForSubmit 참고).
+  if (!occ || occ.submittedById !== actor.id) return null;
   const [r] = await db.select().from(recurringExpenses).where(eq(recurringExpenses.id, occ.recurringId));
   if (!r) return null;
   return {
@@ -597,17 +651,19 @@ export async function getRecurringPrefill(occurrenceId: string, actor: Recurring
 }
 
 /**
- * 입금요청을 올리기 **전에** 회차를 확인한다(POST /api/expenses 의 recurringOccurrenceId).
- * 이미 이 회차로 올라간 요청이 있으면 막는다 — 알림을 두 번 눌러 같은 달을 두 번 올리는 경우.
+ * 입금요청을 올리기 **전에** 회차를 선점한다(POST /api/expenses 의 recurringOccurrenceId).
+ * 등록자 본인만 — 관리자가 대신 올리면 입금요청이 관리자 이름으로 생기고(승인 알림도 관리자에게), 등록자의 회차는
+ * '이미 올림'이 되는데 그 건은 등록자가 열어 볼 수도 없다.
+ * 이미 이 회차로 올라간 요청이 있거나 다른 탭에서 올리는 중이면 막는다.
  */
-export async function assertOccurrenceOpen(occurrenceId: string, actor: RecurringActor): Promise<void> {
-  const occ = await getOccurrence(occurrenceId);
-  if (!occ || (actor.role !== "ADMIN" && occ.submittedById !== actor.id)) {
-    throw new AppError("NOT_FOUND", "반복 회차를 찾을 수 없습니다.");
-  }
-  if (occ.expenseId) {
-    throw new AppError("VALIDATION_ERROR", "이 회차의 입금요청은 이미 올라가 있습니다.");
-  }
+export async function reserveOccurrenceForSubmit(occurrenceId: string, actor: RecurringActor): Promise<void> {
+  const r = await reserveOccurrence(occurrenceId, actor.id);
+  if (r === "not_found") throw new AppError("NOT_FOUND", "반복 회차를 찾을 수 없습니다.");
+  if (r === "taken") throw new AppError("VALIDATION_ERROR", "이 회차의 입금요청은 이미 올라갔거나 다른 화면에서 올리는 중입니다.");
+}
+
+export async function releaseOccurrenceReservation(occurrenceId: string): Promise<void> {
+  await releaseReservation(occurrenceId).catch((e) => console.error("[Recurring] 회차 선점 풀기 실패:", e));
 }
 
 /** 입금요청을 올린 뒤 회차·비용계획에 붙인다. 실패해도 입금요청은 그대로(로그만). */
@@ -656,7 +712,7 @@ export async function generateDueRecurringExpenses() {
   for (const r of due) {
     const mode = toRequestMode(r.requestMode);
     const schedule = toSchedule(r);
-    const res = { recurringId: r.id, title: r.title, mode, created: 0, reminded: 0, capped: false } as (typeof results)[number];
+    const res: (typeof results)[number] = { recurringId: r.id, title: r.title, mode, created: 0, reminded: 0, capped: false };
     let cursor = r.nextRunDate;
     let lastExpenseId: string | null = null;
     const remindLinks: Array<{ occurrenceId: string; date: string }> = [];
@@ -670,6 +726,8 @@ export async function generateDueRecurringExpenses() {
       continue;
     }
 
+    // 회차 하나씩: 처리 표시(claim) → 일 → 커서 저장. 한 회차가 실패하면 거기서 멈추고(다음 cron 이 그 회차부터),
+    // 이미 끝낸 회차의 알림은 아래에서 **반드시** 보낸다 — 자동 제출됐는데 본인이 모르면 금액을 못 고친다.
     try {
       let handled = 0;
       while (cursor <= today) {
@@ -683,49 +741,54 @@ export async function generateDueRecurringExpenses() {
         }
 
         const claim = await claimOccurrence(r.id, cursor);
-        if (claim) {
-          if (mode === "AUTO") {
-            try {
-              const expense = await createExpense(
-                {
-                  type: "DEPOSIT_REQUEST",
-                  title: r.title,
-                  description: r.description,
-                  amount: r.amount,
-                  currency: r.currency as "KRW" | "USD",
-                  category: r.category,
-                  transactionDate: cursor,
-                  companyId: r.companyId,
-                  bankName: r.bankName,
-                  accountHolder: r.accountHolder,
-                  accountNumber: r.accountNumber,
-                  isUrgent: false,
-                  isPrePaid: false,
-                  prePaidPercentage: null,
-                  dueDate: dueDateFor(cursor, r.dueDateOffsetDays),
-                  hasFreelancerWithholding: false,
-                  isPurchase: false,
-                } as never,
-                owner.id,
-                owner.name,
-                owner.email,
-                r.companyId,
-              );
-              if (r.attachFiles) await copyTemplateAttachments(r.id, expense.id, owner.id);
-              await attachSubmittedExpense(claim.occurrenceId, expense.id, owner.id);
-              lastExpenseId = expense.id;
-              res.created++;
-            } catch (err) {
-              // 처리 표시를 되돌려 다음 cron 이 이 회차를 다시 시도하게 한다. 커서도 밀지 않는다.
-              await releaseOccurrence(claim.occurrenceId).catch((e) =>
-                console.error("[Recurring] 회차 표시 되돌리기 실패:", e),
-              );
-              throw err;
-            }
-          } else if (mode === "REMIND") {
-            remindLinks.push({ occurrenceId: claim.occurrenceId, date: cursor });
-            res.reminded++;
+        if (claim && mode === "AUTO") {
+          let expenseId: string;
+          try {
+            const expense = await createExpense(
+              {
+                type: "DEPOSIT_REQUEST",
+                title: r.title,
+                description: r.description,
+                amount: r.amount,
+                currency: r.currency as "KRW" | "USD",
+                category: r.category,
+                transactionDate: cursor,
+                companyId: r.companyId,
+                bankName: r.bankName,
+                accountHolder: r.accountHolder,
+                accountNumber: r.accountNumber,
+                isUrgent: false,
+                isPrePaid: false,
+                prePaidPercentage: null,
+                dueDate: dueDateFor(cursor, r.dueDateOffsetDays),
+                hasFreelancerWithholding: false,
+                isPurchase: false,
+              } as never,
+              owner.id,
+              owner.name,
+              owner.email,
+              r.companyId,
+            );
+            expenseId = expense.id;
+          } catch (err) {
+            // 입금요청이 안 만들어졌을 때만 처리 표시를 되돌린다(다음 cron 이 다시 시도). 커서도 그대로.
+            await releaseOccurrence(claim.occurrenceId).catch((e) =>
+              console.error("[Recurring] 회차 표시 되돌리기 실패:", e),
+            );
+            throw err;
           }
+          lastExpenseId = expenseId;
+          res.created++;
+          // 입금요청이 생긴 뒤의 일은 실패해도 되돌리지 않는다 — 되돌리면 다음 날 같은 회차가 또 제출된다.
+          // 회차에 먼저 적고(중복 방지의 근거), 첨부는 그다음. 반복 첨부가 있으면 늘 복사한다(attach_files 와 무관 —
+          // 반복 화면에서 올린 첨부는 그 칸을 켜지 않는다).
+          await attachSubmittedExpense(claim.occurrenceId, expenseId, owner.id);
+          await copyTemplateAttachments(r.id, expenseId, owner.id).catch((e) =>
+            console.error(`[Recurring] ${r.title} 첨부 복사 실패:`, e),
+          );
+        } else if (claim && mode === "REMIND") {
+          remindLinks.push({ occurrenceId: claim.occurrenceId, date: cursor });
+          res.reminded++;
         }
 
         handled++;
@@ -749,13 +812,15 @@ export async function generateDueRecurringExpenses() {
           .where(eq(recurringExpenses.id, r.id));
         res.ended = true;
       }
-
-      await notifyOwner(r, owner.id, mode, res.created, lastExpenseId, remindLinks);
-      results.push(res);
     } catch (err) {
       console.error(`[Recurring] ${r.title} 처리 실패:`, err);
-      results.push({ ...res, error: err instanceof Error ? err.message : "알 수 없는 오류" });
+      res.error = err instanceof Error ? err.message : "알 수 없는 오류";
     }
+
+    await notifyOwner(r, owner.id, mode, res.created, lastExpenseId, remindLinks).catch((e) =>
+      console.error(`[Recurring] ${r.title} 알림 실패:`, e),
+    );
+    results.push(res);
   }
 
   return { checked: due.length, results };
@@ -820,7 +885,8 @@ export async function listOpenReminders(actor: RecurringActor) {
                               WHERE r.request_mode = 'REMIND' AND o.run_at IS NOT NULL
                                 AND NOT EXISTS (SELECT 1 FROM expenseone.expenses e WHERE e.id = o.expense_id)
                                 AND o.occurrence_date >= (now() AT TIME ZONE 'Asia/Seoul')::date - 62
-                                AND (${actor.role === "ADMIN"}::boolean OR r.submitted_by_id = ${actor.id}::uuid)
+                                -- 등록자 본인 것만(관리자도) — 남의 회차를 대신 올리면 관리자 이름의 입금요청이 된다.
+                                AND r.submitted_by_id = ${actor.id}::uuid
                               ORDER BY o.occurrence_date`),
       ),
     { readOnly: true },

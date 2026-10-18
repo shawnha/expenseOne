@@ -68,12 +68,18 @@ export async function POST(request: NextRequest) {
         : null;
     // 계획 DB 풀(plans-client)은 이 경로에서만 필요하다 — 평소 입금요청 제출엔 불러오지 않는다(결합 검토 P6).
     const recurring = occurrenceId ? await import("@/services/recurring-expense.service") : null;
-    if (occurrenceId && recurring) await recurring.assertOccurrenceOpen(occurrenceId, { id: user.id, role: user.role });
+    if (occurrenceId && recurring) await recurring.reserveOccurrenceForSubmit(occurrenceId, { id: user.id, role: user.role });
 
-    const expense =
-      parsed.data.type === "REFUND"
-        ? await createRefund(parsed.data, user.id, user.role, user.name, user.email)
-        : await createExpense(parsed.data, user.id, user.name, user.email, user.companyId);
+    let expense: Awaited<ReturnType<typeof createExpense>>;
+    try {
+      expense =
+        parsed.data.type === "REFUND"
+          ? await createRefund(parsed.data, user.id, user.role, user.name, user.email)
+          : await createExpense(parsed.data, user.id, user.name, user.email, user.companyId);
+    } catch (err) {
+      if (occurrenceId && recurring) await recurring.releaseOccurrenceReservation(occurrenceId);
+      throw err;
+    }
 
     if (occurrenceId && recurring && expense.id) await recurring.attachSubmittedExpense(occurrenceId, expense.id, user.id);
 
