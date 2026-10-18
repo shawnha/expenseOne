@@ -9,7 +9,7 @@ import { sendPushToUser, sendPushToAdmins } from "./push.service";
 // ---------------------------------------------------------------------------
 export async function createNotification(data: {
   recipientId: string;
-  type: "DEPOSIT_APPROVED" | "DEPOSIT_REJECTED" | "NEW_DEPOSIT_REQUEST" | "REMAINING_PAYMENT_REQUEST" | "REMAINING_PAYMENT_APPROVED" | "NEW_USER_JOINED" | "GOWID_NEW_TRANSACTION";
+  type: "DEPOSIT_APPROVED" | "DEPOSIT_REJECTED" | "NEW_DEPOSIT_REQUEST" | "REMAINING_PAYMENT_REQUEST" | "REMAINING_PAYMENT_APPROVED" | "NEW_USER_JOINED" | "DUE_DATE_REMINDER" | "GOWID_NEW_TRANSACTION";
   title: string;
   message: string;
   relatedExpenseId?: string | null;

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { requireAuth, errorResponse, handleError, validateOrigin, jsonWithCache } from "@/lib/api-utils";
+import { requireAuth, errorResponse, handleError, validateOrigin, validateUUID, jsonWithCache } from "@/lib/api-utils";
 import {
   createExpenseSchema,
   expenseQuerySchema,
@@ -61,10 +61,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 반복 지급 알림에서 들어온 폼(?occurrence=…)이면 그 회차에 붙인다. 이미 올라간 회차면 막는다.
+    const occurrenceId =
+      parsed.data.type === "DEPOSIT_REQUEST" && typeof body?.recurringOccurrenceId === "string"
+        ? validateUUID(body.recurringOccurrenceId)
+        : null;
+    // 계획 DB 풀(plans-client)은 이 경로에서만 필요하다 — 평소 입금요청 제출엔 불러오지 않는다(결합 검토 P6).
+    const recurring = occurrenceId ? await import("@/services/recurring-expense.service") : null;
+    if (occurrenceId && recurring) await recurring.assertOccurrenceOpen(occurrenceId, { id: user.id, role: user.role });
+
     const expense =
       parsed.data.type === "REFUND"
         ? await createRefund(parsed.data, user.id, user.role, user.name, user.email)
         : await createExpense(parsed.data, user.id, user.name, user.email, user.companyId);
+
+    if (occurrenceId && recurring && expense.id) await recurring.attachSubmittedExpense(occurrenceId, expense.id, user.id);
 
     revalidatePath("/");
     revalidatePath("/expenses");

@@ -85,19 +85,10 @@ async function verifyMagicBytes(file: File, declaredMime: string): Promise<boole
   );
 }
 
-// ---------------------------------------------------------------------------
-// uploadAttachment
-// ---------------------------------------------------------------------------
-export async function uploadAttachment(params: {
-  file: File;
-  expenseId: string;
-  documentType: string;
-  uploadedById: string;
-  /** 관리자는 남의 비용에도 올린다(2026-10-04). uploadedById 는 올린 관리자 그대로 — 누가 올렸는지 남는다. */
-  uploaderRole: "MEMBER" | "ADMIN";
-}) {
-  const { file, expenseId, documentType, uploadedById, uploaderRole } = params;
-
+/**
+ * 파일 하나의 형식·내용·크기 검사. 비용 첨부와 반복 지급 첨부(recurring-expense.service)가 같은 규칙을 쓴다.
+ */
+export async function validateUploadFile(file: File): Promise<void> {
   // 1. Validate MIME type (Content-Type header)
   if (!ALLOWED_MIME_TYPES.includes(file.type)) {
     throw new AppError(
@@ -122,6 +113,22 @@ export async function uploadAttachment(params: {
       `파일 크기가 10MB를 초과합니다.`,
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// uploadAttachment
+// ---------------------------------------------------------------------------
+export async function uploadAttachment(params: {
+  file: File;
+  expenseId: string;
+  documentType: string;
+  uploadedById: string;
+  /** 관리자는 남의 비용에도 올린다(2026-10-04). uploadedById 는 올린 관리자 그대로 — 누가 올렸는지 남는다. */
+  uploaderRole: "MEMBER" | "ADMIN";
+}) {
+  const { file, expenseId, documentType, uploadedById, uploaderRole } = params;
+
+  await validateUploadFile(file);
 
   // 3. Check total size per expense
   const existing = await db
