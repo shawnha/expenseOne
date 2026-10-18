@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { expenses, notifications, purchaseInvoiceLines, users } from "@/lib/db/schema";
+import { expensePrePaidAmounts, expenses, notifications, purchaseInvoiceLines, users } from "@/lib/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import {
   assertConvertible,
@@ -121,6 +121,9 @@ export async function convertDepositRequestToCard(
     if (!changed) {
       throw new ConvertError("CONFLICT", "비용 상태가 변경되었습니다. 페이지를 새로고침해주세요.");
     }
+
+    // 선지급을 껐으니 금액으로 정한 선지급금도 지운다(0028). 남기면 고아 줄이 된다.
+    await tx.delete(expensePrePaidAmounts).where(eq(expensePrePaidAmounts.expenseId, expenseId));
 
     // 4. 관리자에게 갔던 '새 입금요청' 알림은 읽음 처리한다 — 승인할 게 없어졌다.
     //    notifications.related_expense_id가 비용을 가리킨다. 새 알림 유형은 만들지 않는다.

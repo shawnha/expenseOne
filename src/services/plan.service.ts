@@ -12,6 +12,7 @@ import {
   planSeenAll,
 } from "@/lib/db/schema-plans";
 import { users } from "@/lib/db/schema";
+import { describeSchedule, type Schedule } from "@/lib/recurring-schedule";
 import { dbErrorCode, PlanError, mapDbError } from "@/lib/plans/errors";
 import { num, rowsOf } from "@/lib/plans/rows";
 import { containsPattern } from "@/lib/plans/search";
@@ -107,7 +108,7 @@ interface LogEntry {
  * 이력은 추가만 한다(UPDATE·DELETE 없음). companyId 는 항상 계획·사업의 법인이어야 한다 —
  * 다르면 복합 FK 가 거부한다(V-SECURITY-3, T21).
  */
-async function logChange(tx: PlanTx, entry: LogEntry): Promise<void> {
+export async function logChange(tx: PlanTx, entry: LogEntry): Promise<void> {
   await tx.insert(planChangeLog).values({
     companyId: entry.companyId,
     projectId: entry.projectId ?? null,
@@ -680,6 +681,8 @@ export interface PlanCard {
   paid: boolean;
   /** 내가 마지막으로 본 뒤 **다른 사람이** 추가·수정·취소했으면 그 요약(0027). 없으면 null. */
   change: ChangeMark | null;
+  /** 반복 지급이 깐 계획이면 그 반복 id(0029). 카드에 '반복' 표시, 상세에서 반복 설정으로 가는 길. */
+  recurringId: string | null;
 }
 
 // --- "지난번 본 뒤 바뀐 것" (drizzle/0027, lib/plans/changes.ts) ------------------------------
@@ -783,6 +786,7 @@ async function loadPlanCards(tx: PlanTx, access: PlanAccess, f: CardFilters): Pr
     erp_applied: boolean;
     paid: boolean;
     changes: unknown;
+    recurring_id: string | null;
   }>(
     await tx.execute(sql`SELECT p.id, p.company_id, c.name AS company_name, c.slug AS company_slug,
                                 p.project_id, j.name AS project_name,
@@ -796,12 +800,14 @@ async function loadPlanCards(tx: PlanTx, access: PlanAccess, f: CardFilters): Pr
                                 coalesce(n.unread, 0)::int AS unread,
                                 p.erp_applied_at IS NOT NULL AS erp_applied,
                                 p.paid_at IS NOT NULL AS paid,
-                                ch.changes
+                                ch.changes,
+                                ro.recurring_expense_id AS recurring_id
         FROM expenseone.cost_plans p
         JOIN expenseone.companies c ON c.id = p.company_id
         JOIN expenseone.plan_projects j ON j.id = p.project_id
         LEFT JOIN expenseone.plan_brands b ON b.id = p.brand_id
         LEFT JOIN expenseone.users u ON u.id = p.created_by_id
+        LEFT JOIN expenseone.recurring_occurrences ro ON ro.plan_id = p.id
         LEFT JOIN LATERAL (
           SELECT sum(x.snapshot_amount) AS requested_sum, count(*) AS link_count
             FROM expenseone.plan_expense_links x
@@ -853,6 +859,7 @@ async function loadPlanCards(tx: PlanTx, access: PlanAccess, f: CardFilters): Pr
       erpApplied: r.erp_applied === true,
       paid: r.paid === true,
       change: summarizeChanges(parseChangeEntries(r.changes)),
+      recurringId: r.recurring_id,
     };
   });
 }
@@ -1473,6 +1480,8 @@ export interface PlanDetail {
     paidAt: string | null;
     /** 표시한 사람 이름. 사용자가 물리 삭제되면 NULL(시각은 남는다). */
     paidByName: string | null;
+    /** 반복 지급이 깐 계획이면 그 반복(0029). 등록자·관리자에겐 반복 설정으로 가는 길을 보여 준다. */
+    recurring: { id: string; scheduleLabel: string; ownerId: string } | null;
   };
   summary: { requestedSum: number; linkCount: number; diff: number };
   links: PlanLinkRow[];
@@ -1615,6 +1624,13 @@ export async function getPlanDetail(actor: PlanActorInput, planId: string): Prom
       erp_applied_by_name: string | null;
       paid_at: Date | null;
       paid_by_name: string | null;
+      recurring_id: string | null;
+      r_frequency: string | null;
+      r_interval_count: number | null;
+      r_day_of_month: number | null;
+      r_month_of_year: number | null;
+      r_weekday: number | null;
+      r_owner_id: string | null;
     }>(
       await tx.execute(sql`SELECT p.id, p.company_id, c.name AS company_name, c.slug AS company_slug,
                                   p.project_id, j.name AS project_name, p.brand_id, b.name AS brand_name,
@@ -1623,7 +1639,10 @@ export async function getPlanDetail(actor: PlanActorInput, planId: string): Prom
                                   p.created_by_id, u.name AS owner_name, w.name AS updated_by_name,
                                   p.created_at, p.updated_at,
                                   p.erp_applied_at, x.name AS erp_applied_by_name,
-                                  p.paid_at, pb.name AS paid_by_name
+                                  p.paid_at, pb.name AS paid_by_name,
+                                  r.id AS recurring_id, r.frequency AS r_frequency, r.interval_count AS r_interval_count,
+                                  r.day_of_month AS r_day_of_month, r.month_of_year AS r_month_of_year,
+                                  r.weekday AS r_weekday, r.submitted_by_id AS r_owner_id
           FROM expenseone.cost_plans p
           JOIN expenseone.companies c ON c.id = p.company_id
           JOIN expenseone.plan_projects j ON j.id = p.project_id
@@ -1632,6 +1651,8 @@ export async function getPlanDetail(actor: PlanActorInput, planId: string): Prom
           LEFT JOIN expenseone.users w ON w.id = p.updated_by_id
           LEFT JOIN expenseone.users x ON x.id = p.erp_applied_by_id
           LEFT JOIN expenseone.users pb ON pb.id = p.paid_by_id
+          LEFT JOIN expenseone.recurring_occurrences ro ON ro.plan_id = p.id
+          LEFT JOIN expenseone.recurring_expenses r ON r.id = ro.recurring_expense_id
          WHERE p.id = ${planId}::uuid AND j.deleted_at IS NULL`),
     )[0];
     if (!row) throw new PlanError("NOT_FOUND", "계획을 찾을 수 없습니다.");
@@ -1702,6 +1723,20 @@ export async function getPlanDetail(actor: PlanActorInput, planId: string): Prom
         erpAppliedByName: row.erp_applied_by_name,
         paidAt: iso(row.paid_at),
         paidByName: row.paid_by_name,
+        recurring:
+          row.recurring_id && row.r_frequency && row.r_owner_id
+            ? {
+                id: row.recurring_id,
+                ownerId: row.r_owner_id,
+                scheduleLabel: describeSchedule({
+                  frequency: row.r_frequency as Schedule["frequency"],
+                  intervalCount: num(row.r_interval_count ?? 1),
+                  dayOfMonth: row.r_day_of_month,
+                  monthOfYear: row.r_month_of_year,
+                  weekday: row.r_weekday,
+                }),
+              }
+            : null,
       },
       summary,
       links,

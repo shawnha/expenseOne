@@ -13,6 +13,7 @@ import { ExpenseTabList } from "@/components/dashboard/expense-tab-list";
 import { MonthNavigator } from "@/components/dashboard/month-navigator";
 import { TiltCard } from "@/components/layout/tilt-card";
 import { PlansEntryLink } from "@/components/plans/plans-entry-link";
+import { getPrePaidFixedAmounts } from "@/services/expense.service";
 
 // ---------------------------------------------------------------------------
 // Label maps
@@ -147,7 +148,15 @@ async function getDashboardData(monthKey?: string) {
   const submittedCount = submittedCountRes.count ?? 0;
   const pendingCount = pendingCountRes.count ?? 0;
   const approvedCount = approvedCountRes.count ?? 0;
-  const recentExpenses = recentExpensesRes.data ?? [];
+  // 금액으로 정한 선지급(0028)은 별도 표라 supabase 로는 못 읽는다 — 칩에 금액을 붙이려고 따로 읽는다.
+  const recentRows = recentExpensesRes.data ?? [];
+  const fixedPrePaid = await getPrePaidFixedAmounts(
+    recentRows.filter((e) => e.is_pre_paid).map((e) => e.id as string),
+  ).catch(() => new Map<string, number>());
+  const recentExpenses = recentRows.map((e) => ({
+    ...e,
+    pre_paid_fixed_amount: fixedPrePaid.get(e.id as string) ?? null,
+  }));
 
   // 반품(REFUND)은 지출 차감이므로 음수로 합산
   const totalApproved = (approvedExpenses ?? []).reduce(

@@ -84,7 +84,7 @@ function getTabItems(isAdmin: boolean, badge: number, menuBadge: number): TabIte
       badge: menuBadge,
       quickActions: isAdmin
         ? [
-            { label: "반복 입금요청", href: "/expenses/recurring", icon: Repeat },
+            { label: "반복 지급", href: "/expenses/recurring", icon: Repeat },
             PLANS_QUICK_ACTION,
             TAX_INVOICE_QUICK_ACTION,
             { label: "대시보드", href: "/admin", icon: LayoutDashboard },
@@ -100,7 +100,7 @@ function getTabItems(isAdmin: boolean, badge: number, menuBadge: number): TabIte
             { label: "설정", href: "/settings", icon: Settings },
           ]
         : [
-            { label: "반복 입금요청", href: "/expenses/recurring", icon: Repeat },
+            { label: "반복 지급", href: "/expenses/recurring", icon: Repeat },
             PLANS_QUICK_ACTION,
             TAX_INVOICE_QUICK_ACTION,
             { label: "설정", href: "/settings", icon: Settings },
