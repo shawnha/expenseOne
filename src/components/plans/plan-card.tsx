@@ -23,6 +23,7 @@ import {
   Link2,
   MessageCircle,
   Pencil,
+  Repeat,
   Trash2,
   User as UserIcon,
 } from "lucide-react";
@@ -465,6 +466,11 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
                   </span>
                 )}
                 <span className="truncate text-footnote font-medium text-[var(--apple-label)]">{card.title}</span>
+                {card.recurringId && (
+                  <span role="img" aria-label="반복" title="반복" className="shrink-0 text-[var(--apple-secondary-label)]">
+                    <Repeat className="size-3" aria-hidden="true" />
+                  </span>
+                )}
                 <span className="ml-auto shrink-0 text-caption2 tabular-nums text-[var(--apple-secondary-label)]">
                   {card.plannedDateLabel}
                 </span>
@@ -519,6 +525,17 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
                 >
                   <CheckCircle2 className="size-3" aria-hidden="true" />
                   ERP
+                </span>
+              )}
+              {card.recurringId && (
+                <span
+                  role="img"
+                  aria-label="반복"
+                  title="반복"
+                  className="glass-badge glass-badge-blue inline-flex shrink-0 items-center gap-1 whitespace-nowrap leading-4"
+                >
+                  <Repeat className="size-3" aria-hidden="true" />
+                  반복
                 </span>
               )}
               {card.vendorName && <span className="truncate">{card.vendorName}</span>}

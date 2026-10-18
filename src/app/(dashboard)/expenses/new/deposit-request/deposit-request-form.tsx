@@ -64,6 +64,13 @@ import { cn } from "@/lib/utils";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useFormBusy } from "@/hooks/use-form-busy";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
+import type { RecurringPrefill } from "@/services/recurring-expense.service";
+import {
+  RepeatMonthlyToggle,
+  defaultRepeatMonthly,
+  repeatStartsOn,
+  type RepeatMonthlyValue,
+} from "@/components/forms/repeat-monthly-toggle";
 
 // ============================================================
 // 은행 목록 (시중은행 + 인터넷은행 + 특수은행)
@@ -108,12 +115,17 @@ interface DepositRequestFormProps {
    * 폰 PWA와 PC가 따로 놀았고 새 기기에선 비어 있었다.
    */
   myPayees?: PayeeSuggestion[];
+  /** 반복 지급 알림(?occurrence=)으로 들어왔을 때 미리 채울 값. */
+  recurringPrefill?: RecurringPrefill | null;
 }
 
-export default function DepositRequestForm({ initialCompanies, myCategories = [], myPayees = [] }: DepositRequestFormProps) {
+export default function DepositRequestForm({ initialCompanies, myCategories = [], myPayees = [], recurringPrefill = null }: DepositRequestFormProps) {
+  const prefill = recurringPrefill;
+  const prefillAmount = prefill && prefill.requestMode === "AUTO" ? prefill.expectedAmount : 0;
+  const [repeat, setRepeat] = useState<RepeatMonthlyValue>(defaultRepeatMonthly);
   const [files, setFiles] = useState<FileWithPreview[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [amountDisplay, setAmountDisplay] = useState("");
+  const [amountDisplay, setAmountDisplay] = useState(prefillAmount > 0 ? formatAmount(prefillAmount) : "");
   // 금액은 RHF register가 아니라 setValue(shouldDirty 없음)로 쓰므로 isDirty가 안 켜진다.
   // 금액만 입력한 폼도 "작성 중"으로 보려면 따로 표시해야 한다.
   const [amountTouched, setAmountTouched] = useState(false);
@@ -122,10 +134,11 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
   const [purchase, setPurchase] = useState<PurchaseFieldValues>(emptyPurchaseFields);
   const [branch, setBranch] = useState<string | null>(null);
 
-  const [supplyAmount, setSupplyAmount] = useState(0);
+  const [supplyAmount, setSupplyAmount] = useState(prefillAmount);
   const [bankOpen, setBankOpen] = useState(false);
   const [dueDateOpen, setDueDateOpen] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [repeatDone, setRepeatDone] = useState<string | null>(null);
   // 비용은 만들어졌는데 첨부 업로드가 실패한 경우 — 성공 창에서 상세로 안내한다.
   const [uploadIssue, setUploadIssue] = useState<{ message: string; detailHref: string | null } | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -134,7 +147,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
   );
 
   // Company selection
-  const [companyId, setCompanyId] = useState("");
+  const [companyId, setCompanyId] = useState(prefill?.companyId ?? "");
   const [userCompanyId, setUserCompanyId] = useState<string | null>(null);
   const [currency, setCurrency] = useState("KRW");
 
@@ -189,15 +202,22 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
     resolver: zodResolver(depositRequestFormSchema),
     shouldFocusError: true,
     defaultValues: {
-      title: "",
-      bankName: "",
-      accountHolder: "",
-      accountNumber: "",
-      description: "",
+      title: prefill?.title ?? "",
+      bankName: prefill?.bankName ?? "",
+      accountHolder: prefill?.accountHolder ?? "",
+      accountNumber: prefill?.accountNumber ?? "",
+      description: prefill?.description ?? "",
+      ...(prefill?.category ? { category: prefill.category } : {}),
+      ...(prefillAmount > 0 ? { amount: prefillAmount } : {}),
       isUrgent: false,
       isPrePaid: false,
       prePaidPercentage: null,
-      dueDate: null,
+      dueDate: prefill?.dueDate
+        ? (() => {
+            const [y, m, d] = prefill.dueDate.split("-").map(Number);
+            return new Date(y, m - 1, d);
+          })()
+        : null,
     },
   });
 
@@ -446,6 +466,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
           prePaidPercentage: data.prePaidPercentage ?? null,
           dueDate: data.dueDate ? formatDateISO(data.dueDate) : null,
           companyId: companyId || undefined,
+          ...(prefill ? { recurringOccurrenceId: prefill.occurrenceId } : {}),
           hasFreelancerWithholding: freelancerDeduction,
           ...toPurchasePayload(purchase),
           branch: askBranch ? branch : null,
@@ -482,6 +503,51 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
         setUploadIssue({ message: warning, detailHref: `/expenses/${expenseId}/edit` });
       }
 
+      // 매달 반복 등록 — 입금요청은 이미 성공이라 실패해도 성공 창은 그대로 띄운다.
+      if (!prefill && currency === "KRW" && repeat.enabled) {
+        // 자동 제출은 원천징수·선지급·사입 표시 없이 같은 금액만 올린다. 그런 건을 자동으로 돌리면 다음 달 요청에서
+        // 그 표시가 빠지므로(원천징수 집계·후지급 누락) 알림 모드로 바꾼다 — 알림 폼에서 사람이 다시 체크한다.
+        const special = freelancerDeduction || data.isPrePaid === true || purchase.isPurchase;
+        const mode = repeat.mode === "AUTO" && special ? "REMIND" : repeat.mode;
+        // 금액은 서버에 저장된 값(원천징수 등 반영 뒤) — 폼 입력값과 다를 수 있다.
+        const storedAmount = (result as { data?: { amount?: unknown } } | null)?.data?.amount;
+        try {
+          const rr = await fetch("/api/recurring-expenses", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: data.title,
+              description: data.description || null,
+              amount: typeof storedAmount === "number" && storedAmount > 0 ? storedAmount : data.amount,
+              currency: "KRW",
+              category: data.category,
+              bankName: data.bankName,
+              accountHolder: data.accountHolder,
+              accountNumber: data.accountNumber,
+              companyId,
+              frequency: "MONTHLY",
+              dayOfMonth: repeat.dayOfMonth,
+              dueDateOffsetDays: null,
+              requestMode: mode,
+              startsOn: repeatStartsOn(repeat.dayOfMonth),
+              ...(mode === "AUTO" ? { copyAttachmentsFromExpenseId: expenseId } : {}),
+            }),
+          });
+          if (!rr.ok) {
+            const e = await rr.json().catch(() => null);
+            throw new Error(e?.error?.message || "알 수 없는 오류");
+          }
+          const doneText =
+            mode !== repeat.mode
+              ? `매달 ${repeat.dayOfMonth}일 반복 등록됨(원천징수·선지급·사입 건이라 자동 제출 대신 알림으로)`
+              : `매달 ${repeat.dayOfMonth}일 반복 등록됨`;
+          setRepeatDone(doneText);
+          toast.success(doneText);
+        } catch (err) {
+          toast.error(`입금요청은 올라갔지만 반복 등록에 실패했어요: ${err instanceof Error ? err.message : "알 수 없는 오류"}`);
+        }
+      }
+
       setShowSuccess(true);
     } catch (error) {
       toast.error(
@@ -516,6 +582,32 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
         </div>
       </div>
 
+      {prefill && (
+        <div className="glass p-5">
+          <p className="text-sm font-semibold text-[var(--apple-label)]">
+            반복 지급 · {Number(prefill.occurrenceDate.slice(5, 7))}월 {Number(prefill.occurrenceDate.slice(8, 10))}일 회차
+          </p>
+          {prefill.submittedExpenseId ? (
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <p className="text-[13px] text-[var(--apple-secondary-label)]">이 회차 입금요청은 이미 올렸어요</p>
+              <Link
+                href={`/expenses/${prefill.submittedExpenseId}`}
+                className="inline-flex h-11 items-center rounded-full bg-[var(--apple-blue)] px-5 text-sm font-semibold text-white"
+              >
+                보러 가기
+              </Link>
+            </div>
+          ) : (
+            <p className="mt-1 text-[13px] text-[var(--apple-secondary-label)]">
+              {prefill.requestMode === "AUTO"
+                ? `${formatAmount(prefill.expectedAmount)}원으로 미리 채웠어요`
+                : `지난번 ${formatAmount(prefill.expectedAmount)}원 — 이번 금액을 넣어 주세요`}
+            </p>
+          )}
+        </div>
+      )}
+
+      {!(prefill && prefill.submittedExpenseId) && (
       <form onSubmit={handleSubmit(onSubmit, onValidationError)} noValidate>
         {/* 기본 정보 */}
         <div className="glass p-6">
@@ -1143,6 +1235,8 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
           />
         </div>
 
+        {!prefill && currency === "KRW" && <RepeatMonthlyToggle value={repeat} onChange={setRepeat} />}
+
         {/* 버튼 */}
         <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <Link href="/expenses" className="w-full sm:w-auto">
@@ -1166,12 +1260,13 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
           </Button>
         </div>
       </form>
+      )}
 
       <SubmitSuccessDialog
         open={showSuccess}
         newSubmitPath="/expenses/new"
         title="제출 완료"
-        description="입금요청이 정상적으로 제출되었습니다. 관리자 승인을 기다려주세요."
+        description={`입금요청이 정상적으로 제출되었습니다. 관리자 승인을 기다려주세요.${repeatDone ? ` ${repeatDone}.` : ""}`}
         warning={uploadIssue?.message}
         detailHref={uploadIssue?.detailHref}
       />
