@@ -49,10 +49,10 @@ function occ(date: string, over: Partial<ExistingOccurrence> = {}): ExistingOccu
 }
 
 describe("반복 지급 회차 (lib/recurring-occurrences)", () => {
-  it("창 = 이번 달 1일 ~ 3달 뒤 말일", () => {
+  it("창 = 오늘 ~ 3달 뒤 말일", () => {
     assert.equal(monthEndAfter(TODAY, 3), "2027-01-31");
     assert.equal(monthEndAfter("2026-11-30", 3), "2027-02-28");
-    assert.deepEqual(planWindow({ startsOn: null, endsOn: null }, TODAY), { from: "2026-10-01", to: "2027-01-31" });
+    assert.deepEqual(planWindow({ startsOn: null, endsOn: null }, TODAY), { from: "2026-10-18", to: "2027-01-31" });
   });
 
   it("시작일·끝나는 날로 창을 줄인다, 끝이 지났으면 null", () => {
@@ -63,8 +63,8 @@ describe("반복 지급 회차 (lib/recurring-occurrences)", () => {
     assert.equal(planWindow({ startsOn: "2026-01-01", endsOn: "2026-09-30" }, TODAY), null);
   });
 
-  it("지난달 이전은 깔지 않는다 — 처음 만들 때만 floor 로 시작일까지 내린다", () => {
-    assert.equal(planWindow({ startsOn: "2026-08-01", endsOn: null }, TODAY)!.from, "2026-10-01");
+  it("지난 날짜는 깔지 않는다 — 처음 만들 때만 floor 로 시작일까지 내린다", () => {
+    assert.equal(planWindow({ startsOn: "2026-08-01", endsOn: null }, TODAY)!.from, "2026-10-18");
     assert.equal(planWindow({ startsOn: "2026-10-03", endsOn: null }, TODAY, "2026-10-03")!.from, "2026-10-03");
   });
 

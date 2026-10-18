@@ -6,7 +6,7 @@
 //
 // 규칙
 // - 회차 하나 = recurring_occurrences 한 줄, (반복, 날짜) UNIQUE. 같은 날짜로 두 번 깔지 않는다.
-// - 비용계획은 이번 달 1일부터 PLAN_HORIZON_MONTHS 달 뒤 말일까지 미리 깐다. 매일 cron 이 창을 민다.
+// - 비용계획은 오늘부터 PLAN_HORIZON_MONTHS 달 뒤 말일까지 미리 깐다. 매일 cron 이 창을 민다.
 // - 사람이 손댄 계획(수정·지급 완료·연결·ERP 반영 표시·취소)은 반복이 다시 건드리지 않는다. 그 계획은
 //   그때부터 사람 것이다. 반복을 고치거나 멈춰도 그대로 둔다.
 // - 이미 예정일 처리(run_at)가 된 회차는 지난 일이라 건드리지 않는다.
@@ -53,15 +53,16 @@ export function occurrenceDatesBetween(
 
 /**
  * 비용계획에 깔 날짜 범위. 없으면 null.
- * - 시작 = max(starts_on, floor). floor 는 기본 이번 달 1일 — 지난달 이전은 새로 깔지 않는다
- *   (반복을 늦게 켰다고 지난 달 계획이 뒤늦게 생기면 이미 끝난 달 합계가 바뀐다).
- *   반복을 처음 만들 때는 floor 로 starts_on 을 넘겨 사용자가 고른 첫 날짜(이번 달 앞쪽이어도)를 깐다.
+ * - 시작 = max(starts_on, floor). floor 는 기본 오늘 — 지난 날짜는 새로 깔지 않는다. 날짜를 바꾸거나 비용계획을
+ *   늦게 켰다고 이미 지난 날(이번 달 앞쪽 포함)에 계획이 뒤늦게 생기면 아무도 처리하지 않을 카드가 남고 지난 합계가 바뀐다.
+ *   반복을 처음 만들 때만 floor 로 starts_on 을 넘겨 사용자가 고른 첫 날짜(지난 날이어도)를 깐다 — 계획 화면에서
+ *   이번 달 5일 건을 오늘(18일) 등록하는 경우.
  * - 끝 = min(ends_on, 창 끝).
  */
 export function planWindow(
   t: { startsOn: string | null; endsOn: string | null },
   today: string,
-  floor: string = monthStartOf(today),
+  floor: string = today,
 ): { from: string; to: string } | null {
   const start = t.startsOn ?? floor;
   const from = start > floor ? start : floor;
