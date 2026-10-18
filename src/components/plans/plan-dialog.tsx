@@ -809,7 +809,7 @@ export function PlanDialog({
                       </div>
                     </div>
                     <p className="text-caption1 text-[var(--apple-secondary-label)] break-keep">
-                      이번 달부터 3달 뒤까지 미리 깔리고, 매일 아침 다음 달이 이어서 깔려요.
+                      고른 예정일부터 3달 뒤까지 회차마다 미리 깔리고, 매일 아침 다음 달이 이어서 깔려요.
                     </p>
                   </div>
                 )}

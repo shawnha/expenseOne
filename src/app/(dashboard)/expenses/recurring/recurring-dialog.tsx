@@ -342,7 +342,9 @@ export function RecurringDialog({ open, onOpenChange, row, companies, categories
               <select className={selCls} value={form.intervalCount} onChange={(e) => set("intervalCount", Number(e.target.value))}>
                 {[1, 2, 3, 4, 6, 12].map((n) => (
                   <option key={n} value={n}>
-                    {n === 1 ? "매" : `${n}${form.frequency === "WEEKLY" ? "주" : form.frequency === "MONTHLY" ? "개월" : "년"}마다`}
+                    {n === 1
+                      ? form.frequency === "WEEKLY" ? "매주" : form.frequency === "MONTHLY" ? "매달" : "매년"
+                      : `${n}${form.frequency === "WEEKLY" ? "주" : form.frequency === "MONTHLY" ? "개월" : "년"}마다`}
                   </option>
                 ))}
               </select>
@@ -456,6 +458,10 @@ export function RecurringDialog({ open, onOpenChange, row, companies, categories
                   <option value="" disabled>카테고리를 골라주세요</option>
                 ) : (
                   <option value="">선택 안 함</option>
+                )}
+                {/* 목록에 없는 값(직접 입력했던 카테고리)도 그대로 보이게 — 없으면 select 가 첫 항목을 보여 줘 다른 값처럼 보인다. */}
+                {form.category && !categories.some((c) => c.value === form.category) && (
+                  <option value={form.category}>{form.category}</option>
                 )}
                 {categories.map((c) => (
                   <option key={c.value} value={c.value}>{c.label}</option>

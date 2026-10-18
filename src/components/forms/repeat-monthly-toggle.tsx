@@ -80,13 +80,23 @@ export function RepeatMonthlyToggle({ value, onChange }: Props) {
                 role="radio"
                 aria-checked={value.mode === m.value}
                 onClick={() => onChange({ ...value, mode: m.value })}
+                // 고른 쪽을 파란 채움으로 하면 아래 「제출하기」와 같은 모양이라 누르는 버튼처럼 보인다 — 옅은 파랑 + 테두리 + 점.
                 className={cn(
-                  "min-h-11 rounded-full px-4 py-2 text-left text-[13px] font-medium transition-colors border",
+                  "min-h-11 rounded-full px-4 py-2 text-left text-[13px] font-medium transition-colors border flex items-center gap-2.5",
                   value.mode === m.value
-                    ? "bg-[var(--apple-blue)] text-white border-transparent"
+                    ? "bg-[var(--apple-blue)]/12 text-[var(--apple-blue)] border-[var(--apple-blue)]"
                     : "glass-subtle text-[var(--apple-secondary-label)] border-[var(--glass-border)]"
                 )}
               >
+                <span
+                  aria-hidden
+                  className={cn(
+                    "size-4 shrink-0 rounded-full border-2 flex items-center justify-center",
+                    value.mode === m.value ? "border-[var(--apple-blue)]" : "border-[var(--apple-tertiary-label)]",
+                  )}
+                >
+                  {value.mode === m.value && <span className="size-2 rounded-full bg-[var(--apple-blue)]" />}
+                </span>
                 {m.label}
               </button>
             ))}

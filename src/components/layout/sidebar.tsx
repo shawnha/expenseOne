@@ -154,6 +154,8 @@ function RailContent({ user }: { user: User }) {
   function isActive(href: string) {
     if (href === "/") return pathname === "/";
     if (href === "/admin") return pathname === "/admin";
+    // 반복 지급(/expenses/recurring)은 따로 메뉴가 있다 — 비용 관리까지 같이 켜지지 않게.
+    if (href === "/expenses" && pathname.startsWith("/expenses/recurring")) return false;
     return pathname === href || pathname.startsWith(href + "/");
   }
 

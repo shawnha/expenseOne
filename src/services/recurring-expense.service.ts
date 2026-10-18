@@ -858,7 +858,7 @@ async function notifyOwner(
     const href = `/expenses/new/deposit-request?occurrence=${latest.occurrenceId}`;
     const [, m, d] = latest.date.split("-").map(Number);
     const message =
-      `${m}월 ${d}일 ${r.title} — 이번 금액을 넣어 입금요청을 올려 주세요. (지난번 ${r.amount.toLocaleString("ko-KR")}원)` +
+      `${m}월 ${d}일 ${r.title} — 이번 회차 금액을 넣어 입금요청을 올려 주세요. (등록한 금액 ${r.amount.toLocaleString("ko-KR")}원)` +
       (remindLinks.length > 1 ? ` 밀린 회차 ${remindLinks.length - 1}건은 반복 지급 화면에서 올릴 수 있어요.` : "");
     await Promise.allSettled([
       createNotification({

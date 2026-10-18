@@ -647,7 +647,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
             <p className="mt-1 text-[13px] text-[var(--apple-secondary-label)]">
               {prefill.requestMode === "AUTO"
                 ? `${formatAmount(prefill.expectedAmount)}원으로 미리 채웠어요`
-                : `지난번 ${formatAmount(prefill.expectedAmount)}원 — 이번 금액을 넣어 주세요`}
+                : `등록한 금액 ${formatAmount(prefill.expectedAmount)}원 — 이번 회차 금액을 넣어 주세요`}
             </p>
           )}
         </div>
