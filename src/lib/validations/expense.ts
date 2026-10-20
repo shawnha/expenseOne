@@ -305,6 +305,12 @@ export const expenseQuerySchema = z.object({
    *  - "remaining" 그중 **잔금이 남은 건**(부분 선지급인데 후지급 미승인)
    */
   prePaid: z.enum(["all", "true", "remaining"]).optional(),
+  /**
+   * 처리 대기 나누기(목록 화면용).
+   *  - "only"    아직 처리 안 된 입금요청만(승인 대기 + 후지급 요청)
+   *  - "exclude" 그것만 뺀 나머지
+   */
+  pending: z.enum(["only", "exclude"]).optional(),
 });
 
 export type ExpenseQueryInput = z.infer<typeof expenseQuerySchema>;
