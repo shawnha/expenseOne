@@ -116,6 +116,7 @@ async function getExpensesData(searchParams: Record<string, string | string[] | 
     expenses,
     meta: { page: result.meta.page, totalPages: result.meta.totalPages, total: result.meta.total },
     pending: pendingResult ? { expenses: pendingResult.data.map(toRow), total: pendingResult.meta.total } : null,
+    splitPending,
     currentUserId: user.id,
     userRole: user.role,
   };
@@ -123,7 +124,7 @@ async function getExpensesData(searchParams: Record<string, string | string[] | 
 
 export default async function ExpensesPage({ searchParams }: ExpensesPageProps) {
   const resolvedParams = await searchParams;
-  const { expenses, meta, pending, currentUserId } = await getExpensesData(resolvedParams);
+  const { expenses, meta, pending, splitPending, currentUserId } = await getExpensesData(resolvedParams);
   const hasPending = (pending?.expenses.length ?? 0) > 0;
 
   return (
@@ -154,15 +155,16 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
 
       {/* 처리 대기 — 기간과 상관없이 맨 위에 */}
       {pending && <PendingSection expenses={pending.expenses} total={pending.total} currentUserId={currentUserId} />}
-      {hasPending && <RestListHeading />}
+      {/* 2페이지부터는 위 칸이 없어도 아래 목록은 처리 대기를 뺀 것이라 머리를 그대로 단다. */}
+      {splitPending && (hasPending || meta.page > 1) && <RestListHeading />}
 
       {/* Table or empty state */}
       {expenses.length === 0 && hasPending ? (
-        <div className="glass flex flex-col items-center justify-center py-12 text-center animate-fade-up-2">
+        <div className="glass flex flex-col items-center justify-center py-12 text-center animate-fade-up-3">
           <p className="text-sm text-[var(--apple-secondary-label)]">처리 대기 말고는 비용이 없습니다</p>
         </div>
       ) : expenses.length === 0 ? (
-        <div className="glass flex flex-col items-center justify-center py-12 text-center animate-fade-up-2">
+        <div className="glass flex flex-col items-center justify-center py-12 text-center animate-fade-up-3">
           <p className="text-sm text-[var(--apple-secondary-label)]">비용이 없습니다</p>
           <Link
             href="/expenses/new"
@@ -174,7 +176,7 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
         </div>
       ) : (
         <>
-          <div className="animate-fade-up-2">
+          <div className="animate-fade-up-3">
             <ExpenseTable expenses={expenses} showSubmitter={false} currentUserId={currentUserId} />
           </div>
           <Pagination

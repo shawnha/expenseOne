@@ -139,7 +139,7 @@ const todayKST = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul"
 
 /** 입금 기일. 지났으면 빨강. 서버(UTC)와 브라우저가 같은 날로 보도록 한국 날짜 문자열끼리 비교한다. */
 function DueDateLabel({ dueDate }: { dueDate?: string | null }) {
-  if (!dueDate) return <span className="text-[var(--apple-tertiary-label)]">기일 없음</span>;
+  if (!dueDate) return <span className="text-[var(--apple-secondary-label)]">기일 없음</span>;
   const overdue = dueDate < todayKST();
   return (
     <span className={cn("tabular-nums", overdue ? "font-medium text-[var(--apple-red)]" : "text-[var(--apple-label)]")}>
