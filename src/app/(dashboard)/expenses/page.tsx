@@ -4,16 +4,19 @@ import { Suspense } from "react";
 import { ExpenseFilters } from "@/components/expenses/expense-filters";
 import { ExpenseTable } from "@/components/expenses/expense-table";
 import { Pagination } from "@/components/expenses/pagination";
+import { PendingSection, RestListHeading } from "@/components/expenses/pending-section";
 import { Plus } from "lucide-react";
 import { getCachedCurrentUser } from "@/lib/supabase/cached";
 import { getExpenses } from "@/services/expense.service";
 import type { ExpenseType, ExpenseStatus } from "@/types";
+import type { ExpenseQueryInput } from "@/lib/validations/expense";
 
 interface ExpensesPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 const PAGE_SIZE = 20;
+const PENDING_LIMIT = 100;
 
 async function getExpensesData(searchParams: Record<string, string | string[] | undefined>) {
   const user = await getCachedCurrentUser();
@@ -35,42 +38,61 @@ async function getExpensesData(searchParams: Record<string, string | string[] | 
   const pageStr = typeof searchParams.page === "string" ? searchParams.page : "1";
   const page = Math.max(1, parseInt(pageStr, 10) || 1);
 
+  // 상태를 직접 고르면 나누지 않고 예전처럼 한 목록으로 보여 준다.
+  const splitPending = !status;
+  const filters: Omit<ExpenseQueryInput, "page" | "limit"> = {
+    type: type as "CORPORATE_CARD" | "DEPOSIT_REQUEST" | "REFUND" | undefined,
+    category,
+    search,
+    freelancer,
+    prePaid,
+  };
+
   const QUERY_TIMEOUT_MS = 8000;
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const result = await Promise.race([
-    getExpenses(
+  const [result, pendingResult] = await Promise.race([
+    Promise.all([
+      getExpenses(
+        {
+          ...filters,
+          page,
+          limit: PAGE_SIZE,
+          status: status as "SUBMITTED" | "APPROVED" | "REJECTED" | "CANCELLED" | undefined,
+          startDate,
+          endDate,
+          pending: splitPending ? "exclude" : undefined,
+        },
+        user.id,
+        user.role,
+      ),
+      // 처리 대기는 기간과 상관없이 모은다(올린 날과 입금받을 날이 달라 뒤 페이지에 묻히던 건). 첫 페이지에만.
+      splitPending && page === 1
+        ? getExpenses({ ...filters, page: 1, limit: PENDING_LIMIT, pending: "only" }, user.id, user.role)
+        : null,
+    ]),
+    new Promise<[
       {
-        page,
-        limit: PAGE_SIZE,
-        type: type as "CORPORATE_CARD" | "DEPOSIT_REQUEST" | "REFUND" | undefined,
-        status: status as "SUBMITTED" | "APPROVED" | "REJECTED" | "CANCELLED" | undefined,
-        category,
-        startDate,
-        endDate,
-        search,
-        freelancer,
-      prePaid,
+        data: never[];
+        meta: { page: number; totalPages: number; total: number };
+        totalAmount: number;
       },
-      user.id,
-      user.role,
-    ),
-    new Promise<{
-      data: never[];
-      meta: { page: number; totalPages: number; total: number };
-      totalAmount: number;
-    }>((resolve) => {
+      null,
+    ]>((resolve) => {
       timer = setTimeout(() => {
         console.error("[ExpensesPage] query timeout, falling back to empty");
-        resolve({
-          data: [],
-          meta: { page: 1, totalPages: 0, total: 0 },
-          totalAmount: 0,
-        });
+        resolve([
+          {
+            data: [],
+            meta: { page: 1, totalPages: 0, total: 0 },
+            totalAmount: 0,
+          },
+          null,
+        ]);
       }, QUERY_TIMEOUT_MS);
     }),
   ]).finally(() => clearTimeout(timer)); // 쿼리가 먼저 끝나면 뒤늦은 "timeout" 오탐 로그를 막는다(레이아웃과 같은 방식).
 
-  const expenses = result.data.map((item) => ({
+  const toRow = (item: NonNullable<typeof pendingResult>["data"][number]) => ({
     id: item.id,
     type: item.type as ExpenseType,
     status: item.status as ExpenseStatus,
@@ -86,11 +108,15 @@ async function getExpensesData(searchParams: Record<string, string | string[] | 
     hasFreelancerWithholding: item.hasFreelancerWithholding ?? false,
     remainingPaymentRequested: item.remainingPaymentRequested ?? false,
     remainingPaymentApproved: item.remainingPaymentApproved ?? false,
-  }));
+    dueDate: item.dueDate ?? null,
+  });
+  const expenses = result.data.map(toRow);
 
   return {
     expenses,
     meta: { page: result.meta.page, totalPages: result.meta.totalPages, total: result.meta.total },
+    pending: pendingResult ? { expenses: pendingResult.data.map(toRow), total: pendingResult.meta.total } : null,
+    splitPending,
     currentUserId: user.id,
     userRole: user.role,
   };
@@ -98,7 +124,8 @@ async function getExpensesData(searchParams: Record<string, string | string[] | 
 
 export default async function ExpensesPage({ searchParams }: ExpensesPageProps) {
   const resolvedParams = await searchParams;
-  const { expenses, meta, currentUserId } = await getExpensesData(resolvedParams);
+  const { expenses, meta, pending, splitPending, currentUserId } = await getExpensesData(resolvedParams);
+  const hasPending = (pending?.expenses.length ?? 0) > 0;
 
   return (
     <div className="flex flex-col gap-4 sm:gap-5 lg:gap-6">
@@ -126,9 +153,18 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
         </div>
       </Suspense>
 
+      {/* 처리 대기 — 기간과 상관없이 맨 위에 */}
+      {pending && <PendingSection expenses={pending.expenses} total={pending.total} currentUserId={currentUserId} />}
+      {/* 2페이지부터는 위 칸이 없어도 아래 목록은 처리 대기를 뺀 것이라 머리를 그대로 단다. */}
+      {splitPending && (hasPending || meta.page > 1) && <RestListHeading />}
+
       {/* Table or empty state */}
-      {expenses.length === 0 ? (
-        <div className="glass flex flex-col items-center justify-center py-12 text-center animate-fade-up-2">
+      {expenses.length === 0 && hasPending ? (
+        <div className="glass flex flex-col items-center justify-center py-12 text-center animate-fade-up-3">
+          <p className="text-sm text-[var(--apple-secondary-label)]">처리 대기 말고는 비용이 없습니다</p>
+        </div>
+      ) : expenses.length === 0 ? (
+        <div className="glass flex flex-col items-center justify-center py-12 text-center animate-fade-up-3">
           <p className="text-sm text-[var(--apple-secondary-label)]">비용이 없습니다</p>
           <Link
             href="/expenses/new"
@@ -140,7 +176,7 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
         </div>
       ) : (
         <>
-          <div className="animate-fade-up-2">
+          <div className="animate-fade-up-3">
             <ExpenseTable expenses={expenses} showSubmitter={false} currentUserId={currentUserId} />
           </div>
           <Pagination

@@ -22,6 +22,7 @@ import {
   exists,
   inArray,
   isNull,
+  not,
   sql,
 } from "drizzle-orm";
 import { normalizeBizNo } from "@/lib/validations/expense";
@@ -445,6 +446,24 @@ export async function createRefund(
   return refund;
 }
 
+/**
+ * 아직 처리 안 된 입금요청 — 사이드 메뉴 「승인 대기」 숫자(countPendingApprovals)와 같은 기준:
+ * 제출된 입금요청 + 후지급 요청(선지급 승인 뒤 잔금 요청이 아직 승인 안 된 것).
+ * 칸이 모두 NOT NULL 이라 not() 으로 뒤집어도 NULL 로 빠지는 행이 없다.
+ */
+const awaitingPayment = and(
+  eq(expenses.type, "DEPOSIT_REQUEST"),
+  or(
+    eq(expenses.status, "SUBMITTED"),
+    and(
+      eq(expenses.status, "APPROVED"),
+      eq(expenses.isPrePaid, true),
+      eq(expenses.remainingPaymentRequested, true),
+      eq(expenses.remainingPaymentApproved, false),
+    ),
+  ),
+)!;
+
 // ---------------------------------------------------------------------------
 // getExpenses -- list with filters, sort, pagination
 // ---------------------------------------------------------------------------
@@ -545,6 +564,12 @@ export async function getExpenses(
       )!,
     );
   }
+  // 목록 위 「처리 대기」 칸(only)과 그 아래 날짜순 목록(exclude)이 같은 건을 두 번 보여주지 않게 나눈다.
+  if (query.pending === "only") {
+    conditions.push(awaitingPayment);
+  } else if (query.pending === "exclude") {
+    conditions.push(not(awaitingPayment));
+  }
 
   const whereClause =
     conditions.length > 0 ? and(...conditions) : undefined;
@@ -596,7 +621,12 @@ export async function getExpenses(
       .leftJoin(companies, eq(expenses.companyId, companies.id))
       .leftJoin(expensePrePaidAmounts, eq(expensePrePaidAmounts.expenseId, expenses.id))
       .where(whereClause)
-      .orderBy(remainingPaymentPriority, orderFn(orderColumn))
+      .orderBy(
+        ...(query.pending === "only"
+          // 처리 대기는 입금 기일이 급한 순, 기일이 없으면 오래 기다린 순.
+          ? [sql`${expenses.dueDate} ASC NULLS LAST`, asc(expenses.createdAt)]
+          : [remainingPaymentPriority, orderFn(orderColumn)]),
+      )
       .limit(limit)
       .offset(offset),
     db.select({ count: count() }).from(expenses).where(whereClause),

@@ -3,15 +3,18 @@ import { Suspense } from "react";
 import { ExpenseFilters } from "@/components/expenses/expense-filters";
 import { ExpenseTable } from "@/components/expenses/expense-table";
 import { Pagination } from "@/components/expenses/pagination";
+import { PendingSection, RestListHeading } from "@/components/expenses/pending-section";
 import { getCachedCurrentUser } from "@/lib/supabase/cached";
 import { getExpenses } from "@/services/expense.service";
 import { AdminCompanyFilter } from "@/components/admin/company-filter";
+import type { ExpenseQueryInput } from "@/lib/validations/expense";
 
 interface AdminExpensesPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 const PAGE_SIZE = 20;
+const PENDING_LIMIT = 100;
 
 async function getAdminExpensesData(searchParams: Record<string, string | string[] | undefined>) {
   const user = await getCachedCurrentUser();
@@ -43,27 +46,39 @@ async function getAdminExpensesData(searchParams: Record<string, string | string
   const pageStr = typeof searchParams.page === "string" ? searchParams.page : "1";
   const page = Math.max(1, parseInt(pageStr, 10) || 1);
 
-  const result = await getExpenses(
-    {
-      page,
-      limit: PAGE_SIZE,
-      type: type as "CORPORATE_CARD" | "DEPOSIT_REQUEST" | "REFUND" | undefined,
-      status: status as "SUBMITTED" | "APPROVED" | "REJECTED" | "CANCELLED" | undefined,
-      category,
-      startDate,
-      endDate,
-      search,
-      company,
-      autoClassified,
-      freelancer,
-      prePaid,
-    },
-    user.id,
-    user.role,
-    false,
-  );
+  // 상태를 직접 고르면 나누지 않고 예전처럼 한 목록으로 보여 준다.
+  const splitPending = !status;
+  const filters: Omit<ExpenseQueryInput, "page" | "limit"> = {
+    type: type as "CORPORATE_CARD" | "DEPOSIT_REQUEST" | "REFUND" | undefined,
+    category,
+    search,
+    company,
+    autoClassified,
+    freelancer,
+    prePaid,
+  };
+  const [result, pendingResult] = await Promise.all([
+    getExpenses(
+      {
+        ...filters,
+        page,
+        limit: PAGE_SIZE,
+        status: status as "SUBMITTED" | "APPROVED" | "REJECTED" | "CANCELLED" | undefined,
+        startDate,
+        endDate,
+        pending: splitPending ? "exclude" : undefined,
+      },
+      user.id,
+      user.role,
+      false,
+    ),
+    // 처리 대기는 기간과 상관없이 모은다(올린 날과 입금할 날이 달라 뒤 페이지에 묻히던 건). 첫 페이지에만.
+    splitPending && page === 1
+      ? getExpenses({ ...filters, page: 1, limit: PENDING_LIMIT, pending: "only" }, user.id, user.role, false)
+      : null,
+  ]);
 
-  const expenses = result.data.map((item) => ({
+  const toRow = (item: (typeof result.data)[number]) => ({
     id: item.id,
     type: item.type,
     status: item.status,
@@ -82,18 +97,23 @@ async function getAdminExpensesData(searchParams: Record<string, string | string
     hasFreelancerWithholding: item.hasFreelancerWithholding ?? false,
     remainingPaymentRequested: item.remainingPaymentRequested ?? false,
     remainingPaymentApproved: item.remainingPaymentApproved ?? false,
-  }));
+    dueDate: item.dueDate ?? null,
+  });
+  const expenses = result.data.map(toRow);
 
   return {
     expenses,
     meta: { page: result.meta.page, totalPages: result.meta.totalPages, total: result.meta.total },
+    pending: pendingResult ? { expenses: pendingResult.data.map(toRow), total: pendingResult.meta.total } : null,
+    splitPending,
     currentUserId: user.id,
   };
 }
 
 export default async function AdminExpensesPage({ searchParams }: AdminExpensesPageProps) {
   const resolvedParams = await searchParams;
-  const { expenses, meta, currentUserId } = await getAdminExpensesData(resolvedParams);
+  const { expenses, meta, pending, splitPending, currentUserId } = await getAdminExpensesData(resolvedParams);
+  const hasPending = (pending?.expenses.length ?? 0) > 0;
 
   return (
     <div className="flex flex-col gap-4 sm:gap-5 lg:gap-6">
@@ -121,15 +141,24 @@ export default async function AdminExpensesPage({ searchParams }: AdminExpensesP
         </div>
       </Suspense>
 
+      {/* 처리 대기 — 기간과 상관없이 맨 위에 */}
+      {pending && (
+        <PendingSection expenses={pending.expenses} total={pending.total} isAdmin currentUserId={currentUserId} />
+      )}
+      {/* 2페이지부터는 위 칸이 없어도 아래 목록은 처리 대기를 뺀 것이라 머리를 그대로 단다. */}
+      {splitPending && (hasPending || meta.page > 1) && <RestListHeading />}
+
       {/* Table or empty state */}
       {expenses.length === 0 ? (
-        <div className="glass flex flex-col items-center justify-center py-12 text-center animate-fade-up-2">
-          <p className="text-sm text-[var(--apple-secondary-label)]">비용이 없습니다</p>
+        <div className="glass flex flex-col items-center justify-center py-12 text-center animate-fade-up-3">
+          <p className="text-sm text-[var(--apple-secondary-label)]">
+            {hasPending ? "처리 대기 말고는 비용이 없습니다" : "비용이 없습니다"}
+          </p>
         </div>
       ) : (
         <>
-          <div className="animate-fade-up-2">
-            <ExpenseTable expenses={expenses as never[]} showSubmitter={true} isAdmin={true} currentUserId={currentUserId} />
+          <div className="animate-fade-up-3">
+            <ExpenseTable expenses={expenses} showSubmitter={true} isAdmin={true} currentUserId={currentUserId} />
           </div>
           <Pagination
             page={meta.page}
