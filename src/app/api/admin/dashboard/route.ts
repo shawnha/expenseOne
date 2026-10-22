@@ -76,7 +76,8 @@ export async function GET(request: NextRequest) {
     }
     const dateFilter = and(...dateConditions);
 
-    const [statsResult] = await db
+    // 네 조회는 서로 독립이라 한꺼번에 보낸다(예전엔 차례로 기다려 모바일 「관리」 탭이 느렸다).
+    const statsQuery = db
       .select({
         totalAmount: sql<string>`coalesce(sum(${signedAmount}), 0)`,
         pendingCount: sql<number>`count(*) filter (where ${expenses.status} = 'SUBMITTED')`,
@@ -95,7 +96,7 @@ export async function GET(request: NextRequest) {
       .where(dateFilter);
 
     // 2. Category breakdown
-    const categoryBreakdown = await db
+    const categoryQuery = db
       .select({
         category: expenses.category,
         amount: sql<string>`coalesce(sum(${signedAmount}), 0)`,
@@ -116,7 +117,7 @@ export async function GET(request: NextRequest) {
     if (companyId) {
       trendConditions.push(eq(expenses.companyId, companyId) as ReturnType<typeof gte>);
     }
-    const monthlyTrend = await db
+    const trendQuery = db
       .select({
         month: sql<string>`to_char(${expenses.transactionDate}::date, 'YYYY-MM')`,
         amount: sql<string>`coalesce(sum(${signedAmount}), 0)`,
@@ -127,7 +128,7 @@ export async function GET(request: NextRequest) {
       .orderBy(sql`to_char(${expenses.transactionDate}::date, 'YYYY-MM') asc`);
 
     // 4. Top 5 submitters
-    const topSubmitters = await db
+    const topQuery = db
       .select({
         name: users.name,
         amount: sql<string>`coalesce(sum(${signedAmount}), 0)`,
@@ -138,6 +139,13 @@ export async function GET(request: NextRequest) {
       .groupBy(users.id, users.name)
       .orderBy(sql`sum(${signedAmount}) desc`)
       .limit(5);
+
+    const [[statsResult], categoryBreakdown, monthlyTrend, topSubmitters] = await Promise.all([
+      statsQuery,
+      categoryQuery,
+      trendQuery,
+      topQuery,
+    ]);
 
     // Format monthly trend labels
     const formattedMonthly = monthlyTrend.map((m) => {
