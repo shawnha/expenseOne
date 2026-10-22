@@ -238,7 +238,7 @@ export function FileUpload({
         )}
         <div className="text-center">
           {isBusy ? (
-            <p className="text-sm font-medium" role="status">사진 줄이는 중…</p>
+            <p className="text-sm font-medium" role="status">사진 용량 줄이는 중…</p>
           ) : (
             <p className="text-sm font-medium">
               <span className="sm:hidden">탭하여 파일을 선택하세요</span>
@@ -583,7 +583,7 @@ export function FileUploadWithDocType({
         )}
         <div className="text-center">
           {isBusy ? (
-            <p className="text-sm font-medium" role="status">사진 줄이는 중…</p>
+            <p className="text-sm font-medium" role="status">사진 용량 줄이는 중…</p>
           ) : (
             <p className="text-sm font-medium">
               <span className="sm:hidden">탭하여 파일을 선택하세요</span>
