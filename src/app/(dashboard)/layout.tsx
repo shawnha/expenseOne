@@ -6,6 +6,7 @@ import { BottomTabBar } from "@/components/layout/bottom-tab-bar";
 import { PullToRefresh } from "@/components/layout/pull-to-refresh";
 import { SplashDismiss } from "@/components/layout/splash-dismiss";
 import { PushPrompt } from "@/components/layout/push-prompt";
+import { WelcomeTourGate } from "@/components/layout/welcome-tour-gate";
 import { Toaster } from "@/components/ui/sonner";
 import { SwUpdatePrompt } from "@/components/layout/sw-update-prompt";
 import { StuckLoaderNotice } from "@/components/layout/stuck-loader-notice";
@@ -165,6 +166,7 @@ export default async function DashboardLayout({
     <>
       <PullToRefresh />
       <PushPrompt />
+      <WelcomeTourGate role={cachedUser?.role ?? "MEMBER"} enabled={cachedUser != null && !showCompanyModal} />
       <SwUpdatePrompt />
       <BuildUpdateToast />
       <StuckLoaderNotice />

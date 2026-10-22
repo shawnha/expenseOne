@@ -145,6 +145,11 @@ export function Header({ user, title, unreadCount = 0 }: HeaderProps) {
             >
               <span>설정</span>
             </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => window.dispatchEvent(new Event("expenseone:open-tour"))}
+            >
+              <span>사용 안내 다시 보기</span>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               variant="destructive"
