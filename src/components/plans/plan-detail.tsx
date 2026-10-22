@@ -112,6 +112,8 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
+  // 연결 창에서 이으면 제안도 다시 묻는다 — 방금 이은 입금요청이 제안에 남아 누르면 409 가 나던 것.
+  const [linkVersion, setLinkVersion] = useState(0);
   const [unlinking, setUnlinking] = useState<string | null>(null);
   const withLock = useSubmitLock();
 
@@ -278,12 +280,12 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
         </p>
 
         {/* 제안은 사람이 눌러야 이어진다 — 잘못 이으면 그 순간의 금액이 스냅샷으로 얼어붙는다. */}
-        {canEdit && <LinkSuggestions planId={plan.id} />}
+        {canEdit && <LinkSuggestions planId={plan.id} version={linkVersion} />}
 
         {/* 같은 결제를 입금요청과 (나중에 자동으로 들어온) 법카로 두 번 이으면 합계가 두 번 잡힌다. 막을 열쇠가 없어 알리기만 한다. */}
         {hasMixedLinkTypes(links) && (
           <p className="mt-3 rounded-xl bg-[var(--apple-orange)]/10 px-3 py-2 text-caption1 text-[var(--apple-label)] break-keep">
-            입금요청과 법카가 함께 이어져 있어요. 같은 결제를 두 번 잇지 않았는지 확인해 주세요.
+            입금요청과 법카가 함께 이어져 있어요. 같은 결제를 두 번 이었다면 한쪽을 해제해 주세요.
           </p>
         )}
 
@@ -350,7 +352,12 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
 
       {editOpen && <PlanDialog open onOpenChange={setEditOpen} plan={editTarget} />}
       {linkOpen && (
-        <LinkDialog planId={plan.id} open={linkOpen} onOpenChange={setLinkOpen} />
+        <LinkDialog
+          planId={plan.id}
+          open={linkOpen}
+          onOpenChange={setLinkOpen}
+          onLinked={() => setLinkVersion((v) => v + 1)}
+        />
       )}
     </div>
   );
@@ -562,6 +569,7 @@ function LinkRow({
   busy: boolean;
   onUnlink: () => void;
 }) {
+  const isCard = link.expenseType === "CORPORATE_CARD";
   return (
     <li className="rounded-xl border border-[var(--apple-separator)] px-3 py-2.5">
       <div className="flex items-start justify-between gap-3">
@@ -580,8 +588,15 @@ function LinkRow({
             )}
           </p>
           <p className="mt-0.5 text-caption2 tabular-nums text-[var(--apple-secondary-label)]">
-            제출 {formatStamp(link.snapshotSubmittedAt)}
-            {link.snapshotDueDate && ` · 기일 ${link.snapshotDueDate.replace(/-/g, ".")}`}
+            {isCard && link.transactionDate ? (
+              // 법카의 등록 시각은 자동 동기화 시각이라 카드끼리 구분이 안 된다 — 사용일로.
+              `사용 ${link.transactionDate.replace(/-/g, ".")}`
+            ) : (
+              <>
+                제출 {formatStamp(link.snapshotSubmittedAt)}
+                {link.snapshotDueDate && ` · 기일 ${link.snapshotDueDate.replace(/-/g, ".")}`}
+              </>
+            )}
           </p>
         </div>
         <div className="shrink-0 text-right">
@@ -606,9 +621,15 @@ function LinkRow({
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
         {link.deleted ? (
           <span className="glass-badge glass-badge-red">삭제된 비용</span>
-        ) : link.expenseType === "CORPORATE_CARD" ? (
-          // 법카는 늘 '승인'이라 상태 대신 유형을 보여 준다.
-          <span className="glass-badge glass-badge-blue">법카</span>
+        ) : isCard ? (
+          // 법카는 보통 '승인'이라 유형만 — 취소되면 합계엔 남으니 눈에 띄게.
+          link.currentStatus === "APPROVED" || !link.currentStatus ? (
+            <span className="glass-badge glass-badge-blue">법카</span>
+          ) : (
+            <span className="glass-badge glass-badge-red">
+              법카 · {EXPENSE_STATUS_LABEL[link.currentStatus] ?? link.currentStatus}
+            </span>
+          )
         ) : (
           link.currentStatus && (
             <span className="glass-badge glass-badge-gray">
@@ -620,7 +641,7 @@ function LinkRow({
           <span className="glass-badge glass-badge-orange">
             제출 후 수정됨
             {link.currentAmount !== null && ` · 현재 ${formatKRW(link.currentAmount)}`}
-            {" (요청 원본 유지)"}
+            {isCard ? " (연결 당시 금액 유지)" : " (요청 원본 유지)"}
           </span>
         )}
       </div>
@@ -651,7 +672,7 @@ function suggestionHint(s: LinkSuggestion): string {
   return parts.join(" · ");
 }
 
-function LinkSuggestions({ planId }: { planId: string }) {
+function LinkSuggestions({ planId, version }: { planId: string; version: number }) {
   const router = useRouter();
   const [suggestions, setSuggestions] = useState<LinkSuggestion[] | null>(null);
   const [hidden, setHidden] = useState<Set<string>>(() => new Set());
@@ -679,7 +700,7 @@ function LinkSuggestions({ planId }: { planId: string }) {
     return () => {
       alive = false;
     };
-  }, [planId, reloadKey]);
+  }, [planId, reloadKey, version]);
 
   const handleLink = useCallback(
     (expenseId: string) =>
@@ -782,23 +803,29 @@ const LINK_KIND_TABS: Array<{ value: LinkKind; label: string }> = [
 function candidateDateText(c: LinkCandidate): string {
   if (c.type === "CORPORATE_CARD") return `사용 ${c.transactionDate.replace(/-/g, ".")}`;
   if (c.dueDate) return `기일 ${c.dueDate.replace(/-/g, ".")}`;
-  return `제출 ${formatStamp(c.createdAt).slice(0, 10)}`;
+  // 앞 배지가 "입금요청 · 제출" 이라 "제출 날짜" 는 "제출 제출 …" 로 읽힌다(QA D2-06).
+  return `제출일 ${formatStamp(c.createdAt).slice(0, 10)}`;
 }
+
+/** 한 번에 이을 수 있는 최대 건수 — 서버 MAX_LINK_BATCH·zod 와 같은 값. */
+const MAX_LINK_SELECT = 50;
 
 function LinkDialog({
   planId,
   open,
   onOpenChange,
+  onLinked,
 }: {
   planId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onLinked: () => void;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState<LinkKind>("all");
   const [candidates, setCandidates] = useState<LinkCandidate[] | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   // 검색·탭을 바꿔도 고른 건은 남는다(합계를 보여 주려고 후보 자체를 들고 있는다).
   const [selected, setSelected] = useState<Map<string, LinkCandidate>>(() => new Map());
   const [linking, setLinking] = useState(false);
@@ -807,6 +834,8 @@ function LinkDialog({
   // 닫으면 처음으로 — 다음에 열 때 지난 선택이 남아 있으면 엉뚱한 건을 잇는다.
   const handleOpenChange = useCallback(
     (next: boolean) => {
+      // 잇는 중에 닫으면 끝난 뒤 앞선 응답이 다시 연 창을 닫는다.
+      if (!next && linking) return;
       if (!next) {
         setQuery("");
         setKind("all");
@@ -815,7 +844,7 @@ function LinkDialog({
       }
       onOpenChange(next);
     },
-    [onOpenChange],
+    [onOpenChange, linking],
   );
 
   // 입력이 멈춘 뒤에 찾는다. 글자마다 부르면 같은 표를 여러 번 훑는다. 열 때마다 새로 묻는다(방금 올린 건도 보이게).
@@ -823,22 +852,22 @@ function LinkDialog({
     if (!open) return;
     let alive = true;
     const timer = setTimeout(async () => {
-      setLoading(true);
       const params = new URLSearchParams();
       const search = query.trim();
       if (search) params.set("q", search);
       if (kind !== "all") params.set("kind", kind);
       const qs = params.toString();
-      const res = await planFetch<{ candidates: LinkCandidate[] }>(
+      const res = await planFetch<{ candidates: LinkCandidate[]; hasMore: boolean }>(
         `/api/plans/items/${planId}/link-candidates${qs ? `?${qs}` : ""}`,
       );
       if (!alive) return;
-      setLoading(false);
       if (!res.ok) {
         toast.error(res.message);
+        setCandidates((prev) => prev ?? []);
         return;
       }
       setCandidates(res.data.candidates);
+      setHasMore(res.data.hasMore);
     }, 250);
     return () => {
       alive = false;
@@ -849,6 +878,7 @@ function LinkDialog({
   const toggle = useCallback((candidate: LinkCandidate, checked: boolean) => {
     setSelected((prev) => {
       const next = new Map(prev);
+      if (checked && next.size >= MAX_LINK_SELECT) return prev;
       if (checked) next.set(candidate.id, candidate);
       else next.delete(candidate.id);
       return next;
@@ -877,10 +907,16 @@ function LinkDialog({
             ? `${linkIds.length}건을 연결했습니다. ${skipped}건은 이미 연결됐거나 연결할 수 없어 건너뛰었습니다.`
             : `${linkIds.length}건을 연결했습니다.`,
         );
-        handleOpenChange(false);
+        // linking 이 아직 true 인 클로저라 handleOpenChange 대신 직접 닫는다.
+        setQuery("");
+        setKind("all");
+        setSelected(new Map());
+        setCandidates(null);
+        onOpenChange(false);
+        onLinked();
         router.refresh();
       }),
-    [withLock, selected, planId, handleOpenChange, router],
+    [withLock, selected, planId, onOpenChange, onLinked, router],
   );
 
   return (
@@ -897,7 +933,11 @@ function LinkDialog({
                 key={tab.value}
                 type="button"
                 aria-pressed={kind === tab.value}
-                onClick={() => setKind(tab.value)}
+                onClick={() => {
+                  if (tab.value === kind) return;
+                  setKind(tab.value);
+                  setCandidates(null); // 지난 탭 목록이 표시 없이 남지 않게
+                }}
                 className={cn(
                   "min-h-9 flex-1 rounded-full px-3 text-footnote font-medium transition-colors",
                   kind === tab.value
@@ -919,13 +959,13 @@ function LinkDialog({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               maxLength={100}
-              placeholder="제목으로 찾기"
+              placeholder="제목·가맹점으로 찾기"
               aria-label="비용 제목 검색"
               className="pl-9"
             />
           </div>
 
-          {loading && candidates === null ? (
+          {candidates === null ? (
             <div className="h-16 rounded-xl bg-[var(--apple-tertiary-system-fill)] animate-pulse" />
           ) : (candidates ?? []).length === 0 ? (
             <p className="py-6 text-center text-footnote text-[var(--apple-secondary-label)] break-keep">
@@ -937,6 +977,7 @@ function LinkDialog({
             <ul className="-mx-1 flex max-h-[min(52dvh,28rem)] flex-col gap-2 overflow-y-auto px-1 py-0.5">
               {(candidates ?? []).map((candidate) => {
                 const checked = selected.has(candidate.id);
+                const full = !checked && selected.size >= MAX_LINK_SELECT;
                 return (
                   <li key={candidate.id}>
                     <label
@@ -948,8 +989,7 @@ function LinkDialog({
                       <Checkbox
                         checked={checked}
                         onCheckedChange={(next) => toggle(candidate, next === true)}
-                        disabled={linking}
-                        aria-label={`${candidate.title} 선택`}
+                        disabled={linking || full}
                       />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-footnote font-medium text-[var(--apple-label)]">
@@ -976,11 +1016,18 @@ function LinkDialog({
               })}
             </ul>
           )}
+          {hasMore && (candidates ?? []).length > 0 && (
+            <p className="text-center text-caption2 text-[var(--apple-secondary-label)] break-keep">
+              최근 {MAX_LINK_SELECT}건까지만 보여요. 더 오래된 건은 제목이나 가맹점으로 찾아 주세요.
+            </p>
+          )}
         </div>
 
         <DialogFooter className="items-center gap-2 sm:justify-between">
           <p className="text-footnote tabular-nums text-[var(--apple-secondary-label)]" aria-live="polite">
-            {selected.size > 0 ? `${selected.size}건 선택 · ${formatKRW(selectedSum)}` : "이을 비용을 골라 주세요"}
+            {selected.size === 0
+              ? "이을 비용을 골라 주세요"
+              : `${selected.size}건 선택 · ${formatKRW(selectedSum)}${selected.size >= MAX_LINK_SELECT ? " (최대)" : ""}`}
           </p>
           <div className="flex gap-2">
             <Button type="button" variant="outline" size="lg" onClick={() => handleOpenChange(false)} disabled={linking}>

@@ -1399,6 +1399,8 @@ export async function setPlanPaid(
 export interface PlanLinkRow extends LinkForDiff {
   /** 지금 비용 유형(삭제됐으면 null) — 법카는 상태 대신 「법카」로 보여 준다. */
   expenseType: string | null;
+  /** 지금 거래일 — 법카는 등록 시각 대신 사용일로 보여 준다(삭제됐으면 null). */
+  transactionDate: string | null;
   snapshotTitle: string;
   snapshotDueDate: string | null;
   snapshotSubmittedAt: string;
@@ -1523,12 +1525,13 @@ async function loadLinks(tx: PlanTx, planId: string, planAmount: number) {
     current_status: string | null;
     current_amount: number | null;
     expense_type: string | null;
+    transaction_date: string | null;
   }>(
     await tx.execute(sql`SELECT x.id, x.expense_id, x.snapshot_amount, x.snapshot_title,
                                 x.snapshot_due_date::text AS snapshot_due_date,
                                 x.snapshot_submitted_at, x.created_at,
                                 e.status::text AS current_status, e.amount AS current_amount,
-                                e.type::text AS expense_type
+                                e.type::text AS expense_type, e.transaction_date::text AS transaction_date
         FROM expenseone.plan_expense_links x
         LEFT JOIN expenseone.expenses e ON e.id = x.expense_id
        WHERE x.plan_id = ${planId}::uuid AND x.unlinked_at IS NULL
@@ -1541,6 +1544,7 @@ async function loadLinks(tx: PlanTx, planId: string, planAmount: number) {
     currentAmount: r.current_amount == null ? null : num(r.current_amount),
     currentStatus: r.current_status,
     expenseType: r.expense_type,
+    transactionDate: r.transaction_date,
     snapshotTitle: r.snapshot_title,
     snapshotDueDate: r.snapshot_due_date,
     snapshotSubmittedAt: iso(r.snapshot_submitted_at) ?? "",
@@ -1936,6 +1940,8 @@ export async function markCommentsRead(actor: PlanActorInput, planId: string): P
 /** 계획에 이을 수 있는 비용 유형. 법카는 2026-10-22 추가 — 카드로 쓴 계획도 실제 쓴 돈과 맞춰 본다. */
 export type LinkableExpenseType = "DEPOSIT_REQUEST" | "CORPORATE_CARD";
 const LINKABLE_TYPES_SQL = sql`e.type IN ('DEPOSIT_REQUEST', 'CORPORATE_CARD')`;
+/** 한 번에 이을 수 있는 최대 건수 = 연결 창 후보 수. zod(validations/plan.ts)와 화면도 같은 값(50). */
+export const MAX_LINK_BATCH = 50;
 
 export interface LinkCandidate {
   id: string;
@@ -1960,13 +1966,14 @@ export async function listLinkCandidates(
   planId: string,
   q?: string,
   kind?: "deposit" | "card",
-): Promise<LinkCandidate[]> {
+): Promise<{ candidates: LinkCandidate[]; hasMore: boolean }> {
   return withPlanTx(async (tx) => {
     const access = await loadAccess(tx, actorAccess(actor));
     const plan = await requirePlanAccess(tx, access, planId);
     const canLinkAll = canLinkAllCompanyRequests(access);
     const pattern = q ? containsPattern(q) : null;
-    const search = pattern ? sql` AND e.title ILIKE ${pattern}` : sql``;
+    // 자동 등록 법카는 제목이 가맹점명이라, 직접 고친 제목과 가맹점명 둘 다에서 찾는다.
+    const search = pattern ? sql` AND (e.title ILIKE ${pattern} OR e.merchant_name ILIKE ${pattern})` : sql``;
 
     const typeFilter =
       kind === "deposit"
@@ -1996,10 +2003,13 @@ export async function listLinkCandidates(
            AND (${canLinkAll}::boolean OR e.submitted_by_id = ${access.userId}::uuid)
            AND NOT EXISTS (SELECT 1 FROM expenseone.plan_expense_links x
                             WHERE x.expense_id = e.id AND x.unlinked_at IS NULL)${search}
-         ORDER BY e.created_at DESC
-         LIMIT 50`),
+         ORDER BY (e.type = 'DEPOSIT_REQUEST') DESC,
+                  CASE WHEN e.type = 'CORPORATE_CARD' THEN e.transaction_date END DESC NULLS LAST,
+                  e.created_at DESC, e.id
+         LIMIT ${MAX_LINK_BATCH + 1}`),
     );
-    return rows.map((r) => ({
+    // 입금요청을 먼저(건수가 적고 원래 연결 대상), 법카는 사용일 최신순. 한 건 더 읽어 잘렸는지 알린다.
+    const candidates = rows.slice(0, MAX_LINK_BATCH).map((r) => ({
       id: r.id,
       type: r.type,
       title: r.title,
@@ -2010,6 +2020,7 @@ export async function listLinkCandidates(
       submitterName: r.submitter_name,
       createdAt: iso(r.created_at) ?? "",
     }));
+    return { candidates, hasMore: rows.length > MAX_LINK_BATCH };
   }, { readOnly: true });
 }
 
@@ -2096,9 +2107,6 @@ export async function listLinkSuggestions(actor: PlanActorInput, planId: string)
   }, { readOnly: true });
 }
 
-/** 한 번에 이을 수 있는 최대 건수 — 연결 창에서 고를 수 있는 후보 수(50)와 같다. */
-export const MAX_LINK_BATCH = 50;
-
 /**
  * (g) 연결 만들기 — 한 문장. 스냅샷 값은 **이 SELECT 에서만** 온다(클라이언트가 보내는 건 expense_id 뿐).
  * 여러 건을 한 트랜잭션으로 잇는다(법카 여러 장을 한 계획에). 자격이 없거나 이미 이어진 건은 건너뛰고
@@ -2136,21 +2144,25 @@ export async function linkExpenses(
              AND ${LINKABLE_TYPES_SQL} AND e.status NOT IN ('REJECTED', 'CANCELLED')
              AND e.currency = 'KRW'
              AND (${canLinkAll}::boolean OR e.submitted_by_id = ${access.userId}::uuid)
-           ORDER BY e.created_at
+           ORDER BY e.created_at, e.id
           ON CONFLICT (expense_id) WHERE expense_id IS NOT NULL AND unlinked_at IS NULL DO NOTHING
           RETURNING id, expense_id, snapshot_amount, snapshot_title`),
       );
     } catch (err) {
-      throw asConflict(err, "이미 다른 계획에 연결된 비용입니다.");
+      throw asConflict(err, "이미 계획에 연결된 비용입니다.");
     }
     if (rows.length === 0) {
       // 한 건도 못 이었다 — 이유를 하나로 말해 준다(이미 이어짐이 하나라도 있으면 409, 아니면 404).
+      // 범위(같은 법인·본인 것) 밖 건은 세지 않는다 — 남의 비용이 어딘가에 이어졌는지 409/404 로 새지 않게(예전 단건과 같다).
       const taken = rowsOf<{ n: number }>(
         await tx.execute(sql`SELECT count(*)::int AS n FROM expenseone.plan_expense_links x
-                              WHERE x.unlinked_at IS NULL
-                                AND x.expense_id IN (${sql.join(ids.map((id) => sql`${id}::uuid`), sql`, `)})`),
+                              JOIN expenseone.expenses e ON e.id = x.expense_id
+                             WHERE x.unlinked_at IS NULL
+                               AND x.expense_id IN (${sql.join(ids.map((id) => sql`${id}::uuid`), sql`, `)})
+                               AND e.company_id = ${plan.companyId}::uuid AND ${LINKABLE_TYPES_SQL}
+                               AND (${canLinkAll}::boolean OR e.submitted_by_id = ${access.userId}::uuid)`),
       )[0];
-      if ((taken?.n ?? 0) > 0) throw new PlanError("CONFLICT", "이미 다른 계획에 연결된 비용입니다.");
+      if ((taken?.n ?? 0) > 0) throw new PlanError("CONFLICT", "이미 계획에 연결된 비용입니다.");
       throw new PlanError("NOT_FOUND", "연결할 수 있는 비용이 아닙니다.");
     }
 
