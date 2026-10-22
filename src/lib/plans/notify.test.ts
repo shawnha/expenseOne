@@ -37,6 +37,11 @@ describe("buildPlanPush — 문구·링크", () => {
     assert.ok(m.body.includes("…"));
     assert.ok(m.body.length < 120);
   });
+  it("여러 건 연결은 한 번에 건수로 알린다", () => {
+    assert.match(buildPlanPush({ ...base, kind: "link_added", count: 11 }).body, /비용 11건을 연결/);
+    assert.match(buildPlanPush({ ...base, kind: "link_added", count: 1 }).body, /비용을 연결/);
+    assert.match(buildPlanPush({ ...base, kind: "link_added" }).body, /비용을 연결/);
+  });
   it("모든 종류가 문구를 만든다", () => {
     const kinds: PlanPushEvent["kind"][] = [
       "plan_created", "plan_updated", "plan_cancelled", "comment_added", "member_added", "link_added", "link_removed", "project_deleted",

@@ -1397,6 +1397,8 @@ export async function setPlanPaid(
 // --- 계획 상세 -------------------------------------------------------------------
 
 export interface PlanLinkRow extends LinkForDiff {
+  /** 지금 비용 유형(삭제됐으면 null) — 법카는 상태 대신 「법카」로 보여 준다. */
+  expenseType: string | null;
   snapshotTitle: string;
   snapshotDueDate: string | null;
   snapshotSubmittedAt: string;
@@ -1520,11 +1522,13 @@ async function loadLinks(tx: PlanTx, planId: string, planAmount: number) {
     created_at: Date;
     current_status: string | null;
     current_amount: number | null;
+    expense_type: string | null;
   }>(
     await tx.execute(sql`SELECT x.id, x.expense_id, x.snapshot_amount, x.snapshot_title,
                                 x.snapshot_due_date::text AS snapshot_due_date,
                                 x.snapshot_submitted_at, x.created_at,
-                                e.status::text AS current_status, e.amount AS current_amount
+                                e.status::text AS current_status, e.amount AS current_amount,
+                                e.type::text AS expense_type
         FROM expenseone.plan_expense_links x
         LEFT JOIN expenseone.expenses e ON e.id = x.expense_id
        WHERE x.plan_id = ${planId}::uuid AND x.unlinked_at IS NULL
@@ -1536,6 +1540,7 @@ async function loadLinks(tx: PlanTx, planId: string, planAmount: number) {
     snapshotAmount: num(r.snapshot_amount),
     currentAmount: r.current_amount == null ? null : num(r.current_amount),
     currentStatus: r.current_status,
+    expenseType: r.expense_type,
     snapshotTitle: r.snapshot_title,
     snapshotDueDate: r.snapshot_due_date,
     snapshotSubmittedAt: iso(r.snapshot_submitted_at) ?? "",
@@ -1926,26 +1931,35 @@ export async function markCommentsRead(actor: PlanActorInput, planId: string): P
   });
 }
 
-// --- 입금요청 연결 ----------------------------------------------------------------
+// --- 비용 연결(입금요청·법카) ------------------------------------------------------
+
+/** 계획에 이을 수 있는 비용 유형. 법카는 2026-10-22 추가 — 카드로 쓴 계획도 실제 쓴 돈과 맞춰 본다. */
+export type LinkableExpenseType = "DEPOSIT_REQUEST" | "CORPORATE_CARD";
+const LINKABLE_TYPES_SQL = sql`e.type IN ('DEPOSIT_REQUEST', 'CORPORATE_CARD')`;
 
 export interface LinkCandidate {
   id: string;
+  type: LinkableExpenseType;
   title: string;
   amount: number;
   dueDate: string | null;
+  /** 거래일(법카는 사용일). 화면에서 법카 날짜로 보여 준다. */
+  transactionDate: string;
   status: string;
   submitterName: string | null;
   createdAt: string;
 }
 
 /**
- * (f) 연결 후보. 같은 법인의 KRW 입금요청 중 반려·취소가 아니고 **아직 연결되지 않은** 것만.
- * MEMBER 는 본인이 제출한 요청만 본다 — 이건 권한 근거가 아니라 **연결 범위**다(5절 7).
+ * (f) 연결 후보. 같은 법인의 KRW 입금요청·법카 중 반려·취소가 아니고 **아직 연결되지 않은** 것만.
+ * MEMBER 는 본인이 제출한 비용만 본다 — 이건 권한 근거가 아니라 **연결 범위**다(5절 7).
+ * 법카가 입금요청보다 훨씬 많아(60일 약 5배) kind 로 한쪽만 볼 수 있게 한다.
  */
 export async function listLinkCandidates(
   actor: PlanActorInput,
   planId: string,
   q?: string,
+  kind?: "deposit" | "card",
 ): Promise<LinkCandidate[]> {
   return withPlanTx(async (tx) => {
     const access = await loadAccess(tx, actorAccess(actor));
@@ -1954,20 +1968,30 @@ export async function listLinkCandidates(
     const pattern = q ? containsPattern(q) : null;
     const search = pattern ? sql` AND e.title ILIKE ${pattern}` : sql``;
 
+    const typeFilter =
+      kind === "deposit"
+        ? sql`e.type = 'DEPOSIT_REQUEST'`
+        : kind === "card"
+          ? sql`e.type = 'CORPORATE_CARD'`
+          : LINKABLE_TYPES_SQL;
+
     const rows = rowsOf<{
       id: string;
+      type: LinkableExpenseType;
       title: string;
       amount: number;
       due_date: string | null;
+      transaction_date: string;
       status: string;
       submitter_name: string | null;
       created_at: Date;
     }>(
-      await tx.execute(sql`SELECT e.id, e.title, e.amount, e.due_date::text AS due_date,
+      await tx.execute(sql`SELECT e.id, e.type::text AS type, e.title, e.amount, e.due_date::text AS due_date,
+                                  e.transaction_date::text AS transaction_date,
                                   e.status::text AS status, u.name AS submitter_name, e.created_at
           FROM expenseone.expenses e
           LEFT JOIN expenseone.users u ON u.id = e.submitted_by_id
-         WHERE e.type = 'DEPOSIT_REQUEST' AND e.status NOT IN ('REJECTED', 'CANCELLED')
+         WHERE ${typeFilter} AND e.status NOT IN ('REJECTED', 'CANCELLED')
            AND e.currency = 'KRW' AND e.company_id = ${plan.companyId}::uuid
            AND (${canLinkAll}::boolean OR e.submitted_by_id = ${access.userId}::uuid)
            AND NOT EXISTS (SELECT 1 FROM expenseone.plan_expense_links x
@@ -1977,9 +2001,11 @@ export async function listLinkCandidates(
     );
     return rows.map((r) => ({
       id: r.id,
+      type: r.type,
       title: r.title,
       amount: num(r.amount),
       dueDate: r.due_date,
+      transactionDate: r.transaction_date,
       status: r.status,
       submitterName: r.submitter_name,
       createdAt: iso(r.created_at) ?? "",
@@ -2001,6 +2027,7 @@ export interface LinkSuggestion extends LinkCandidate {
  * (같은 법인·KRW·반려·취소 아님·아직 어느 계획에도 이어지지 않음·MEMBER 는 본인 제출분),
  * 날짜가 ±45일 안이거나 금액이 0.8~1.25배인 것만 넓게 골라 온 뒤 순수 함수로 점수를 매겨 5건.
  * 취소·마감된 계획엔 제안하지 않는다(연결 자체가 409).
+ * 제안은 **입금요청만** — 법카는 건수가 많고 소액이라 날짜만 맞는 카드가 제안을 덮는다. 법카는 연결 창에서 고른다.
  */
 export async function listLinkSuggestions(actor: PlanActorInput, planId: string): Promise<LinkSuggestion[]> {
   return withPlanTx(async (tx) => {
@@ -2015,12 +2042,14 @@ export async function listLinkSuggestions(actor: PlanActorInput, planId: string)
       title: string;
       amount: number;
       due_date: string | null;
+      transaction_date: string;
       ref_date: string;
       status: string;
       submitter_name: string | null;
       created_at: Date;
     }>(
       await tx.execute(sql`SELECT e.id, e.title, e.amount, e.due_date::text AS due_date,
+                                  e.transaction_date::text AS transaction_date,
                                   coalesce(e.due_date, e.transaction_date,
                                            (e.created_at AT TIME ZONE 'Asia/Seoul')::date)::text AS ref_date,
                                   e.status::text AS status, u.name AS submitter_name, e.created_at
@@ -2051,9 +2080,11 @@ export async function listLinkSuggestions(actor: PlanActorInput, planId: string)
     );
     return ranked.map(({ candidate, score, dateDiffDays, reasons }) => ({
       id: candidate.id,
+      type: "DEPOSIT_REQUEST" as const,
       title: candidate.title,
       amount: candidate.amount,
       dueDate: candidate.row.due_date,
+      transactionDate: candidate.row.transaction_date,
       status: candidate.row.status,
       submitterName: candidate.row.submitter_name,
       createdAt: iso(candidate.row.created_at) ?? "",
@@ -2065,15 +2096,24 @@ export async function listLinkSuggestions(actor: PlanActorInput, planId: string)
   }, { readOnly: true });
 }
 
+/** 한 번에 이을 수 있는 최대 건수 — 연결 창에서 고를 수 있는 후보 수(50)와 같다. */
+export const MAX_LINK_BATCH = 50;
+
 /**
  * (g) 연결 만들기 — 한 문장. 스냅샷 값은 **이 SELECT 에서만** 온다(클라이언트가 보내는 건 expense_id 뿐).
- * 0행 = 그 법인 요청이 아니거나 자격이 없다 → 404. 이미 연결됨 = 부분 UNIQUE 위반 → 409.
+ * 여러 건을 한 트랜잭션으로 잇는다(법카 여러 장을 한 계획에). 자격이 없거나 이미 이어진 건은 건너뛰고
+ * skipped 로 센다 — 동시에 다른 사람이 이은 건은 부분 UNIQUE 에서 DO NOTHING 으로 빠진다.
+ * 알림은 묶어서 한 번만 보낸다(카드 11장이면 11번 울리지 않게).
  */
-export async function linkExpense(
+export async function linkExpenses(
   actor: PlanActorInput,
   planId: string,
-  expenseId: string,
-): Promise<{ linkId: string }> {
+  expenseIds: string[],
+): Promise<{ linkIds: string[]; skipped: number }> {
+  const ids = [...new Set(expenseIds)];
+  if (ids.length === 0 || ids.length > MAX_LINK_BATCH) {
+    throw new PlanError("VALIDATION_ERROR", `한 번에 1~${MAX_LINK_BATCH}건까지 연결할 수 있습니다.`);
+  }
   const push: { ev: PlanPushEvent | null } = { ev: null };
   const result = await withPlanTx(async (tx) => {
     const access = await loadAccess(tx, actorAccess(actor));
@@ -2081,9 +2121,9 @@ export async function linkExpense(
     requirePlannedForWrite(plan.status);
     const canLinkAll = canLinkAllCompanyRequests(access);
 
-    let rows: Array<{ id: string; snapshot_amount: number; snapshot_title: string }>;
+    let rows: Array<{ id: string; expense_id: string; snapshot_amount: number; snapshot_title: string }>;
     try {
-      rows = rowsOf<{ id: string; snapshot_amount: number; snapshot_title: string }>(
+      rows = rowsOf<{ id: string; expense_id: string; snapshot_amount: number; snapshot_title: string }>(
         await tx.execute(sql`INSERT INTO expenseone.plan_expense_links
             (plan_id, company_id, expense_id, snapshot_amount, snapshot_currency, snapshot_amount_original,
              snapshot_title, snapshot_due_date, snapshot_company_id, snapshot_submitted_at, linked_by_id)
@@ -2091,40 +2131,64 @@ export async function linkExpense(
                  e.title, e.due_date, e.company_id, e.created_at, ${actor.id}::uuid
             FROM expenseone.cost_plans p
             JOIN expenseone.expenses e ON e.company_id = p.company_id
-           WHERE p.id = ${planId}::uuid AND e.id = ${expenseId}::uuid
-             AND e.type = 'DEPOSIT_REQUEST' AND e.status NOT IN ('REJECTED', 'CANCELLED')
+           WHERE p.id = ${planId}::uuid
+             AND e.id IN (${sql.join(ids.map((id) => sql`${id}::uuid`), sql`, `)})
+             AND ${LINKABLE_TYPES_SQL} AND e.status NOT IN ('REJECTED', 'CANCELLED')
              AND e.currency = 'KRW'
              AND (${canLinkAll}::boolean OR e.submitted_by_id = ${access.userId}::uuid)
-          RETURNING id, snapshot_amount, snapshot_title`),
+           ORDER BY e.created_at
+          ON CONFLICT (expense_id) WHERE expense_id IS NOT NULL AND unlinked_at IS NULL DO NOTHING
+          RETURNING id, expense_id, snapshot_amount, snapshot_title`),
       );
     } catch (err) {
-      throw asConflict(err, "이미 다른 계획에 연결된 입금요청입니다.");
+      throw asConflict(err, "이미 다른 계획에 연결된 비용입니다.");
     }
-    const created = rows[0];
-    if (!created) throw new PlanError("NOT_FOUND", "연결할 수 있는 입금요청이 아닙니다.");
+    if (rows.length === 0) {
+      // 한 건도 못 이었다 — 이유를 하나로 말해 준다(이미 이어짐이 하나라도 있으면 409, 아니면 404).
+      const taken = rowsOf<{ n: number }>(
+        await tx.execute(sql`SELECT count(*)::int AS n FROM expenseone.plan_expense_links x
+                              WHERE x.unlinked_at IS NULL
+                                AND x.expense_id IN (${sql.join(ids.map((id) => sql`${id}::uuid`), sql`, `)})`),
+      )[0];
+      if ((taken?.n ?? 0) > 0) throw new PlanError("CONFLICT", "이미 다른 계획에 연결된 비용입니다.");
+      throw new PlanError("NOT_FOUND", "연결할 수 있는 비용이 아닙니다.");
+    }
 
-    await logChange(tx, {
-      companyId: plan.companyId,
-      projectId: plan.projectId,
-      planId,
-      entityType: "link",
-      entityId: created.id,
-      action: "LINK",
-      actorId: actor.id,
-      after: {
-        expenseId,
-        snapshotAmount: num(created.snapshot_amount),
-        snapshotTitle: created.snapshot_title,
-      },
-    });
+    for (const created of rows) {
+      await logChange(tx, {
+        companyId: plan.companyId,
+        projectId: plan.projectId,
+        planId,
+        entityType: "link",
+        entityId: created.id,
+        action: "LINK",
+        actorId: actor.id,
+        after: {
+          expenseId: created.expense_id,
+          snapshotAmount: num(created.snapshot_amount),
+          snapshotTitle: created.snapshot_title,
+        },
+      });
+    }
     {
       const fields = await loadPlanFields(tx, planId);
       push.ev = await pushEventFor(tx, "link_added", actor, plan.projectId, { id: planId, title: fields.title });
+      push.ev.count = rows.length;
     }
-    return { linkId: created.id };
+    return { linkIds: rows.map((r) => r.id), skipped: ids.length - rows.length };
   });
   await dispatchPlanPush(push.ev);
   return result;
+}
+
+/** 한 건 잇기(기존 API·연결 제안). 못 이으면 404/409 를 그대로 던진다. */
+export async function linkExpense(
+  actor: PlanActorInput,
+  planId: string,
+  expenseId: string,
+): Promise<{ linkId: string }> {
+  const { linkIds } = await linkExpenses(actor, planId, [expenseId]);
+  return { linkId: linkIds[0] };
 }
 
 /** 해제는 소프트(unlinked_at + unlinked_by_id). 스냅샷 행은 남는다. */

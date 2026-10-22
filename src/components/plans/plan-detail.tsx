@@ -43,7 +43,7 @@ import { UnseenChanges } from "./unseen-changes";
 import { useSubmitLock } from "./use-submit-lock";
 
 // ---------------------------------------------------------------------------
-// 계획 상세. 필드·담당자·요약·연결된 입금요청·메모·최근 이력 10.
+// 계획 상세. 필드·담당자·요약·연결된 비용(입금요청·법카)·메모·최근 이력 10.
 //
 // 연결의 금액은 **연결하던 순간의 스냅샷**이다(결정 1-2). 요청이 그 뒤에 바뀌어도 합계는
 // 움직이지 않고, 대신 '제출 후 수정됨'으로 알려 준다 — 계획이 소리 없이 재계산되지 않게.
@@ -64,7 +64,7 @@ const FIELD_LABEL: Record<string, string> = {
 const LOG_LABEL: Record<string, string> = {
   "plan:CREATE": "계획 등록",
   "plan:UPDATE": "계획 수정",
-  "link:LINK": "입금요청 연결",
+  "link:LINK": "비용 연결",
   "link:UNLINK": "연결 해제",
   "comment:CREATE": "메모 작성",
   "comment:UPDATE": "메모 수정",
@@ -200,7 +200,7 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
         {/* 요약 — 모바일에서 금액 한 줄이 85px 타일을 넘지 않도록 2열로 (홈의 스탯 그리드와 같은 모양) */}
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
           <SummaryTile label="계획 금액" value={formatKRW(plan.amount)} />
-          <SummaryTile label="요청 합계" value={formatKRW(summary.requestedSum)} />
+          <SummaryTile label="연결 합계" value={formatKRW(summary.requestedSum)} />
           <SummaryTile
             label="차이"
             // 부호(-1,000,000원) 대신 카드 배지와 같은 말로 읽는다 — 한 화면에서 같은 값이 두 표기로 나오지 않게.
@@ -255,10 +255,10 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
         </dl>
       </section>
 
-      {/* 연결된 입금요청 */}
-      <section className="glass p-4 sm:p-5" aria-label="연결된 입금요청">
+      {/* 연결된 비용(입금요청·법카) */}
+      <section className="glass p-4 sm:p-5" aria-label="연결된 비용">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-headline text-[var(--apple-label)]">연결된 입금요청</h2>
+          <h2 className="text-headline text-[var(--apple-label)]">연결된 비용</h2>
           {canEdit && (
             <Button
               type="button"
@@ -273,16 +273,24 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
           )}
         </div>
         <p className="mt-1 text-caption2 text-[var(--apple-secondary-label)] break-keep">
-          연결한 순간의 금액으로 비교합니다. 요청을 나중에 고쳐도 계획 합계는 바뀌지 않습니다(요청 원본 유지).
+          입금요청이나 법카 사용 건을 이어 계획과 실제 쓴 돈을 비교합니다. 연결한 순간의 금액으로 비교해서, 나중에 고쳐도
+          계획 합계는 바뀌지 않습니다(원본 유지).
         </p>
 
         {/* 제안은 사람이 눌러야 이어진다 — 잘못 이으면 그 순간의 금액이 스냅샷으로 얼어붙는다. */}
         {canEdit && <LinkSuggestions planId={plan.id} />}
 
+        {/* 같은 결제를 입금요청과 (나중에 자동으로 들어온) 법카로 두 번 이으면 합계가 두 번 잡힌다. 막을 열쇠가 없어 알리기만 한다. */}
+        {hasMixedLinkTypes(links) && (
+          <p className="mt-3 rounded-xl bg-[var(--apple-orange)]/10 px-3 py-2 text-caption1 text-[var(--apple-label)] break-keep">
+            입금요청과 법카가 함께 이어져 있어요. 같은 결제를 두 번 잇지 않았는지 확인해 주세요.
+          </p>
+        )}
+
         {links.length === 0 ? (
           <p className="mt-3 text-footnote text-[var(--apple-secondary-label)] break-keep">
-            계획을 세운 뒤 실제 입금요청을 올리면, 그 요청을 여기에 이어 두고 계획 금액과 실제 요청 금액의 차이를
-            봅니다. 비슷한 요청이 있으면 자동으로 찾아 제안합니다. 아직 이어 둔 요청이 없습니다.
+            이미 올린 입금요청이나 법카 사용 건을 「연결」로 이어 두면 계획 금액과 실제 쓴 금액의 차이를 봅니다.
+            비슷한 입금요청이 있으면 자동으로 찾아 제안합니다. 아직 이어 둔 비용이 없습니다.
           </p>
         ) : (
           <ul className="mt-3 flex flex-col gap-2">
@@ -536,6 +544,12 @@ function PaidToggle({
   );
 }
 
+/** 활성 연결에 입금요청과 법카가 섞였는가 — 같은 결제 이중 연결 경고용. */
+function hasMixedLinkTypes(links: PlanLinkRow[]): boolean {
+  const types = new Set(links.filter((l) => !l.deleted && l.expenseType).map((l) => l.expenseType));
+  return types.has("DEPOSIT_REQUEST") && types.has("CORPORATE_CARD");
+}
+
 function LinkRow({
   link,
   canEdit,
@@ -591,7 +605,10 @@ function LinkRow({
 
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
         {link.deleted ? (
-          <span className="glass-badge glass-badge-red">삭제된 요청</span>
+          <span className="glass-badge glass-badge-red">삭제된 비용</span>
+        ) : link.expenseType === "CORPORATE_CARD" ? (
+          // 법카는 늘 '승인'이라 상태 대신 유형을 보여 준다.
+          <span className="glass-badge glass-badge-blue">법카</span>
         ) : (
           link.currentStatus && (
             <span className="glass-badge glass-badge-gray">
@@ -641,6 +658,17 @@ function LinkSuggestions({ planId }: { planId: string }) {
   const [linking, setLinking] = useState<string | null>(null);
   const withLock = useSubmitLock();
 
+  // 상세를 띄워 둔 채 다른 탭에서 요청을 올리고 돌아오면 그 요청도 제안에 나와야 한다(2026-10-22 팀원 피드백) —
+  // 화면이 다시 보일 때마다 새로 묻는다.
+  const [reloadKey, setReloadKey] = useState(0);
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") setReloadKey((k) => k + 1);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
   useEffect(() => {
     let alive = true;
     void planFetch<{ suggestions: LinkSuggestion[] }>(`/api/plans/items/${planId}/link-suggestions`).then((res) => {
@@ -651,7 +679,7 @@ function LinkSuggestions({ planId }: { planId: string }) {
     return () => {
       alive = false;
     };
-  }, [planId]);
+  }, [planId, reloadKey]);
 
   const handleLink = useCallback(
     (expenseId: string) =>
@@ -738,8 +766,24 @@ function LinkSuggestions({ planId }: { planId: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// 연결 다이얼로그 — 같은 법인의 아직 연결되지 않은 입금요청만 서버가 골라서 준다.
+// 연결 다이얼로그 — 같은 법인의 아직 연결되지 않은 입금요청·법카만 서버가 골라서 준다.
+// 법카는 한 계획에 여러 장이 이어지는 일이 많아(수능 프로모션 = 카드 11장) 여러 건을 골라 한 번에 잇는다.
 // ---------------------------------------------------------------------------
+
+type LinkKind = "all" | "deposit" | "card";
+
+const LINK_KIND_TABS: Array<{ value: LinkKind; label: string }> = [
+  { value: "all", label: "전체" },
+  { value: "deposit", label: "입금요청" },
+  { value: "card", label: "법카" },
+];
+
+/** 후보 한 줄의 날짜 — 법카는 사용일, 입금요청은 기일(없으면 제출일). */
+function candidateDateText(c: LinkCandidate): string {
+  if (c.type === "CORPORATE_CARD") return `사용 ${c.transactionDate.replace(/-/g, ".")}`;
+  if (c.dueDate) return `기일 ${c.dueDate.replace(/-/g, ".")}`;
+  return `제출 ${formatStamp(c.createdAt).slice(0, 10)}`;
+}
 
 function LinkDialog({
   planId,
@@ -752,20 +796,43 @@ function LinkDialog({
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const [kind, setKind] = useState<LinkKind>("all");
   const [candidates, setCandidates] = useState<LinkCandidate[] | null>(null);
   const [loading, setLoading] = useState(false);
-  const [linking, setLinking] = useState<string | null>(null);
+  // 검색·탭을 바꿔도 고른 건은 남는다(합계를 보여 주려고 후보 자체를 들고 있는다).
+  const [selected, setSelected] = useState<Map<string, LinkCandidate>>(() => new Map());
+  const [linking, setLinking] = useState(false);
   const withLock = useSubmitLock();
 
-  // 입력이 멈춘 뒤에 찾는다. 글자마다 부르면 같은 표를 여러 번 훑는다.
+  // 닫으면 처음으로 — 다음에 열 때 지난 선택이 남아 있으면 엉뚱한 건을 잇는다.
+  const handleOpenChange = useCallback(
+    (next: boolean) => {
+      if (!next) {
+        setQuery("");
+        setKind("all");
+        setSelected(new Map());
+        setCandidates(null);
+      }
+      onOpenChange(next);
+    },
+    [onOpenChange],
+  );
+
+  // 입력이 멈춘 뒤에 찾는다. 글자마다 부르면 같은 표를 여러 번 훑는다. 열 때마다 새로 묻는다(방금 올린 건도 보이게).
   useEffect(() => {
     if (!open) return;
+    let alive = true;
     const timer = setTimeout(async () => {
       setLoading(true);
+      const params = new URLSearchParams();
       const search = query.trim();
+      if (search) params.set("q", search);
+      if (kind !== "all") params.set("kind", kind);
+      const qs = params.toString();
       const res = await planFetch<{ candidates: LinkCandidate[] }>(
-        `/api/plans/items/${planId}/link-candidates${search ? `?q=${encodeURIComponent(search)}` : ""}`,
+        `/api/plans/items/${planId}/link-candidates${qs ? `?${qs}` : ""}`,
       );
+      if (!alive) return;
       setLoading(false);
       if (!res.ok) {
         toast.error(res.message);
@@ -773,37 +840,76 @@ function LinkDialog({
       }
       setCandidates(res.data.candidates);
     }, 250);
-    return () => clearTimeout(timer);
-  }, [open, query, planId]);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [open, query, kind, planId]);
+
+  const toggle = useCallback((candidate: LinkCandidate, checked: boolean) => {
+    setSelected((prev) => {
+      const next = new Map(prev);
+      if (checked) next.set(candidate.id, candidate);
+      else next.delete(candidate.id);
+      return next;
+    });
+  }, []);
+
+  const selectedSum = [...selected.values()].reduce((sum, c) => sum + c.amount, 0);
 
   const handleLink = useCallback(
-    (expenseId: string) =>
+    () =>
       withLock(async () => {
-        setLinking(expenseId);
-        const res = await planFetch<{ linkId: string }>(
+        if (selected.size === 0) return;
+        setLinking(true);
+        const res = await planFetch<{ linkIds: string[]; skipped: number }>(
           `/api/plans/items/${planId}/links`,
-          jsonBody({ expenseId }),
+          jsonBody({ expenseIds: [...selected.keys()] }),
         );
-        setLinking(null);
+        setLinking(false);
         if (!res.ok) {
           toast.error(res.message);
           return;
         }
-        toast.success("입금요청을 연결했습니다.");
-        onOpenChange(false);
+        const { linkIds, skipped } = res.data;
+        toast.success(
+          skipped > 0
+            ? `${linkIds.length}건을 연결했습니다. ${skipped}건은 이미 연결됐거나 연결할 수 없어 건너뛰었습니다.`
+            : `${linkIds.length}건을 연결했습니다.`,
+        );
+        handleOpenChange(false);
         router.refresh();
       }),
-    [withLock, planId, onOpenChange, router],
+    [withLock, selected, planId, handleOpenChange, router],
   );
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent showCloseButton={false} className="sm:max-w-lg max-h-[86dvh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-headline text-[var(--apple-label)]">입금요청 연결</DialogTitle>
+          <DialogTitle className="text-headline text-[var(--apple-label)]">비용 연결</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3">
+          <div className="flex gap-1 rounded-full bg-[var(--apple-tertiary-system-fill)] p-1" role="group" aria-label="비용 유형">
+            {LINK_KIND_TABS.map((tab) => (
+              <button
+                key={tab.value}
+                type="button"
+                aria-pressed={kind === tab.value}
+                onClick={() => setKind(tab.value)}
+                className={cn(
+                  "min-h-9 flex-1 rounded-full px-3 text-footnote font-medium transition-colors",
+                  kind === tab.value
+                    ? "bg-[var(--apple-system-background)] text-[var(--apple-label)] shadow-sm"
+                    : "text-[var(--apple-secondary-label)]",
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
           <div className="relative">
             <Search
               className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--apple-secondary-label)]"
@@ -814,7 +920,7 @@ function LinkDialog({
               onChange={(e) => setQuery(e.target.value)}
               maxLength={100}
               placeholder="제목으로 찾기"
-              aria-label="입금요청 제목 검색"
+              aria-label="비용 제목 검색"
               className="pl-9"
             />
           </div>
@@ -822,51 +928,69 @@ function LinkDialog({
           {loading && candidates === null ? (
             <div className="h-16 rounded-xl bg-[var(--apple-tertiary-system-fill)] animate-pulse" />
           ) : (candidates ?? []).length === 0 ? (
-            <p className="py-6 text-center text-footnote text-[var(--apple-secondary-label)]">
-              연결할 수 있는 입금요청이 없습니다. 같은 법인의 KRW 입금요청 중 아직 다른 계획에 이어지지
-              않은 건만 보입니다.
+            <p className="py-6 text-center text-footnote text-[var(--apple-secondary-label)] break-keep">
+              연결할 수 있는 비용이 없습니다. 같은 법인의 원화 입금요청·법카 중 아직 다른 계획에 이어지지 않은 건만
+              보입니다(팀원은 본인이 올린 건만).
             </p>
           ) : (
-            <ul className="flex flex-col gap-2">
-              {(candidates ?? []).map((candidate) => (
-                <li key={candidate.id}>
-                  <button
-                    type="button"
-                    onClick={() => void handleLink(candidate.id)}
-                    disabled={linking !== null}
-                    className="flex w-full min-h-11 items-center justify-between gap-3 rounded-xl border border-[var(--apple-separator)] px-3 py-2.5 text-left transition-colors hover:bg-[var(--apple-tertiary-system-fill)] disabled:opacity-50"
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate text-footnote font-medium text-[var(--apple-label)]">
-                        {candidate.title}
-                      </span>
-                      <span className="block text-caption2 tabular-nums text-[var(--apple-secondary-label)]">
-                        {EXPENSE_STATUS_LABEL[candidate.status] ?? candidate.status}
-                        {candidate.submitterName && ` · ${candidate.submitterName}`}
-                        {candidate.dueDate && ` · 기일 ${candidate.dueDate.replace(/-/g, ".")}`}
-                      </span>
-                    </span>
-                    <span className="shrink-0 text-footnote font-semibold tabular-nums text-[var(--apple-label)]">
-                      {linking === candidate.id ? (
-                        "연결 중..."
-                      ) : (
-                        <span className="inline-flex items-center gap-1">
-                          <Link2 className="size-3.5" aria-hidden="true" />
-                          {formatKRW(candidate.amount)}
-                        </span>
+            // 목록만 스크롤 — 고른 건수·합계와 「연결」 버튼은 늘 보이게.
+            <ul className="-mx-1 flex max-h-[min(52dvh,28rem)] flex-col gap-2 overflow-y-auto px-1 py-0.5">
+              {(candidates ?? []).map((candidate) => {
+                const checked = selected.has(candidate.id);
+                return (
+                  <li key={candidate.id}>
+                    <label
+                      className={cn(
+                        "flex w-full min-h-11 cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors hover:bg-[var(--apple-tertiary-system-fill)]",
+                        checked ? "border-[var(--apple-blue)]/60 bg-[var(--apple-blue)]/5" : "border-[var(--apple-separator)]",
                       )}
-                    </span>
-                  </button>
-                </li>
-              ))}
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(next) => toggle(candidate, next === true)}
+                        disabled={linking}
+                        aria-label={`${candidate.title} 선택`}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-footnote font-medium text-[var(--apple-label)]">
+                          {candidate.title}
+                        </span>
+                        <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-caption2 tabular-nums text-[var(--apple-secondary-label)]">
+                          {candidate.type === "CORPORATE_CARD" ? (
+                            <span className="glass-badge glass-badge-blue">법카</span>
+                          ) : (
+                            <span className="glass-badge glass-badge-gray">
+                              입금요청 · {EXPENSE_STATUS_LABEL[candidate.status] ?? candidate.status}
+                            </span>
+                          )}
+                          <span>{candidateDateText(candidate)}</span>
+                          {candidate.submitterName && <span>· {candidate.submitterName}</span>}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-footnote font-semibold tabular-nums text-[var(--apple-label)]">
+                        {formatKRW(candidate.amount)}
+                      </span>
+                    </label>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
 
-        <DialogFooter>
-          <Button type="button" variant="outline" size="lg" onClick={() => onOpenChange(false)}>
-            닫기
-          </Button>
+        <DialogFooter className="items-center gap-2 sm:justify-between">
+          <p className="text-footnote tabular-nums text-[var(--apple-secondary-label)]" aria-live="polite">
+            {selected.size > 0 ? `${selected.size}건 선택 · ${formatKRW(selectedSum)}` : "이을 비용을 골라 주세요"}
+          </p>
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" size="lg" onClick={() => handleOpenChange(false)} disabled={linking}>
+              닫기
+            </Button>
+            <Button type="button" size="lg" onClick={() => void handleLink()} disabled={selected.size === 0 || linking}>
+              <Link2 className="size-4" aria-hidden="true" />
+              {linking ? "연결 중..." : selected.size > 1 ? `${selected.size}건 연결` : "연결"}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

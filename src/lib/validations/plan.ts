@@ -185,9 +185,16 @@ export type CommentBodyInput = z.infer<typeof commentBodySchema>;
 
 // --- 연결 ----------------------------------------------------------------------
 
-export const linkExpenseSchema = z.object({
-  expenseId: uuidField("입금요청"),
-});
+/** 한 건(expenseId) 또는 여러 건(expenseIds, 최대 50 — 서비스 MAX_LINK_BATCH 와 같다). */
+export const linkExpenseSchema = z.union([
+  z.object({ expenseId: uuidField("비용") }),
+  z.object({
+    expenseIds: z
+      .array(uuidField("비용"))
+      .min(1, "연결할 비용을 골라주세요")
+      .max(50, "한 번에 50건까지 연결할 수 있습니다"),
+  }),
+]);
 export type LinkExpenseInput = z.infer<typeof linkExpenseSchema>;
 
 /** 해제는 연결 행 id 로. DELETE 본문 대신 쿼리스트링을 쓴다(프록시·캐시가 본문 있는 DELETE 를 흘린다). */
@@ -198,6 +205,8 @@ export type UnlinkQueryInput = z.infer<typeof unlinkQuerySchema>;
 
 export const linkCandidatesQuerySchema = z.object({
   q: z.string().trim().max(100, "검색어는 100자 이내로 입력해주세요").optional(),
+  /** 한 유형만 보기 — 없으면 입금요청·법카 모두. */
+  kind: z.enum(["deposit", "card"]).optional(),
 });
 
 /** 요청 문자열을 쿼리 스키마로. searchParams 를 그대로 넘긴다. */
