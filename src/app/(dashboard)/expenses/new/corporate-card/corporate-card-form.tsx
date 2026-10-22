@@ -64,6 +64,7 @@ interface CorporateCardFormProps {
 
 export default function CorporateCardForm({ initialCompanies, prefillData, myCategories = [], myMerchantCategories = {} }: CorporateCardFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadBusy, setIsUploadBusy] = useState(false); // 사진 줄이는 중엔 제출 잠금
   const [showSuccess, setShowSuccess] = useState(false);
   // 비용은 만들어졌는데 첨부 업로드가 실패한 경우 — 성공 창에서 상세로 안내한다.
   const [uploadIssue, setUploadIssue] = useState<{ message: string; detailHref: string | null } | null>(null);
@@ -174,7 +175,7 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
   // Warn on unsaved changes (browser close / refresh)
   useUnsavedChanges(isDirty || files.length > 0);
   // 작성·제출 중엔 새 배포의 강제 새로고침을 미룬다 (sw-update-prompt)
-  useFormBusy("corporate-card", isDirty || files.length > 0 || amountTouched || isSubmitting);
+  useFormBusy("corporate-card", isDirty || files.length > 0 || amountTouched || isSubmitting || isUploadBusy);
 
   // Pre-fill fields from GoWid transaction
   useEffect(() => {
@@ -739,7 +740,7 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
           <p className="text-footnote text-[var(--apple-secondary-label)] mb-4">
             영수증 사진이나 PDF를 첨부할 수 있습니다 (선택사항).
           </p>
-          <FileUpload files={files} onFilesChange={setFiles} />
+          <FileUpload files={files} onFilesChange={setFiles} onBusyChange={setIsUploadBusy} />
         </div>
 
         {/* 버튼 */}
@@ -755,7 +756,7 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
           </Link>
           <Button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || isUploadBusy}
             className="w-full sm:w-auto rounded-full h-12 px-8 text-[15px] font-semibold bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] shadow-[0_4px_14px_rgba(0,122,255,0.4)] hover:shadow-[0_6px_20px_rgba(0,122,255,0.5)] transition-all"
           >
             {isSubmitting ? (

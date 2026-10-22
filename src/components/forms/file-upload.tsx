@@ -8,9 +8,11 @@ import {
   ImageIcon,
   Camera,
   AlertCircle,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { isShrinkableImage, shrinkImageForUpload } from "@/lib/image-resize";
 import {
   ALLOWED_MIME_TYPES,
   MAX_FILE_SIZE,
@@ -25,10 +27,21 @@ interface FileUploadProps {
   maxFiles?: number;
   error?: string;
   className?: string;
+  /** 사진 줄이는 동안 true — 부모가 제출 버튼을 잠그는 데 쓴다 */
+  onBusyChange?: (busy: boolean) => void;
 }
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 11);
+}
+
+// 폰 메모리 급증을 피하려고 한 장씩 순차로 줄인다 (크기 검증 전에 먼저 줄임)
+async function shrinkSequentially(picked: File[]): Promise<File[]> {
+  const out: File[] = [];
+  for (const file of picked) {
+    out.push(await shrinkImageForUpload(file));
+  }
+  return out;
 }
 
 export function FileUpload({
@@ -37,9 +50,14 @@ export function FileUpload({
   maxFiles = 10,
   error,
   className,
+  onBusyChange,
 }: FileUploadProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [isBusy, setIsBusy] = useState(false);
+  const busyRef = useRef(false);
+  const mountedRef = useRef(true);
+  const onBusyChangeRef = useRef(onBusyChange);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
@@ -51,7 +69,16 @@ export function FileUpload({
     filesRef.current = files;
   }, [files]);
   useEffect(() => {
+    onBusyChangeRef.current = onBusyChange;
+  }, [onBusyChange]);
+  useEffect(() => {
+    onBusyChangeRef.current?.(isBusy);
+  }, [isBusy]);
+  useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
+      onBusyChangeRef.current?.(false);
       filesRef.current.forEach((f) => { if (f.preview) URL.revokeObjectURL(f.preview); });
     };
   }, []);
@@ -70,43 +97,64 @@ export function FileUpload({
   );
 
   const addFiles = useCallback(
-    (newFiles: File[]) => {
+    async (picked: File[]) => {
+      if (busyRef.current) {
+        setFileError("사진을 처리하는 중입니다. 잠시 후 다시 시도하세요.");
+        return;
+      }
       setFileError(null);
 
-      if (files.length + newFiles.length > maxFiles) {
+      if (filesRef.current.length + picked.length > maxFiles) {
         setFileError(`최대 ${maxFiles}개의 파일만 첨부할 수 있습니다.`);
         return;
       }
 
-      const validFiles: FileWithPreview[] = [];
-      let addedSize = 0;
+      // PDF만 고른 경우는 줄일 게 없으니 busy 표시 없이 바로 진행한다
+      const hasImage = picked.some(isShrinkableImage);
+      busyRef.current = true;
+      if (hasImage) setIsBusy(true);
+      try {
+        const newFiles = await shrinkSequentially(picked);
+        // 줄이는 중 화면이 사라졌으면 미리보기 URL을 만들지 않는다 (해제할 기회가 없다)
+        if (!mountedRef.current) return;
 
-      for (const file of newFiles) {
-        const validationError = validateFile(file);
-        if (validationError) {
-          setFileError(validationError);
-          return;
+        // 줄이는 동안 목록이 바뀌었을 수 있어 최신 값을 쓴다
+        const current = filesRef.current;
+        const baseSize = current.reduce((sum, f) => sum + f.file.size, 0);
+        const validFiles: FileWithPreview[] = [];
+        let addedSize = 0;
+
+        for (const file of newFiles) {
+          const validationError = validateFile(file);
+          if (validationError) {
+            setFileError(validationError);
+            return;
+          }
+
+          addedSize += file.size;
+          if (baseSize + addedSize > MAX_TOTAL_FILE_SIZE) {
+            setFileError("총 첨부 파일 크기가 50MB를 초과합니다.");
+            return;
+          }
+
+          validFiles.push({
+            id: generateId(),
+            file,
+            preview: null,
+          });
         }
 
-        addedSize += file.size;
-        if (currentTotalSize + addedSize > MAX_TOTAL_FILE_SIZE) {
-          setFileError("총 첨부 파일 크기가 50MB를 초과합니다.");
-          return;
+        // 미리보기 URL은 검증을 모두 통과한 뒤에 만든다 (중간에 return하면 해제할 기회가 없다)
+        for (const f of validFiles) {
+          if (f.file.type.startsWith("image/")) f.preview = URL.createObjectURL(f.file);
         }
-
-        const isImage = file.type.startsWith("image/");
-        const preview = isImage ? URL.createObjectURL(file) : null;
-
-        validFiles.push({
-          id: generateId(),
-          file,
-          preview,
-        });
+        onFilesChange([...current, ...validFiles]);
+      } finally {
+        busyRef.current = false;
+        if (mountedRef.current) setIsBusy(false);
       }
-
-      onFilesChange([...files, ...validFiles]);
     },
-    [files, onFilesChange, maxFiles, currentTotalSize, validateFile]
+    [onFilesChange, maxFiles, validateFile]
   );
 
   const removeFile = useCallback(
@@ -166,25 +214,37 @@ export function FileUpload({
             : displayError
             ? "border-destructive/50 bg-destructive/5"
             : "border-muted-foreground/25 hover:border-muted-foreground/50",
-          "cursor-pointer"
+          isBusy ? "cursor-wait" : "cursor-pointer"
         )}
-        onClick={() => fileInputRef.current?.click()}
+        onClick={() => {
+          if (!isBusy) fileInputRef.current?.click();
+        }}
         role="button"
         tabIndex={0}
         aria-label="파일 업로드 영역"
+        aria-busy={isBusy}
+        aria-disabled={isBusy}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            fileInputRef.current?.click();
+            if (!isBusy) fileInputRef.current?.click();
           }
         }}
       >
-        <Upload className="size-8 text-muted-foreground" />
+        {isBusy ? (
+          <Loader2 className="size-8 animate-spin text-muted-foreground motion-reduce:animate-none" />
+        ) : (
+          <Upload className="size-8 text-muted-foreground" />
+        )}
         <div className="text-center">
-          <p className="text-sm font-medium">
-            <span className="sm:hidden">탭하여 파일을 선택하세요</span>
-            <span className="hidden sm:block">파일을 드래그하여 놓거나 클릭하여 선택하세요</span>
-          </p>
+          {isBusy ? (
+            <p className="text-sm font-medium" role="status">사진 줄이는 중…</p>
+          ) : (
+            <p className="text-sm font-medium">
+              <span className="sm:hidden">탭하여 파일을 선택하세요</span>
+              <span className="hidden sm:block">파일을 드래그하여 놓거나 클릭하여 선택하세요</span>
+            </p>
+          )}
           <p className="mt-1 text-xs text-muted-foreground">
             JPEG, PNG, WebP, HEIC, PDF (최대 10MB / 총 50MB)
           </p>
@@ -195,6 +255,7 @@ export function FileUpload({
             type="button"
             variant="outline"
             size="sm"
+            disabled={isBusy}
             onClick={() => fileInputRef.current?.click()}
           >
             <Upload className="size-3.5" />
@@ -204,6 +265,7 @@ export function FileUpload({
             type="button"
             variant="outline"
             size="sm"
+            disabled={isBusy}
             onClick={() => cameraInputRef.current?.click()}
           >
             <Camera className="size-3.5" />
@@ -333,9 +395,14 @@ export function FileUploadWithDocType({
   maxFiles = 10,
   error,
   className,
+  onBusyChange,
 }: FileUploadWithDocTypeProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [isBusy, setIsBusy] = useState(false);
+  const busyRef = useRef(false);
+  const mountedRef = useRef(true);
+  const onBusyChangeRef = useRef(onBusyChange);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
@@ -347,7 +414,16 @@ export function FileUploadWithDocType({
     filesRef2.current = files;
   }, [files]);
   useEffect(() => {
+    onBusyChangeRef.current = onBusyChange;
+  }, [onBusyChange]);
+  useEffect(() => {
+    onBusyChangeRef.current?.(isBusy);
+  }, [isBusy]);
+  useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
+      onBusyChangeRef.current?.(false);
       filesRef2.current.forEach((f) => { if (f.preview) URL.revokeObjectURL(f.preview); });
     };
   }, []);
@@ -366,43 +442,64 @@ export function FileUploadWithDocType({
   );
 
   const addFiles = useCallback(
-    (newFiles: File[]) => {
+    async (picked: File[]) => {
+      if (busyRef.current) {
+        setFileError("사진을 처리하는 중입니다. 잠시 후 다시 시도하세요.");
+        return;
+      }
       setFileError(null);
 
-      if (files.length + newFiles.length > maxFiles) {
+      if (filesRef2.current.length + picked.length > maxFiles) {
         setFileError(`최대 ${maxFiles}개의 파일만 첨부할 수 있습니다.`);
         return;
       }
 
-      const validFiles: FileWithPreview[] = [];
-      let addedSize = 0;
+      // PDF만 고른 경우는 줄일 게 없으니 busy 표시 없이 바로 진행한다
+      const hasImage = picked.some(isShrinkableImage);
+      busyRef.current = true;
+      if (hasImage) setIsBusy(true);
+      try {
+        const newFiles = await shrinkSequentially(picked);
+        // 줄이는 중 화면이 사라졌으면 미리보기 URL을 만들지 않는다 (해제할 기회가 없다)
+        if (!mountedRef.current) return;
 
-      for (const file of newFiles) {
-        const validationError = validateFile(file);
-        if (validationError) {
-          setFileError(validationError);
-          return;
+        // 줄이는 동안 목록이 바뀌었을 수 있어 최신 값을 쓴다
+        const current = filesRef2.current;
+        const baseSize = current.reduce((sum, f) => sum + f.file.size, 0);
+        const validFiles: FileWithPreview[] = [];
+        let addedSize = 0;
+
+        for (const file of newFiles) {
+          const validationError = validateFile(file);
+          if (validationError) {
+            setFileError(validationError);
+            return;
+          }
+
+          addedSize += file.size;
+          if (baseSize + addedSize > MAX_TOTAL_FILE_SIZE) {
+            setFileError("총 첨부 파일 크기가 50MB를 초과합니다.");
+            return;
+          }
+
+          validFiles.push({
+            id: generateId(),
+            file,
+            preview: null,
+          });
         }
 
-        addedSize += file.size;
-        if (currentTotalSize + addedSize > MAX_TOTAL_FILE_SIZE) {
-          setFileError("총 첨부 파일 크기가 50MB를 초과합니다.");
-          return;
+        // 미리보기 URL은 검증을 모두 통과한 뒤에 만든다 (중간에 return하면 해제할 기회가 없다)
+        for (const f of validFiles) {
+          if (f.file.type.startsWith("image/")) f.preview = URL.createObjectURL(f.file);
         }
-
-        const isImage = file.type.startsWith("image/");
-        const preview = isImage ? URL.createObjectURL(file) : null;
-
-        validFiles.push({
-          id: generateId(),
-          file,
-          preview,
-        });
+        onFilesChange([...current, ...validFiles]);
+      } finally {
+        busyRef.current = false;
+        if (mountedRef.current) setIsBusy(false);
       }
-
-      onFilesChange([...files, ...validFiles]);
     },
-    [files, onFilesChange, maxFiles, currentTotalSize, validateFile]
+    [onFilesChange, maxFiles, validateFile]
   );
 
   const removeFile = useCallback(
@@ -462,25 +559,37 @@ export function FileUploadWithDocType({
             : displayError
             ? "border-destructive/50 bg-destructive/5"
             : "border-muted-foreground/25 hover:border-muted-foreground/50",
-          "cursor-pointer"
+          isBusy ? "cursor-wait" : "cursor-pointer"
         )}
-        onClick={() => fileInputRef.current?.click()}
+        onClick={() => {
+          if (!isBusy) fileInputRef.current?.click();
+        }}
         role="button"
         tabIndex={0}
         aria-label="파일 업로드 영역"
+        aria-busy={isBusy}
+        aria-disabled={isBusy}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            fileInputRef.current?.click();
+            if (!isBusy) fileInputRef.current?.click();
           }
         }}
       >
-        <Upload className="size-8 text-muted-foreground" />
+        {isBusy ? (
+          <Loader2 className="size-8 animate-spin text-muted-foreground motion-reduce:animate-none" />
+        ) : (
+          <Upload className="size-8 text-muted-foreground" />
+        )}
         <div className="text-center">
-          <p className="text-sm font-medium">
-            <span className="sm:hidden">탭하여 파일을 선택하세요</span>
-            <span className="hidden sm:block">파일을 드래그하여 놓거나 클릭하여 선택하세요</span>
-          </p>
+          {isBusy ? (
+            <p className="text-sm font-medium" role="status">사진 줄이는 중…</p>
+          ) : (
+            <p className="text-sm font-medium">
+              <span className="sm:hidden">탭하여 파일을 선택하세요</span>
+              <span className="hidden sm:block">파일을 드래그하여 놓거나 클릭하여 선택하세요</span>
+            </p>
+          )}
           <p className="mt-1 text-xs text-muted-foreground">
             JPEG, PNG, WebP, HEIC, PDF (최대 10MB / 총 50MB)
           </p>
@@ -494,6 +603,7 @@ export function FileUploadWithDocType({
             type="button"
             variant="outline"
             size="sm"
+            disabled={isBusy}
             onClick={() => fileInputRef.current?.click()}
           >
             <Upload className="size-3.5" />
@@ -503,6 +613,7 @@ export function FileUploadWithDocType({
             type="button"
             variant="outline"
             size="sm"
+            disabled={isBusy}
             onClick={() => cameraInputRef.current?.click()}
           >
             <Camera className="size-3.5" />
