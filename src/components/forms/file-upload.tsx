@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Upload,
   X,
@@ -13,6 +13,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { isShrinkableImage, shrinkImageForUpload } from "@/lib/image-resize";
+import type { OcrResult } from "@/lib/ocr/types";
+import { useDocumentReader } from "@/components/forms/use-document-reader";
 import {
   ALLOWED_MIME_TYPES,
   MAX_FILE_SIZE,
@@ -29,7 +31,18 @@ interface FileUploadProps {
   className?: string;
   /** 사진 줄이는 동안 true — 부모가 제출 버튼을 잠그는 데 쓴다 */
   onBusyChange?: (busy: boolean) => void;
+  /**
+   * 넘기면 첨부한 사진·PDF를 뒤에서 읽어(OCR) 결과를 파일마다 알려 준다. 칸을 채울지는 부모가 정한다.
+   * 뒤집힌 사진은 바로 세운 사진으로 바꿔 끼운다. 읽는 동안에도 첨부·제출은 막지 않는다.
+   */
+  onDocumentRead?: (fileId: string, result: OcrResult) => void;
 }
+
+type BusyStage = "shrink" | null;
+
+const BUSY_LABEL: Record<Exclude<BusyStage, null>, string> = {
+  shrink: "사진 용량 줄이는 중…",
+};
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 11);
@@ -51,10 +64,12 @@ export function FileUpload({
   error,
   className,
   onBusyChange,
+  onDocumentRead,
 }: FileUploadProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [isBusy, setIsBusy] = useState(false);
+  const [busyStage, setBusyStage] = useState<BusyStage>(null);
+  const isBusy = busyStage !== null;
   const busyRef = useRef(false);
   const mountedRef = useRef(true);
   const onBusyChangeRef = useRef(onBusyChange);
@@ -65,9 +80,12 @@ export function FileUpload({
 
   // Revoke object URLs on unmount to prevent memory leaks
   const filesRef = useRef(files);
-  useEffect(() => {
+  // 커밋 직후 같은 태스크에서 맞춘다 — useEffect 로 늦게 맞추면 그 사이 도착한 읽기 결과(직접 대입한 최신 목록)를
+  // 예전 목록으로 되돌려, 바로 세운 사진이 원래 사진으로 돌아갈 수 있었다.
+  useLayoutEffect(() => {
     filesRef.current = files;
   }, [files]);
+  const { read: readDocuments, readingCount } = useDocumentReader({ filesRef: filesRef, onFilesChange, onDocumentRead, fillDocumentType: false });
   useEffect(() => {
     onBusyChangeRef.current = onBusyChange;
   }, [onBusyChange]);
@@ -109,10 +127,10 @@ export function FileUpload({
         return;
       }
 
-      // PDF만 고른 경우는 줄일 게 없으니 busy 표시 없이 바로 진행한다
+      // PDF만 고른 경우는 줄일 게 없으니 busy 표시 없이 바로 진행한다 (읽기는 아래에서 따로 표시)
       const hasImage = picked.some(isShrinkableImage);
       busyRef.current = true;
-      if (hasImage) setIsBusy(true);
+      if (hasImage) setBusyStage("shrink");
       try {
         const newFiles = await shrinkSequentially(picked);
         // 줄이는 중 화면이 사라졌으면 미리보기 URL을 만들지 않는다 (해제할 기회가 없다)
@@ -148,25 +166,31 @@ export function FileUpload({
         for (const f of validFiles) {
           if (f.file.type.startsWith("image/")) f.preview = URL.createObjectURL(f.file);
         }
-        onFilesChange([...current, ...validFiles]);
+        const updated = [...filesRef.current, ...validFiles];
+        filesRef.current = updated;
+        onFilesChange(updated);
+        // 읽기(OCR)는 뒤에서 — 결과가 오면 바로 세운 사진으로 바꾸고 제안을 띄운다
+        readDocuments(validFiles);
       } finally {
         busyRef.current = false;
-        if (mountedRef.current) setIsBusy(false);
+        if (mountedRef.current) setBusyStage(null);
       }
     },
-    [onFilesChange, maxFiles, validateFile]
+    [onFilesChange, readDocuments, maxFiles, validateFile]
   );
 
   const removeFile = useCallback(
     (id: string) => {
-      const fileToRemove = files.find((f) => f.id === id);
+      const fileToRemove = filesRef.current.find((f) => f.id === id);
       if (fileToRemove?.preview) {
         URL.revokeObjectURL(fileToRemove.preview);
       }
-      onFilesChange(files.filter((f) => f.id !== id));
+      const updated = filesRef.current.filter((f) => f.id !== id);
+      filesRef.current = updated;
+      onFilesChange(updated);
       setFileError(null);
     },
-    [files, onFilesChange]
+    [onFilesChange]
   );
 
   const handleDrop = useCallback(
@@ -238,7 +262,7 @@ export function FileUpload({
         )}
         <div className="text-center">
           {isBusy ? (
-            <p className="text-sm font-medium" role="status">사진 용량 줄이는 중…</p>
+            <p className="text-sm font-medium" role="status">{busyStage ? BUSY_LABEL[busyStage] : null}</p>
           ) : (
             <p className="text-sm font-medium">
               <span className="sm:hidden">탭하여 파일을 선택하세요</span>
@@ -314,6 +338,12 @@ export function FileUpload({
           ))}
           <p className="text-xs text-muted-foreground">
             {files.length}개 파일 / 총 {formatFileSize(currentTotalSize)}
+            {readingCount > 0 && (
+              <span className="ml-2 inline-flex items-center gap-1 text-[var(--apple-blue)]">
+                <Loader2 className="size-3 animate-spin motion-reduce:animate-none" aria-hidden />
+                증빙 읽는 중 {readingCount}개
+              </span>
+            )}
           </p>
         </div>
       )}
@@ -396,10 +426,12 @@ export function FileUploadWithDocType({
   error,
   className,
   onBusyChange,
+  onDocumentRead,
 }: FileUploadWithDocTypeProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [isBusy, setIsBusy] = useState(false);
+  const [busyStage, setBusyStage] = useState<BusyStage>(null);
+  const isBusy = busyStage !== null;
   const busyRef = useRef(false);
   const mountedRef = useRef(true);
   const onBusyChangeRef = useRef(onBusyChange);
@@ -410,9 +442,12 @@ export function FileUploadWithDocType({
 
   // Revoke object URLs on unmount to prevent memory leaks
   const filesRef2 = useRef(files);
-  useEffect(() => {
+  // 커밋 직후 같은 태스크에서 맞춘다 — useEffect 로 늦게 맞추면 그 사이 도착한 읽기 결과(직접 대입한 최신 목록)를
+  // 예전 목록으로 되돌려, 바로 세운 사진이 원래 사진으로 돌아갈 수 있었다.
+  useLayoutEffect(() => {
     filesRef2.current = files;
   }, [files]);
+  const { read: readDocuments, readingCount } = useDocumentReader({ filesRef: filesRef2, onFilesChange, onDocumentRead, fillDocumentType: true });
   useEffect(() => {
     onBusyChangeRef.current = onBusyChange;
   }, [onBusyChange]);
@@ -454,10 +489,10 @@ export function FileUploadWithDocType({
         return;
       }
 
-      // PDF만 고른 경우는 줄일 게 없으니 busy 표시 없이 바로 진행한다
+      // PDF만 고른 경우는 줄일 게 없으니 busy 표시 없이 바로 진행한다 (읽기는 아래에서 따로 표시)
       const hasImage = picked.some(isShrinkableImage);
       busyRef.current = true;
-      if (hasImage) setIsBusy(true);
+      if (hasImage) setBusyStage("shrink");
       try {
         const newFiles = await shrinkSequentially(picked);
         // 줄이는 중 화면이 사라졌으면 미리보기 URL을 만들지 않는다 (해제할 기회가 없다)
@@ -493,25 +528,31 @@ export function FileUploadWithDocType({
         for (const f of validFiles) {
           if (f.file.type.startsWith("image/")) f.preview = URL.createObjectURL(f.file);
         }
-        onFilesChange([...current, ...validFiles]);
+        const updated = [...filesRef2.current, ...validFiles];
+        filesRef2.current = updated;
+        onFilesChange(updated);
+        // 읽기(OCR)는 뒤에서 — 결과가 오면 바로 세운 사진으로 바꾸고 제안을 띄운다
+        readDocuments(validFiles);
       } finally {
         busyRef.current = false;
-        if (mountedRef.current) setIsBusy(false);
+        if (mountedRef.current) setBusyStage(null);
       }
     },
-    [onFilesChange, maxFiles, validateFile]
+    [onFilesChange, readDocuments, maxFiles, validateFile]
   );
 
   const removeFile = useCallback(
     (id: string) => {
-      const fileToRemove = files.find((f) => f.id === id);
+      const fileToRemove = filesRef2.current.find((f) => f.id === id);
       if (fileToRemove?.preview) {
         URL.revokeObjectURL(fileToRemove.preview);
       }
-      onFilesChange(files.filter((f) => f.id !== id));
+      const updated = filesRef2.current.filter((f) => f.id !== id);
+      filesRef2.current = updated;
+      onFilesChange(updated);
       setFileError(null);
     },
-    [files, onFilesChange]
+    [onFilesChange]
   );
 
   const handleDrop = useCallback(
@@ -583,7 +624,7 @@ export function FileUploadWithDocType({
         )}
         <div className="text-center">
           {isBusy ? (
-            <p className="text-sm font-medium" role="status">사진 용량 줄이는 중…</p>
+            <p className="text-sm font-medium" role="status">{busyStage ? BUSY_LABEL[busyStage] : null}</p>
           ) : (
             <p className="text-sm font-medium">
               <span className="sm:hidden">탭하여 파일을 선택하세요</span>
@@ -666,6 +707,12 @@ export function FileUploadWithDocType({
           ))}
           <p className="text-xs text-muted-foreground">
             {files.length}개 파일 / 총 {formatFileSize(currentTotalSize)}
+            {readingCount > 0 && (
+              <span className="ml-2 inline-flex items-center gap-1 text-[var(--apple-blue)]">
+                <Loader2 className="size-3 animate-spin motion-reduce:animate-none" aria-hidden />
+                증빙 읽는 중 {readingCount}개
+              </span>
+            )}
           </p>
         </div>
       )}
