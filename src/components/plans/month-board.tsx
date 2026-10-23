@@ -285,6 +285,8 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
       moveToMonth,
       shiftMonth,
       openEdit: (card) => setDialog({ card, mode: "edit" }),
+      createDepositRequest: (card) => router.push(`/expenses/new/deposit-request?plan=${card.id}`),
+      linkCardPayment: (card) => router.push(`/plans/${card.id}?link=card`),
       openDelete: (card) => setDialog({ card, mode: "cancel" }),
       swipeOpenId,
       setSwipeOpenId,
@@ -292,7 +294,7 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
       toggleErpApplied,
       togglePaid,
     }),
-    [canDrag, dragging, moveToMonth, shiftMonth, swipeOpenId, board.isExecutive, toggleErpApplied, togglePaid],
+    [canDrag, dragging, moveToMonth, shiftMonth, swipeOpenId, board.isExecutive, toggleErpApplied, togglePaid, router],
   );
 
   // --- 모바일 달 탭: 한 달씩 보기(lib/plans/board.ts) ------------------------------------

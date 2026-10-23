@@ -52,7 +52,7 @@ const FIELD_LABEL: Record<string, string> = {
 };
 
 /** 표시 켜고 끄기는 "무엇 변경"이 아니라 그 자체로 읽힌다 — 카드에 "지급 완료", "ERP 해제" 처럼. */
-const TOGGLE_LABELS = new Set(["지급 완료", "지급 해제", "ERP 반영", "ERP 해제", "입금요청 연결", "연결 해제", "취소"]);
+const TOGGLE_LABELS = new Set(["지급 완료", "지급 해제", "ERP 반영", "ERP 해제", "비용 연결", "연결 해제", "취소"]);
 
 const obj = (v: unknown): Record<string, unknown> =>
   v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
@@ -63,7 +63,7 @@ function isCancel(e: ChangeEntry): boolean {
 
 /** 이력 한 줄이 건드린 칸 이름들. */
 export function entryFields(e: ChangeEntry): string[] {
-  if (e.entityType === "link") return [e.action === "UNLINK" ? "연결 해제" : "입금요청 연결"];
+  if (e.entityType === "link") return [e.action === "UNLINK" ? "연결 해제" : "비용 연결"];
   if (e.entityType !== "plan" || e.action !== "UPDATE") return [];
   if (isCancel(e)) return ["취소"];
   const after = obj(e.after);
@@ -167,9 +167,9 @@ export function describeChange(e: ChangeEntry, ctx: DescribeContext): DescribedC
 
   if (e.entityType === "link") {
     return e.action === "UNLINK"
-      ? { title: "입금요청 연결 해제", lines: [{ label: "금액", before: won(before.snapshotAmount) }] }
+      ? { title: "비용 연결 해제", lines: [{ label: "금액", before: won(before.snapshotAmount) }] }
       : {
-          title: "입금요청 연결",
+          title: "비용 연결",
           lines: [{ label: "요청", after: `${text(after.snapshotTitle, 40)} · ${won(after.snapshotAmount)}` }],
         };
   }

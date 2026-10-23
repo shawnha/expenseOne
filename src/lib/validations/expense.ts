@@ -148,6 +148,9 @@ const depositRequestSubmitBase = z.object({
   isUrgent: z.boolean().optional().default(false),
   isPrePaid: z.boolean().optional().default(false),
   prePaidPercentage: z.number().int().min(1).max(100).optional().nullable(),
+  // 선지급을 금액으로 정했을 때의 선지급금(원). 있으면 서버가 pre_paid_percentage 를 환산 비율로 덮어쓴다.
+  // 총액보다 작아야 하고 원화 건만 — 총액(환산·원천징수 뒤)을 아는 서버(expense.service)가 검사한다.
+  prePaidFixedAmount: z.number().int("선지급 금액은 정수여야 합니다").positive("선지급 금액은 0보다 커야 합니다").optional().nullable(),
   dueDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "날짜 형식은 YYYY-MM-DD여야 합니다")
@@ -213,6 +216,8 @@ export const updateExpenseSchema = z.object({
   isUrgent: z.boolean().optional(),
   isPrePaid: z.boolean().optional(),
   prePaidPercentage: z.number().int().min(1).max(100).optional().nullable(),
+  // null = 금액 지정 해제(비율로 계산). 키를 안 보내면 그대로 둔다.
+  prePaidFixedAmount: z.number().int().positive().optional().nullable(),
   dueDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -346,46 +351,74 @@ export type AttachmentUploadInput = z.infer<typeof attachmentUploadSchema>;
 // ---------------------------------------------------------------------------
 
 export const recurringFrequencies = ["WEEKLY", "MONTHLY", "YEARLY"] as const;
+export const recurringRequestModes = ["AUTO", "REMIND", "NONE"] as const;
+export const recurringPlanPrecisions = ["DAY", "MONTH_EARLY", "MONTH_MID", "MONTH"] as const;
 
-const recurringBase = z.object({
-  title: z.string().min(1, "제목을 입력해주세요").max(200, "제목은 200자 이내로 입력해주세요"),
-  description: z.string().max(2000).optional().nullable(),
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "날짜 형식이 올바르지 않습니다");
+const optionalText = (max: number) => z.string().trim().max(max).nullable().optional();
+
+/**
+ * 반복 지급 칸. **기본값(default)을 두지 않는다** — 수정(PATCH)은 이 스키마를 partial 로 받는데, zod v4 는
+ * partial 안의 default 도 채워 넣는다. 그러면 「일시중지」 한 번에 간격·통화·첨부 설정이 기본값으로 덮인다.
+ * 기본값은 서비스(createRecurringExpense)가 넣는다.
+ * 칸끼리의 규칙(자동 제출은 계좌 필수 등)은 lib/recurring-occurrences 의 recurringConfigError 한 곳 —
+ * 수정은 기존 값과 합친 뒤에 검사해야 해서 스키마 refine 으로 두지 않는다.
+ */
+export const recurringExpenseBaseSchema = z.object({
+  title: z.string().trim().min(1, "제목을 입력해주세요").max(200, "제목은 200자 이내로 입력해주세요"),
+  description: z.string().max(2000).nullable().optional(),
+  /** AUTO 는 이 금액 그대로 제출, REMIND·NONE 은 예상 금액(비용계획 카드 금액). */
   amount: z.number().int("금액은 정수여야 합니다").positive("금액은 0보다 커야 합니다"),
-  currency: z.enum(["KRW", "USD"]).optional().default("KRW"),
-  category: z.string().trim().min(1, "카테고리를 선택해주세요").max(100),
-  bankName: z.string().min(1, "은행명을 입력해주세요").max(50),
-  accountHolder: z.string().min(1, "예금주를 입력해주세요").max(100),
-  accountNumber: z.string().min(1, "계좌번호를 입력해주세요").max(50),
+  currency: z.enum(["KRW", "USD"]).optional(),
+  category: optionalText(100),
+  bankName: optionalText(50),
+  accountHolder: optionalText(100),
+  accountNumber: optionalText(50),
   companyId: z.string().uuid("회사를 선택해주세요"),
 
   frequency: z.enum(recurringFrequencies),
-  intervalCount: z.number().int().min(1).max(12).optional().default(1),
-  dayOfMonth: z.number().int().min(1).max(31).optional().nullable(),
-  monthOfYear: z.number().int().min(1).max(12).optional().nullable(),
-  weekday: z.number().int().min(0).max(6).optional().nullable(),
+  intervalCount: z.number().int().min(1, "간격은 1~12로 골라주세요").max(12, "간격은 1~12로 골라주세요").optional(),
+  dayOfMonth: z.number().int().min(1, "날짜는 1~31일로 골라주세요").max(31, "날짜는 1~31일로 골라주세요").nullable().optional(),
+  monthOfYear: z.number().int().min(1).max(12).nullable().optional(),
+  weekday: z.number().int().min(0).max(6).nullable().optional(),
 
   /** 납입 기일을 생성일로부터 며칠 뒤로. null이면 기일 없음. */
-  dueDateOffsetDays: z.number().int().min(0).max(90).optional().nullable(),
-  attachFiles: z.boolean().optional().default(false),
-  isActive: z.boolean().optional().default(true),
+  dueDateOffsetDays: z.number().int().min(0, "납입 기일은 0~90일로 입력해주세요").max(90, "납입 기일은 0~90일로 입력해주세요").nullable().optional(),
+  attachFiles: z.boolean().optional(),
+  isActive: z.boolean().optional(),
+
+  requestMode: z.enum(recurringRequestModes).optional(),
+  planProjectId: z.string().uuid().nullable().optional(),
+  planBrandId: z.string().uuid().nullable().optional(),
+  planDatePrecision: z.enum(recurringPlanPrecisions).optional(),
+  startsOn: isoDate.nullable().optional(),
+  endsOn: isoDate.nullable().optional(),
 });
 
-/**
- * 주기별로 필요한 값이 채워져 있어야 한다. 없으면 다음 날짜를 계산할 수 없고,
- * DB CHECK에서 거부되면 사용자에게 무슨 값이 빠졌는지 안 보인다.
- */
-export const recurringExpenseSchema = recurringBase
-  .refine((d) => d.frequency !== "WEEKLY" || d.weekday != null, {
-    message: "요일을 선택해주세요",
-    path: ["weekday"],
+/** 주기별로 필요한 값. 없으면 다음 날짜를 계산할 수 없고, DB CHECK 에서 거부되면 무엇이 빠졌는지 안 보인다. */
+function scheduleIssue(d: { frequency?: string; weekday?: number | null; dayOfMonth?: number | null; monthOfYear?: number | null }) {
+  if (d.frequency === "WEEKLY" && d.weekday == null) return { message: "요일을 선택해주세요", path: ["weekday"] };
+  if (d.frequency && d.frequency !== "WEEKLY" && d.dayOfMonth == null) {
+    return { message: "며칠에 등록할지 선택해주세요", path: ["dayOfMonth"] };
+  }
+  if (d.frequency === "YEARLY" && d.monthOfYear == null) return { message: "몇 월에 등록할지 선택해주세요", path: ["monthOfYear"] };
+  return null;
+}
+
+export const recurringExpenseSchema = recurringExpenseBaseSchema
+  .extend({
+    /** 방금 올린 입금요청에서 반복을 만들 때 — 그 요청의 첨부를 반복 첨부로 복사한다(자동 제출용). */
+    copyAttachmentsFromExpenseId: z.string().uuid().optional(),
   })
-  .refine((d) => d.frequency === "WEEKLY" || d.dayOfMonth != null, {
-    message: "며칠에 등록할지 선택해주세요",
-    path: ["dayOfMonth"],
-  })
-  .refine((d) => d.frequency !== "YEARLY" || d.monthOfYear != null, {
-    message: "몇 월에 등록할지 선택해주세요",
-    path: ["monthOfYear"],
+  .superRefine((d, ctx) => {
+    const issue = scheduleIssue(d);
+    if (issue) ctx.addIssue({ code: "custom", ...issue });
   });
 
+/** 수정: 보낸 칸만. 주기 칸 검사는 기존 값과 합친 뒤 서비스에서 한다. */
+export const recurringExpenseUpdateSchema = recurringExpenseBaseSchema.partial();
+
+export { scheduleIssue as recurringScheduleIssue };
+
 export type RecurringExpenseInput = z.infer<typeof recurringExpenseSchema>;
+export type RecurringExpenseUpdateInput = z.infer<typeof recurringExpenseUpdateSchema>;

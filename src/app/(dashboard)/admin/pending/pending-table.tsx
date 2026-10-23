@@ -55,6 +55,7 @@ export interface PendingExpense {
   isUrgent: boolean;
   isPrePaid?: boolean;
   prePaidPercentage?: number | null;
+  prePaidFixedAmount?: number | null;
   /** 제출자가 원천징수 3.3% 를 체크했나 — 체크했으면 amount 가 실지급액이다. */
   hasFreelancerWithholding?: boolean;
   companyName?: string | null;
@@ -277,7 +278,7 @@ export function PendingTable({ expenses }: PendingTableProps) {
                   <span className="flex items-center gap-1.5">
                     <span className="truncate">{expense.title}</span>
                     {expense.isUrgent && <span className="glass-badge glass-badge-red shrink-0">긴급</span>}
-                    <PrePaidBadge isPrePaid={expense.isPrePaid} percentage={expense.prePaidPercentage} />
+                    <PrePaidBadge isPrePaid={expense.isPrePaid} percentage={expense.prePaidPercentage} fixedAmount={expense.prePaidFixedAmount} />
                     <WithholdingBadge applied={expense.hasFreelancerWithholding} />
                   </span>
                 </TableCell>
@@ -359,7 +360,7 @@ export function PendingTable({ expenses }: PendingTableProps) {
                     <p className="text-sm font-medium text-[var(--apple-label)] truncate flex items-center gap-1.5">
                       <span className="truncate">{expense.title}</span>
                       {expense.isUrgent && <span className="glass-badge glass-badge-red shrink-0">긴급</span>}
-                      <PrePaidBadge isPrePaid={expense.isPrePaid} percentage={expense.prePaidPercentage} />
+                      <PrePaidBadge isPrePaid={expense.isPrePaid} percentage={expense.prePaidPercentage} fixedAmount={expense.prePaidFixedAmount} />
                       <WithholdingBadge applied={expense.hasFreelancerWithholding} />
                     </p>
                     <p className="text-xs text-[var(--apple-secondary-label)]">{expense.submitter?.name ?? "알 수 없음"}</p>
@@ -458,6 +459,7 @@ export function PendingTable({ expenses }: PendingTableProps) {
                   amountOriginal={approveTarget.amountOriginal}
                   isPrePaid={approveTarget.isPrePaid}
                   prePaidPercentage={approveTarget.prePaidPercentage}
+                  prePaidFixedAmount={approveTarget.prePaidFixedAmount}
                   hasFreelancerWithholding={approveTarget.hasFreelancerWithholding ?? false}
                 />
               )}

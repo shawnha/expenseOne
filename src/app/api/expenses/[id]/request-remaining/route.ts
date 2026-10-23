@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { prePaidSplit } from "@/lib/utils/pre-paid";
+import { getPrePaidFixedAmount } from "@/services/expense.service";
 import { revalidatePath } from "next/cache";
 import { requireAuth, errorResponse, handleError, validateOrigin, validateUUID } from "@/lib/api-utils";
 import { db } from "@/lib/db";
@@ -84,7 +86,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
       .from(users)
       .where(and(eq(users.role, "ADMIN"), eq(users.isActive, true)));
 
-    const remainingAmount = expense.amount - Math.round(expense.amount * expense.prePaidPercentage / 100);
+    // 계산은 lib/utils/pre-paid 한 곳에서 — 금액으로 정한 선지급이면 그 금액 그대로 뺀다.
+    const prePaidFixedAmount = await getPrePaidFixedAmount(expense.id);
+    const split = prePaidSplit({ ...expense, prePaidFixedAmount });
+    const remainingAmount = split?.remainingAmount ?? 0;
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
@@ -105,6 +110,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         title: expense.title,
         amount: expense.amount,
         prePaidPercentage: expense.prePaidPercentage,
+        prePaidFixedAmount,
         expenseUrl: `${appUrl}/expenses/${expense.id}`,
         companyId: expense.companyId ?? undefined,
         currency: expense.currency,

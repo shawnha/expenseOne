@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { ExpenseFilters } from "@/components/expenses/expense-filters";
 import { ExpenseTable } from "@/components/expenses/expense-table";
 import { Pagination } from "@/components/expenses/pagination";
-import { Plus } from "lucide-react";
+import { Plus, Repeat } from "lucide-react";
 import { getCachedCurrentUser } from "@/lib/supabase/cached";
 import { getExpenses } from "@/services/expense.service";
 import type { ExpenseType, ExpenseStatus } from "@/types";
@@ -82,6 +82,7 @@ async function getExpensesData(searchParams: Record<string, string | string[] | 
     isUrgent: item.isUrgent ?? false,
     isPrePaid: item.isPrePaid ?? false,
     prePaidPercentage: item.prePaidPercentage ?? null,
+    prePaidFixedAmount: item.prePaidFixedAmount ?? null,
     hasFreelancerWithholding: item.hasFreelancerWithholding ?? false,
     remainingPaymentRequested: item.remainingPaymentRequested ?? false,
     remainingPaymentApproved: item.remainingPaymentApproved ?? false,
@@ -90,13 +91,14 @@ async function getExpensesData(searchParams: Record<string, string | string[] | 
   return {
     expenses,
     meta: { page: result.meta.page, totalPages: result.meta.totalPages, total: result.meta.total },
+    currentUserId: user.id,
     userRole: user.role,
   };
 }
 
 export default async function ExpensesPage({ searchParams }: ExpensesPageProps) {
   const resolvedParams = await searchParams;
-  const { expenses, meta } = await getExpensesData(resolvedParams);
+  const { expenses, meta, currentUserId } = await getExpensesData(resolvedParams);
 
   return (
     <div className="flex flex-col gap-4 sm:gap-5 lg:gap-6">
@@ -108,13 +110,22 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
             제출한 비용 내역을 관리하세요.
           </p>
         </div>
-        <Link
-          href="/expenses/new"
-          className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[var(--apple-blue)] text-white text-sm font-medium rounded-full hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] transition-colors shadow-sm apple-press"
-        >
-          <Plus className="size-4" />
-          새 비용
-        </Link>
+        <div className="flex shrink-0 items-center gap-2">
+          <Link
+            href="/expenses/recurring"
+            className="inline-flex items-center gap-1 rounded-full border border-[var(--apple-separator)] px-3 py-2 text-[13px] font-medium text-[var(--apple-secondary-label)] transition-colors hover:bg-[rgba(0,0,0,0.04)] apple-press"
+          >
+            <Repeat className="size-3.5" />
+            반복 지급
+          </Link>
+          <Link
+            href="/expenses/new"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[var(--apple-blue)] text-white text-sm font-medium rounded-full hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] transition-colors shadow-sm apple-press"
+          >
+            <Plus className="size-4" />
+            새 비용
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}
@@ -139,7 +150,7 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
       ) : (
         <>
           <div className="animate-fade-up-2">
-            <ExpenseTable expenses={expenses} showSubmitter={false} />
+            <ExpenseTable expenses={expenses} showSubmitter={false} currentUserId={currentUserId} />
           </div>
           <Pagination
             page={meta.page}

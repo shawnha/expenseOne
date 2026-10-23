@@ -52,7 +52,7 @@ describe("summarizeChanges", () => {
       e({ entityType: "link", action: "LINK", at: "2026-09-27T03:00:00.000Z" }),
     ]);
     assert.equal(m?.kind, "UPDATED");
-    assert.deepEqual(m?.fields, ["예정일", "금액", "입금요청 연결"]);
+    assert.deepEqual(m?.fields, ["예정일", "금액", "비용 연결"]);
     assert.equal(changeShortText(m!), "예정일·금액 외 변경");
   });
 
