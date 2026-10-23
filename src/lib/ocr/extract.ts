@@ -28,9 +28,9 @@ export class OcrInputError extends Error {
 }
 
 /** 전체 마감: maxDuration(60s) 안에서 끝나도록 모델 호출 전체에 하나의 시한을 둔다 */
-const TOTAL_DEADLINE_MS = 45_000;
+const TOTAL_DEADLINE_MS = 30_000;
 /** 다시 읽기를 시작하기 위해 남아 있어야 하는 최소 시간 */
-const PASS2_MIN_REMAINING_MS = 12_000;
+const PASS2_MIN_REMAINING_MS = 8_000;
 /** 바로 세워 다시 읽는 횟수 상한 (첫 읽기 포함 최대 3번) */
 const MAX_REREADS = 2;
 /** PDF 입력 토큰 상한 (페이지 많은 PDF 비용 방어) */

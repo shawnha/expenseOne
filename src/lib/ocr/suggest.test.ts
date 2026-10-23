@@ -37,6 +37,11 @@ describe("suggestAmountKRW", () => {
       base: 59999, vatExclusive: false, total: 59999,
     });
   });
+  it("합계 없이 공급가·부가세만 있고 끝수가 다르면 둘을 더한 합계 + 부가세 포함", () => {
+    assert.deepEqual(suggestAmountKRW(f({ supplyAmount: 12345, vatAmount: 1234 })), {
+      base: 13579, vatExclusive: false, total: 13579,
+    });
+  });
   it("VAT 별도 금액만 있는 견적서는 그 금액 + 부가세 별도", () => {
     assert.deepEqual(suggestAmountKRW(f({ totalAmount: 120000, amountIncludesVat: "no" })), {
       base: 120000, vatExclusive: true, total: 132000,

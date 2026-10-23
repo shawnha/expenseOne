@@ -38,6 +38,10 @@ export function suggestAmountKRW(f: OcrFields): AmountSuggestion | null {
     if (computed === docTotal) return { base: supply, vatExclusive: true, total: computed };
   }
 
+  // 문서 부가세 끝수가 폼 반올림과 달라 공급가 방식이 안 맞으면, 문서의 공급가+부가세를 합계로 쓴다
+  if (total === null && supply !== null && vat !== null && vat > 0) {
+    return { base: supply + vat, vatExclusive: false, total: supply + vat };
+  }
   if (total === null) return null;
   if (f.amountIncludesVat === "no") {
     return { base: total, vatExclusive: true, total: applyVatAndWithholding(total, true, false) };

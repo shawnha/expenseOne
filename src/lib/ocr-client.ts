@@ -4,14 +4,15 @@
  */
 import {
   OCR_ACCEPTED_TYPES,
+  OCR_DISABLED_CODE,
   OCR_MAX_UPLOAD_BYTES,
   type OcrDocType,
   type OcrResult,
 } from "@/lib/ocr/types";
 import { toJpegName } from "@/lib/image-resize";
 
-/** 화면이 기다리는 최대 시간. 넘으면 OCR 없이 첨부만 한다 */
-const CLIENT_TIMEOUT_MS = 30_000;
+/** 화면이 기다리는 최대 시간 — 서버 마감(30초)보다 조금 길게. 넘으면 OCR 없이 첨부만 한다 */
+const CLIENT_TIMEOUT_MS = 35_000;
 
 // 한 번 꺼져 있다고(503) 확인되면 이 페이지에서는 다시 묻지 않는다
 let disabledForSession = false;
@@ -25,18 +26,22 @@ export function canReadDocument(file: File): boolean {
   );
 }
 
-export async function readDocument(file: File): Promise<OcrResult | null> {
+function withTimeout(signal?: AbortSignal): AbortSignal {
+  const timeout = AbortSignal.timeout(CLIENT_TIMEOUT_MS);
+  // AbortSignal.any 가 없는 브라우저(구형 iOS)는 시간 제한만 건다
+  return signal && typeof AbortSignal.any === "function" ? AbortSignal.any([signal, timeout]) : timeout;
+}
+
+export async function readDocument(file: File, signal?: AbortSignal): Promise<OcrResult | null> {
   if (!canReadDocument(file)) return null;
   try {
     const body = new FormData();
     body.append("file", file);
-    const res = await fetch("/api/ocr", {
-      method: "POST",
-      body,
-      signal: AbortSignal.timeout(CLIENT_TIMEOUT_MS),
-    });
+    const res = await fetch("/api/ocr", { method: "POST", body, signal: withTimeout(signal) });
     if (res.status === 503) {
-      disabledForSession = true;
+      // 키가 없어 꺼진 경우만 이 페이지에서 다시 묻지 않는다 (일시적 503은 다음 첨부 때 다시 시도)
+      const json = (await res.json().catch(() => null)) as { error?: { code?: string } } | null;
+      if (json?.error?.code === OCR_DISABLED_CODE) disabledForSession = true;
       return null;
     }
     if (!res.ok) return null;

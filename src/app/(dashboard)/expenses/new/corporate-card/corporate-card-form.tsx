@@ -29,7 +29,7 @@ import { merchantKey } from "@/lib/utils/autofill";
 import { CompanySelector } from "@/components/forms/company-selector";
 import { FileUpload } from "@/components/forms/file-upload";
 import { OcrNotice, OcrSuggestion } from "@/components/forms/ocr-suggestion";
-import type { OcrResult } from "@/lib/ocr/types";
+import type { OcrFields, OcrResult } from "@/lib/ocr/types";
 import { cardAmountMismatch, suggestAmountKRW, type AmountSuggestion } from "@/lib/ocr/suggest";
 import dynamic from "next/dynamic";
 const SubmitSuccessDialog = dynamic(() => import("@/components/forms/submit-success-dialog").then(m => m.SubmitSuccessDialog), { ssr: false });
@@ -137,7 +137,7 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
 
   const [supplyAmount, setSupplyAmount] = useState(0);
   // 영수증 사진(OCR)에서 읽은 제안 — 첨부를 지우면 같이 사라진다
-  const [ocrRead, setOcrRead] = useState<{ fileId: string; result: OcrResult } | null>(null);
+  const [ocrResults, setOcrResults] = useState<Array<{ fileId: string; fields: OcrFields }>>([]);
 
   // Optional receipt attachments
   const [files, setFiles] = useState<FileWithPreview[]>([]);
@@ -264,7 +264,7 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
   );
 
   const handleDocumentRead = useCallback((fileId: string, result: OcrResult) => {
-    setOcrRead((prev) => prev ?? { fileId, result });
+    setOcrResults((prev) => [...prev.filter((r) => r.fileId !== fileId), { fileId, fields: result.fields }]);
   }, []);
 
   // 금액 「적용」: 직접 입력과 같은 경로. 영수증 합계는 부가세 포함이라 보통 「부가세 포함」으로 맞춘다.
@@ -276,6 +276,8 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
       setSupplyAmount(s.base);
       setAmountDisplay(formatAmount(s.base));
       setValue("amount", calcFinalAmount(s.base, s.vatExclusive, freelancerDeduction), { shouldValidate: true });
+      toast.success("사진에서 읽은 금액을 넣었습니다. 맞는지 확인해주세요.");
+      document.getElementById("amount")?.focus();
     },
     [currency, freelancerDeduction, calcFinalAmount, setValue]
   );
@@ -411,18 +413,26 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
 
   // 고위드 결제에서 넘어온 건은 결제 금액이 기준 — 영수증이 다르면 알려만 주고 바꾸지 않는다.
   // 그 밖에는 가맹점·금액을 「적용」으로 제안한다. 이미 같은 값이면 숨긴다.
-  const ocrFields = ocrRead && files.some((f) => f.id === ocrRead.fileId) ? ocrRead.result.fields : null;
-  const ocrMismatch = ocrFields && prefillData ? cardAmountMismatch(ocrFields, prefillData.amount) : null;
-  const ocrAmountSug = ocrFields && !prefillData ? suggestAmountKRW(ocrFields) : null;
+  // 지금 붙어 있는 첨부 순서대로, 값이 나온 첫 번째 결과를 쓴다 (지운 첨부의 결과는 쓰지 않는다)
+  const ocrAttached = files
+    .map((f) => ocrResults.find((r) => r.fileId === f.id)?.fields)
+    .filter((x): x is OcrFields => !!x);
+  const ocrMismatch = prefillData
+    ? ocrAttached.map((x) => cardAmountMismatch(x, prefillData.amount)).find((x) => x !== null) ?? null
+    : null;
+  const ocrAmountSug = prefillData
+    ? null
+    : ocrAttached.map(suggestAmountKRW).find((x): x is AmountSuggestion => !!x) ?? null;
   const typedMerchant = watch("merchantName");
+  const ocrMerchantName = ocrAttached.find((x) => x.merchantName?.trim())?.merchantName ?? null;
   const ocrMerchant =
-    ocrFields?.merchantName && !prefillData?.merchantName && merchantKey(typedMerchant) !== merchantKey(ocrFields.merchantName)
-      ? ocrFields.merchantName
+    ocrMerchantName && !prefillData?.merchantName && merchantKey(typedMerchant) !== merchantKey(ocrMerchantName)
+      ? ocrMerchantName
       : null;
   const ocrAmountNode =
     ocrMismatch !== null && prefillData ? (
       <OcrNotice tone="warn">
-        영수증 금액 {formatAmount(ocrMismatch)}원이 카드 결제 {formatAmount(prefillData.amount)}원과 달라요. 결제 금액이 기준이에요.
+        영수증 금액 {formatAmount(ocrMismatch)}원이 카드 결제 금액 {formatAmount(prefillData.amount)}원과 다릅니다. 결제 금액으로 제출됩니다.
       </OcrNotice>
     ) : ocrAmountSug && !(supplyAmount === ocrAmountSug.base && vatIncluded === ocrAmountSug.vatExclusive) ? (
       currency === "KRW" ? (
@@ -432,7 +442,7 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
           onApply={() => applyOcrAmount(ocrAmountSug)}
         />
       ) : (
-        <OcrNotice>사진에서 읽은 금액 {formatAmount(ocrAmountSug.total)}원 — 원화(₩)로 바꾸면 적용할 수 있어요.</OcrNotice>
+        <OcrNotice>사진에서 읽은 금액 {formatAmount(ocrAmountSug.total)}원 — 원화(₩)로 바꾸면 적용할 수 있습니다.</OcrNotice>
       )
     ) : null;
   const ocrMerchantNode = ocrMerchant ? (
@@ -442,6 +452,7 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
       onApply={() => {
         setValue("merchantName", ocrMerchant, { shouldValidate: true, shouldDirty: true });
         setShowCustomMerchant(true);
+        toast.success("사진에서 읽은 가맹점을 넣었습니다.");
       }}
     />
   ) : null;
@@ -604,6 +615,7 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
                 )}
               />
               )}
+              {ocrMerchantNode}
               {errors.merchantName && (
                 <p className="text-xs text-[var(--apple-red)]">
                   {errors.merchantName.message}
