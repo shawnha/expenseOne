@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import {
   ArrowLeft,
+  ArrowRight,
   Loader2,
 } from "lucide-react";
 import Link from "next/link";
@@ -483,6 +484,16 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
           </p>
         </div>
       </div>
+
+      {!prefillData && (
+        <Link
+          href="/expenses/new/card-batch"
+          className="flex items-center gap-1 min-h-11 text-[13px] font-medium text-[var(--apple-blue)]"
+        >
+          결제가 여러 건이면 한 번에 올리기
+          <ArrowRight className="size-3.5" aria-hidden />
+        </Link>
+      )}
 
       {prefillData && (
         <div className="p-3 rounded-xl bg-[rgba(0,122,255,0.08)] border border-[rgba(0,122,255,0.15)]">

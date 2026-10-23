@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CreditCard, Banknote, ArrowRight, Undo2, ReceiptText } from "lucide-react";
+import { CreditCard, Banknote, ArrowRight, Undo2, ReceiptText, Layers } from "lucide-react";
 import { TiltCard } from "@/components/layout/tilt-card";
 
 const expenseTypes = [
@@ -29,6 +29,12 @@ const expenseTypes = [
     description: "약국·의원 등에 판 건의 세금계산서를 요청합니다. 관리자가 발행하면 알림이 옵니다.",
     href: "/tax-invoices/new",
     icon: <ReceiptText className="size-6 text-[var(--apple-purple)]" />,
+  },
+  {
+    title: "법카 여러 건 한 번에",
+    description: "출장 등 결제가 많을 때 골라서 한 번에 올리기",
+    href: "/expenses/new/card-batch",
+    icon: <Layers className="size-6 text-[var(--apple-orange)]" />,
   },
 ] as const;
 
