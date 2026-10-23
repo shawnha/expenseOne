@@ -63,7 +63,7 @@ export default async function PlansPage({ searchParams }: PlansPageProps) {
         <div>
           <h1 className="text-title3 text-[var(--apple-label)]">비용계획</h1>
           <p className="mt-0.5 text-footnote text-[var(--apple-secondary-label)]">
-            앞으로 나갈 돈을 달별로 세워 두고, 실제 입금요청과 맞춰 봅니다.
+            앞으로 나갈 돈을 달별로 세워 두고, 실제 쓴 돈과 맞춰 봅니다.
           </p>
         </div>
         {/* 프로젝트 만들기·참여자는 툴바의 '＋ 프로젝트' 칩이 연다(프로젝트가 최상위, v1.1). */}

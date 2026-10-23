@@ -13,7 +13,7 @@ import { badgeCount, badgeText, useNavBadges } from "@/components/layout/use-nav
 // 스위치가 꺼진 사람에게는 아무것도 그리지 않는다(PlansNavGate).
 // ---------------------------------------------------------------------------
 
-export function PlansEntryLink({ subtitle = "앞으로 나갈 돈을 달별로 세워 두고, 실제 입금요청과 맞춰 봅니다." }: { subtitle?: string }) {
+export function PlansEntryLink({ subtitle = "앞으로 나갈 돈을 달별로 세워 두고, 실제 쓴 돈과 맞춰 봅니다." }: { subtitle?: string }) {
   const news = badgeCount(useNavBadges().plans);
   return (
     <PlansNavGate>
