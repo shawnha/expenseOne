@@ -12,6 +12,7 @@ import { db } from "@/lib/db";
 import { expenses, gowidTransactions } from "@/lib/db/schema";
 import { createExpenseSchema } from "@/lib/validations/expense";
 import { createExpense } from "@/services/expense.service";
+import { companies } from "@/lib/db/schema";
 import { AppError } from "@/services/attachment.service";
 import {
   CARD_BATCH_MAX,
@@ -23,6 +24,8 @@ import {
 } from "@/lib/card-batch/types";
 
 const LIST_LIMIT = 200;
+/** 이 시간이 지나면 새 건을 시작하지 않는다 (함수 한도 300초, 건당 슬랙·푸시 포함 수 초) */
+const BATCH_TIME_BUDGET_MS = 200_000;
 
 type Row = Record<string, unknown>;
 const rowsOf = (r: unknown): Row[] => (Array.isArray(r) ? (r as Row[]) : ((r as { rows?: Row[] })?.rows ?? []));
@@ -38,9 +41,9 @@ function compactToTime(t: string | null): string | null {
 }
 
 /**
- * 기간(YYYY-MM-DD, 포함) 안의 내 미처리 법카 결제. 같은 날짜(±2일)에 같은 금액이나 같은 가맹점으로
- * 이미 올린 법카 비용이 있으면 possibleDuplicate — 예: 해외 결제를 달러로 직접 올린 경우(금액이 달라 자동으로
- * 짝지어지지 않아 pending 으로 남는다).
+ * 기간(YYYY-MM-DD, 포함) 안의 내 미처리 법카 결제. 같은 날짜(±2일)에 같은 금액이나 같은 가맹점 이름으로
+ * 이미 올린 법카 비용이 있으면 possibleDuplicate — 참고 표시일 뿐이다. 해외 결제를 달러로 직접 올린 건은
+ * 환율이 달라 금액이 거의 안 맞으므로 가맹점 이름이 같을 때만 잡힌다.
  */
 export async function listPendingCardTransactions(
   userId: string,
@@ -55,13 +58,17 @@ export async function listPendingCardTransactions(
   const card = options.cardLastFour ? sql`AND g.card_last_four = ${options.cardLastFour}` : sql``;
   // 공용 카드는 카드에 연결된 회사만 본다(사람이 없으니 user_id 로 좁히지 않는다)
   const mappingOwner = options.unassigned ? sql`cm.user_id IS NULL` : sql`cm.user_id = g.user_id`;
+  // 공용 카드 결제는 누가 손으로 올렸을지 모른다 — 그 카드의 법인에 올라온 누구의 법카 비용이든 비교한다
+  const dupOwner = options.unassigned
+    ? sql`(m.company_id IS NULL OR e.company_id = m.company_id)`
+    : sql`e.submitted_by_id = ${userId}::uuid`;
   const rows = rowsOf(
     await db.execute(sql`
       SELECT g.id, g.expense_date, g.expense_time, g.amount, g.currency, g.store_name, g.card_last_four,
              m.company_id AS mapped_company_id,
              EXISTS (
                SELECT 1 FROM expenseone.expenses e
-                WHERE e.submitted_by_id = ${userId}::uuid
+                WHERE ${dupOwner}
                   AND e.type = 'CORPORATE_CARD' AND e.status <> 'CANCELLED'
                   AND e.transaction_date BETWEEN to_date(g.expense_date, 'YYYYMMDD') - 2
                                              AND to_date(g.expense_date, 'YYYYMMDD') + 2
@@ -124,6 +131,29 @@ async function claimTransaction(txId: string, user: BatchUser) {
   return tx ?? null;
 }
 
+/** 잡은 거래에 만든 비용을 단다. 일시 오류면 몇 번 더 — 끝내 실패하면 로그만(비용은 이미 있으니 되돌리지 않는다) */
+async function linkWithRetry(txId: string, expenseId: string) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await db
+        .update(gowidTransactions)
+        .set({ consumedExpenseId: expenseId, updatedAt: new Date() })
+        .where(eq(gowidTransactions.id, txId));
+      return;
+    } catch (err) {
+      if (attempt === 2) {
+        console.error("[card-batch] link failed (expense exists, tx consumed without link):", {
+          txId,
+          expenseId,
+          name: err instanceof Error ? err.name : "unknown",
+        });
+      } else {
+        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+      }
+    }
+  }
+}
+
 /** 비용을 못 만들었을 때 잡은 거래를 되돌린다(주인이 원래 없었으면 다시 비운다) */
 async function releaseTransaction(txId: string, originalUserId: string | null) {
   await db
@@ -141,9 +171,24 @@ export async function createCardBatch(user: BatchUser, req: CardBatchRequest): P
     throw new AppError("VALIDATION_ERROR", "같은 결제가 두 번 들어 있습니다.");
   }
 
+  // 회사는 한 번만 확인한다 — 비활성 회사면 건마다 잡았다 놓기를 반복하지 않게
+  const [company] = await db
+    .select({ id: companies.id })
+    .from(companies)
+    .where(and(eq(companies.id, req.companyId), eq(companies.isActive, true)))
+    .limit(1);
+  if (!company) throw new AppError("VALIDATION_ERROR", "선택한 회사를 찾을 수 없습니다.");
+
+  const startedAt = Date.now();
   const results: CardBatchItemResult[] = [];
   // 한 건씩 — 슬랙 게시가 한꺼번에 몰리지 않게, 그리고 한 건 실패가 다른 건을 막지 않게.
   for (const item of req.items) {
+    // 함수 시간 제한(300초) 전에 멈춘다 — 중간에 끊기면 「잡았는데 비용 없음」 상태가 남는다.
+    // 남은 건은 그대로 미처리라 다시 올리면 된다.
+    if (Date.now() - startedAt > BATCH_TIME_BUDGET_MS) {
+      results.push({ gowidTxId: item.gowidTxId, ok: false, message: "시간이 부족해 이번에 올리지 못했습니다. 다시 올려주세요." });
+      continue;
+    }
     const [before] = await db
       .select({ userId: gowidTransactions.userId })
       .from(gowidTransactions)
@@ -151,7 +196,17 @@ export async function createCardBatch(user: BatchUser, req: CardBatchRequest): P
       .limit(1);
     const tx = before ? await claimTransaction(item.gowidTxId, user) : null;
     if (!tx) {
-      results.push({ gowidTxId: item.gowidTxId, ok: false, message: "이미 올라갔거나 찾을 수 없는 결제입니다." });
+      // 내가 이미 올린 결제면(끊긴 요청을 다시 보낸 경우 등) 성공으로 알려 준다 — 실패로 보이면 손으로 또 올린다
+      const [mine] = await db
+        .select({ expenseId: gowidTransactions.consumedExpenseId })
+        .from(gowidTransactions)
+        .where(and(eq(gowidTransactions.id, item.gowidTxId), eq(gowidTransactions.userId, user.id)))
+        .limit(1);
+      if (mine?.expenseId) {
+        results.push({ gowidTxId: item.gowidTxId, ok: true, expenseId: mine.expenseId });
+      } else {
+        results.push({ gowidTxId: item.gowidTxId, ok: false, message: "이미 올라갔거나 찾을 수 없는 결제입니다." });
+      }
       continue;
     }
 
@@ -177,23 +232,29 @@ export async function createCardBatch(user: BatchUser, req: CardBatchRequest): P
       continue;
     }
 
+    let expenseId: string;
     try {
-      const expense = await createExpense(parsed.data, user.id, user.name, user.email, user.companyId);
-      await db
-        .update(gowidTransactions)
-        .set({ consumedExpenseId: expense.id, updatedAt: new Date() })
-        .where(eq(gowidTransactions.id, tx.id));
-      // 카드 끝자리는 createExpense 가 프로필 카드로 채운다 — 실제로 결제한 카드로 맞춘다(공용 카드·카드 여러 장)
-      if (tx.cardLastFour) {
-        await db.update(expenses).set({ cardLastFour: tx.cardLastFour }).where(eq(expenses.id, expense.id));
-      }
-      results.push({ gowidTxId: tx.id, ok: true, expenseId: expense.id });
+      expenseId = (await createExpense(parsed.data, user.id, user.name, user.email, user.companyId)).id;
     } catch (err) {
+      // 비용을 못 만들었을 때만 거래를 되돌린다
       await releaseTransaction(tx.id, before?.userId ?? null);
       const message = err instanceof AppError ? err.message : "올리지 못했습니다. 잠시 후 다시 시도해주세요.";
       if (!(err instanceof AppError)) console.error("[card-batch] create failed:", err instanceof Error ? err.name : "unknown");
       results.push({ gowidTxId: tx.id, ok: false, message });
+      continue;
     }
+
+    // 여기부터는 비용이 이미 있다 — 무슨 일이 있어도 거래를 pending 으로 되돌리지 않는다(되돌리면 두 번 올라간다).
+    await linkWithRetry(tx.id, expenseId);
+    // 카드 끝자리는 createExpense 가 프로필 카드로 채운다 — 실제로 결제한 카드로 맞춘다(공용 카드·카드 여러 장)
+    if (tx.cardLastFour) {
+      await db
+        .update(expenses)
+        .set({ cardLastFour: tx.cardLastFour })
+        .where(eq(expenses.id, expenseId))
+        .catch((err) => console.error("[card-batch] card last four fix failed:", err instanceof Error ? err.name : "unknown"));
+    }
+    results.push({ gowidTxId: tx.id, ok: true, expenseId });
   }
 
   const created = results.filter((r) => r.ok).length;

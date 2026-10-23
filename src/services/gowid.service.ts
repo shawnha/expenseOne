@@ -644,6 +644,42 @@ export async function consumeGowidTransaction(gowidTxId: string, expenseId: stri
   return updated ?? null;
 }
 
+/**
+ * 알림으로 연 법카 폼(?gowidTxId=)을 제출할 때 — 비용을 만들기 **전에** 거래를 잡는다.
+ * 예전엔 비용을 먼저 만들고 나중에 consume 했기 때문에, 같은 결제를 「한 번에 올리기」로 이미 올린 뒤
+ * 열어 둔 폼을 제출하면 비용이 두 번 생겼다. 내 것이고 아직 pending 일 때만 잡힌다(못 잡으면 false).
+ */
+export async function claimGowidTransactionForSubmit(gowidTxId: string, userId: string): Promise<boolean> {
+  const [row] = await db
+    .update(gowidTransactions)
+    .set({ status: "consumed", consumedAt: new Date(), updatedAt: new Date() })
+    .where(
+      and(
+        eq(gowidTransactions.id, gowidTxId),
+        eq(gowidTransactions.userId, userId),
+        eq(gowidTransactions.status, "pending"),
+      ),
+    )
+    .returning({ id: gowidTransactions.id });
+  return !!row;
+}
+
+/** 비용을 못 만들었을 때 잡은 거래를 되돌린다 (비용이 이미 달려 있으면 건드리지 않는다) */
+export async function releaseGowidClaim(gowidTxId: string): Promise<void> {
+  await db
+    .update(gowidTransactions)
+    .set({ status: "pending", consumedAt: null, updatedAt: new Date() })
+    .where(and(eq(gowidTransactions.id, gowidTxId), isNull(gowidTransactions.consumedExpenseId)));
+}
+
+/** 잡은 거래에 만든 비용을 단다 */
+export async function linkGowidTransaction(gowidTxId: string, expenseId: string): Promise<void> {
+  await db
+    .update(gowidTransactions)
+    .set({ consumedExpenseId: expenseId, updatedAt: new Date() })
+    .where(eq(gowidTransactions.id, gowidTxId));
+}
+
 // ---------------------------------------------------------------------------
 // Get pending transaction for prefill
 // ---------------------------------------------------------------------------
