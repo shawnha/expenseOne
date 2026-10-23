@@ -73,6 +73,15 @@ export async function POST(request: NextRequest) {
       typeof body?.planId === "string"
         ? validateUUID(body.planId)
         : null;
+    // 알림으로 연 법카 폼(?gowidTxId=)이면 비용을 만들기 **전에** 그 결제를 잡는다 — 이미 다른 경로(한 번에
+    // 올리기 등)로 올라간 결제면 여기서 멈춘다. 예전엔 비용을 먼저 만들고 나중에 consume 해서 두 번 올라갔다.
+    const gowidTxIdParam = new URL(request.url).searchParams.get("gowidTxId");
+    const gowidTxId =
+      gowidTxIdParam && parsed.data.type === "CORPORATE_CARD" ? validateUUID(gowidTxIdParam) : null;
+    const gowid = gowidTxId ? await import("@/services/gowid.service") : null;
+    if (gowidTxId && gowid && !(await gowid.claimGowidTransactionForSubmit(gowidTxId, user.id))) {
+      return errorResponse("VALIDATION_ERROR", "이미 올린 결제입니다. 비용 목록에서 확인해주세요.");
+    }
     // 계획 DB 풀(plans-client)은 이 경로에서만 필요하다 — 평소 입금요청 제출엔 불러오지 않는다(결합 검토 P6).
     const recurring = occurrenceId ? await import("@/services/recurring-expense.service") : null;
     if (occurrenceId && recurring) await recurring.reserveOccurrenceForSubmit(occurrenceId, { id: user.id, role: user.role });
@@ -85,7 +94,15 @@ export async function POST(request: NextRequest) {
           : await createExpense(parsed.data, user.id, user.name, user.email, user.companyId);
     } catch (err) {
       if (occurrenceId && recurring) await recurring.releaseOccurrenceReservation(occurrenceId);
+      if (gowidTxId && gowid) await gowid.releaseGowidClaim(gowidTxId).catch(() => {});
       throw err;
+    }
+
+    // 잡아 둔 고위드 거래에 만든 비용을 단다 (비용은 이미 있으니 실패해도 되돌리지 않는다)
+    if (gowidTxId && gowid && expense.id) {
+      await gowid.linkGowidTransaction(gowidTxId, expense.id).catch((err) =>
+        console.error("[GoWid] link staging failed:", err instanceof Error ? err.name : "unknown"),
+      );
     }
 
     if (occurrenceId && recurring && expense.id) await recurring.attachSubmittedExpense(occurrenceId, expense.id, user.id);
@@ -110,16 +127,6 @@ export async function POST(request: NextRequest) {
     revalidatePath("/");
     revalidatePath("/expenses");
     revalidatePath("/admin/pending");
-
-    // After expense creation, consume GoWid staging if present
-    const url = new URL(request.url);
-    const gowidTxId = url.searchParams.get("gowidTxId");
-    if (gowidTxId && expense.id) {
-      const { consumeGowidTransaction } = await import("@/services/gowid.service");
-      await consumeGowidTransaction(gowidTxId, expense.id).catch((err) =>
-        console.error("[GoWid] consume staging failed:", err),
-      );
-    }
 
     return NextResponse.json(
       { data: planLinked === undefined ? expense : { ...expense, planLinked } },

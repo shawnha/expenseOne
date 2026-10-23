@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CreditCard, Banknote, ArrowRight, Undo2, ReceiptText, CalendarPlus } from "lucide-react";
+import { CreditCard, Banknote, ArrowRight, Undo2, ReceiptText, CalendarPlus, Layers } from "lucide-react";
 import { TiltCard } from "@/components/layout/tilt-card";
 // 계획 모듈이 아니라 메뉴 게이트다(/api/plans/flag 한 번). 계획 코드를 이 화면 묶음에 넣지 않는다.
 import { PlansNavGate } from "@/components/plans/plans-nav-gate";
@@ -25,9 +25,16 @@ const expenseTypes = [
     href: "/expenses/new/refund",
     icon: <Undo2 className="size-6 text-[var(--apple-red)]" />,
   },
+  {
+    title: "법카 여러 건 한 번에",
+    description: "출장 등 결제가 많을 때 골라서 한 번에 올리기",
+    href: "/expenses/new/card-batch",
+    icon: <Layers className="size-6 text-[var(--apple-orange)]" />,
+  },
 ] as const;
 
-const salesTypes = [  {
+const salesTypes = [
+  {
     // 비용이 아니라 매출 쪽이지만, 직원이 "뭔가 올릴 때" 찾는 자리가 여기라 같이 둔다.
     title: "세금계산서 발행 요청",
     description: "약국·의원 등에 판 건의 세금계산서를 요청합니다. 관리자가 발행하면 알림이 옵니다.",

@@ -194,6 +194,8 @@ async function postMessage(
 ): Promise<SlackMessageRef | null> {
   try {
     const res = await fetch("https://slack.com/api/chat.postMessage", {
+      // 슬랙이 멈춰도 비용 등록이 붙잡히지 않게 (한 번에 여러 건 올리기는 건마다 기다린다)
+      signal: AbortSignal.timeout(8000),
       method: "POST",
       headers: {
         Authorization: `Bearer ${target.token}`,
