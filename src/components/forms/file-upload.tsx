@@ -13,6 +13,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { isShrinkableImage, shrinkImageForUpload } from "@/lib/image-resize";
+import { canReadDocument, documentTypeFromOcr, fileFromOcrImage, readDocument } from "@/lib/ocr-client";
+import type { OcrResult } from "@/lib/ocr/types";
 import {
   ALLOWED_MIME_TYPES,
   MAX_FILE_SIZE,
@@ -29,7 +31,19 @@ interface FileUploadProps {
   className?: string;
   /** 사진 줄이는 동안 true — 부모가 제출 버튼을 잠그는 데 쓴다 */
   onBusyChange?: (busy: boolean) => void;
+  /**
+   * 넘기면 첨부한 사진·PDF를 읽어(OCR) 결과를 파일마다 알려 준다. 칸을 채울지는 부모가 정한다.
+   * 뒤집힌 사진은 바로 세운 사진으로 바꿔 끼운다.
+   */
+  onDocumentRead?: (fileId: string, result: OcrResult) => void;
 }
+
+type BusyStage = "shrink" | "read" | null;
+
+const BUSY_LABEL: Record<Exclude<BusyStage, null>, string> = {
+  shrink: "사진 용량 줄이는 중…",
+  read: "증빙 읽는 중…",
+};
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 11);
@@ -44,6 +58,22 @@ async function shrinkSequentially(picked: File[]): Promise<File[]> {
   return out;
 }
 
+// 검증을 통과한 파일만 읽는다 (돈이 드는 호출이라 버려질 파일은 보내지 않는다). 한 장씩.
+async function readSequentially(items: FileWithPreview[]): Promise<Map<string, OcrResult>> {
+  const results = new Map<string, OcrResult>();
+  for (const item of items) {
+    if (!canReadDocument(item.file)) continue;
+    const result = await readDocument(item.file);
+    if (!result) continue;
+    if (result.imageJpegBase64) {
+      const upright = fileFromOcrImage(item.file, result.imageJpegBase64);
+      if (upright) item.file = upright;
+    }
+    results.set(item.id, result);
+  }
+  return results;
+}
+
 export function FileUpload({
   files,
   onFilesChange,
@@ -51,10 +81,12 @@ export function FileUpload({
   error,
   className,
   onBusyChange,
+  onDocumentRead,
 }: FileUploadProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [isBusy, setIsBusy] = useState(false);
+  const [busyStage, setBusyStage] = useState<BusyStage>(null);
+  const isBusy = busyStage !== null;
   const busyRef = useRef(false);
   const mountedRef = useRef(true);
   const onBusyChangeRef = useRef(onBusyChange);
@@ -109,10 +141,10 @@ export function FileUpload({
         return;
       }
 
-      // PDF만 고른 경우는 줄일 게 없으니 busy 표시 없이 바로 진행한다
+      // PDF만 고른 경우는 줄일 게 없으니 busy 표시 없이 바로 진행한다 (읽기는 아래에서 따로 표시)
       const hasImage = picked.some(isShrinkableImage);
       busyRef.current = true;
-      if (hasImage) setIsBusy(true);
+      if (hasImage) setBusyStage("shrink");
       try {
         const newFiles = await shrinkSequentially(picked);
         // 줄이는 중 화면이 사라졌으면 미리보기 URL을 만들지 않는다 (해제할 기회가 없다)
@@ -144,17 +176,31 @@ export function FileUpload({
           });
         }
 
+        // 읽기(OCR): 뒤집힌 사진은 바로 세운 사진으로 바뀐다 — 그래서 미리보기보다 먼저
+        let readResults = new Map<string, OcrResult>();
+        if (onDocumentRead && validFiles.some((f) => canReadDocument(f.file))) {
+          setBusyStage("read");
+          readResults = await readSequentially(validFiles);
+          if (!mountedRef.current) return;
+          for (const item of validFiles) {
+            const result = readResults.get(item.id);
+            if (!result) continue;
+          }
+        }
+
         // 미리보기 URL은 검증을 모두 통과한 뒤에 만든다 (중간에 return하면 해제할 기회가 없다)
         for (const f of validFiles) {
           if (f.file.type.startsWith("image/")) f.preview = URL.createObjectURL(f.file);
         }
-        onFilesChange([...current, ...validFiles]);
+        // 읽는 동안 목록이 바뀌었을 수 있어 다시 최신 값 위에 붙인다
+        onFilesChange([...filesRef.current, ...validFiles]);
+        readResults.forEach((result, id) => onDocumentRead?.(id, result));
       } finally {
         busyRef.current = false;
-        if (mountedRef.current) setIsBusy(false);
+        if (mountedRef.current) setBusyStage(null);
       }
     },
-    [onFilesChange, maxFiles, validateFile]
+    [onFilesChange, onDocumentRead, maxFiles, validateFile]
   );
 
   const removeFile = useCallback(
@@ -238,7 +284,7 @@ export function FileUpload({
         )}
         <div className="text-center">
           {isBusy ? (
-            <p className="text-sm font-medium" role="status">사진 용량 줄이는 중…</p>
+            <p className="text-sm font-medium" role="status">{busyStage ? BUSY_LABEL[busyStage] : null}</p>
           ) : (
             <p className="text-sm font-medium">
               <span className="sm:hidden">탭하여 파일을 선택하세요</span>
@@ -396,10 +442,12 @@ export function FileUploadWithDocType({
   error,
   className,
   onBusyChange,
+  onDocumentRead,
 }: FileUploadWithDocTypeProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [isBusy, setIsBusy] = useState(false);
+  const [busyStage, setBusyStage] = useState<BusyStage>(null);
+  const isBusy = busyStage !== null;
   const busyRef = useRef(false);
   const mountedRef = useRef(true);
   const onBusyChangeRef = useRef(onBusyChange);
@@ -454,10 +502,10 @@ export function FileUploadWithDocType({
         return;
       }
 
-      // PDF만 고른 경우는 줄일 게 없으니 busy 표시 없이 바로 진행한다
+      // PDF만 고른 경우는 줄일 게 없으니 busy 표시 없이 바로 진행한다 (읽기는 아래에서 따로 표시)
       const hasImage = picked.some(isShrinkableImage);
       busyRef.current = true;
-      if (hasImage) setIsBusy(true);
+      if (hasImage) setBusyStage("shrink");
       try {
         const newFiles = await shrinkSequentially(picked);
         // 줄이는 중 화면이 사라졌으면 미리보기 URL을 만들지 않는다 (해제할 기회가 없다)
@@ -489,17 +537,33 @@ export function FileUploadWithDocType({
           });
         }
 
+        // 읽기(OCR): 뒤집힌 사진은 바로 세운 사진으로 바뀐다 — 그래서 미리보기보다 먼저
+        let readResults = new Map<string, OcrResult>();
+        if (onDocumentRead && validFiles.some((f) => canReadDocument(f.file))) {
+          setBusyStage("read");
+          readResults = await readSequentially(validFiles);
+          if (!mountedRef.current) return;
+          for (const item of validFiles) {
+            const result = readResults.get(item.id);
+            if (!result) continue;
+            const docType = documentTypeFromOcr(result.fields.docType);
+            if (docType && !item.documentType) item.documentType = docType;
+          }
+        }
+
         // 미리보기 URL은 검증을 모두 통과한 뒤에 만든다 (중간에 return하면 해제할 기회가 없다)
         for (const f of validFiles) {
           if (f.file.type.startsWith("image/")) f.preview = URL.createObjectURL(f.file);
         }
-        onFilesChange([...current, ...validFiles]);
+        // 읽는 동안 목록이 바뀌었을 수 있어 다시 최신 값 위에 붙인다
+        onFilesChange([...filesRef2.current, ...validFiles]);
+        readResults.forEach((result, id) => onDocumentRead?.(id, result));
       } finally {
         busyRef.current = false;
-        if (mountedRef.current) setIsBusy(false);
+        if (mountedRef.current) setBusyStage(null);
       }
     },
-    [onFilesChange, maxFiles, validateFile]
+    [onFilesChange, onDocumentRead, maxFiles, validateFile]
   );
 
   const removeFile = useCallback(
@@ -583,7 +647,7 @@ export function FileUploadWithDocType({
         )}
         <div className="text-center">
           {isBusy ? (
-            <p className="text-sm font-medium" role="status">사진 용량 줄이는 중…</p>
+            <p className="text-sm font-medium" role="status">{busyStage ? BUSY_LABEL[busyStage] : null}</p>
           ) : (
             <p className="text-sm font-medium">
               <span className="sm:hidden">탭하여 파일을 선택하세요</span>

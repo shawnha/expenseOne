@@ -32,6 +32,15 @@ import {
 } from "@/components/ui/command";
 
 import { FileUploadWithDocType } from "@/components/forms/file-upload";
+import { OcrNotice, OcrSuggestion } from "@/components/forms/ocr-suggestion";
+import { BANK_LIST } from "@/lib/banks";
+import type { OcrResult } from "@/lib/ocr/types";
+import {
+  suggestAccount,
+  suggestAmountKRW,
+  type AccountSuggestion,
+  type AmountSuggestion,
+} from "@/lib/ocr/suggest";
 import {
   PurchaseFields,
   emptyPurchaseFields,
@@ -65,39 +74,7 @@ import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useFormBusy } from "@/hooks/use-form-busy";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 
-// ============================================================
-// 은행 목록 (시중은행 + 인터넷은행 + 특수은행)
-// ============================================================
-const BANK_LIST = [
-  // 시중은행
-  "KB국민은행",
-  "신한은행",
-  "하나은행",
-  "우리은행",
-  "SC제일은행",
-  "한국씨티은행",
-  // 지방은행
-  "IBK기업은행",
-  "NH농협은행",
-  "Sh수협은행",
-  "대구은행",
-  "부산은행",
-  "광주은행",
-  "전북은행",
-  "경남은행",
-  "제주은행",
-  // 인터넷은행
-  "카카오뱅크",
-  "케이뱅크",
-  "토스뱅크",
-  // 특수은행
-  "KDB산업은행",
-  "한국수출입은행",
-  "새마을금고",
-  "신협",
-  "우체국",
-  "저축은행",
-];
+// 은행 목록은 @/lib/banks — 사진(OCR)에서 읽은 은행 이름도 같은 목록으로 맞춘다.
 
 interface DepositRequestFormProps {
   initialCompanies?: { id: string; name: string; slug: string; currency: string }[];
@@ -124,6 +101,10 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
   const [branch, setBranch] = useState<string | null>(null);
 
   const [supplyAmount, setSupplyAmount] = useState(0);
+  // 사진(OCR)에서 읽은 제안 — 어느 첨부에서 왔는지 들고 있다가, 그 첨부를 지우면 제안도 사라진다
+  const [ocrAmount, setOcrAmount] = useState<(AmountSuggestion & { fileId: string }) | null>(null);
+  const [ocrAccount, setOcrAccount] = useState<(AccountSuggestion & { fileId: string }) | null>(null);
+  const [ocrForeign, setOcrForeign] = useState<{ fileId: string; amount: number; currency: string } | null>(null);
   const [bankOpen, setBankOpen] = useState(false);
   const [dueDateOpen, setDueDateOpen] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -290,6 +271,45 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
     ? { category: payeeForCategory.category, from: payeeForCategory.accountHolder }
     : null;
 
+  // 사진 제안은 그 첨부가 아직 있을 때만, 이미 같은 값이 들어 있으면 숨긴다
+  const attachedIds = new Set(files.map((f) => f.id));
+  const amountSug =
+    ocrAmount && attachedIds.has(ocrAmount.fileId) &&
+    !(supplyAmount === ocrAmount.base && vatIncluded === ocrAmount.vatExclusive)
+      ? ocrAmount
+      : null;
+  const accountSug =
+    ocrAccount && attachedIds.has(ocrAccount.fileId) &&
+    !(
+      accountKey(typedAccount) === ocrAccount.accountNumber &&
+      holderKey(typedHolder) === holderKey(ocrAccount.accountHolder) &&
+      (!ocrAccount.bankName || typedBank === ocrAccount.bankName)
+    )
+      ? ocrAccount
+      : null;
+  const foreignSug = ocrForeign && attachedIds.has(ocrForeign.fileId) ? ocrForeign : null;
+  const amountSugText = amountSug
+    ? `${formatAmount(amountSug.total)}원${amountSug.vatExclusive ? ` (공급가 ${formatAmount(amountSug.base)} + 부가세)` : ""}`
+    : "";
+  const amountSugNode = amountSug ? (
+    currency === "KRW" ? (
+      <OcrSuggestion label="사진에서 읽은 금액" value={amountSugText} onApply={() => applyOcrAmount(amountSug)} />
+    ) : (
+      <OcrNotice>사진에서 읽은 금액 {amountSugText} — 원화(₩)로 바꾸면 적용할 수 있어요.</OcrNotice>
+    )
+  ) : foreignSug ? (
+    <OcrNotice>
+      사진에서 읽은 금액 {foreignSug.currency} {foreignSug.amount.toLocaleString("en-US")} — 외화라 직접 입력해 주세요.
+    </OcrNotice>
+  ) : null;
+  const accountSugNode = accountSug ? (
+    <OcrSuggestion
+      label="사진에서 읽은 계좌"
+      value={`${accountSug.bankName ?? ""} ${accountSug.accountNumber} · ${accountSug.accountHolder}`.trim()}
+      onApply={() => applyOcrAccount(accountSug)}
+    />
+  ) : null;
+
   // amount 필드 = KRW 원 / USD 센트. 부가세·원천징수 배율은 통화별 최소 단위로
   // 바꾼 뒤 적용한다 — 예전엔 토글이 달러 값에 배율만 곱해 100분의 1로 저장됐다.
   const handleAmountChange = useCallback(
@@ -351,6 +371,44 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
       }
     },
     [setValue, supplyAmount, vatIncluded, currency]
+  );
+
+  // 사진에서 읽은 결과 — 칸을 바로 채우지 않고 「적용」 제안만 만든다. 첫 번째로 읽힌 값이 이긴다
+  // (견적서에서 금액, 통장사본에서 계좌처럼 첨부마다 다른 값이 나오는 게 보통이다).
+  const handleDocumentRead = useCallback((fileId: string, result: OcrResult) => {
+    const amount = suggestAmountKRW(result.fields);
+    if (amount) setOcrAmount((prev) => prev ?? { ...amount, fileId });
+    else if (result.fields.totalAmount && result.fields.currency && result.fields.currency.toUpperCase() !== "KRW") {
+      const { totalAmount, currency: docCurrency } = result.fields;
+      setOcrForeign((prev) => prev ?? { fileId, amount: totalAmount, currency: docCurrency.toUpperCase() });
+    }
+    const account = suggestAccount(result.fields);
+    if (account) setOcrAccount((prev) => prev ?? { ...account, fileId });
+  }, []);
+
+  // 금액 「적용」: 직접 입력한 것과 똑같은 경로(공급가 → 부가세·원천징수 배율)로 넣는다.
+  // 부가세 방식도 문서에 맞춘다 — 공급가를 넣으면 「부가세 별도」, 합계를 넣으면 「부가세 포함」.
+  const applyOcrAmount = useCallback(
+    (s: AmountSuggestion) => {
+      if (currency !== "KRW") return;
+      setVatIncluded(s.vatExclusive);
+      setAmountTouched(true);
+      setSupplyAmount(s.base);
+      setAmountDisplay(formatAmount(s.base));
+      setValue("amount", calcDepositAmount(s.base, "KRW", s.vatExclusive, freelancerDeduction), { shouldValidate: true });
+    },
+    [currency, freelancerDeduction, setValue]
+  );
+
+  const applyOcrAccount = useCallback(
+    (a: AccountSuggestion) => {
+      const opts = { shouldValidate: true, shouldDirty: true } as const;
+      if (a.bankName) setValue("bankName", a.bankName, opts);
+      setValue("accountHolder", a.accountHolder, opts);
+      setValue("accountNumber", a.accountNumber, opts);
+      if (!a.bankName) toast.message("은행은 목록에서 직접 골라 주세요.");
+    },
+    [setValue]
   );
 
   const handleDocumentTypeChange = useCallback(
@@ -631,6 +689,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--apple-secondary-label)] pointer-events-none">원</span>
                 )}
               </div>
+              {amountSugNode}
 
               {/* USD exchange rate info */}
               {currency === "USD" && (
@@ -902,6 +961,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
           <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-5">입금 정보</h2>
 
           <div className="space-y-5">
+            {accountSugNode}
             {/* 최근 계좌 — 내가 보냈던 계좌(서버 기록). 고르면 계좌·카테고리·회사를 채운다. */}
             {myPayees.length > 0 && (
               <div className="space-y-2">
@@ -1142,7 +1202,15 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
             documentTypeErrors={docTypeErrors}
             error={fileError ?? undefined}
             onBusyChange={setIsUploadBusy}
+            onDocumentRead={handleDocumentRead}
           />
+          {/* 첨부 바로 아래에도 보여 준다 — 직원은 지금 여기를 보고 있다 */}
+          {(amountSugNode || accountSugNode) && (
+            <div className="mt-3 space-y-1.5">
+              {amountSugNode}
+              {accountSugNode}
+            </div>
+          )}
         </div>
 
         {/* 버튼 */}
