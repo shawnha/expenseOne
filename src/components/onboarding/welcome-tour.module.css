@@ -1,0 +1,181 @@
+/* 안내 팝업 전용 모션. 전역 CSS 에는 넣지 않는다. */
+.art {
+  animation: artIn 400ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes artIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.box { transform-box: fill-box; transform-origin: center; }
+
+/* 1 환영: 영수증이 떨어져 휴대폰 안으로 */
+.rcpt { animation: rcptFall 3.6s cubic-bezier(0.16, 1, 0.3, 1) infinite; opacity: 0; }
+.rcpt2 { animation-delay: 0.5s; }
+.rcpt3 { animation-delay: 1s; }
+@keyframes rcptFall {
+  0% { transform: translateY(-60px) rotate(-8deg); opacity: 0; }
+  15% { opacity: 1; }
+  45% { transform: translateY(46px) rotate(2deg); opacity: 1; }
+  60% { transform: translateY(62px) scale(0.6); opacity: 0; }
+  100% { transform: translateY(62px) scale(0.6); opacity: 0; }
+}
+.phoneGlow { animation: glow 3.6s ease-in-out infinite; }
+@keyframes glow { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+
+/* 2 비용 올리기 */
+.plus { animation: pulse 3.6s ease-in-out infinite; }
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  10% { transform: scale(1.18); }
+  18% { transform: scale(1); }
+  23% { transform: scale(0.9); }
+  28% { transform: scale(1); }
+}
+.ripple { animation: ripple 3.6s ease-out infinite; opacity: 0; }
+@keyframes ripple {
+  0%, 22% { transform: scale(0.4); opacity: 0; }
+  26% { opacity: 0.5; }
+  46%, 100% { transform: scale(1.8); opacity: 0; }
+}
+.riseCard { animation: rise 3.6s cubic-bezier(0.16, 1, 0.3, 1) infinite; opacity: 0; }
+.rise2 { animation-delay: 0.15s; }
+.rise3 { animation-delay: 0.3s; }
+@keyframes rise {
+  /* 누른 뒤 금방 올라와 오래 머문다 — 화면이 비어 보이는 시간을 줄인다. */
+  0%, 26% { transform: translateY(26px); opacity: 0; }
+  38%, 94% { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(0); opacity: 0; }
+}
+
+/* 3 법카 */
+.swipeCard { animation: swipe 5s cubic-bezier(0.16, 1, 0.3, 1) infinite; }
+@keyframes swipe {
+  0% { transform: translateX(-20px); opacity: 0; }
+  8% { opacity: 1; }
+  25% { transform: translateX(78px); }
+  35%, 100% { transform: translateX(78px); opacity: 0; }
+}
+.paperWobble { animation: wobble 5s ease-in-out infinite; }
+@keyframes wobble {
+  0%, 30% { transform: rotate(0); }
+  34% { transform: rotate(-5deg); }
+  38% { transform: rotate(5deg); }
+  42% { transform: rotate(-3deg); }
+  46%, 100% { transform: rotate(0); }
+}
+.badge { animation: badgePop 5s cubic-bezier(0.34, 1.56, 0.64, 1) infinite; opacity: 0; }
+@keyframes badgePop {
+  0%, 30% { transform: scale(0); opacity: 0; }
+  38%, 92% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1); opacity: 0; }
+}
+.fill1, .fill2 { animation: fillBar 5s cubic-bezier(0.16, 1, 0.3, 1) infinite; transform-origin: left center; transform-box: fill-box; transform: scaleX(0); }
+.fill2 { animation-delay: 0.35s; }
+@keyframes fillBar {
+  0%, 50% { transform: scaleX(0); opacity: 1; }
+  62%, 92% { transform: scaleX(1); opacity: 1; }
+  100% { transform: scaleX(1); opacity: 0; }
+}
+.tick { animation: tickIn 5s ease-out infinite; stroke-dasharray: 24; stroke-dashoffset: 24; }
+@keyframes tickIn {
+  0%, 74% { stroke-dashoffset: 24; opacity: 1; }
+  84%, 92% { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0; }
+}
+
+/* 4 입금요청 */
+.clip { animation: clipDrop 5s cubic-bezier(0.16, 1, 0.3, 1) infinite; opacity: 0; }
+@keyframes clipDrop {
+  0%, 6% { transform: translateY(-24px); opacity: 0; }
+  18%, 92% { transform: translateY(0); opacity: 1; }
+  100% { opacity: 0; }
+}
+.bank { animation: bankIn 5s cubic-bezier(0.16, 1, 0.3, 1) infinite; opacity: 0; }
+@keyframes bankIn {
+  0%, 28% { transform: translateX(60px); opacity: 0; }
+  42%, 92% { transform: translateX(0); opacity: 1; }
+  100% { opacity: 0; }
+}
+.chipA { animation: chipA 5s ease-in-out infinite; }
+.chipB { animation: chipB 5s ease-in-out infinite; opacity: 0; }
+@keyframes chipA {
+  0%, 55% { opacity: 1; transform: scale(1); }
+  62%, 94% { opacity: 0; transform: scale(0.9); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes chipB {
+  0%, 58% { opacity: 0; transform: scale(0.9); }
+  68%, 92% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.9); }
+}
+
+/* 5 상태 */
+.bell { animation: ring 4s ease-in-out infinite; transform-origin: 50% 10%; transform-box: fill-box; }
+@keyframes ring {
+  0%, 40% { transform: rotate(0); }
+  45% { transform: rotate(14deg); }
+  50% { transform: rotate(-12deg); }
+  55% { transform: rotate(8deg); }
+  60% { transform: rotate(-5deg); }
+  65%, 100% { transform: rotate(0); }
+}
+.pop { animation: popIn 4s cubic-bezier(0.34, 1.56, 0.64, 1) infinite; opacity: 0; }
+.pop2 { animation-delay: 0.3s; }
+.pop3 { animation-delay: 0.6s; }
+.pop4 { animation-delay: 0.9s; }
+@keyframes popIn {
+  0% { transform: scale(0.6); opacity: 0; }
+  14%, 85% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1); opacity: 0; }
+}
+
+/* 6 관리자 */
+.rowCheck { animation: checkPop 4.5s cubic-bezier(0.34, 1.56, 0.64, 1) infinite; opacity: 0; }
+.rc2 { animation-delay: 0.45s; }
+.rc3 { animation-delay: 0.9s; }
+@keyframes checkPop {
+  0% { transform: scale(0); opacity: 0; }
+  12%, 88% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1); opacity: 0; }
+}
+.bulk { animation: bulkPress 4.5s ease-in-out infinite; }
+@keyframes bulkPress {
+  0%, 38% { transform: scale(1); }
+  42% { transform: scale(0.93); }
+  48%, 100% { transform: scale(1); }
+}
+
+/* 7 끝 */
+.ring { stroke-dasharray: 276; animation: drawRing 4s cubic-bezier(0.16, 1, 0.3, 1) infinite; }
+@keyframes drawRing {
+  0% { stroke-dashoffset: 276; opacity: 1; }
+  35%, 90% { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0; }
+}
+.checkMark { stroke-dasharray: 52; animation: drawCheck 4s ease-out infinite; }
+@keyframes drawCheck {
+  0%, 25% { stroke-dashoffset: 52; opacity: 1; }
+  45%, 90% { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0; }
+}
+.spark { animation: spark 4s ease-out infinite; opacity: 0; }
+@keyframes spark {
+  0%, 40% { transform: translate(0, 0) scale(0.3); opacity: 0; }
+  50% { opacity: 1; }
+  75%, 100% { transform: translate(var(--dx), var(--dy)) scale(1); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .art, .rcpt, .phoneGlow, .plus, .ripple, .riseCard, .swipeCard, .paperWobble, .badge,
+  .fill1, .fill2, .tick, .clip, .bank, .chipA, .chipB, .bell, .pop, .rowCheck, .bulk,
+  .ring, .checkMark, .spark {
+    animation: none;
+  }
+  /* 움직임이 없어도 그림이 완성된 모습으로 보이게 */
+  .rcpt, .riseCard, .badge, .clip, .bank, .chipB, .pop, .rowCheck { opacity: 1; }
+  .ripple, .spark { opacity: 0; }
+  .fill1, .fill2 { transform: scaleX(1); }
+  .tick, .ring, .checkMark { stroke-dashoffset: 0; }
+  .chipA { opacity: 0; }
+}
