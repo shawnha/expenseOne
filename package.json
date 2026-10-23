@@ -8,9 +8,10 @@
     "start": "next start",
     "lint": "eslint",
     "test:smoke": "node scripts/smoke.mjs",
-    "test:unit": "npx tsx@4 --test src/lib/expense-approved-edit.test.ts src/lib/expense-edit-access.test.ts src/lib/expense-convert.test.ts src/lib/form-busy.test.ts src/lib/utils/deposit-amount.test.ts src/lib/utils/pre-paid.test.ts src/lib/utils/upload-results.test.ts src/lib/utils/submit-result.test.ts src/lib/plans/diff.test.ts src/lib/plans/flag-logic.test.ts src/lib/plans/permissions.test.ts src/lib/plans/search.test.ts src/lib/validations/plan.test.ts src/lib/plans/notify.test.ts src/lib/plans/move.test.ts src/lib/plans/suggest.test.ts src/lib/plans/board.test.ts src/lib/plans/errors.test.ts src/lib/plans/josa.test.ts src/lib/plans/paid.test.ts src/lib/plans/changes.test.ts src/lib/plans/pick-ui.test.ts src/lib/tax-invoice.test.ts src/lib/purchase-invoice-reminder.test.ts src/lib/recurring-schedule.test.ts src/lib/recurring-occurrences.test.ts src/components/onboarding/tour-steps.test.ts src/lib/image-resize.test.ts src/components/layout/tab-menu-items.test.ts"
+    "test:unit": "npx tsx@4 --test src/lib/expense-approved-edit.test.ts src/lib/expense-edit-access.test.ts src/lib/expense-convert.test.ts src/lib/form-busy.test.ts src/lib/utils/deposit-amount.test.ts src/lib/utils/pre-paid.test.ts src/lib/utils/upload-results.test.ts src/lib/utils/submit-result.test.ts src/lib/plans/diff.test.ts src/lib/plans/flag-logic.test.ts src/lib/plans/permissions.test.ts src/lib/plans/search.test.ts src/lib/validations/plan.test.ts src/lib/plans/notify.test.ts src/lib/plans/move.test.ts src/lib/plans/suggest.test.ts src/lib/plans/board.test.ts src/lib/plans/errors.test.ts src/lib/plans/josa.test.ts src/lib/plans/paid.test.ts src/lib/plans/changes.test.ts src/lib/plans/pick-ui.test.ts src/lib/tax-invoice.test.ts src/lib/purchase-invoice-reminder.test.ts src/lib/recurring-schedule.test.ts src/lib/recurring-occurrences.test.ts src/components/onboarding/tour-steps.test.ts src/lib/image-resize.test.ts src/components/layout/tab-menu-items.test.ts src/lib/ocr/ocr.test.ts src/lib/ocr/suggest.test.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.1.0",
     "@base-ui/react": "^1.3.0",
     "@hookform/resolvers": "^5.2.2",
     "@react-email/components": "^1.0.9",
@@ -21,6 +22,7 @@
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
     "drizzle-orm": "^0.45.1",
+    "heic-convert": "^2.1.0",
     "lucide-react": "^0.577.0",
     "next": "16.1.6",
     "next-themes": "^0.4.6",
@@ -40,6 +42,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/heic-convert": "^2.1.1",
     "@types/node": "^20",
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19",
