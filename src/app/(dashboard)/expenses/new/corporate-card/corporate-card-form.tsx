@@ -46,6 +46,8 @@ import { cn } from "@/lib/utils";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useFormBusy } from "@/hooks/use-form-busy";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
+import { CardPlanSuggestions, useCardSuggestions } from "@/components/forms/plan-pick";
+import { planLinkFailed } from "@/lib/plans/pick-ui";
 
 interface CorporateCardFormProps {
   initialCompanies?: { id: string; name: string; slug: string; currency: string }[];
@@ -77,8 +79,16 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
 
   // Company selection
   const [companyId, setCompanyId] = useState("");
+  // 비용계획 연결(GoWid 결제일 때만 후보를 묻는다). 한 건만, 다시 누르면 해제.
+  const [linkPlanId, setLinkPlanId] = useState<string | null>(null);
   const [userCompanyId, setUserCompanyId] = useState<string | null>(null);
   const [currency, setCurrency] = useState("KRW");
+  const planSuggestions = useCardSuggestions({
+    companyId: prefillData ? (prefillData.companyId ?? (companyId || null)) : null,
+    amount: prefillData?.amount,
+    date: prefillData?.transactionDate,
+    merchant: prefillData?.merchantName,
+  });
 
   // Exchange rate for USD
   const [exchangeRate, setExchangeRate] = useState<{ rate: number; date: string } | null>(null);
@@ -188,6 +198,13 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
       setShowCustomMerchant(true);
     }
   }, [prefillData, setValue]);
+
+  // 후보 목록에서 사라진 계획(회사를 바꿔 다시 조회했거나 조회가 실패)은 연결하지 않는다 —
+  // 눈에 안 보이는 연결을 몰래 보내지 않기 위해 화면에 보이는 선택만 쓴다.
+  const selectedPick = planSuggestions.find((p) => p.id === linkPlanId) ?? null;
+  // 계획과 법카 건의 회사가 다르면 서버가 연결을 못 한다 — 알리고 보내지 않는다.
+  const planCompanyMismatch = !!selectedPick && !!companyId && selectedPick.companyId !== companyId;
+  const activePlanId = selectedPick && !planCompanyMismatch ? selectedPick.id : null;
 
   // Handle company change — only update companyId (currency is independent)
   const handleCompanyChange = useCallback((newCompanyId: string, _newCurrency?: string) => {
@@ -323,6 +340,7 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
           transactionDate: prefillData?.transactionDate ?? formatDateISO(new Date()),
           isUrgent: false,
           companyId: companyId || undefined,
+          ...(activePlanId ? { planId: activePlanId } : {}),
           hasFreelancerWithholding: freelancerDeduction,
           ...toPurchasePayload(purchase),
           branch: askBranch ? branch : null,
@@ -340,6 +358,9 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
       // 비용이 안 만들어졌는데 「제출 완료」를 띄우면 안 된다.
       const result = await response.json().catch(() => null);
       const expenseId = resolveCreatedExpenseId(response, result);
+      if (planLinkFailed(result)) {
+        toast.error("법카 사용 내역은 올라갔지만 비용계획 연결은 실패했습니다. 계획 화면에서 연결해주세요.");
+      }
 
       // Upload optional attachments (receipts). 법카사용은 첨부 선택사항이라
       // 업로드가 일부 실패해도 제출 자체는 성공으로 처리 — 수정 화면에서 재첨부 가능.
@@ -420,6 +441,19 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
             제목과 카테고리를 선택한 뒤 제출해주세요.
           </p>
         </div>
+      )}
+
+      {prefillData && (
+        <CardPlanSuggestions
+          suggestions={planSuggestions}
+          selectedId={selectedPick?.id ?? null}
+          onToggle={(p) => setLinkPlanId((cur) => (cur === p.id ? null : p.id))}
+        />
+      )}
+      {planCompanyMismatch && (
+        <p role="alert" className="px-1 text-[13px] text-[var(--apple-red)]">
+          계획의 회사와 달라 연결되지 않습니다. 회사를 맞추거나 선택을 해제해주세요.
+        </p>
       )}
 
       <form onSubmit={handleSubmit(onSubmit, onValidationError)} noValidate>

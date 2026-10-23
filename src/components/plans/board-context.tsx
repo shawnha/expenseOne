@@ -27,6 +27,10 @@ export interface PlanBoardActions {
   /** 이전 달(-1) / 다음 달(+1). */
   shiftMonth: (cardId: string, delta: 1 | -1) => void;
   openEdit: (card: PlanCard) => void;
+  /** 「입금요청으로 만들기」 — 이 계획을 고른 채로 입금요청 폼을 연다. */
+  createDepositRequest: (card: PlanCard) => void;
+  /** 「법카로 썼어요」 — 계획 상세에서 법카 연결 창을 연다. */
+  linkCardPayment: (card: PlanCard) => void;
   /** '삭제' = 기존 취소 흐름(status CANCELLED). 확인 단계가 있다. */
   openDelete: (card: PlanCard) => void;
   /** 스와이프로 열린 카드는 한 장만. */

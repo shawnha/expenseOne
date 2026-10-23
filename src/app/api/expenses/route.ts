@@ -66,6 +66,13 @@ export async function POST(request: NextRequest) {
       parsed.data.type === "DEPOSIT_REQUEST" && typeof body?.recurringOccurrenceId === "string"
         ? validateUUID(body.recurringOccurrenceId)
         : null;
+    // 계획에서 불러온 폼이면 제출 뒤 그 계획에 잇는다(아래). ID 형식은 비용을 만들기 **전에** 검사한다.
+    const planId =
+      !occurrenceId &&
+      (parsed.data.type === "DEPOSIT_REQUEST" || parsed.data.type === "CORPORATE_CARD") &&
+      typeof body?.planId === "string"
+        ? validateUUID(body.planId)
+        : null;
     // 계획 DB 풀(plans-client)은 이 경로에서만 필요하다 — 평소 입금요청 제출엔 불러오지 않는다(결합 검토 P6).
     const recurring = occurrenceId ? await import("@/services/recurring-expense.service") : null;
     if (occurrenceId && recurring) await recurring.reserveOccurrenceForSubmit(occurrenceId, { id: user.id, role: user.role });
@@ -83,6 +90,23 @@ export async function POST(request: NextRequest) {
 
     if (occurrenceId && recurring && expense.id) await recurring.attachSubmittedExpense(occurrenceId, expense.id, user.id);
 
+    // 비용계획에서 불러온 폼(?plan=… / 「내 비용계획에서 불러오기」 / 법카 「계획에 연결」)이면 제출한 비용을 그 계획에 잇는다.
+    // 연결 규칙(볼 수 있는 계획·같은 법인·본인 비용·중복)은 linkExpenses 한 곳에서 본다. 실패해도 비용은 그대로 둔다.
+    let planLinked: boolean | undefined;
+    if (planId && expense.id) {
+      planLinked = false;
+      try {
+        const { isCostPlanningAllowed } = await import("@/lib/plans/flag");
+        if (await isCostPlanningAllowed(user.id)) {
+          const { linkExpenses } = await import("@/services/plan.service");
+          const { linkIds } = await linkExpenses({ id: user.id, role: user.role, name: user.name }, planId, [expense.id]);
+          planLinked = linkIds.length > 0;
+        }
+      } catch (err) {
+        console.error("[Plans] link after create failed:", err instanceof Error ? err.name : "unknown");
+      }
+    }
+
     revalidatePath("/");
     revalidatePath("/expenses");
     revalidatePath("/admin/pending");
@@ -97,7 +121,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ data: expense }, { status: 201 });
+    return NextResponse.json(
+      { data: planLinked === undefined ? expense : { ...expense, planLinked } },
+      { status: 201 },
+    );
   } catch (err) {
     return handleError(err);
   }

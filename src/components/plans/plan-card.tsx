@@ -19,6 +19,8 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleSlash,
+  Banknote,
+  CreditCard,
   Ellipsis,
   Link2,
   MessageCircle,
@@ -631,6 +633,27 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
               aria-label={`${card.title} 빠른 메뉴`}
               className="glass-strong min-w-48 origin-(--transform-origin) rounded-2xl p-1.5 outline-none transition-[opacity,transform] duration-150 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0"
             >
+              <ContextMenu.Item
+                className={MENU_ITEM}
+                onClick={() => {
+                  closeMenu();
+                  board.createDepositRequest(card);
+                }}
+              >
+                <Banknote className="size-4 text-[var(--apple-green)]" aria-hidden="true" />
+                입금요청으로 만들기
+              </ContextMenu.Item>
+              <ContextMenu.Item
+                className={MENU_ITEM}
+                onClick={() => {
+                  closeMenu();
+                  board.linkCardPayment(card);
+                }}
+              >
+                <CreditCard className="size-4 text-[var(--apple-blue)]" aria-hidden="true" />
+                법카로 썼어요
+              </ContextMenu.Item>
+              <ContextMenu.Separator className="my-1 h-px bg-[var(--apple-separator)]" />
               <ContextMenu.Item
                 className={MENU_ITEM}
                 onClick={() => {

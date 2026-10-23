@@ -112,10 +112,26 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
+  // 연결 창을 처음 열 때의 탭. 「법카로 썼어요」(?link=card)로 들어오면 법카, 직접 누르면 전체.
+  const [linkInitialKind, setLinkInitialKind] = useState<LinkKind>("all");
   // 연결 창에서 이으면 제안도 다시 묻는다 — 방금 이은 입금요청이 제안에 남아 누르면 409 가 나던 것.
   const [linkVersion, setLinkVersion] = useState(0);
   const [unlinking, setUnlinking] = useState<string | null>(null);
   const withLock = useSubmitLock();
+
+  // 계획 카드 메뉴의 「법카로 썼어요」 → ?link=card. 한 번 열고 주소에서 지운다(새로고침해도 다시 열리지 않게).
+  // useSearchParams 대신 window 를 읽는다 — Suspense 경계를 요구하지 않고, 이 효과는 마운트 때 한 번만 본다.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("link") !== "card") return;
+    if (canEdit) {
+      setLinkInitialKind("card");
+      setLinkOpen(true);
+    }
+    // 쿼리만 지운다 — router.replace 는 서버 컴포넌트를 다시 불러온다.
+    window.history.replaceState(null, "", `/plans/${plan.id}`);
+    // 마운트 때 한 번만.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const editTarget: PlanEditTarget = {
     id: plan.id,
@@ -288,7 +304,10 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
               size="sm"
               variant="outline"
               className="min-h-11"
-              onClick={() => setLinkOpen(true)}
+              onClick={() => {
+                setLinkInitialKind("all");
+                setLinkOpen(true);
+              }}
             >
               <Plus className="size-3.5" aria-hidden="true" />
               연결
@@ -375,6 +394,7 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
       {linkOpen && (
         <LinkDialog
           planId={plan.id}
+          initialKind={linkInitialKind}
           open={linkOpen}
           onOpenChange={setLinkOpen}
           onLinked={() => setLinkVersion((v) => v + 1)}
@@ -833,18 +853,21 @@ const MAX_LINK_SELECT = 50;
 
 function LinkDialog({
   planId,
+  initialKind = "all",
   open,
   onOpenChange,
   onLinked,
 }: {
   planId: string;
+  /** 열었을 때 선택돼 있는 탭. 닫았다 다시 열면 이 값으로 돌아간다. */
+  initialKind?: LinkKind;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onLinked: () => void;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const [kind, setKind] = useState<LinkKind>("all");
+  const [kind, setKind] = useState<LinkKind>(initialKind);
   const [candidates, setCandidates] = useState<LinkCandidate[] | null>(null);
   const [hasMore, setHasMore] = useState(false);
   // 검색·탭을 바꿔도 고른 건은 남는다(합계를 보여 주려고 후보 자체를 들고 있는다).
@@ -859,13 +882,13 @@ function LinkDialog({
       if (!next && linking) return;
       if (!next) {
         setQuery("");
-        setKind("all");
+        setKind(initialKind);
         setSelected(new Map());
         setCandidates(null);
       }
       onOpenChange(next);
     },
-    [onOpenChange, linking],
+    [onOpenChange, linking, initialKind],
   );
 
   // 입력이 멈춘 뒤에 찾는다. 글자마다 부르면 같은 표를 여러 번 훑는다. 열 때마다 새로 묻는다(방금 올린 건도 보이게).
@@ -930,14 +953,14 @@ function LinkDialog({
         );
         // linking 이 아직 true 인 클로저라 handleOpenChange 대신 직접 닫는다.
         setQuery("");
-        setKind("all");
+        setKind(initialKind);
         setSelected(new Map());
         setCandidates(null);
         onOpenChange(false);
         onLinked();
         router.refresh();
       }),
-    [withLock, selected, planId, onOpenChange, onLinked, router],
+    [withLock, selected, planId, onOpenChange, onLinked, router, initialKind],
   );
 
   return (

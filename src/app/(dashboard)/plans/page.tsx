@@ -67,7 +67,11 @@ export default async function PlansPage({ searchParams }: PlansPageProps) {
           </p>
         </div>
         {/* 프로젝트 만들기·참여자는 툴바의 '＋ 프로젝트' 칩이 연다(프로젝트가 최상위, v1.1). */}
-        <PlanCreateButton defaultCompanyId={query.companyId} defaultProjectId={query.projectId} />
+        <PlanCreateButton
+          defaultCompanyId={query.companyId}
+          defaultProjectId={query.projectId}
+          openOnMount={params.new === "1"}
+        />
       </header>
 
       {/* 지난번 보신 뒤 다른 사람이 추가·수정·취소한 계획(0027) — 비용계획에서 제일 먼저 봐야 할 것 */}

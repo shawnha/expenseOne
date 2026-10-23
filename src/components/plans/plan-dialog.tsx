@@ -883,14 +883,27 @@ export function PlanCreateButton({
   defaultProjectId,
   variant = "default",
   size = "lg",
+  openOnMount = false,
 }: {
   label?: string;
   defaultCompanyId?: string;
   defaultProjectId?: string;
   variant?: "default" | "outline";
   size?: "lg" | "sm";
+  /** /plans?new=1 로 들어왔을 때 — 처음 한 번 열고 주소에서 new 를 지운다(새로고침해도 다시 열리지 않게). */
+  openOnMount?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(openOnMount);
+  useEffect(() => {
+    if (!openOnMount) return;
+    const params = new URLSearchParams(window.location.search);
+    params.delete("new");
+    const qs = params.toString();
+    // 쿼리만 지운다 — router.replace 는 서버 컴포넌트를 다시 불러온다.
+    window.history.replaceState(null, "", qs ? `/plans?${qs}` : "/plans");
+    // 마운트 때 한 번만.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <>
       <Button

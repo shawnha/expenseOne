@@ -67,6 +67,22 @@ import { useFormBusy } from "@/hooks/use-form-busy";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 import type { RecurringPrefill } from "@/services/recurring-expense.service";
 import {
+  PlanLinkedChip,
+  PlanPickPanel,
+  usePlanPicks,
+  usePreselectedPlan,
+  type PlanPick,
+} from "@/components/forms/plan-pick";
+import {
+  dueDateToFill,
+  isoToLocalDate,
+  planLinkFailed,
+  formatWon,
+  shouldFillCompany,
+  shouldFillTitle,
+  todayKST,
+} from "@/lib/plans/pick-ui";
+import {
   RepeatMonthlyToggle,
   defaultRepeatMonthly,
   repeatStartsOn,
@@ -118,9 +134,11 @@ interface DepositRequestFormProps {
   myPayees?: PayeeSuggestion[];
   /** 반복 지급 알림(?occurrence=)으로 들어왔을 때 미리 채울 값. */
   recurringPrefill?: RecurringPrefill | null;
+  /** 비용계획 카드의 「입금요청으로 만들기」(?plan=)로 들어왔을 때 연결할 계획 id. */
+  planId?: string;
 }
 
-export default function DepositRequestForm({ initialCompanies, myCategories = [], myPayees = [], recurringPrefill = null }: DepositRequestFormProps) {
+export default function DepositRequestForm({ initialCompanies, myCategories = [], myPayees = [], recurringPrefill = null, planId }: DepositRequestFormProps) {
   const prefill = recurringPrefill;
   const prefillAmount = prefill && prefill.requestMode === "AUTO" ? prefill.expectedAmount : 0;
   const [repeat, setRepeat] = useState<RepeatMonthlyValue>(defaultRepeatMonthly);
@@ -240,6 +258,58 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
     setCompanyId(newCompanyId);
   }, []);
 
+  // 비용계획 연결. 반복 지급 회차로 들어온 화면에서는 쓰지 않는다(서버도 둘을 같이 받지 않는다).
+  const [selectedPlan, setSelectedPlan] = useState<PlanPick | null>(null);
+  const { mine: planMine, others: planOthers } = usePlanPicks(!recurringPrefill);
+
+  // 고르면 채우는 칸: 제목(비어 있을 때만) · 회사(직접 고르지 않았을 때만) · 납기일(DAY·비어 있음·오늘 이후).
+  // 금액은 절대 채우지 않는다 — 계획 금액은 예산이라 실제 입금액과 다르다.
+  const applyPlan = useCallback(
+    (pick: PlanPick) => {
+      const opts = { shouldValidate: true, shouldDirty: true } as const;
+      setSelectedPlan(pick);
+      if (shouldFillTitle(getValues("title"))) setValue("title", pick.title, opts);
+      if (
+        shouldFillCompany({
+          touched: companyTouchedRef.current,
+          planCompanyId: pick.companyId,
+          currentCompanyId: companyId,
+          availableCompanyIds: initialCompanies?.map((c) => c.id) ?? [],
+        })
+      ) {
+        setCompanyId(pick.companyId);
+      }
+      const due = dueDateToFill({
+        datePrecision: pick.datePrecision,
+        plannedDate: pick.plannedDate,
+        currentDueDate: getValues("dueDate"),
+        today: todayKST(),
+      });
+      if (due) setValue("dueDate", isoToLocalDate(due), { shouldDirty: true });
+    },
+    [setValue, getValues, companyId, initialCompanies],
+  );
+  // 목록에서 고른 직후에는 칩의 ×로, 연결을 푼 직후에는 목록 제목으로 포커스를 옮긴다(사라진 요소에서 포커스가 body 로 떨어지지 않게).
+  const [focusTarget, setFocusTarget] = useState<"chip" | "panel" | null>(null);
+  const pickFromPanel = useCallback(
+    (pick: PlanPick) => {
+      setFocusTarget("chip");
+      applyPlan(pick);
+    },
+    [applyPlan],
+  );
+  const cancelPlanLink = useCallback(() => {
+    setFocusTarget("panel");
+    setSelectedPlan(null);
+  }, []);
+  const preselect = usePreselectedPlan(recurringPrefill ? undefined : planId, {
+    onLoaded: applyPlan,
+    onMissing: () =>
+      toast.error("연결하려던 계획을 불러오지 못했습니다. 아래에서 직접 골라주세요."),
+  });
+  // 계획과 입금요청의 법인이 다르면 서버가 연결을 못 한다 — 미리 알리고 planId 도 보내지 않는다.
+  const planCompanyMismatch = !!selectedPlan && selectedPlan.companyId !== companyId;
+
   // Handle currency toggle — reset amount when currency changes
   const handleCurrencyChange = useCallback((newCurrency: string) => {
     if (newCurrency === currency) return;
@@ -303,7 +373,9 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
         setValue("category", p.category, opts);
         filled.push("카테고리");
       }
+      // 계획을 골라 둔 상태면 회사는 계획이 정한 대로 둔다(법인이 다르면 연결이 안 된다).
       if (
+        !selectedPlan &&
         !companyTouchedRef.current &&
         p.companyId &&
         p.companyId !== companyId &&
@@ -314,7 +386,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
       }
       toast.success(`지난번 ${filled.join("·")} 정보를 채웠습니다. 금액은 직접 입력해주세요.`);
     },
-    [setValue, getValues, companyId, initialCompanies]
+    [setValue, getValues, companyId, initialCompanies, selectedPlan]
   );
 
   // 예금주를 직접 쳤는데 예전에 보낸 적 있는 사람이면, 지난번 계좌를 제안한다.
@@ -514,6 +586,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
           dueDate: data.dueDate ? formatDateISO(data.dueDate) : null,
           companyId: companyId || undefined,
           ...(prefill ? { recurringOccurrenceId: prefill.occurrenceId } : {}),
+          ...(selectedPlan && !prefill && !planCompanyMismatch ? { planId: selectedPlan.id } : {}),
           hasFreelancerWithholding: freelancerDeduction,
           ...toPurchasePayload(purchase),
           branch: askBranch ? branch : null,
@@ -531,6 +604,9 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
       // 「제출 완료」 창을 띄우면 만들어지지도 않은 건을 등록됐다고 알리게 된다.
       const result = await response.json().catch(() => null);
       const expenseId = resolveCreatedExpenseId(response, result);
+      if (planLinkFailed(result)) {
+        toast.error("입금요청은 올라갔지만 비용계획 연결은 실패했습니다. 계획 화면에서 연결해주세요.");
+      }
 
       const uploadResults = await Promise.allSettled(
         files.map((fileItem) => {
@@ -656,6 +732,28 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
 
       {!(prefill && prefill.submittedExpenseId) && (
       <form onSubmit={handleSubmit(onSubmit, onValidationError)} noValidate>
+        {/* 비용계획 연결 — 고르기 전에는 목록, 고른 뒤에는 연결 칩. 보여 줄 게 없으면 빈 칸도 두지 않는다. */}
+        {!prefill && preselect !== "pending" && (selectedPlan || planMine.length > 0 || planOthers.length > 0) && (
+          <div className="mb-5">
+            {selectedPlan ? (
+              <PlanLinkedChip
+                title={selectedPlan.title}
+                onCancel={cancelPlanLink}
+                focusOnMount={focusTarget === "chip"}
+                warning={planCompanyMismatch ? "계획의 회사와 달라 연결되지 않습니다. 회사를 맞추거나 연결을 해제해주세요." : null}
+              />
+            ) : (
+              <PlanPickPanel
+                mine={planMine}
+                others={planOthers}
+                selectedId={null}
+                onSelect={pickFromPanel}
+                focusHeadingOnMount={focusTarget === "panel"}
+              />
+            )}
+          </div>
+        )}
+
         {/* 기본 정보 */}
         <div className="glass p-6">
           <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-1">
@@ -763,12 +861,19 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
                   value={amountDisplay}
                   onChange={handleAmountChange}
                   aria-invalid={!!errors.amount}
+                  aria-describedby={selectedPlan && !prefill && currency === "KRW" ? "plan-amount-ref" : undefined}
                   className={currency === "USD" ? "pl-7 pr-4" : "pr-10"}
                 />
                 {currency !== "USD" && (
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--apple-secondary-label)] pointer-events-none">원</span>
                 )}
               </div>
+
+              {selectedPlan && !prefill && currency === "KRW" && (
+                <p id="plan-amount-ref" className="mt-1.5 text-[13px] text-[var(--apple-secondary-label)]">
+                  계획 금액 {formatWon(selectedPlan.amount)} (참고)
+                </p>
+              )}
 
               {/* USD exchange rate info */}
               {currency === "USD" && (

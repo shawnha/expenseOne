@@ -12,10 +12,12 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export default async function DepositRequestPage({
   searchParams,
 }: {
-  searchParams: Promise<{ occurrence?: string | string[] }>;
+  searchParams: Promise<{ occurrence?: string | string[]; plan?: string | string[] }>;
 }) {
   const authUser = await getAuthUser();
-  const { occurrence } = await searchParams;
+  const { occurrence, plan } = await searchParams;
+  // 계획 서비스는 import 하지 않는다 — 일반 입금요청 화면이 계획 DB 풀을 올리면 안 된다. 폼이 HTTP 로 읽는다.
+  const planId = typeof plan === "string" && UUID_RE.test(plan) ? plan : undefined;
   const occurrenceId = typeof occurrence === "string" && UUID_RE.test(occurrence) ? occurrence : null;
   const prefillPromise = (async () => {
     if (!occurrenceId) return null;
@@ -42,6 +44,7 @@ export default async function DepositRequestPage({
       myCategories={myCategories}
       myPayees={myPayees}
       recurringPrefill={recurringPrefill}
+      planId={planId}
     />
   );
 }
