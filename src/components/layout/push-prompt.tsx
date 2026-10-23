@@ -55,7 +55,7 @@ export function PushPrompt() {
   const checked = useRef(false);
   const pathname = usePathname();
 
-  useEffect(() => {
+  const runCheck = useCallback(() => {
     if (checked.current) return;
     checked.current = true;
 
@@ -80,6 +80,23 @@ export function PushPrompt() {
       setShowBanner(true);
     }
   }, []);
+
+  useEffect(() => {
+    // 처음 온 사람은 사용 안내를 먼저 본다 — 안내가 닫힌 뒤에 배너 판단을 한다.
+    // (읽기 실패 시에는 기존대로 바로 진행)
+    let pending = false;
+    try {
+      pending =
+        window.location.pathname === "/" &&
+        localStorage.getItem("expenseone.tour.v1") !== "done";
+    } catch {}
+    if (!pending) {
+      runCheck();
+      return;
+    }
+    window.addEventListener("expenseone:tour-closed", runCheck, { once: true });
+    return () => window.removeEventListener("expenseone:tour-closed", runCheck);
+  }, [runCheck]);
 
   const handleEnable = useCallback(async () => {
     setSubscribing(true);

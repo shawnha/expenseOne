@@ -1,46 +1,22 @@
 "use client";
 
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  Home,
-  Receipt,
-  Plus,
-  Bell,
-  LayoutGrid,
-  LayoutDashboard,
-  Clock,
-  BarChart3,
-  Users,
-  Building2,
-  Settings,
-  CreditCard,
-  UserCheck,
-  ShoppingBag,
-  FileText,
-  Repeat,
-  ReceiptText,
-} from "lucide-react";
+import { Home, Receipt, Plus, Bell, LayoutGrid } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { PlansNavGate, PlansNavIcon } from "@/components/plans/plans-nav-gate";
 import { useRealtimeNotifications } from "@/hooks/use-realtime-notifications";
-import { badgeCount, badgeText, useNavBadges, type NavBadges } from "@/components/layout/use-nav-badges";
+import { badgeCount, useNavBadges } from "@/components/layout/use-nav-badges";
+import { isMenuPath } from "@/components/layout/tab-menu-items";
+
+// 메뉴 시트는 열 때만 불러온다 — 탭 바는 모든 화면에 실린다.
+const TabMenuSheet = dynamic(() => import("@/components/layout/tab-menu-sheet"), { ssr: false });
 
 interface BottomTabBarProps {
   userId: string;
   isAdmin: boolean;
   unreadCount: number;
-}
-
-interface QuickAction {
-  label: string;
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-  /** 비용계획 스위치가 켜진 사람에게만(PlansNavGate). */
-  gated?: boolean;
-  /** 줄 오른쪽 숫자(GET /api/nav/badges). */
-  badgeKey?: keyof NavBadges;
 }
 
 interface TabItem {
@@ -50,62 +26,15 @@ interface TabItem {
   badge?: number;
   /** 알림 탭만 true — 누르면 실시간 알림 증가분을 비운다. 다른 탭의 숫자(메뉴 숫자)는 건드리지 않는다. */
   resetsNotifications?: boolean;
-  quickActions?: QuickAction[];
 }
 
-/** 모바일에서 비용계획은 탭이 아니라 빠른 메뉴 한 줄이다 — 탭 5칸은 그대로 둔다. */
-const PLANS_QUICK_ACTION: QuickAction = {
-  label: "비용계획",
-  href: "/plans",
-  icon: PlansNavIcon,
-  gated: true,
-  badgeKey: "plans",
-};
-
-/** 세금계산서 발행 요청 목록 — 새 요청은 가운데 「제출」 탭에서도 고를 수 있다. */
-const TAX_INVOICE_QUICK_ACTION: QuickAction = {
-  label: "세금계산서",
-  href: "/tax-invoices",
-  icon: ReceiptText,
-  badgeKey: "taxInvoices",
-};
-
-function getTabItems(isAdmin: boolean, badge: number, menuBadge: number): TabItem[] {
+/** 앞 4칸은 링크. 5번째 「메뉴」 칸은 링크가 아니라 시트를 여는 버튼이라 따로 그린다. */
+function getTabItems(badge: number): TabItem[] {
   return [
     { label: "홈", href: "/", icon: Home },
     { label: "비용", href: "/expenses", icon: Receipt },
     { label: "제출", href: "/expenses/new", icon: Plus },
     { label: "알림", href: "/notifications", icon: Bell, badge, resetsNotifications: true },
-    {
-      label: isAdmin ? "관리" : "설정",
-      href: isAdmin ? "/admin" : "/settings",
-      icon: LayoutGrid,
-      // 안의 빠른 메뉴(비용계획·승인 대기)에 새 소식이 있으면 그 합 — 길게 눌러 열면 줄마다 숫자가 있다.
-      badge: menuBadge,
-      quickActions: isAdmin
-        ? [
-            { label: "반복 지급", href: "/expenses/recurring", icon: Repeat },
-            PLANS_QUICK_ACTION,
-            TAX_INVOICE_QUICK_ACTION,
-            { label: "대시보드", href: "/admin", icon: LayoutDashboard },
-            { label: "전체 비용", href: "/admin/expenses", icon: Receipt },
-            { label: "승인 대기", href: "/admin/pending", icon: Clock, badgeKey: "pending" },
-            { label: "리포트", href: "/admin/reports", icon: BarChart3 },
-            { label: "사업소득", href: "/admin/freelancers", icon: UserCheck },
-            { label: "마트/약국", href: "/admin/mart-pharmacy", icon: ShoppingBag },
-            { label: "사입 계산서", href: "/admin/purchase-invoice", icon: FileText },
-            { label: "사용자 관리", href: "/admin/users", icon: Users },
-            { label: "부서 관리", href: "/admin/departments", icon: Building2 },
-            { label: "고위드 카드", href: "/admin/gowid", icon: CreditCard },
-            { label: "설정", href: "/settings", icon: Settings },
-          ]
-        : [
-            { label: "반복 지급", href: "/expenses/recurring", icon: Repeat },
-            PLANS_QUICK_ACTION,
-            TAX_INVOICE_QUICK_ACTION,
-            { label: "설정", href: "/settings", icon: Settings },
-          ],
-    },
   ];
 }
 
@@ -123,94 +52,6 @@ function isActivePath(pathname: string, href: string, allHrefs: string[]): boole
 }
 
 // ---------------------------------------------------------------------------
-// Quick Actions Popover (iOS-style long-press menu)
-// ---------------------------------------------------------------------------
-
-function QuickActionsPopover({
-  actions,
-  onClose,
-  onNavigate,
-  pathname,
-  badges,
-}: {
-  actions: NonNullable<TabItem["quickActions"]>;
-  onClose: () => void;
-  onNavigate: (href: string) => void;
-  pathname: string;
-  badges: NavBadges;
-}) {
-  const popoverRef = useRef<HTMLDivElement>(null);
-
-  return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-[60] bg-black/20 backdrop-blur-[2px] animate-[fade-in_0.15s_ease]"
-        onClick={onClose}
-      />
-      {/* Popover */}
-      <div
-        ref={popoverRef}
-        className={cn(
-          "fixed z-[61] right-4 w-52",
-          "rounded-2xl overflow-hidden",
-          "bg-white/90 dark:bg-[#2c2c2e]/90",
-          "backdrop-blur-xl",
-          "shadow-[0_12px_48px_rgba(0,0,0,0.2)] dark:shadow-[0_12px_48px_rgba(0,0,0,0.6)]",
-          "border border-white/40 dark:border-white/10",
-          "animate-[scale-up_0.2s_cubic-bezier(0.34,1.56,0.64,1)]"
-        )}
-        style={{
-          bottom: "calc(80px + env(safe-area-inset-bottom, 0px))",
-          transformOrigin: "bottom right",
-        }}
-      >
-        {actions.map((action, i) => {
-          const Icon = action.icon;
-          const active = pathname === action.href || pathname.startsWith(action.href + "/");
-          const row = (
-            <button
-              key={action.href}
-              type="button"
-              onClick={() => {
-                onNavigate(action.href);
-                onClose();
-              }}
-              className={cn(
-                "flex items-center gap-3 w-full px-4 py-2.5 text-left",
-                "transition-colors duration-100",
-                "active:bg-[var(--apple-fill,rgba(0,0,0,0.05))]",
-                active
-                  ? "text-[var(--apple-blue)]"
-                  : "text-[var(--apple-label)]",
-                i < actions.length - 1 &&
-                  "border-b border-[var(--apple-separator)]"
-              )}
-            >
-              <Icon
-                className={cn(
-                  "size-[18px]",
-                  active
-                    ? "text-[var(--apple-blue)]"
-                    : "text-[var(--apple-secondary-label)]"
-                )}
-              />
-              <span className="text-[14px] font-medium">{action.label}</span>
-              {action.badgeKey && badgeCount(badges[action.badgeKey]) != null && (
-                <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--apple-red)] px-1.5 text-[11px] font-bold text-white tabular-nums">
-                  {badgeText(badgeCount(badges[action.badgeKey])!)}
-                </span>
-              )}
-            </button>
-          );
-          return action.gated ? <PlansNavGate key={action.href}>{row}</PlansNavGate> : row;
-        })}
-      </div>
-    </>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // BottomTabBar — iOS 26 Liquid Glass with Lens Effect
 // ---------------------------------------------------------------------------
 
@@ -219,44 +60,30 @@ export function BottomTabBar({ userId, isAdmin, unreadCount }: BottomTabBarProps
   const router = useRouter();
   const { realtimeUnreadDelta, resetDelta, readAllTriggered } = useRealtimeNotifications(userId);
   const totalUnread = readAllTriggered ? realtimeUnreadDelta : unreadCount + realtimeUnreadDelta;
-  const [quickActionsOpen, setQuickActionsOpen] = useState(false);
-  const longPressTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const longPressTriggered = useRef(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  // 한 번 열린 뒤에는 마운트를 유지해 닫힘 애니메이션이 끊기지 않게 한다.
+  const [menuMounted, setMenuMounted] = useState(false);
 
   const navBadges = useNavBadges();
   const menuBadge =
     (badgeCount(navBadges.plans) ?? 0) +
     (isAdmin ? (badgeCount(navBadges.pending) ?? 0) + (badgeCount(navBadges.taxInvoices) ?? 0) : 0);
-  const tabs = getTabItems(isAdmin, totalUnread, menuBadge);
+  const tabs = getTabItems(totalUnread);
   const allHrefs = tabs.map((t) => t.href);
   const isSubmitTab = (href: string) => href === "/expenses/new";
-
-  const handleLongPressStart = useCallback(() => {
-    longPressTriggered.current = false;
-    longPressTimer.current = setTimeout(() => {
-      longPressTriggered.current = true;
-      if (navigator.vibrate) navigator.vibrate(50);
-      setQuickActionsOpen(true);
-    }, 400);
-  }, []);
-
-  const handleLongPressEnd = useCallback(() => {
-    clearTimeout(longPressTimer.current);
-  }, []);
-
-  const handleLongPressCancel = useCallback(() => {
-    clearTimeout(longPressTimer.current);
-  }, []);
+  // 지금 경로가 메뉴 안 항목이면 「메뉴」 칸이 활성, 다른 칸은 꺼진다(예: /expenses/recurring 에서 「비용」이 같이 켜지지 않게).
+  const menuActive = isMenuPath(pathname, isAdmin);
 
   return (
     <>
-      {quickActionsOpen && (
-        <QuickActionsPopover
-          actions={tabs.find((t) => t.quickActions)?.quickActions ?? []}
-          onClose={() => setQuickActionsOpen(false)}
-          onNavigate={(href) => router.push(href)}
+      {menuMounted && (
+        <TabMenuSheet
+          open={menuOpen}
+          onOpenChange={setMenuOpen}
+          isAdmin={isAdmin}
           pathname={pathname}
           badges={navBadges}
+          onNavigate={(href) => router.push(href)}
         />
       )}
 
@@ -280,17 +107,15 @@ export function BottomTabBar({ userId, isAdmin, unreadCount }: BottomTabBarProps
           )}
         >
           {tabs.map((tab) => {
-            const active = isActivePath(pathname, tab.href, allHrefs);
+            const active = !menuActive && isActivePath(pathname, tab.href, allHrefs);
             const Icon = tab.icon;
             const isSubmit = isSubmitTab(tab.href);
-            const hasQuickActions = !!tab.quickActions;
 
             if (isSubmit) {
               return (
                 <Link
                   key={tab.href}
                   href={tab.href}
-                  prefetch={true}
                   className={cn(
                     "relative flex flex-col items-center justify-center min-w-[56px] py-1",
                     "transition-all duration-[400ms] ease-[cubic-bezier(0.25,1,0.5,1)]",
@@ -318,23 +143,13 @@ export function BottomTabBar({ userId, isAdmin, unreadCount }: BottomTabBarProps
               <Link
                 key={tab.href}
                 href={tab.href}
-                prefetch={true}
-                onClick={(e) => {
+                onClick={() => {
                   if (tab.resetsNotifications && tab.badge) resetDelta();
-                  if (hasQuickActions && longPressTriggered.current) {
-                    e.preventDefault();
-                    longPressTriggered.current = false;
-                  }
                 }}
-                onTouchStart={hasQuickActions ? handleLongPressStart : undefined}
-                onTouchEnd={hasQuickActions ? handleLongPressEnd : undefined}
-                onTouchCancel={hasQuickActions ? handleLongPressCancel : undefined}
-                onContextMenu={hasQuickActions ? (e) => e.preventDefault() : undefined}
                 className={cn(
                   "relative flex flex-col items-center justify-center gap-[2px] min-w-[56px] py-1 overflow-hidden",
                   "transition-all duration-[400ms] ease-[cubic-bezier(0.25,1,0.5,1)]",
-                  "apple-press",
-                  hasQuickActions && "[-webkit-touch-callout:none] [-webkit-user-select:none] select-none"
+                  "apple-press"
                 )}
                 aria-label={tab.label}
               >
@@ -372,6 +187,46 @@ export function BottomTabBar({ userId, isAdmin, unreadCount }: BottomTabBarProps
               </Link>
             );
           })}
+          {/* 5번째 칸: 누르면 메뉴 시트가 열린다(길게 누르기 없음). */}
+          <button
+            type="button"
+            aria-label="메뉴"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            onClick={() => {
+              setMenuMounted(true);
+              setMenuOpen(true);
+            }}
+            className={cn(
+              "relative flex flex-col items-center justify-center gap-[2px] min-w-[56px] py-1 overflow-hidden",
+              "transition-all duration-[400ms] ease-[cubic-bezier(0.25,1,0.5,1)]",
+              "apple-press"
+            )}
+          >
+            {menuActive && <div className="glass-lens absolute inset-x-1 inset-y-0" />}
+            <div className="relative z-[1]">
+              <LayoutGrid
+                className={cn(
+                  "transition-all duration-[400ms] ease-[cubic-bezier(0.25,1,0.5,1)]",
+                  menuActive ? "size-[24px] text-[var(--apple-blue)]" : "size-[22px] text-[var(--apple-secondary-label)]",
+                  "[stroke-width:1.8]"
+                )}
+              />
+              {menuBadge > 0 && (
+                <span className="absolute -top-1.5 -right-2.5 flex items-center justify-center min-w-[16px] h-[16px] rounded-full bg-[var(--apple-red)] text-white text-[11px] font-bold px-1 shadow-[0_2px_8px_rgba(255,59,48,0.35)]">
+                  {menuBadge > 99 ? "99+" : menuBadge}
+                </span>
+              )}
+            </div>
+            <span
+              className={cn(
+                "relative z-[1] text-[10px] font-medium transition-all duration-[400ms] ease-[cubic-bezier(0.25,1,0.5,1)]",
+                menuActive ? "text-[var(--apple-label)]" : "text-[var(--apple-secondary-label)]"
+              )}
+            >
+              메뉴
+            </span>
+          </button>
         </nav>
       </div>
     </>
