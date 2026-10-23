@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Upload,
   X,
@@ -80,7 +80,9 @@ export function FileUpload({
 
   // Revoke object URLs on unmount to prevent memory leaks
   const filesRef = useRef(files);
-  useEffect(() => {
+  // 커밋 직후 같은 태스크에서 맞춘다 — useEffect 로 늦게 맞추면 그 사이 도착한 읽기 결과(직접 대입한 최신 목록)를
+  // 예전 목록으로 되돌려, 바로 세운 사진이 원래 사진으로 돌아갈 수 있었다.
+  useLayoutEffect(() => {
     filesRef.current = files;
   }, [files]);
   const { read: readDocuments, readingCount } = useDocumentReader({ filesRef: filesRef, onFilesChange, onDocumentRead, fillDocumentType: false });
@@ -179,14 +181,16 @@ export function FileUpload({
 
   const removeFile = useCallback(
     (id: string) => {
-      const fileToRemove = files.find((f) => f.id === id);
+      const fileToRemove = filesRef.current.find((f) => f.id === id);
       if (fileToRemove?.preview) {
         URL.revokeObjectURL(fileToRemove.preview);
       }
-      onFilesChange(files.filter((f) => f.id !== id));
+      const updated = filesRef.current.filter((f) => f.id !== id);
+      filesRef.current = updated;
+      onFilesChange(updated);
       setFileError(null);
     },
-    [files, onFilesChange]
+    [onFilesChange]
   );
 
   const handleDrop = useCallback(
@@ -438,7 +442,9 @@ export function FileUploadWithDocType({
 
   // Revoke object URLs on unmount to prevent memory leaks
   const filesRef2 = useRef(files);
-  useEffect(() => {
+  // 커밋 직후 같은 태스크에서 맞춘다 — useEffect 로 늦게 맞추면 그 사이 도착한 읽기 결과(직접 대입한 최신 목록)를
+  // 예전 목록으로 되돌려, 바로 세운 사진이 원래 사진으로 돌아갈 수 있었다.
+  useLayoutEffect(() => {
     filesRef2.current = files;
   }, [files]);
   const { read: readDocuments, readingCount } = useDocumentReader({ filesRef: filesRef2, onFilesChange, onDocumentRead, fillDocumentType: true });
@@ -537,14 +543,16 @@ export function FileUploadWithDocType({
 
   const removeFile = useCallback(
     (id: string) => {
-      const fileToRemove = files.find((f) => f.id === id);
+      const fileToRemove = filesRef2.current.find((f) => f.id === id);
       if (fileToRemove?.preview) {
         URL.revokeObjectURL(fileToRemove.preview);
       }
-      onFilesChange(files.filter((f) => f.id !== id));
+      const updated = filesRef2.current.filter((f) => f.id !== id);
+      filesRef2.current = updated;
+      onFilesChange(updated);
       setFileError(null);
     },
-    [files, onFilesChange]
+    [onFilesChange]
   );
 
   const handleDrop = useCallback(

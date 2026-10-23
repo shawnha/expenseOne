@@ -1208,6 +1208,14 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
               if (newFiles.length > 0) {
                 setFileError(null);
               }
+              // 사진에서 서류 종류를 채웠으면(OCR) 그 파일의 「종류를 골라주세요」 표시도 지운다
+              setDocTypeErrors((prev) => {
+                const cleared = Object.keys(prev).filter((id) => prev[id] && newFiles.some((f) => f.id === id && f.documentType));
+                if (cleared.length === 0) return prev;
+                const next = { ...prev };
+                for (const id of cleared) delete next[id];
+                return next;
+              });
             }}
             onDocumentTypeChange={handleDocumentTypeChange}
             documentTypeErrors={docTypeErrors}
