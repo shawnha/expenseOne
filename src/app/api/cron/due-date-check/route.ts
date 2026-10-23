@@ -7,6 +7,7 @@ import { formatExpenseAmount } from "@/lib/utils/expense-utils";
 import { verifyCronAuth } from "@/lib/cron-auth";
 import { runInvoiceReminder } from "@/services/purchase-invoice-reminder.service";
 import { generateDueRecurringExpenses } from "@/services/recurring-expense.service";
+import { materializeRecurringPlans } from "@/services/recurring-plan.service";
 
 // ---------------------------------------------------------------------------
 // Cron — 납입 기일 임박 알림
@@ -124,7 +125,16 @@ export async function GET(request: Request) {
     }
   }
 
-  // 반복 입금요청 생성. 실패해도 나머지 알림에는 영향을 주지 않는다.
+  // 반복 지급 → 비용계획 창 밀기(이번 달 ~ 3달 뒤). 처리보다 먼저 — 오늘 회차의 입금요청을 그 계획에 연결하려고.
+  let recurringPlans: unknown = null;
+  try {
+    recurringPlans = await materializeRecurringPlans();
+  } catch (err) {
+    console.error("[DueDateCron] 반복 지급 비용계획 맞추기 실패:", err);
+    recurringPlans = { error: true };
+  }
+
+  // 반복 지급 처리(자동 제출·알림). 실패해도 나머지 알림에는 영향을 주지 않는다.
   let recurring: unknown = null;
   try {
     recurring = await generateDueRecurringExpenses();
@@ -151,6 +161,7 @@ export async function GET(request: Request) {
     checkedAt: today.toISOString(),
     notifiedCount,
     results,
+    recurringPlans,
     recurring,
     invoiceReminder,
   });

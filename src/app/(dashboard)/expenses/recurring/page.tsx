@@ -8,14 +8,13 @@ import { getMyCustomCategories } from "@/services/category.service";
 import { RecurringManager } from "./recurring-manager";
 
 // ---------------------------------------------------------------------------
-// 반복 입금요청 설정
+// 반복 지급
 //
-// 월세·구독료처럼 매번 같은 내용으로 올리는 입금요청을 등록해두면, 예정일에
-// 자동으로 승인 대기에 올라간다. 등록자에게도 알림이 가므로 금액이 달라졌으면
-// 승인 전에 고칠 수 있다.
+// 매달 나가는 돈을 한 번 등록하면 비용계획에 미리 깔리고, 예정일에 입금요청을
+// 올리라고 알려 준다(방식에 따라 자동 제출 / 계획에만).
 // ---------------------------------------------------------------------------
 
-async function Content() {
+async function Content({ focusId }: { focusId: string | null }) {
   const user = await getCachedCurrentUser();
   if (!user) redirect("/login");
 
@@ -27,6 +26,8 @@ async function Content() {
 
   // 반복 등록은 "한 번 만들어두고 계속 쓰는" 화면이다. 여기서만 프리셋으로
   // 제한하면 평소 쓰던 카테고리로는 반복 등록을 아예 못 만든다.
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
+
   const categoryOptions = [
     ...CATEGORY_OPTIONS.map((c) => ({ value: c.value, label: c.label })),
     ...myCategories.map((c) => ({ value: c, label: c })),
@@ -36,25 +37,38 @@ async function Content() {
     <div className="flex flex-col gap-4 sm:gap-5">
       <div>
         <h1 className="text-xl font-bold tracking-[-0.02em] text-[var(--apple-label)] sm:text-2xl">
-          반복 입금요청
+          반복 지급
         </h1>
         <p className="mt-1 text-[13px] text-[var(--apple-secondary-label)]">
-          정해둔 날짜가 되면 입금요청이 자동으로 등록되고, 등록자에게 알림이 갑니다.
-          금액이 달라졌으면 승인 전에 수정하시면 됩니다.
+          매달 나가는 돈을 한 번 등록하면 비용계획에 미리 깔리고, 날짜가 되면 입금요청을 올리라고 알려 드려요.
         </p>
       </div>
 
       <RecurringManager
         rows={rows}
-        companies={companies.map((c) => ({ id: c.id, name: c.name }))}
+        companies={companies.map((c) => ({
+          id: c.id,
+          name: c.name,
+          slug: c.slug,
+          currency: c.currency ?? "KRW",
+        }))}
         categories={categoryOptions}
         defaultCompanyId={user.companyId ?? null}
+        isAdmin={user.role === "ADMIN"}
+        today={today}
+        focusId={focusId}
       />
     </div>
   );
 }
 
-export default function RecurringPage() {
+export default async function RecurringPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = await searchParams;
+  const focusId = typeof sp.focus === "string" ? sp.focus : null;
   return (
     <Suspense
       fallback={
@@ -65,7 +79,7 @@ export default function RecurringPage() {
         </div>
       }
     >
-      <Content />
+      <Content focusId={focusId} />
     </Suspense>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCheck, Loader2 } from "lucide-react";
+import { BellRing, CheckCheck, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import type { Notification } from "@/types";
@@ -200,6 +200,10 @@ export default function NotificationList({
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
+                    {/* 후지급 요청 = 내가 잔금을 보내야 하는 일. 다른 알림과 글자 시작이 어긋나지 않게 제목 옆에 작게 붙인다. */}
+                    {notification.type === "REMAINING_PAYMENT_REQUEST" && (
+                      <BellRing className="size-3.5 shrink-0 text-[var(--apple-orange)]" aria-hidden="true" />
+                    )}
                     <p
                       className={`text-sm ${!notification.isRead ? "font-semibold text-[var(--apple-label)]" : "text-[var(--apple-label)]"}`}
                     >

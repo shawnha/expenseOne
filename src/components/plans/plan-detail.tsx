@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, EyeOff, Link2, Plus, Search, Sparkles } from "lucide-react";
+import { ArrowLeft, EyeOff, Link2, Plus, Repeat, Search, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -191,6 +191,27 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
               {plan.plannedDateLabel}
               {plan.ownerName && ` · 담당 ${plan.ownerName}`}
             </p>
+            {plan.recurring && (
+              <div className="mt-2 space-y-1">
+                <p className="flex flex-wrap items-center gap-x-2 text-footnote text-[var(--apple-label)]">
+                  <span className="inline-flex items-center gap-1">
+                    <Repeat className="size-3.5 text-[var(--apple-secondary-label)]" aria-hidden="true" />
+                    반복 지급 · {plan.recurring.scheduleLabel}
+                  </span>
+                  {/* 현재 사용자 id 가 이 컴포넌트에 없다 — 링크는 모두에게 보이고, 서버가 본인·관리자 것만 목록에 준다. */}
+                  <Link
+                    href={`/expenses/recurring?focus=${plan.recurring.id}`}
+                    prefetch={false}
+                    className="inline-flex min-h-11 items-center text-[var(--apple-blue)] hover:underline sm:min-h-0"
+                  >
+                    반복 설정 보기
+                  </Link>
+                </p>
+                <p className="text-caption1 text-[var(--apple-secondary-label)] break-keep">
+                  반복을 고치면 아직 손대지 않은 다음 달 계획도 같이 바뀌어요. 이 계획을 직접 고치면 그때부터 반복과 따로 움직여요.
+                </p>
+              </div>
+            )}
           </div>
           {canEdit && (
             <Button type="button" size="lg" variant="outline" onClick={() => setEditOpen(true)}>
