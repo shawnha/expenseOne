@@ -113,6 +113,7 @@ interface DepositRequestFormProps {
 export default function DepositRequestForm({ initialCompanies, myCategories = [], myPayees = [] }: DepositRequestFormProps) {
   const [files, setFiles] = useState<FileWithPreview[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadBusy, setIsUploadBusy] = useState(false); // 사진 줄이는 중엔 제출 잠금
   const [amountDisplay, setAmountDisplay] = useState("");
   // 금액은 RHF register가 아니라 setValue(shouldDirty 없음)로 쓰므로 isDirty가 안 켜진다.
   // 금액만 입력한 폼도 "작성 중"으로 보려면 따로 표시해야 한다.
@@ -229,7 +230,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
   // Warn on unsaved changes (browser close / refresh)
   useUnsavedChanges(isDirty || files.length > 0);
   // 작성·제출 중엔 새 배포의 강제 새로고침을 미룬다 (sw-update-prompt)
-  useFormBusy("deposit-request", isDirty || files.length > 0 || amountTouched || isSubmitting);
+  useFormBusy("deposit-request", isDirty || files.length > 0 || amountTouched || isSubmitting || isUploadBusy);
 
   const watchedIsPrePaid = watch("isPrePaid");
   const watchedPrePaidPercentage = watch("prePaidPercentage");
@@ -1140,6 +1141,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
             onDocumentTypeChange={handleDocumentTypeChange}
             documentTypeErrors={docTypeErrors}
             error={fileError ?? undefined}
+            onBusyChange={setIsUploadBusy}
           />
         </div>
 
@@ -1152,7 +1154,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
           </Link>
           <Button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || isUploadBusy}
             className="w-full sm:w-auto rounded-full h-12 px-8 text-[15px] font-semibold bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] shadow-[0_4px_14px_rgba(0,122,255,0.4)] hover:shadow-[0_6px_20px_rgba(0,122,255,0.5)] transition-all"
           >
             {isSubmitting ? (

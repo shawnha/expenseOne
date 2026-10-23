@@ -207,6 +207,7 @@ function CorporateCardEditForm({
     useState<ExistingAttachment[]>(existingAttachments);
   const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadBusy, setIsUploadBusy] = useState(false); // 사진 줄이는 중엔 제출 잠금
   const [amountDisplay, setAmountDisplay] = useState(
     formatAmount(expense.amount)
   );
@@ -265,7 +266,7 @@ function CorporateCardEditForm({
   // 금액은 RHF register가 아니라 setValue(shouldDirty 없음)로 쓰므로 isDirty에 안 잡힌다 —
   // 화면에 보이는 값(amountDisplay)을 처음 값과 비교해 따로 본다.
   const amountChanged = amountDisplay !== formatAmount(expense.amount);
-  useFormBusy("expense-edit-card", isDirty || newFiles.length > 0 || removedAttachmentIds.length > 0 || companyChanged || amountChanged || isSubmitting);
+  useFormBusy("expense-edit-card", isDirty || newFiles.length > 0 || removedAttachmentIds.length > 0 || companyChanged || amountChanged || isSubmitting || isUploadBusy);
 
   const handleAmountChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -472,14 +473,14 @@ function CorporateCardEditForm({
         <div className="glass p-6 mt-4">
           <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-1">새 파일 첨부</h2>
           <p className="text-[13px] text-[var(--apple-secondary-label)] mb-4">영수증 등 증빙자료를 추가로 첨부해주세요. (선택사항)</p>
-          <FileUpload files={newFiles} onFilesChange={setNewFiles} />
+          <FileUpload files={newFiles} onFilesChange={setNewFiles} onBusyChange={setIsUploadBusy} />
         </div>
 
         <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <Link href={`/expenses/${expense.id}`} className="w-full sm:w-auto">
             <Button type="button" variant="outline" className="w-full rounded-full h-11 glass border-[var(--apple-separator)]">취소</Button>
           </Link>
-          <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto rounded-full h-11 bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)]">
+          <Button type="submit" disabled={isSubmitting || isUploadBusy} className="w-full sm:w-auto rounded-full h-11 bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)]">
             {isSubmitting ? (<><Loader2 className="size-4 animate-spin" />수정 중...</>) : "수정하기"}
           </Button>
         </div>
@@ -556,6 +557,7 @@ function DepositRequestEditForm({
     useState<ExistingAttachment[]>(existingAttachments);
   const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadBusy, setIsUploadBusy] = useState(false); // 사진 줄이는 중엔 제출 잠금
   const [amountDisplay, setAmountDisplay] = useState(
     formatAmount(expense.amount)
   );
@@ -637,7 +639,7 @@ function DepositRequestEditForm({
     amountDisplay !== formatAmount(expense.amount) ||
     vatIncluded ||
     freelancerDeduction !== (expense.hasFreelancerWithholding ?? false);
-  useFormBusy("expense-edit-deposit", isDirty || newFiles.length > 0 || removedAttachmentIds.length > 0 || companyChanged || amountChanged || isSubmitting);
+  useFormBusy("expense-edit-deposit", isDirty || newFiles.length > 0 || removedAttachmentIds.length > 0 || companyChanged || amountChanged || isSubmitting || isUploadBusy);
 
   // 금액 계산은 생성 폼과 같은 헬퍼(@/lib/utils/deposit-amount)를 쓴다.
   // 예전엔 이 파일에 calcFinalAmount 복제본이 있어 두 경로가 갈라졌다.
@@ -1076,7 +1078,7 @@ function DepositRequestEditForm({
         <div className="glass p-6 mt-4">
           <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-1">새 파일 첨부</h2>
           <p className="text-[13px] text-[var(--apple-secondary-label)] mb-4">증빙서류를 추가로 첨부해주세요.{keptAttachments.length === 0 && " 최소 1개의 파일이 필요합니다."}</p>
-          <FileUploadWithDocType files={newFiles} onFilesChange={(files) => { setNewFiles(files); if (files.length > 0 || keptAttachments.length > 0) setFileError(null); }} onDocumentTypeChange={handleDocumentTypeChange} documentTypeErrors={docTypeErrors} error={fileError ?? undefined} />
+          <FileUploadWithDocType files={newFiles} onFilesChange={(files) => { setNewFiles(files); if (files.length > 0 || keptAttachments.length > 0) setFileError(null); }} onDocumentTypeChange={handleDocumentTypeChange} documentTypeErrors={docTypeErrors} error={fileError ?? undefined} onBusyChange={setIsUploadBusy} />
         </div>
 
         <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
@@ -1087,7 +1089,7 @@ function DepositRequestEditForm({
           <Link href={`/expenses/${expense.id}`} className="w-full sm:w-auto">
             <Button type="button" variant="outline" className="w-full rounded-full h-11 glass border-[var(--apple-separator)]">취소</Button>
           </Link>
-          <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto rounded-full h-11 bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)]">
+          <Button type="submit" disabled={isSubmitting || isUploadBusy} className="w-full sm:w-auto rounded-full h-11 bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)]">
             {isSubmitting ? (<><Loader2 className="size-4 animate-spin" />수정 중...</>) : "수정하기"}
           </Button>
         </div>

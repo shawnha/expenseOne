@@ -88,6 +88,7 @@ export function RefundForm() {
   const [description, setDescription] = useState("");
   const [files, setFiles] = useState<FileWithPreview[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadBusy, setIsUploadBusy] = useState(false); // 사진 줄이는 중엔 제출 잠금
   const [showSuccess, setShowSuccess] = useState(false);
   // 반품은 등록됐는데 첨부 업로드가 실패한 경우 — 성공 창에서 상세로 안내한다.
   const [uploadIssue, setUploadIssue] = useState<{ message: string; detailHref: string | null } | null>(null);
@@ -112,6 +113,7 @@ export function RefundForm() {
   useFormBusy(
     "refund",
     isSubmitting ||
+      isUploadBusy ||
       description !== "" ||
       files.length > 0 ||
       amountInput !== autoAmountInput ||
@@ -462,14 +464,14 @@ export function RefundForm() {
 
             <div className="space-y-1.5">
               <Label>증빙 첨부 (선택)</Label>
-              <FileUpload files={files} onFilesChange={setFiles} />
+              <FileUpload files={files} onFilesChange={setFiles} onBusyChange={setIsUploadBusy} />
             </div>
           </div>
 
           {/* ── 제출 ── */}
           <button
             type="submit"
-            disabled={isSubmitting || !original}
+            disabled={isSubmitting || isUploadBusy || !original}
             className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-[var(--apple-blue)] text-white text-[15px] font-semibold rounded-full hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] transition-colors disabled:opacity-50 apple-press"
           >
             {isSubmitting ? (
