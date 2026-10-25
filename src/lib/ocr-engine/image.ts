@@ -3,7 +3,6 @@
  */
 import sharp from "sharp";
 import convert from "heic-convert";
-import { computeTargetSize } from "@/lib/image-resize";
 
 export type Degrees = 0 | 90 | 180 | 270;
 
@@ -11,6 +10,27 @@ export type Degrees = 0 | 90 | 180 | 270;
 export const LIMIT_INPUT_PIXELS = 40_000_000;
 /** 클라이언트로 돌려주는 JPEG 바이트 상한 (Vercel 응답 4.5MB 한도, base64 +33% 감안) */
 export const MAX_OUTPUT_BYTES = 3_200_000;
+
+/** 화면에 돌려주는 JPEG의 총 화소 상한 */
+export const MAX_PIXELS = 9_000_000;
+/** 긴 변 절대 상한 (px) — Claude API 최대 8000px */
+export const MAX_LONG_EDGE = 8000;
+
+/** 총 화소가 maxPixels, 긴 변이 maxLongEdge를 넘지 않게 비율 유지로 줄인다 (확대 없음) */
+export function computeTargetSize(
+  width: number,
+  height: number,
+  maxPixels: number = MAX_PIXELS,
+  maxLongEdge: number = MAX_LONG_EDGE
+): { width: number; height: number } {
+  if (!(width > 0) || !(height > 0)) return { width, height };
+  const scale = Math.min(1, Math.sqrt(maxPixels / (width * height)), maxLongEdge / Math.max(width, height));
+  if (scale >= 1) return { width, height };
+  return {
+    width: Math.max(1, Math.floor(width * scale)),
+    height: Math.max(1, Math.floor(height * scale)),
+  };
+}
 
 const sharpOpts = { limitInputPixels: LIMIT_INPUT_PIXELS };
 
