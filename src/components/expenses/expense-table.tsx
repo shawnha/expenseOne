@@ -14,7 +14,7 @@ import { SwipeableGroup, SwipeableRow, type SwipeAction } from "@/components/ui/
 import { getCategoryLabel, formatExpenseAmount } from "@/lib/utils/expense-utils";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { Pencil, Trash2 } from "lucide-react";
+import { BellRing, Pencil, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -51,16 +51,19 @@ interface ExpenseRow {
   companySlug?: string | null;
   isPrePaid?: boolean;
   prePaidPercentage?: number | null;
+  prePaidFixedAmount?: number | null;
   /** 제출자가 원천징수 3.3% 를 체크했나 — 체크했으면 amount 가 실지급액이다. */
   hasFreelancerWithholding?: boolean;
   remainingPaymentRequested?: boolean;
   remainingPaymentApproved?: boolean;
+  /** 입금 기일("yyyy-mm-dd") — 처리 대기 칸에서만 보여 준다. */
+  dueDate?: string | null;
 }
 
 // 부분 선지급 입금요청은 '승인'만으로 후지급 완료 여부를 알 수 없어 별도 배지로 표시.
 // 3단계로 나눈다 — 요청 전(대기)은 관리자가 할 일이 없고, 요청됨은 승인이 필요하다.
 // 예전엔 둘 다 "후지급 대기" 주황이라 요청이 왔는지 목록에서 알 수 없었다.
-function RemainingPaymentBadge({ expense }: { expense: ExpenseRow }) {
+function RemainingPaymentBadge({ expense, isMine = false }: { expense: ExpenseRow; isMine?: boolean }) {
   if (
     expense.type !== "DEPOSIT_REQUEST" ||
     !expense.isPrePaid ||
@@ -74,7 +77,16 @@ function RemainingPaymentBadge({ expense }: { expense: ExpenseRow }) {
     return <span className="glass-badge glass-badge-green shrink-0">후지급 완료</span>;
   }
   if (expense.remainingPaymentRequested) {
-    return <span className="glass-badge glass-badge-orange shrink-0">후지급 요청</span>;
+    return (
+      <span className="glass-badge glass-badge-orange shrink-0 inline-flex items-center gap-1 font-semibold">
+        <BellRing className="size-3" aria-hidden="true" />
+        후지급 요청
+      </span>
+    );
+  }
+  // 제출자 본인에게는 "해야 할 일"로 보이게 한다. 남의 행(관리자 화면)은 할 일이 없어 회색.
+  if (isMine) {
+    return <span className="glass-badge glass-badge-blue shrink-0">후지급 요청 필요</span>;
   }
   return <span className="glass-badge glass-badge-gray shrink-0">후지급 대기</span>;
 }
@@ -83,6 +95,10 @@ interface ExpenseTableProps {
   expenses: ExpenseRow[];
   showSubmitter?: boolean;
   isAdmin?: boolean;
+  /** 현재 로그인 사용자 id — 본인 행의 후지급 배지를 "요청 필요"로 보여주는 데 쓴다. */
+  currentUserId?: string;
+  /** 입금 기일 칸을 보여 준다(목록 위 처리 대기 칸). */
+  showDueDate?: boolean;
 }
 
 const TYPE_LABELS: Record<ExpenseType, { label: string; className: string }> = {
@@ -119,6 +135,20 @@ const STATUS_LABELS: Record<ExpenseStatus, { label: string; className: string }>
   },
 };
 
+const todayKST = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date());
+
+/** 입금 기일. 지났으면 빨강. 서버(UTC)와 브라우저가 같은 날로 보도록 한국 날짜 문자열끼리 비교한다. */
+function DueDateLabel({ dueDate }: { dueDate?: string | null }) {
+  if (!dueDate) return <span className="text-[var(--apple-secondary-label)]">기일 없음</span>;
+  const overdue = dueDate < todayKST();
+  return (
+    <span className={cn("tabular-nums", overdue ? "font-medium text-[var(--apple-red)]" : "text-[var(--apple-label)]")}>
+      {dueDate.replace(/-/g, ".")}
+      {overdue && " 지남"}
+    </span>
+  );
+}
+
 function formatDateKR(dateStr: string): string {
   const d = new Date(dateStr);
   const year = d.getFullYear();
@@ -127,7 +157,7 @@ function formatDateKR(dateStr: string): string {
   return `${year}.${month}.${day}`;
 }
 
-export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false }: ExpenseTableProps) {
+export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false, currentUserId, showDueDate = false }: ExpenseTableProps) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
@@ -312,6 +342,7 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
               <TableHead className="w-[120px] text-right pr-6">금액</TableHead>
               <TableHead className="w-[100px]">카테고리</TableHead>
               <TableHead className="w-[72px]">상태</TableHead>
+              {showDueDate && <TableHead className="w-[110px]">입금 기일</TableHead>}
               <TableHead className="w-[100px]">제출일</TableHead>
               {showSubmitter && <TableHead className="w-[80px]">제출자</TableHead>}
               {showSubmitter && <TableHead className="w-[100px]">회사</TableHead>}
@@ -356,7 +387,7 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
                     <span className="flex items-center gap-1.5">
                       <span className="truncate">{expense.title}</span>
                       {expense.isUrgent && <span className="glass-badge glass-badge-red shrink-0">긴급</span>}
-                      <PrePaidBadge isPrePaid={expense.isPrePaid} percentage={expense.prePaidPercentage} />
+                      <PrePaidBadge isPrePaid={expense.isPrePaid} percentage={expense.prePaidPercentage} fixedAmount={expense.prePaidFixedAmount} />
                       <WithholdingBadge applied={expense.hasFreelancerWithholding} />
                       {expense.autoClassified && <span className="glass-badge glass-badge-blue shrink-0">자동분류</span>}
                     </span>
@@ -378,9 +409,14 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
                   <TableCell>
                     <span className="flex items-center gap-1.5">
                       <span className={statusInfo.className}>{statusInfo.label}</span>
-                      <RemainingPaymentBadge expense={expense} />
+                      <RemainingPaymentBadge expense={expense} isMine={!!currentUserId && expense.submitter?.id === currentUserId} />
                     </span>
                   </TableCell>
+                  {showDueDate && (
+                    <TableCell>
+                      <DueDateLabel dueDate={expense.dueDate} />
+                    </TableCell>
+                  )}
                   <TableCell className="text-[var(--apple-secondary-label)]">
                     {formatDateKR(expense.createdAt)}
                   </TableCell>
@@ -442,6 +478,8 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false 
               expense={expense}
               showSubmitter={showSubmitter}
               isAdmin={isAdmin}
+              currentUserId={currentUserId}
+              showDueDate={showDueDate}
               onQuickEdit={handleQuickEdit}
             />
           ))}
@@ -524,11 +562,15 @@ function MobileExpenseCard({
   expense,
   showSubmitter,
   isAdmin,
+  currentUserId,
+  showDueDate,
   onQuickEdit,
 }: {
   expense: ExpenseRow;
   showSubmitter: boolean;
   isAdmin: boolean;
+  currentUserId?: string;
+  showDueDate: boolean;
   onQuickEdit: (expense: ExpenseRow) => void;
 }) {
   const router = useRouter();
@@ -610,13 +652,13 @@ function MobileExpenseCard({
           <span className="flex items-center gap-1.5 min-w-0">
             <span className="text-sm font-medium text-[var(--apple-label)] truncate">{expense.title}</span>
             {expense.isUrgent && <span className="glass-badge glass-badge-red shrink-0">긴급</span>}
-            <PrePaidBadge isPrePaid={expense.isPrePaid} percentage={expense.prePaidPercentage} />
+            <PrePaidBadge isPrePaid={expense.isPrePaid} percentage={expense.prePaidPercentage} fixedAmount={expense.prePaidFixedAmount} />
             <WithholdingBadge applied={expense.hasFreelancerWithholding} />
             {expense.autoClassified && <span className="glass-badge glass-badge-blue shrink-0">자동분류</span>}
           </span>
           <span className="flex items-center gap-1.5 shrink-0">
             <span className={statusInfo.className}>{statusInfo.label}</span>
-            <RemainingPaymentBadge expense={expense} />
+            <RemainingPaymentBadge expense={expense} isMine={!!currentUserId && expense.submitter?.id === currentUserId} />
           </span>
         </div>
         <div className="flex items-center justify-between gap-2">
@@ -635,12 +677,23 @@ function MobileExpenseCard({
             {formatExpenseAmount(expense.amount, expense.currency, expense.amountOriginal)}
           </span>
         </div>
+        {showDueDate && (
+          // 처리 대기 칸: 기일과 제출일을 한 줄 따로 — 회사·제출자와 한 줄이면 좁은 화면에서 글자가 쪼개진다.
+          <div className="flex flex-wrap items-center gap-x-1.5 text-xs text-[var(--apple-secondary-label)]">
+            <span className="whitespace-nowrap">
+              {expense.dueDate && "기일 "}
+              <DueDateLabel dueDate={expense.dueDate} />
+            </span>
+            <span aria-hidden="true">·</span>
+            <span className="whitespace-nowrap">제출 {formatDateKR(expense.createdAt)}</span>
+          </div>
+        )}
         <div className="flex items-center justify-between text-xs text-[var(--apple-secondary-label)]">
           <span className="flex items-center gap-1.5">
             {expense.companyName && expense.companySlug && (
               <CompanyBadge name={expense.companyName} slug={expense.companySlug} />
             )}
-            {formatDateKR(expense.createdAt)}
+            {!showDueDate && formatDateKR(expense.createdAt)}
           </span>
           <div className="flex items-center gap-2">
             {/* Desktop action buttons */}

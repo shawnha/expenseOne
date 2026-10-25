@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BellRing } from "lucide-react";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { getCachedCurrentUser } from "@/lib/supabase/cached";
@@ -53,6 +54,7 @@ async function getPendingExpenses(company?: string): Promise<PendingExpense[]> {
     isUrgent: item.isUrgent ?? false,
     isPrePaid: item.isPrePaid ?? false,
     prePaidPercentage: item.prePaidPercentage ?? null,
+    prePaidFixedAmount: item.prePaidFixedAmount ?? null,
     hasFreelancerWithholding: item.hasFreelancerWithholding ?? false,
     companyName: item.companyName ?? null,
     companySlug: item.companySlug ?? null,
@@ -92,6 +94,7 @@ export default async function AdminPendingPage({ searchParams }: PendingPageProp
       {remainingPayments.length > 0 && (
         <div className="glass p-3 sm:p-4 lg:p-5 animate-fade-up-1">
           <div className="flex items-center gap-2 mb-4">
+            <BellRing className="size-4 text-[var(--apple-orange)]" aria-hidden="true" />
             <h2 className="text-subheadline font-semibold text-[var(--apple-label)]">후지급 승인 대기</h2>
             <span className="glass-badge glass-badge-orange animate-spring-pop">{remainingPayments.length}건</span>
           </div>
@@ -100,7 +103,7 @@ export default async function AdminPendingPage({ searchParams }: PendingPageProp
             {remainingPayments.map((item) => (
               <li
                 key={item.id}
-                className="flex flex-col sm:flex-row sm:items-center gap-3 px-3.5 py-3 rounded-xl border border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)]"
+                className="flex flex-col sm:flex-row sm:items-center gap-3 px-3.5 py-3 rounded-xl border border-[rgba(255,149,0,0.35)] bg-[rgba(255,149,0,0.06)]"
               >
                 <div className="flex-1 min-w-0">
                   <Link
@@ -114,7 +117,9 @@ export default async function AdminPendingPage({ searchParams }: PendingPageProp
                     {item.companyName ? ` · ${item.companyName}` : ""}
                     {" · 총 "}
                     {formatExpenseAmount(item.amount, item.currency, item.amountOriginal)}
-                    {` · 선지급 ${item.prePaidPercentage}% 완료`}
+                    {item.prePaidFixedAmount != null
+                      ? ` · 선지급 ${item.prePaidAmount.toLocaleString("ko-KR")}원 완료`
+                      : ` · 선지급 ${item.prePaidPercentage}% 완료`}
                     {item.dueDate ? ` · 기일 ${item.dueDate.replace(/-/g, ".")}` : ""}
                   </p>
                 </div>
@@ -122,7 +127,7 @@ export default async function AdminPendingPage({ searchParams }: PendingPageProp
                   <span className="text-sm font-semibold tabular-nums text-[var(--apple-label)]">
                     후지급 {item.remainingAmount.toLocaleString("ko-KR")}원
                   </span>
-                  <ApproveRemainingButton expenseId={item.id} />
+                  <ApproveRemainingButton expenseId={item.id} remainingAmount={item.remainingAmount} expenseTitle={item.title} accountHolder={item.accountHolder} />
                 </div>
               </li>
             ))}

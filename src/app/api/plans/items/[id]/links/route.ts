@@ -9,10 +9,11 @@ import {
   requireUuidParam,
 } from "@/lib/plans/api";
 import { linkExpenseSchema, unlinkQuerySchema, searchParamsToObject } from "@/lib/validations/plan";
-import { linkExpense, unlinkExpense } from "@/services/plan.service";
+import { linkExpense, linkExpenses, unlinkExpense } from "@/services/plan.service";
 
 // ---------------------------------------------------------------------------
-// POST   /api/plans/items/[id]/links          body { expenseId }
+// POST   /api/plans/items/[id]/links          body { expenseId } → 201 { linkId }
+//                                             body { expenseIds } → 201 { linkIds, skipped } (여러 건, 알림 한 번)
 // DELETE /api/plans/items/[id]/links?linkId=…
 //
 // 스냅샷 값은 서버가 SELECT 로만 만든다 — 클라이언트가 보내는 건 expenseId 뿐(결정 1-2).
@@ -32,6 +33,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (csrfError) return csrfError;
     const id = requireUuidParam((await context.params).id, "계획");
     const input = parseOrThrow(linkExpenseSchema, await readJson(request));
+    if ("expenseIds" in input) return planJson(await linkExpenses(actor, id, input.expenseIds), 201);
     return planJson(await linkExpense(actor, id, input.expenseId), 201);
   } catch (err) {
     return handlePlanError(err);

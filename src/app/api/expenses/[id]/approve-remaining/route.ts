@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { prePaidSplit } from "@/lib/utils/pre-paid";
+import { getPrePaidFixedAmount } from "@/services/expense.service";
 import { revalidatePath } from "next/cache";
 import { requireAdmin, errorResponse, handleError, validateOrigin, validateUUID } from "@/lib/api-utils";
 import { db } from "@/lib/db";
@@ -74,12 +76,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return errorResponse("VALIDATION_ERROR", "비용 상태가 변경되었습니다. 페이지를 새로고침해주세요.");
     }
 
-    // Calculate remaining amount
-    const remainingAmount =
-      expense.amount -
-      Math.round(
-        (expense.amount * (expense.prePaidPercentage ?? 0)) / 100,
-      );
+    // 잔금 — 계산은 lib/utils/pre-paid 한 곳에서. 금액으로 정한 선지급이면 그 금액 그대로 뺀다.
+    // (후지급 요청 라우트가 부분 선지급만 받으므로 split 은 늘 있다.)
+    const prePaidFixedAmount = await getPrePaidFixedAmount(expense.id);
+    const remainingAmount = prePaidSplit({ ...expense, prePaidFixedAmount })?.remainingAmount ?? 0;
 
     // Notify the submitter
     await createNotification({
@@ -113,6 +113,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
             title: expense.title,
             amount: expense.amount,
             prePaidPercentage: expense.prePaidPercentage ?? 0,
+            prePaidFixedAmount,
             expenseUrl: `${appUrl}/expenses/${expense.id}`,
             companyId: expense.companyId,
             currency: expense.currency,

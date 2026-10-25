@@ -37,6 +37,8 @@ export interface PlanPushEvent {
   planTitle?: string;
   /** 후보 수신자(프로젝트 참여자 전원 또는 추가된 사람). 본인은 여기서 걸러진다. */
   candidateIds: string[];
+  /** link_added: 한 번에 이은 건수(여러 건을 묶어 한 번만 알린다). */
+  count?: number;
 }
 
 export interface PlanPushMessage {
@@ -80,9 +82,16 @@ export function buildPlanPush(ev: PlanPushEvent): PlanPushMessage {
     case "member_added":
       return { title: `[비용계획] ${ev.projectName}`, body: `${ev.actorName} 님이 나를 참여자로 추가했습니다.`, url };
     case "link_added":
-      return { title: `[비용계획] ${plan}`, body: `${ev.actorName} 님이 입금요청을 연결했습니다.`, url };
+      return {
+        title: `[비용계획] ${plan}`,
+        body:
+          ev.count && ev.count > 1
+            ? `${ev.actorName} 님이 비용 ${ev.count}건을 연결했습니다.`
+            : `${ev.actorName} 님이 비용을 연결했습니다.`,
+        url,
+      };
     case "link_removed":
-      return { title: `[비용계획] ${plan}`, body: `${ev.actorName} 님이 입금요청 연결을 해제했습니다.`, url };
+      return { title: `[비용계획] ${plan}`, body: `${ev.actorName} 님이 비용 연결을 해제했습니다.`, url };
     case "project_deleted":
       return { title: `[비용계획] ${ev.projectName}`, body: `${ev.actorName} 님이 프로젝트를 삭제했습니다.`, url: "/plans" };
   }
