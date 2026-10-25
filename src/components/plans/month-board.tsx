@@ -554,18 +554,31 @@ function MonthColumn({
         onDrop={onDrop}
       >
         {/* 달 머리 — 합계는 예정 건만 센다(취소·마감 제외) */}
-        <header className="glass-subtle flex items-baseline justify-between gap-2 px-4 py-3">
-          <div className="flex items-baseline gap-1.5">
-            <h2 className="text-headline text-[var(--apple-label)]">{monthLabel(month.month)}</h2>
-            {month.month === currentMonth && <span className="glass-badge glass-badge-blue">이번 달</span>}
-          </div>
-          <div className="text-right">
-            <p className="text-[15px] font-semibold tabular-nums text-[var(--apple-label)]">
+        {/* 네 달이 한 줄에 서므로 머리 높이는 늘 두 줄로 같게 — 내용(이번 달·지급 메모)에 따라 줄이 늘면 칸이 들쭉날쭉하다. */}
+        <header className="glass-subtle flex flex-col gap-0.5 px-4 py-3">
+          <div className="flex items-baseline justify-between gap-2">
+            <h2 className="shrink-0 whitespace-nowrap text-headline text-[var(--apple-label)]">
+              {monthLabel(month.month)}
+            </h2>
+            <p className="min-w-0 truncate text-[15px] font-semibold tabular-nums text-[var(--apple-label)]">
               {formatKRW(month.total)}
             </p>
-            <p className="text-caption2 text-[var(--apple-secondary-label)] tabular-nums">{month.count}건</p>
+          </div>
+          {/* 4열에서 칸이 좁으면(≈250px) 첫 줄에 월·칩·합계가 다 안 들어간다 — 칩은 둘째 줄 건수 앞에 둔다.
+              칩이 글자보다 높으니 줄 높이를 고정해 이번 달 칸만 커지지 않게 한다. */}
+          <div className="flex h-[18px] items-center justify-between gap-2 text-caption2 tabular-nums text-[var(--apple-secondary-label)]">
+            <span className="flex shrink-0 items-center gap-1.5">
+              {month.month === currentMonth && <span className="glass-badge glass-badge-blue">이번 달</span>}
+              {month.count}건
+            </span>
             {/* 지급 완료가 있을 때만 "아직 나갈 돈" 을 따로 적는다(0025) — 없으면 합계와 같은 말이다. */}
-            {note && <p className="text-caption2 text-[var(--apple-secondary-label)] tabular-nums">{note}</p>}
+            {note && (
+              // 좁으면 "지급 완료 N건" 쪽이 먼저 줄고 미지급 금액은 끝까지 보인다.
+              <span className="flex min-w-0 items-center" title={note}>
+                <span className="truncate">{note.slice(0, note.lastIndexOf(" · ") + 2)}</span>
+                <span className="shrink-0 whitespace-pre">{note.slice(note.lastIndexOf(" · ") + 2)}</span>
+              </span>
+            )}
           </div>
         </header>
 
