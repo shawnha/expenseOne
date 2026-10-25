@@ -41,7 +41,7 @@ export const OPEN_TOUR_EVENT = "expenseone:open-tour";
 
 function linksFor(isAdmin: boolean): TabMenuLink[] {
   const common: TabMenuLink[] = [
-    { kind: "link", label: "반복 입금요청", href: "/expenses/recurring", icon: "repeat" },
+    { kind: "link", label: "반복 지급", href: "/expenses/recurring", icon: "repeat" },
     { kind: "link", label: "비용계획", href: "/plans", icon: "plans", gated: true, badgeKey: "plans" },
     { kind: "link", label: "세금계산서", href: "/tax-invoices", icon: "receipt-text", badgeKey: "taxInvoices" },
   ];

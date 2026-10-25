@@ -101,6 +101,13 @@ describe("cancelPlanSchema / commentBodySchema / linkExpenseSchema", () => {
     assert.deepEqual(r, { expenseId: B });
     assert.equal(linkExpenseSchema.safeParse({ expenseId: "x" }).success, false);
   });
+  it("여러 건은 expenseIds 로 1~50건(스냅샷 값은 여전히 못 보낸다)", () => {
+    const r = linkExpenseSchema.parse({ expenseIds: [B], snapshotAmount: 1 });
+    assert.deepEqual(r, { expenseIds: [B] });
+    assert.equal(linkExpenseSchema.safeParse({ expenseIds: [] }).success, false);
+    assert.equal(linkExpenseSchema.safeParse({ expenseIds: Array(51).fill(B) }).success, false);
+    assert.equal(linkExpenseSchema.safeParse({ expenseIds: [B, "x"] }).success, false);
+  });
 });
 
 describe("createProjectSchema / createBrandSchema", () => {

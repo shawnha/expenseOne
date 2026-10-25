@@ -35,6 +35,7 @@ interface Expense {
   is_urgent?: boolean;
   is_pre_paid?: boolean;
   pre_paid_percentage?: number | null;
+  pre_paid_fixed_amount?: number | null;
 }
 
 type TabType = "CORPORATE_CARD" | "DEPOSIT_REQUEST";
@@ -219,7 +220,7 @@ function DashboardExpenseRow({ expense, idx }: { expense: Expense; idx: number }
           <p className="text-[13px] sm:text-sm font-medium text-[var(--apple-label)] truncate flex items-center gap-1.5">
             <span className="truncate">{expense.title}</span>
             {expense.is_urgent && <span className="glass-badge glass-badge-red shrink-0">긴급</span>}
-            <PrePaidBadge isPrePaid={expense.is_pre_paid} percentage={expense.pre_paid_percentage} />
+            <PrePaidBadge isPrePaid={expense.is_pre_paid} percentage={expense.pre_paid_percentage} fixedAmount={expense.pre_paid_fixed_amount} />
           </p>
           <span className={cn(statusInfo.className, "shrink-0")}>
             {statusInfo.label}

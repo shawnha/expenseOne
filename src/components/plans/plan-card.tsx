@@ -19,10 +19,13 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleSlash,
+  Banknote,
+  CreditCard,
   Ellipsis,
   Link2,
   MessageCircle,
   Pencil,
+  Repeat,
   Trash2,
   User as UserIcon,
 } from "lucide-react";
@@ -465,6 +468,11 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
                   </span>
                 )}
                 <span className="truncate text-footnote font-medium text-[var(--apple-label)]">{card.title}</span>
+                {card.recurringId && (
+                  <span role="img" aria-label="반복" title="반복" className="shrink-0 text-[var(--apple-secondary-label)]">
+                    <Repeat className="size-3" aria-hidden="true" />
+                  </span>
+                )}
                 <span className="ml-auto shrink-0 text-caption2 tabular-nums text-[var(--apple-secondary-label)]">
                   {card.plannedDateLabel}
                 </span>
@@ -519,6 +527,17 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
                 >
                   <CheckCircle2 className="size-3" aria-hidden="true" />
                   ERP
+                </span>
+              )}
+              {card.recurringId && (
+                <span
+                  role="img"
+                  aria-label="반복"
+                  title="반복"
+                  className="glass-badge glass-badge-blue inline-flex shrink-0 items-center gap-1 whitespace-nowrap leading-4"
+                >
+                  <Repeat className="size-3" aria-hidden="true" />
+                  반복
                 </span>
               )}
               {card.vendorName && <span className="truncate">{card.vendorName}</span>}
@@ -614,6 +633,27 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
               aria-label={`${card.title} 빠른 메뉴`}
               className="glass-strong min-w-48 origin-(--transform-origin) rounded-2xl p-1.5 outline-none transition-[opacity,transform] duration-150 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0"
             >
+              <ContextMenu.Item
+                className={MENU_ITEM}
+                onClick={() => {
+                  closeMenu();
+                  board.createDepositRequest(card);
+                }}
+              >
+                <Banknote className="size-4 text-[var(--apple-green)]" aria-hidden="true" />
+                입금요청으로 만들기
+              </ContextMenu.Item>
+              <ContextMenu.Item
+                className={MENU_ITEM}
+                onClick={() => {
+                  closeMenu();
+                  board.linkCardPayment(card);
+                }}
+              >
+                <CreditCard className="size-4 text-[var(--apple-blue)]" aria-hidden="true" />
+                법카로 썼어요
+              </ContextMenu.Item>
+              <ContextMenu.Separator className="my-1 h-px bg-[var(--apple-separator)]" />
               <ContextMenu.Item
                 className={MENU_ITEM}
                 onClick={() => {

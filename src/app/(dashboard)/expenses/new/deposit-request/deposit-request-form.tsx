@@ -66,6 +66,7 @@ import {
   formatDateISO,
 } from "@/lib/validations/expense-form";
 import { calcDepositAmount, calcDepositBreakdownKRW } from "@/lib/utils/deposit-amount";
+import { percentageForAmount, prePaidSplit } from "@/lib/utils/pre-paid";
 import { countUploadFailures, uploadFailureMessage } from "@/lib/utils/upload-results";
 import { resolveCreatedExpenseId } from "@/lib/utils/submit-result";
 import type { DocumentType } from "@/types";
@@ -73,6 +74,29 @@ import { cn } from "@/lib/utils";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useFormBusy } from "@/hooks/use-form-busy";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
+import type { RecurringPrefill } from "@/services/recurring-expense.service";
+import {
+  PlanLinkedChip,
+  PlanPickPanel,
+  usePlanPicks,
+  usePreselectedPlan,
+  type PlanPick,
+} from "@/components/forms/plan-pick";
+import {
+  dueDateToFill,
+  isoToLocalDate,
+  planLinkFailed,
+  formatWon,
+  shouldFillCompany,
+  shouldFillTitle,
+  todayKST,
+} from "@/lib/plans/pick-ui";
+import {
+  RepeatMonthlyToggle,
+  defaultRepeatMonthly,
+  repeatStartsOn,
+  type RepeatMonthlyValue,
+} from "@/components/forms/repeat-monthly-toggle";
 
 // 은행 목록은 @/lib/banks — 사진(OCR)에서 읽은 은행 이름도 같은 목록으로 맞춘다.
 
@@ -85,13 +109,20 @@ interface DepositRequestFormProps {
    * 폰 PWA와 PC가 따로 놀았고 새 기기에선 비어 있었다.
    */
   myPayees?: PayeeSuggestion[];
+  /** 반복 지급 알림(?occurrence=)으로 들어왔을 때 미리 채울 값. */
+  recurringPrefill?: RecurringPrefill | null;
+  /** 비용계획 카드의 「입금요청으로 만들기」(?plan=)로 들어왔을 때 연결할 계획 id. */
+  planId?: string;
 }
 
-export default function DepositRequestForm({ initialCompanies, myCategories = [], myPayees = [] }: DepositRequestFormProps) {
+export default function DepositRequestForm({ initialCompanies, myCategories = [], myPayees = [], recurringPrefill = null, planId }: DepositRequestFormProps) {
+  const prefill = recurringPrefill;
+  const prefillAmount = prefill && prefill.requestMode === "AUTO" ? prefill.expectedAmount : 0;
+  const [repeat, setRepeat] = useState<RepeatMonthlyValue>(defaultRepeatMonthly);
   const [files, setFiles] = useState<FileWithPreview[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploadBusy, setIsUploadBusy] = useState(false); // 사진 줄이는 중엔 제출 잠금
-  const [amountDisplay, setAmountDisplay] = useState("");
+  const [amountDisplay, setAmountDisplay] = useState(prefillAmount > 0 ? formatAmount(prefillAmount) : "");
   // 금액은 RHF register가 아니라 setValue(shouldDirty 없음)로 쓰므로 isDirty가 안 켜진다.
   // 금액만 입력한 폼도 "작성 중"으로 보려면 따로 표시해야 한다.
   const [amountTouched, setAmountTouched] = useState(false);
@@ -100,13 +131,14 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
   const [purchase, setPurchase] = useState<PurchaseFieldValues>(emptyPurchaseFields);
   const [branch, setBranch] = useState<string | null>(null);
 
-  const [supplyAmount, setSupplyAmount] = useState(0);
+  const [supplyAmount, setSupplyAmount] = useState(prefillAmount);
   // 사진(OCR)에서 읽은 결과 — 첨부별로 들고 있다가, 지금 붙어 있는 첨부 순서대로 제안을 고른다
   // (지운 첨부의 결과는 쓰지 않는다)
   const [ocrResults, setOcrResults] = useState<Array<{ fileId: string; fields: OcrFields }>>([]);
   const [bankOpen, setBankOpen] = useState(false);
   const [dueDateOpen, setDueDateOpen] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [repeatDone, setRepeatDone] = useState<string | null>(null);
   // 비용은 만들어졌는데 첨부 업로드가 실패한 경우 — 성공 창에서 상세로 안내한다.
   const [uploadIssue, setUploadIssue] = useState<{ message: string; detailHref: string | null } | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -115,7 +147,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
   );
 
   // Company selection
-  const [companyId, setCompanyId] = useState("");
+  const [companyId, setCompanyId] = useState(prefill?.companyId ?? "");
   const [userCompanyId, setUserCompanyId] = useState<string | null>(null);
   const [currency, setCurrency] = useState("KRW");
 
@@ -171,15 +203,23 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
     resolver: zodResolver(depositRequestFormSchema),
     shouldFocusError: true,
     defaultValues: {
-      title: "",
-      bankName: "",
-      accountHolder: "",
-      accountNumber: "",
-      description: "",
+      title: prefill?.title ?? "",
+      bankName: prefill?.bankName ?? "",
+      accountHolder: prefill?.accountHolder ?? "",
+      accountNumber: prefill?.accountNumber ?? "",
+      description: prefill?.description ?? "",
+      ...(prefill?.category ? { category: prefill.category } : {}),
+      ...(prefillAmount > 0 ? { amount: prefillAmount } : {}),
       isUrgent: false,
       isPrePaid: false,
       prePaidPercentage: null,
-      dueDate: null,
+      prePaidFixedAmount: null,
+      dueDate: prefill?.dueDate
+        ? (() => {
+            const [y, m, d] = prefill.dueDate.split("-").map(Number);
+            return new Date(y, m - 1, d);
+          })()
+        : null,
     },
   });
 
@@ -199,6 +239,58 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
     setCompanyId(newCompanyId);
   }, []);
 
+  // 비용계획 연결. 반복 지급 회차로 들어온 화면에서는 쓰지 않는다(서버도 둘을 같이 받지 않는다).
+  const [selectedPlan, setSelectedPlan] = useState<PlanPick | null>(null);
+  const { mine: planMine, others: planOthers } = usePlanPicks(!recurringPrefill);
+
+  // 고르면 채우는 칸: 제목(비어 있을 때만) · 회사(직접 고르지 않았을 때만) · 납기일(DAY·비어 있음·오늘 이후).
+  // 금액은 절대 채우지 않는다 — 계획 금액은 예산이라 실제 입금액과 다르다.
+  const applyPlan = useCallback(
+    (pick: PlanPick) => {
+      const opts = { shouldValidate: true, shouldDirty: true } as const;
+      setSelectedPlan(pick);
+      if (shouldFillTitle(getValues("title"))) setValue("title", pick.title, opts);
+      if (
+        shouldFillCompany({
+          touched: companyTouchedRef.current,
+          planCompanyId: pick.companyId,
+          currentCompanyId: companyId,
+          availableCompanyIds: initialCompanies?.map((c) => c.id) ?? [],
+        })
+      ) {
+        setCompanyId(pick.companyId);
+      }
+      const due = dueDateToFill({
+        datePrecision: pick.datePrecision,
+        plannedDate: pick.plannedDate,
+        currentDueDate: getValues("dueDate"),
+        today: todayKST(),
+      });
+      if (due) setValue("dueDate", isoToLocalDate(due), { shouldDirty: true });
+    },
+    [setValue, getValues, companyId, initialCompanies],
+  );
+  // 목록에서 고른 직후에는 칩의 ×로, 연결을 푼 직후에는 목록 제목으로 포커스를 옮긴다(사라진 요소에서 포커스가 body 로 떨어지지 않게).
+  const [focusTarget, setFocusTarget] = useState<"chip" | "panel" | null>(null);
+  const pickFromPanel = useCallback(
+    (pick: PlanPick) => {
+      setFocusTarget("chip");
+      applyPlan(pick);
+    },
+    [applyPlan],
+  );
+  const cancelPlanLink = useCallback(() => {
+    setFocusTarget("panel");
+    setSelectedPlan(null);
+  }, []);
+  const preselect = usePreselectedPlan(recurringPrefill ? undefined : planId, {
+    onLoaded: applyPlan,
+    onMissing: () =>
+      toast.error("연결하려던 계획을 불러오지 못했습니다. 아래에서 직접 골라주세요."),
+  });
+  // 계획과 입금요청의 법인이 다르면 서버가 연결을 못 한다 — 미리 알리고 planId 도 보내지 않는다.
+  const planCompanyMismatch = !!selectedPlan && selectedPlan.companyId !== companyId;
+
   // Handle currency toggle — reset amount when currency changes
   const handleCurrencyChange = useCallback((newCurrency: string) => {
     if (newCurrency === currency) return;
@@ -206,7 +298,15 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
     setAmountDisplay("");
     setSupplyAmount(0);
     setValue("amount", 0, { shouldValidate: false });
-  }, [currency, setValue]);
+    // 금액 지정은 원화 건만 — 외화로 바꾸면 비율로 돌린다.
+    if (newCurrency !== "KRW") {
+      setPrePaidUnit("percent");
+      if (getValues("prePaidFixedAmount") != null) {
+        setValue("prePaidFixedAmount", null);
+        setValue("prePaidPercentage", 50);
+      }
+    }
+  }, [currency, setValue, getValues]);
 
   // Warn on unsaved changes (browser close / refresh)
   useUnsavedChanges(isDirty || files.length > 0);
@@ -216,6 +316,28 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
   const watchedIsPrePaid = watch("isPrePaid");
   const watchedPrePaidPercentage = watch("prePaidPercentage");
   const [prePaidMode, setPrePaidMode] = useState<"full" | "partial">("full");
+  // 부분 선지급을 비율로 정할지 금액으로 정할지. 금액은 원화 건만.
+  const [prePaidUnit, setPrePaidUnit] = useState<"percent" | "amount">("percent");
+  const watchedPrePaidFixedAmount = watch("prePaidFixedAmount") ?? null;
+  const watchedAmount = watch("amount");
+  const changePrePaidUnit = useCallback(
+    (unit: "percent" | "amount") => {
+      setPrePaidUnit(unit);
+      if (unit === "percent") {
+        setValue("prePaidFixedAmount", null);
+        setValue("prePaidPercentage", 50);
+      }
+    },
+    [setValue],
+  );
+  // 금액 지정은 저장될 금액(원화 = amount 필드, 원천징수 뒤)보다 작아야 한다. 서버도 같은 검사를 한다.
+  const prePaidFixedError =
+    prePaidUnit === "amount" &&
+    watchedPrePaidFixedAmount != null &&
+    watchedAmount > 0 &&
+    watchedPrePaidFixedAmount >= watchedAmount
+      ? `총 금액(${formatAmount(watchedAmount)}원)보다 작아야 합니다`
+      : null;
 
   // 지난번 계좌 불러오기. 채우는 칸은 데이터로 정했다(autofill.service 참고):
   // 계좌·은행은 항상, 카테고리는 **비어 있을 때만**, 회사는 **직접 고르지 않았을
@@ -232,7 +354,9 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
         setValue("category", p.category, opts);
         filled.push("카테고리");
       }
+      // 계획을 골라 둔 상태면 회사는 계획이 정한 대로 둔다(법인이 다르면 연결이 안 된다).
       if (
+        !selectedPlan &&
         !companyTouchedRef.current &&
         p.companyId &&
         p.companyId !== companyId &&
@@ -243,7 +367,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
       }
       toast.success(`지난번 ${filled.join("·")} 정보를 채웠습니다. 금액은 직접 입력해주세요.`);
     },
-    [setValue, getValues, companyId, initialCompanies]
+    [setValue, getValues, companyId, initialCompanies, selectedPlan]
   );
 
   // 예금주를 직접 쳤는데 예전에 보낸 적 있는 사람이면, 지난번 계좌를 제안한다.
@@ -478,6 +602,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
       isUrgent: "긴급",
       isPrePaid: "선지급",
       prePaidPercentage: "선지급 비율",
+      prePaidFixedAmount: "선지급 금액",
     };
     const messages = Object.entries(fieldErrors)
       .map(([key, err]) => {
@@ -492,6 +617,17 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
   const onSubmit = async (data: DepositRequestFormData) => {
     if (!validateFiles()) {
       return;
+    }
+    const byAmount = data.isPrePaid && prePaidMode === "partial" && prePaidUnit === "amount";
+    if (byAmount) {
+      if (data.prePaidFixedAmount == null) {
+        toast.error("선지급: 선지급 금액을 입력해주세요");
+        return;
+      }
+      if (data.prePaidFixedAmount >= data.amount) {
+        toast.error(`선지급: 선지급 금액은 총 금액(${formatAmount(data.amount)}원)보다 작아야 합니다`);
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -513,9 +649,13 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
           transactionDate: formatDateISO(new Date()),
           isUrgent: data.isUrgent || false,
           isPrePaid: data.isPrePaid || false,
-          prePaidPercentage: data.prePaidPercentage ?? null,
+          // 금액으로 정했으면 비율은 서버가 환산해 적는다(보낸 값은 버린다).
+          prePaidPercentage: byAmount ? percentageForAmount(data.prePaidFixedAmount!, data.amount) : (data.prePaidPercentage ?? null),
+          prePaidFixedAmount: byAmount ? data.prePaidFixedAmount : null,
           dueDate: data.dueDate ? formatDateISO(data.dueDate) : null,
           companyId: companyId || undefined,
+          ...(prefill ? { recurringOccurrenceId: prefill.occurrenceId } : {}),
+          ...(selectedPlan && !prefill && !planCompanyMismatch ? { planId: selectedPlan.id } : {}),
           hasFreelancerWithholding: freelancerDeduction,
           ...toPurchasePayload(purchase),
           branch: askBranch ? branch : null,
@@ -533,6 +673,9 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
       // 「제출 완료」 창을 띄우면 만들어지지도 않은 건을 등록됐다고 알리게 된다.
       const result = await response.json().catch(() => null);
       const expenseId = resolveCreatedExpenseId(response, result);
+      if (planLinkFailed(result)) {
+        toast.error("입금요청은 올라갔지만 비용계획 연결은 실패했습니다. 계획 화면에서 연결해주세요.");
+      }
 
       const uploadResults = await Promise.allSettled(
         files.map((fileItem) => {
@@ -550,6 +693,51 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
         // 상세 화면엔 첨부를 추가할 수단이 없다(보기·다운로드뿐). 수정 화면으로 보낸다
         // — SUBMITTED/APPROVED 입금요청은 수정 화면이 열린다(edit/page.tsx:117-121).
         setUploadIssue({ message: warning, detailHref: `/expenses/${expenseId}/edit` });
+      }
+
+      // 매달 반복 등록 — 입금요청은 이미 성공이라 실패해도 성공 창은 그대로 띄운다.
+      if (!prefill && currency === "KRW" && repeat.enabled) {
+        // 자동 제출은 원천징수·선지급·사입 표시 없이 같은 금액만 올린다. 그런 건을 자동으로 돌리면 다음 달 요청에서
+        // 그 표시가 빠지므로(원천징수 집계·후지급 누락) 알림 모드로 바꾼다 — 알림 폼에서 사람이 다시 체크한다.
+        const special = freelancerDeduction || data.isPrePaid === true || purchase.isPurchase;
+        const mode = repeat.mode === "AUTO" && special ? "REMIND" : repeat.mode;
+        // 금액은 서버에 저장된 값(원천징수 등 반영 뒤) — 폼 입력값과 다를 수 있다.
+        const storedAmount = (result as { data?: { amount?: unknown } } | null)?.data?.amount;
+        try {
+          const rr = await fetch("/api/recurring-expenses", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: data.title,
+              description: data.description || null,
+              amount: typeof storedAmount === "number" && storedAmount > 0 ? storedAmount : data.amount,
+              currency: "KRW",
+              category: data.category,
+              bankName: data.bankName,
+              accountHolder: data.accountHolder,
+              accountNumber: data.accountNumber,
+              companyId,
+              frequency: "MONTHLY",
+              dayOfMonth: repeat.dayOfMonth,
+              dueDateOffsetDays: null,
+              requestMode: mode,
+              startsOn: repeatStartsOn(repeat.dayOfMonth),
+              ...(mode === "AUTO" ? { copyAttachmentsFromExpenseId: expenseId } : {}),
+            }),
+          });
+          if (!rr.ok) {
+            const e = await rr.json().catch(() => null);
+            throw new Error(e?.error?.message || "알 수 없는 오류");
+          }
+          const doneText =
+            mode !== repeat.mode
+              ? `매달 ${repeat.dayOfMonth}일 반복 등록됨(원천징수·선지급·사입 건이라 자동 제출 대신 알림으로)`
+              : `매달 ${repeat.dayOfMonth}일 반복 등록됨`;
+          setRepeatDone(doneText);
+          toast.success(doneText);
+        } catch (err) {
+          toast.error(`입금요청은 올라갔지만 반복 등록에 실패했어요: ${err instanceof Error ? err.message : "알 수 없는 오류"}`);
+        }
       }
 
       setShowSuccess(true);
@@ -586,7 +774,55 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
         </div>
       </div>
 
+      {prefill && (
+        <div className="glass p-5">
+          <p className="text-sm font-semibold text-[var(--apple-label)]">
+            반복 지급 · {Number(prefill.occurrenceDate.slice(5, 7))}월 {Number(prefill.occurrenceDate.slice(8, 10))}일 회차
+          </p>
+          {prefill.submittedExpenseId ? (
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <p className="text-[13px] text-[var(--apple-secondary-label)]">이 회차 입금요청은 이미 올렸어요</p>
+              <Link
+                href={`/expenses/${prefill.submittedExpenseId}`}
+                className="inline-flex h-11 items-center rounded-full bg-[var(--apple-blue)] px-5 text-sm font-semibold text-white"
+              >
+                보러 가기
+              </Link>
+            </div>
+          ) : (
+            <p className="mt-1 text-[13px] text-[var(--apple-secondary-label)]">
+              {prefill.requestMode === "AUTO"
+                ? `${formatAmount(prefill.expectedAmount)}원으로 미리 채웠어요`
+                : `등록한 금액 ${formatAmount(prefill.expectedAmount)}원 — 이번 회차 금액을 넣어 주세요`}
+            </p>
+          )}
+        </div>
+      )}
+
+      {!(prefill && prefill.submittedExpenseId) && (
       <form onSubmit={handleSubmit(onSubmit, onValidationError)} noValidate>
+        {/* 비용계획 연결 — 고르기 전에는 목록, 고른 뒤에는 연결 칩. 보여 줄 게 없으면 빈 칸도 두지 않는다. */}
+        {!prefill && preselect !== "pending" && (selectedPlan || planMine.length > 0 || planOthers.length > 0) && (
+          <div className="mb-5">
+            {selectedPlan ? (
+              <PlanLinkedChip
+                title={selectedPlan.title}
+                onCancel={cancelPlanLink}
+                focusOnMount={focusTarget === "chip"}
+                warning={planCompanyMismatch ? "계획의 회사와 달라 연결되지 않습니다. 회사를 맞추거나 연결을 해제해주세요." : null}
+              />
+            ) : (
+              <PlanPickPanel
+                mine={planMine}
+                others={planOthers}
+                selectedId={null}
+                onSelect={pickFromPanel}
+                focusHeadingOnMount={focusTarget === "panel"}
+              />
+            )}
+          </div>
+        )}
+
         {/* 기본 정보 */}
         <div className="glass p-6">
           <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-1">
@@ -694,6 +930,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
                   value={amountDisplay}
                   onChange={handleAmountChange}
                   aria-invalid={!!errors.amount}
+                  aria-describedby={selectedPlan && !prefill && currency === "KRW" ? "plan-amount-ref" : undefined}
                   className={currency === "USD" ? "pl-7 pr-4" : "pr-10"}
                 />
                 {currency !== "USD" && (
@@ -701,6 +938,12 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
                 )}
               </div>
               {amountSugNode}
+
+              {selectedPlan && !prefill && currency === "KRW" && (
+                <p id="plan-amount-ref" className="mt-1.5 text-[13px] text-[var(--apple-secondary-label)]">
+                  계획 금액 {formatWon(selectedPlan.amount)} (참고)
+                </p>
+              )}
 
               {/* USD exchange rate info */}
               {currency === "USD" && (
@@ -825,6 +1068,8 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
                         checked={field.value ?? false}
                         onChange={(e) => {
                           field.onChange(e.target.checked);
+                          setValue("prePaidFixedAmount", null);
+                          setPrePaidUnit("percent");
                           if (!e.target.checked) {
                             setValue("prePaidPercentage", null);
                             setPrePaidMode("full");
@@ -850,6 +1095,8 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
                             onClick={() => {
                               setPrePaidMode("full");
                               setValue("prePaidPercentage", 100);
+                              setValue("prePaidFixedAmount", null);
+                              setPrePaidUnit("percent");
                             }}
                             className={cn(
                               "px-4 py-2 rounded-full text-sm font-medium transition-all",
@@ -878,29 +1125,80 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
                         </div>
 
                         {prePaidMode === "partial" && (
-                          <div className="space-y-1.5">
-                            <Label htmlFor="prePaidPercentage">선지급 비율</Label>
-                            <div className="relative w-32">
-                              <Input
-                                id="prePaidPercentage"
-                                type="number"
-                                min={1}
-                                max={99}
-                                value={watchedPrePaidPercentage ?? 50}
-                                onChange={(e) => {
-                                  const val = parseInt(e.target.value, 10);
-                                  if (!isNaN(val) && val >= 1 && val <= 99) {
-                                    setValue("prePaidPercentage", val);
-                                  }
-                                }}
-                                className="pr-8"
-                              />
-                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--apple-secondary-label)] pointer-events-none">%</span>
-                            </div>
+                          <div className="space-y-2">
+                            {/* 비율 / 금액 — 계약금처럼 금액이 먼저 정해진 건은 비율로 바꾸면 반올림만큼 어긋난다.
+                                금액 지정은 원화 건만(외화는 환율이 바뀌면 원화 금액이 흔들린다). */}
+                            {currency === "KRW" && (
+                              <div className="inline-flex rounded-full glass-subtle p-0.5" role="radiogroup" aria-label="선지급 입력 방식">
+                                {(["percent", "amount"] as const).map((u) => (
+                                  <button
+                                    key={u}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={prePaidUnit === u}
+                                    onClick={() => changePrePaidUnit(u)}
+                                    className={cn(
+                                      "px-3.5 py-1.5 rounded-full text-[13px] font-medium transition-all",
+                                      prePaidUnit === u
+                                        ? "bg-[var(--apple-blue)] text-white shadow-sm"
+                                        : "text-[var(--apple-label)]",
+                                    )}
+                                  >
+                                    {u === "percent" ? "비율(%)" : "금액(원)"}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            {prePaidUnit === "percent" ? (
+                              <div className="space-y-1.5">
+                                <Label htmlFor="prePaidPercentage">선지급 비율</Label>
+                                <div className="relative w-32">
+                                  <Input
+                                    id="prePaidPercentage"
+                                    type="number"
+                                    min={1}
+                                    max={99}
+                                    value={watchedPrePaidPercentage ?? 50}
+                                    onChange={(e) => {
+                                      const val = parseInt(e.target.value, 10);
+                                      if (!isNaN(val) && val >= 1 && val <= 99) {
+                                        setValue("prePaidPercentage", val);
+                                      }
+                                    }}
+                                    className="pr-8"
+                                  />
+                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--apple-secondary-label)] pointer-events-none">%</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-1.5">
+                                <Label htmlFor="prePaidFixedAmount">선지급 금액</Label>
+                                <div className="relative w-48">
+                                  <Input
+                                    id="prePaidFixedAmount"
+                                    inputMode="numeric"
+                                    autoComplete="off"
+                                    placeholder="0"
+                                    value={watchedPrePaidFixedAmount != null ? formatAmount(watchedPrePaidFixedAmount) : ""}
+                                    onChange={(e) => {
+                                      const digits = e.target.value.replace(/[^0-9]/g, "");
+                                      setValue("prePaidFixedAmount", digits ? parseInt(digits, 10) : null);
+                                    }}
+                                    className="pr-8 tabular-nums"
+                                    aria-invalid={prePaidFixedError != null}
+                                    aria-describedby={prePaidFixedError ? "prePaidFixedAmount-error" : undefined}
+                                  />
+                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--apple-secondary-label)] pointer-events-none">원</span>
+                                </div>
+                                {prePaidFixedError && (
+                                  <p id="prePaidFixedAmount-error" className="text-[12px] text-[var(--apple-red)]">{prePaidFixedError}</p>
+                                )}
+                              </div>
+                            )}
                           </div>
                         )}
 
-                        {supplyAmount > 0 && watchedPrePaidPercentage != null && watchedPrePaidPercentage < 100 && (() => {
+                        {prePaidMode === "partial" && supplyAmount > 0 && (() => {
                           const bd = calcDepositBreakdownKRW(
                             supplyAmount,
                             currency,
@@ -915,29 +1213,28 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
                               </div>
                             );
                           }
-                          const totalBeforeWithholding = bd.totalBeforeWithholdingKRW;
-                          const withholdingAmount = bd.withholdingKRW;
-                          const prePaidAmount = Math.round(totalBeforeWithholding * watchedPrePaidPercentage / 100);
-                          const postPaidAmount = totalBeforeWithholding - prePaidAmount - withholdingAmount;
+                          // 서버(상세·승인·Slack)와 같은 기준으로 나눈다 — 저장되는 금액(원천징수 뒤 실지급액)을
+                          // lib/utils/pre-paid 로. 예전엔 공제 전 금액으로 나눠 3.3% 건의 미리보기가 실제 승인액과 달랐다.
+                          const split = prePaidSplit({
+                            amount: bd.finalKRW,
+                            isPrePaid: true,
+                            prePaidPercentage: prePaidUnit === "amount" ? 1 : (watchedPrePaidPercentage ?? 50),
+                            prePaidFixedAmount: prePaidUnit === "amount" ? watchedPrePaidFixedAmount : null,
+                          });
+                          if (!split || (prePaidUnit === "amount" && !split.byAmount)) return null;
                           return (
                             <div className="px-3 py-2 text-[13px] text-[var(--apple-secondary-label)] space-y-0.5 border border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)] rounded-xl">
                               <div className="flex justify-between">
-                                <span>총 금액</span>
-                                <span>{formatAmount(totalBeforeWithholding)}원</span>
+                                <span>{freelancerDeduction ? "총 지급액 (3.3% 공제 후)" : "총 금액"}</span>
+                                <span className="tabular-nums">{formatAmount(bd.finalKRW)}원</span>
                               </div>
                               <div className="flex justify-between text-[var(--apple-blue)]">
-                                <span>선지급금 ({watchedPrePaidPercentage}%)</span>
-                                <span>{formatAmount(prePaidAmount)}원</span>
+                                <span>선지급금{split.percentage != null ? ` (${split.percentage}%)` : ""}</span>
+                                <span className="tabular-nums">{formatAmount(split.prePaidAmount)}원</span>
                               </div>
-                              {freelancerDeduction && (
-                                <div className="flex justify-between text-[var(--apple-red)]">
-                                  <span>원천징수 (3.3%)</span>
-                                  <span>-{formatAmount(withholdingAmount)}원</span>
-                                </div>
-                              )}
                               <div className="flex justify-between font-medium text-[var(--apple-label)] pt-1 border-t border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)]">
                                 <span>후지급금</span>
-                                <span>{formatAmount(postPaidAmount)}원</span>
+                                <span className="tabular-nums">{formatAmount(split.remainingAmount)}원</span>
                               </div>
                             </div>
                           );
@@ -1232,6 +1529,8 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
           )}
         </div>
 
+        {!prefill && currency === "KRW" && <RepeatMonthlyToggle value={repeat} onChange={setRepeat} />}
+
         {/* 버튼 */}
         <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <Link href="/expenses" className="w-full sm:w-auto">
@@ -1255,12 +1554,13 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
           </Button>
         </div>
       </form>
+      )}
 
       <SubmitSuccessDialog
         open={showSuccess}
         newSubmitPath="/expenses/new"
         title="제출 완료"
-        description="입금요청이 정상적으로 제출되었습니다. 관리자 승인을 기다려주세요."
+        description={`입금요청이 정상적으로 제출되었습니다. 관리자 승인을 기다려주세요.${repeatDone ? ` ${repeatDone}.` : ""}`}
         warning={uploadIssue?.message}
         detailHref={uploadIssue?.detailHref}
       />

@@ -1,20 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { getCachedCurrentUser } from "@/lib/supabase/cached";
-import { handleError, validateOrigin, validateUUID } from "@/lib/api-utils";
-import { recurringExpenseSchema } from "@/lib/validations/expense";
+import { errorResponse, handleError, requireAuth, validateOrigin, validateUUID } from "@/lib/api-utils";
+import { recurringExpenseUpdateSchema } from "@/lib/validations/expense";
 import {
   updateRecurringExpense,
   deleteRecurringExpense,
 } from "@/services/recurring-expense.service";
 
-async function requireUser() {
-  const user = await getCachedCurrentUser();
-  if (!user) throw new Error("UNAUTHORIZED");
-  return user;
-}
-
-// PATCH — 수정 (일시중지 토글 포함)
+// PATCH — 수정 (일시중지 토글 포함). 보낸 칸만 바꾼다.
+// 예전엔 refine 이 걸린 스키마에 .partial() 을 불러 zod v4 가 매번 예외를 던졌다(일시중지가 500).
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -22,45 +16,25 @@ export async function PATCH(
   try {
     const csrfError = validateOrigin(request);
     if (csrfError) return csrfError;
-
-    const user = await requireUser();
+    const user = await requireAuth();
     const { id } = await params;
     validateUUID(id);
 
-    // 일시중지 토글처럼 일부 필드만 보내는 경우가 있어 partial로 받는다.
-    const parsed = recurringExpenseSchema.partial().safeParse(await request.json());
+    const parsed = recurringExpenseUpdateSchema.safeParse(await request.json());
     if (!parsed.success) {
-      return NextResponse.json(
-        {
-          error: {
-            code: "VALIDATION_ERROR",
-            message: parsed.error.issues.map((i) => i.message).join(", "),
-          },
-        },
-        { status: 400 },
-      );
+      return errorResponse("VALIDATION_ERROR", parsed.error.issues.map((i) => i.message).join(", "));
     }
 
-    const updated = await updateRecurringExpense(
-      id,
-      parsed.data,
-      user.id,
-      user.role === "ADMIN",
-    );
+    const updated = await updateRecurringExpense(id, parsed.data, { id: user.id, role: user.role });
     revalidatePath("/expenses/recurring");
+    if (updated.planSync) revalidatePath("/plans");
     return NextResponse.json({ data: updated });
   } catch (err) {
-    if (err instanceof Error && err.message === "UNAUTHORIZED") {
-      return NextResponse.json(
-        { error: { code: "UNAUTHORIZED", message: "로그인이 필요합니다" } },
-        { status: 401 },
-      );
-    }
     return handleError(err);
   }
 }
 
-// DELETE — 반복 설정 삭제. 이미 생성된 입금요청은 남는다.
+// DELETE — 반복 삭제. 이미 만든 입금요청과 사람이 손댄 계획은 남는다.
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -68,21 +42,15 @@ export async function DELETE(
   try {
     const csrfError = validateOrigin(request);
     if (csrfError) return csrfError;
-
-    const user = await requireUser();
+    const user = await requireAuth();
     const { id } = await params;
     validateUUID(id);
 
-    await deleteRecurringExpense(id, user.id, user.role === "ADMIN");
+    await deleteRecurringExpense(id, { id: user.id, role: user.role });
     revalidatePath("/expenses/recurring");
+    revalidatePath("/plans");
     return NextResponse.json({ ok: true });
   } catch (err) {
-    if (err instanceof Error && err.message === "UNAUTHORIZED") {
-      return NextResponse.json(
-        { error: { code: "UNAUTHORIZED", message: "로그인이 필요합니다" } },
-        { status: 401 },
-      );
-    }
     return handleError(err);
   }
 }

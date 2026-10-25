@@ -16,6 +16,7 @@ import { withholdingSummary } from "@/lib/utils/deposit-amount";
 import { db } from "@/lib/db";
 import { companies } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { prePaidShareText, prePaidSplit } from "@/lib/utils/pre-paid";
 
 // ---------------------------------------------------------------------------
 // Mirror 설정 — 회사 slug에서 환경변수 이름을 규칙으로 만든다.
@@ -422,6 +423,8 @@ export async function notifySlackDepositRequest(params: {
   isUrgent?: boolean;
   isPrePaid?: boolean;
   prePaidPercentage?: number | null;
+  /** 금액으로 정한 선지급금(원). 있으면 비율 대신 이 금액으로 나눈다. */
+  prePaidFixedAmount?: number | null;
   description?: string | null;
   /** 원천징수 3.3% 체크 여부 — 입금요청엔 늘 「공제함/공제 안 함」 줄을 적는다. */
   hasFreelancerWithholding?: boolean;
@@ -449,8 +452,7 @@ export async function notifySlackDepositRequest(params: {
         lines.push(`• 긴급: 예`);
       }
       if (params.isPrePaid) {
-        const pct = params.prePaidPercentage;
-        lines.push(pct != null && pct < 100 ? `• 선지급: 예 (${pct}%)` : `• 선지급: 예`);
+        lines.push(prePaidSlackLine(params));
       }
       lines.push(withholdingSlackLine(params.amount, params.hasFreelancerWithholding ?? false));
       if (params.description && params.description.trim()) {
@@ -504,6 +506,22 @@ export async function notifySlackRefund(params: {
   });
 }
 
+/** " (30%)" — 금액으로 정한 건(null)은 빈 문자열. */
+function pctSuffix(pct: number | null): string {
+  return pct != null ? ` (${pct}%)` : "";
+}
+
+/** 「• 선지급: 예 (30%)」 / 「• 선지급: 예 (3,000,000원)」 / 전액이면 「• 선지급: 예」. */
+function prePaidSlackLine(params: {
+  amount: number;
+  isPrePaid?: boolean;
+  prePaidPercentage?: number | null;
+  prePaidFixedAmount?: number | null;
+}): string {
+  const split = prePaidSplit(params);
+  return split ? `• 선지급: 예 (${prePaidShareText(split)})` : `• 선지급: 예`;
+}
+
 /**
  * 후지급 요청 → 제출자 멘션 + 선지급/후지급 금액. 관리자 승인이 필요한 액션.
  */
@@ -513,6 +531,8 @@ export async function notifySlackRemainingPaymentRequest(params: {
   title: string;
   amount: number;
   prePaidPercentage: number;
+  /** 금액으로 정한 선지급금(원). 있으면 비율 대신 이 금액으로 나눈다. */
+  prePaidFixedAmount?: number | null;
   expenseUrl: string;
   companyId?: string;
   currency?: string | null;
@@ -521,7 +541,9 @@ export async function notifySlackRemainingPaymentRequest(params: {
 }): Promise<SlackPostResult> {
   const companyName = await getCompanyName(params.companyId);
 
-  const prePaidAmount = Math.round((params.amount * params.prePaidPercentage) / 100);
+  // 계산은 lib/utils/pre-paid 한 곳에서. 금액으로 정한 건은 비율을 붙이지 않는다(환산 비율은 정확한 값이 아니다).
+  const split = prePaidSplit({ ...params, isPrePaid: true });
+  const prePaidAmount = split?.prePaidAmount ?? 0;
   const remainingAmount = params.amount - prePaidAmount;
 
   return sendToTargets({
@@ -534,8 +556,8 @@ export async function notifySlackRemainingPaymentRequest(params: {
       lines.push(
         `• 제목: ${params.title}`,
         `• 총 금액: ${formatExpenseAmount(params.amount, params.currency, params.amountOriginal)}`,
-        `• 선지급 완료 (${params.prePaidPercentage}%): ${prePaidAmount.toLocaleString("ko-KR")}원`,
-        `• 후지급 요청액 (${100 - params.prePaidPercentage}%): *${remainingAmount.toLocaleString("ko-KR")}원*`,
+        `• 선지급 완료${pctSuffix(split?.percentage ?? null)}: ${prePaidAmount.toLocaleString("ko-KR")}원`,
+        `• 후지급 요청액${pctSuffix(split?.percentage != null ? 100 - split.percentage : null)}: *${remainingAmount.toLocaleString("ko-KR")}원*`,
       );
       if (params.dueDate) {
         lines.push(`• 납입 기일: ${params.dueDate.replace(/-/g, ".")}`);
@@ -556,6 +578,8 @@ export async function notifySlackRemainingPaymentApproved(params: {
   title: string;
   amount: number;
   prePaidPercentage: number;
+  /** 금액으로 정한 선지급금(원). 있으면 비율 대신 이 금액으로 나눈다. */
+  prePaidFixedAmount?: number | null;
   expenseUrl: string;
   companyId?: string | null;
   currency?: string | null;
@@ -565,7 +589,9 @@ export async function notifySlackRemainingPaymentApproved(params: {
 }): Promise<SlackPostResult> {
   const companyName = await getCompanyName(params.companyId);
 
-  const prePaidAmount = Math.round((params.amount * params.prePaidPercentage) / 100);
+  // 계산은 lib/utils/pre-paid 한 곳에서. 금액으로 정한 건은 비율을 붙이지 않는다(환산 비율은 정확한 값이 아니다).
+  const split = prePaidSplit({ ...params, isPrePaid: true });
+  const prePaidAmount = split?.prePaidAmount ?? 0;
   const remainingAmount = params.amount - prePaidAmount;
 
   return sendToTargets({
@@ -578,8 +604,8 @@ export async function notifySlackRemainingPaymentApproved(params: {
       lines.push(
         `• 제목: ${params.title}`,
         `• 총 금액: ${formatExpenseAmount(params.amount, params.currency, params.amountOriginal)}`,
-        `• 선지급 완료 (${params.prePaidPercentage}%): ${prePaidAmount.toLocaleString("ko-KR")}원`,
-        `• 후지급 승인액 (${100 - params.prePaidPercentage}%): *${remainingAmount.toLocaleString("ko-KR")}원*`,
+        `• 선지급 완료${pctSuffix(split?.percentage ?? null)}: ${prePaidAmount.toLocaleString("ko-KR")}원`,
+        `• 후지급 승인액${pctSuffix(split?.percentage != null ? 100 - split.percentage : null)}: *${remainingAmount.toLocaleString("ko-KR")}원*`,
         `• 예금주: ${params.accountHolder ?? "-"}`,
       );
       if (params.dueDate) {
@@ -610,18 +636,16 @@ export async function notifySlackApproved(params: {
   description?: string | null;
   isPrePaid?: boolean;
   prePaidPercentage?: number | null;
+  /** 금액으로 정한 선지급금(원). 있으면 비율 대신 이 금액으로 나눈다. */
+  prePaidFixedAmount?: number | null;
 }): Promise<SlackPostResult> {
   const companyName = await getCompanyName(params.companyId);
 
   // 부분 선지급 건은 승인 시점에 실제로 나가는 돈이 총액이 아니라 선지급분이다.
   // 총액을 "• 금액"으로 올리면 Slack만 보고 전액 송금하는 사고가 난다.
-  const isPartialPrePaid =
-    params.isPrePaid === true &&
-    params.prePaidPercentage != null &&
-    params.prePaidPercentage < 100;
-  const prePaidAmount = isPartialPrePaid
-    ? Math.round((params.amount * params.prePaidPercentage!) / 100)
-    : params.amount;
+  const split = prePaidSplit(params);
+  const isPartialPrePaid = split != null;
+  const prePaidAmount = split?.prePaidAmount ?? params.amount;
   const remainingAmount = params.amount - prePaidAmount;
 
   return sendToTargets({
@@ -634,7 +658,7 @@ export async function notifySlackApproved(params: {
       lines.push(`• 제목: ${params.title}`);
       if (isPartialPrePaid) {
         lines.push(
-          `• 금액: ${formatExpenseAmount(prePaidAmount, params.currency, null)} (선지급 ${params.prePaidPercentage}%)`,
+          `• 금액: ${formatExpenseAmount(prePaidAmount, params.currency, null)} (선지급${split!.percentage != null ? ` ${split!.percentage}%` : ""})`,
           `• 총 금액: ${formatExpenseAmount(params.amount, params.currency, params.amountOriginal)} (후지급 ${formatExpenseAmount(remainingAmount, params.currency, null)} 예정)`,
         );
       } else {
@@ -710,6 +734,8 @@ export async function updateSlackExpenseMessage(params: {
   isUrgent?: boolean;
   isPrePaid?: boolean;
   prePaidPercentage?: number | null;
+  /** 금액으로 정한 선지급금(원). 있으면 비율 대신 이 금액으로 나눈다. */
+  prePaidFixedAmount?: number | null;
   /** 원천징수 3.3% 체크 여부(입금요청만 줄을 적는다). */
   hasFreelancerWithholding?: boolean;
 }): Promise<SlackPostResult> {
@@ -746,8 +772,7 @@ export async function updateSlackExpenseMessage(params: {
         lines.push(`• 납입 기일: ${params.dueDate.replace(/-/g, ".")}`);
       }
       if (!isCorporateCard && params.isPrePaid) {
-        const pct = params.prePaidPercentage;
-        lines.push(pct != null && pct < 100 ? `• 선지급: 예 (${pct}%)` : `• 선지급: 예`);
+        lines.push(prePaidSlackLine(params));
       }
       if (!isCorporateCard) {
         lines.push(withholdingSlackLine(params.amount, params.hasFreelancerWithholding ?? false));

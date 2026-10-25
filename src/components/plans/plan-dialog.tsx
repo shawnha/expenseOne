@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
-import { CalendarIcon, Plus } from "lucide-react";
+import { CalendarIcon, Plus, Repeat } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -34,9 +34,11 @@ import {
   MONTH_PARTS,
   isMonthPart,
   monthPartOfDay,
+  normalizePlannedDate,
   type DatePrecision,
   type MonthPart,
 } from "@/lib/plans/diff";
+import { nextRunAfter } from "@/lib/recurring-schedule";
 import type { BrandOption, CompanyOption, ProjectSummary } from "@/services/plan.service";
 import { fromISODate, jsonBody, planFetch, toISODate } from "./plan-client";
 import { useSubmitLock } from "./use-submit-lock";
@@ -71,6 +73,17 @@ export interface PlanEditTarget {
   description: string | null;
   status: string;
 }
+
+/** 반복 개월 수 범위("N개월 동안"). */
+const REPEAT_MONTHS_MIN = 2;
+const REPEAT_MONTHS_MAX = 36;
+
+/** 월 단위 정밀도일 때 반복 기준일(구간 끝날). 말일은 31 → 짧은 달은 서버가 말일로 당긴다. */
+const MONTH_PART_DAY: Record<MonthPart, number> = {
+  MONTH_EARLY: 10,
+  MONTH_MID: 20,
+  MONTH: 31,
+};
 
 /** 월 구간 버튼 아래 작은 글씨. */
 const MONTH_PART_RANGE: Record<MonthPart, string> = {
@@ -138,6 +151,12 @@ export function PlanDialog({
   const [vendorName, setVendorName] = useState(plan?.vendorName ?? "");
   const [description, setDescription] = useState(plan?.description ?? "");
   const [dateOpen, setDateOpen] = useState(false);
+
+  // 매달 반복(새로 만들기 전용)
+  const [repeat, setRepeat] = useState(false);
+  const [repeatEnds, setRepeatEnds] = useState<"NONE" | "MONTHS">("NONE");
+  const [repeatMonthsText, setRepeatMonthsText] = useState("12");
+  const [requestMode, setRequestMode] = useState<"REMIND" | "NONE">("REMIND");
 
   const [newBrand, setNewBrand] = useState<string | null>(null);
   const [addingBrand, setAddingBrand] = useState(false);
@@ -281,6 +300,59 @@ export function PlanDialog({
           description: description.trim() || null,
         };
 
+        if (!plan && repeat) {
+          const startsOn = normalizePlannedDate(shared.plannedDate, precision);
+          if (!startsOn) return toast.error("예정일을 확인해주세요.");
+          const dayOfMonth = isMonthPart(precision) ? MONTH_PART_DAY[precision] : date.getDate();
+          let endsOn: string | null = null;
+          if (repeatEnds === "MONTHS") {
+            const n = Number(repeatMonthsText);
+            if (!Number.isInteger(n) || n < REPEAT_MONTHS_MIN || n > REPEAT_MONTHS_MAX) {
+              return toast.error(`개월 수는 ${REPEAT_MONTHS_MIN}~${REPEAT_MONTHS_MAX} 사이로 적어주세요.`);
+            }
+            let cur = startsOn;
+            for (let i = 0; i < n - 1; i++) {
+              cur = nextRunAfter({ frequency: "MONTHLY", intervalCount: 1, dayOfMonth }, cur);
+            }
+            endsOn = cur;
+          }
+
+          setSaving(true);
+          const rres = await planFetch<{
+            planSync?: { created?: number; skipped?: string; error?: string } | null;
+          }>("/api/recurring-expenses", {
+            ...jsonBody({
+              title: shared.title,
+              amount,
+              currency: "KRW",
+              companyId: activeCompanyId,
+              planProjectId: projectId,
+              planBrandId: shared.brandId,
+              planDatePrecision: precision,
+              frequency: "MONTHLY",
+              dayOfMonth,
+              startsOn,
+              endsOn,
+              requestMode,
+              ...(shared.vendorName ? { accountHolder: shared.vendorName } : {}),
+              ...(shared.description ? { description: shared.description } : {}),
+            }),
+          });
+          setSaving(false);
+          if (!rres.ok) {
+            toast.error(rres.message);
+            return;
+          }
+          const sync = rres.data?.planSync;
+          if (sync && "error" in sync && sync.error) {
+            toast.warning(sync.error);
+          } else if (sync && "skipped" in sync && sync.skipped) {
+            toast.warning(sync.skipped);
+          }
+          finish(`매달 반복으로 ${sync?.created ?? 0}건 깔았어요`);
+          return;
+        }
+
         setSaving(true);
         const res = plan
           ? await planFetch<{ id: string; version: number }>(`/api/plans/items/${plan.id}`, {
@@ -309,7 +381,7 @@ export function PlanDialog({
       }),
     [
       withLock, activeCompanyId, projectId, title, amount, date, precision, brandId, vendorName,
-      description, plan, router, finish, onOpenChange,
+      description, plan, router, finish, onOpenChange, repeat, repeatEnds, repeatMonthsText, requestMode,
     ],
   );
 
@@ -632,6 +704,118 @@ export function PlanDialog({
               />
             </div>
 
+            {/* 매달 반복 — 새로 만들 때만 */}
+            {!plan && (
+              <div className="flex flex-col gap-3 rounded-2xl border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-3">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={repeat}
+                  onClick={() => setRepeat((v) => !v)}
+                  className="flex min-h-11 w-full items-center justify-between gap-3 text-left"
+                >
+                  <span className="inline-flex items-center gap-2 text-subheadline text-[var(--apple-label)]">
+                    <Repeat className="size-4 text-[var(--apple-secondary-label)]" aria-hidden="true" />
+                    매달 반복
+                  </span>
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "relative h-7 w-12 shrink-0 rounded-full transition-colors",
+                      repeat ? "bg-[var(--apple-blue)]" : "bg-[var(--apple-tertiary-system-fill)]",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "absolute top-0.5 size-6 rounded-full bg-white shadow transition-all",
+                        repeat ? "left-[22px]" : "left-0.5",
+                      )}
+                    />
+                  </span>
+                </button>
+                {repeat && (
+                  <div className="space-y-3">
+                    <div className="flex flex-col gap-1.5">
+                      <Label className="text-footnote text-[var(--apple-secondary-label)]">끝</Label>
+                      <div
+                        className="grid grid-cols-2 rounded-full border border-[var(--glass-border)] bg-[var(--apple-system-grouped-background)] p-1"
+                        role="radiogroup"
+                        aria-label="반복 끝"
+                      >
+                        {(
+                          [
+                            ["NONE", "끝 없음"],
+                            ["MONTHS", "N개월 동안"],
+                          ] as const
+                        ).map(([key, label]) => (
+                          <button
+                            key={key}
+                            type="button"
+                            role="radio"
+                            aria-checked={repeatEnds === key}
+                            onClick={() => setRepeatEnds(key)}
+                            className={cn(
+                              "min-h-11 rounded-full px-3 text-caption1 font-medium transition-all duration-200",
+                              repeatEnds === key
+                                ? "bg-[var(--apple-blue)] text-white shadow-[0_1px_4px_rgba(0,122,255,0.25)]"
+                                : "text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)]",
+                            )}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      {repeatEnds === "MONTHS" && (
+                        <div className="relative">
+                          <Input
+                            value={repeatMonthsText}
+                            inputMode="numeric"
+                            aria-label="반복 개월 수"
+                            className="h-11 pr-16 tabular-nums"
+                            onChange={(e) => setRepeatMonthsText(e.target.value.replace(/[^\d]/g, "").slice(0, 2))}
+                          />
+                          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--apple-secondary-label)]">
+                            개월 동안
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <Label className="text-footnote text-[var(--apple-secondary-label)]">입금요청</Label>
+                      <div className="flex flex-col gap-2" role="radiogroup" aria-label="입금요청 방식">
+                        {(
+                          [
+                            ["REMIND", "날짜가 되면 입금요청 올리라고 알림 받기"],
+                            ["NONE", "입금요청 없이 계획에만"],
+                          ] as const
+                        ).map(([key, label]) => (
+                          <button
+                            key={key}
+                            type="button"
+                            role="radio"
+                            aria-checked={requestMode === key}
+                            onClick={() => setRequestMode(key)}
+                            className={cn(
+                              "min-h-11 rounded-xl border px-3 py-2 text-left text-caption1 transition-colors break-keep",
+                              requestMode === key
+                                ? "border-[var(--apple-blue)] bg-[var(--apple-blue)]/10 text-[var(--apple-label)]"
+                                : "border-[var(--glass-border)] text-[var(--apple-secondary-label)]",
+                            )}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-caption1 text-[var(--apple-secondary-label)] break-keep">
+                      고른 예정일부터 3달 뒤까지 회차마다 미리 깔리고, 매일 아침 다음 달이 이어서 깔려요.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* 설명 */}
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="plan-desc" className="text-footnote text-[var(--apple-secondary-label)]">
@@ -699,14 +883,27 @@ export function PlanCreateButton({
   defaultProjectId,
   variant = "default",
   size = "lg",
+  openOnMount = false,
 }: {
   label?: string;
   defaultCompanyId?: string;
   defaultProjectId?: string;
   variant?: "default" | "outline";
   size?: "lg" | "sm";
+  /** /plans?new=1 로 들어왔을 때 — 처음 한 번 열고 주소에서 new 를 지운다(새로고침해도 다시 열리지 않게). */
+  openOnMount?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(openOnMount);
+  useEffect(() => {
+    if (!openOnMount) return;
+    const params = new URLSearchParams(window.location.search);
+    params.delete("new");
+    const qs = params.toString();
+    // 쿼리만 지운다 — router.replace 는 서버 컴포넌트를 다시 불러온다.
+    window.history.replaceState(null, "", qs ? `/plans?${qs}` : "/plans");
+    // 마운트 때 한 번만.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <>
       <Button
