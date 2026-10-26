@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, EyeOff, Link2, Plus, Repeat, Search, Sparkles } from "lucide-react";
+import { ArrowLeft, Banknote, CreditCard, EyeOff, Link2, Plus, Repeat, Search, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -235,6 +235,32 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
             </Button>
           )}
         </div>
+
+        {/* 계획에서 바로 비용으로 — 보드 카드 메뉴와 같은 두 동작. 모바일은 두 칸을 꽉 채운다. */}
+        {canEdit && (
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+            <Link
+              href={`/expenses/new/deposit-request?plan=${plan.id}`}
+              className={cn(buttonVariants({ size: "lg" }), "min-w-0")}
+            >
+              <Banknote className="size-4" aria-hidden="true" />
+              입금요청으로 만들기
+            </Link>
+            <Button
+              type="button"
+              size="lg"
+              variant="outline"
+              className="min-w-0"
+              onClick={() => {
+                setLinkInitialKind("card");
+                setLinkOpen(true);
+              }}
+            >
+              <CreditCard className="size-4 text-[var(--apple-blue)]" aria-hidden="true" />
+              법카로 썼어요
+            </Button>
+          </div>
+        )}
 
         {/* 요약 — 모바일에서 금액 한 줄이 85px 타일을 넘지 않도록 2열로 (홈의 스탯 그리드와 같은 모양) */}
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
