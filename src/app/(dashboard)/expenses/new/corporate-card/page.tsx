@@ -7,6 +7,8 @@ import CorporateCardForm from "./corporate-card-form";
 
 export const dynamic = "force-dynamic";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 interface PrefillData {
   amount: number;
   merchantName: string | null;
@@ -18,7 +20,7 @@ interface PrefillData {
 export default async function CorporateCardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ gowidTxId?: string }>;
+  searchParams: Promise<{ gowidTxId?: string; plan?: string | string[] }>;
 }) {
   const authUser = await getAuthUser();
   const [companies, myCategories, myMerchantCategories] = await Promise.all([
@@ -57,6 +59,7 @@ export default async function CorporateCardPage({
     <CorporateCardForm
       initialCompanies={serialized}
       prefillData={prefillData}
+      planId={typeof params.plan === "string" && UUID_RE.test(params.plan) ? params.plan : undefined}
       myCategories={myCategories}
       myMerchantCategories={myMerchantCategories}
     />

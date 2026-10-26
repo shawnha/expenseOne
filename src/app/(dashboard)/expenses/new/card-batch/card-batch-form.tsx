@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { CompanySelector } from "@/components/forms/company-selector";
+import { PlanLinkedChip, usePreselectedPlan, type PlanPick } from "@/components/forms/plan-pick";
 import { CategorySelectField } from "@/components/forms/category-select-field";
 import { formatAmount } from "@/lib/validations/expense-form";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
@@ -35,12 +36,16 @@ import {
 } from "@/lib/card-batch/ui";
 
 interface CardBatchFormProps {
+  planId?: string;
+  initialIds?: string[];
   initialCompanies?: { id: string; name: string; slug: string; currency: string }[];
   myCategories?: string[];
   /** 관리자는 주인이 연결되지 않은 카드(공용 카드)의 결제도 불러올 수 있다 */
   isAdmin?: boolean;
   /** 「아직 안 올린 결제 N건」 링크가 준 시작일(YYYY-MM-DD). 검사는 initialDateRange 가 한다 */
   initialFrom?: string;
+  /** 비용계획에서 지난 기간 결제를 골라 왔을 때의 종료일(YYYY-MM-DD) */
+  initialTo?: string;
 }
 
 const TITLE_MAX = 200;
@@ -57,7 +62,7 @@ function rangeError(from: string, to: string): string | null {
   return null;
 }
 
-export default function CardBatchForm({ initialCompanies, myCategories = [], isAdmin = false, initialFrom }: CardBatchFormProps) {
+export default function CardBatchForm({ initialCompanies, myCategories = [], isAdmin = false, initialFrom, initialTo, planId, initialIds }: CardBatchFormProps) {
   // 관리자 전용: 공용 카드(주인 없는 카드) 결제 보기 + 카드 끝 4자리로 좁히기. 불러오기를 눌러야 적용된다.
   const [sharedCards, setSharedCards] = useState(false);
   const [sharedCardLast4, setSharedCardLast4] = useState("");
@@ -113,6 +118,35 @@ export default function CardBatchForm({ initialCompanies, myCategories = [], isA
   const listRef = useRef<HTMLDivElement>(null);
   const doneHeadingRef = useRef<HTMLHeadingElement>(null);
 
+  // 전달받은 선택은 첫 조회에만 적용한다. 계획 회사는 **고른 결제의 카드 회사와 부딪히지 않을 때만** 쓴다(아래 효과) —
+  // 다른 법인 카드 결제를 계획 회사로 몰래 올리지 않게(리뷰 10-27).
+  const [selectedPlan, setSelectedPlan] = useState<PlanPick | null>(null);
+  const planCompanyRef = useRef<string | null>(null);
+  const initialIdsRef = useRef(initialIds);
+  const initialSelectionApplied = useRef(false);
+  const [missingCount, setMissingCount] = useState(0);
+  usePreselectedPlan(planId, {
+    onLoaded: (pick) => {
+      setSelectedPlan(pick);
+    },
+    onMissing: () => toast.error("연결하려던 계획을 불러오지 못했습니다."),
+  });
+
+  // 계획 회사로 맞추기 — 처음 고른 결제가 정해진 뒤 한 번만, 사람이 회사를 고르지 않았고 고른 결제의 카드 회사가
+  // 모두 비었거나 계획 회사와 같을 때만. 하나라도 다르면 카드 회사를 두고 칩이 경고한다.
+  const planCompanyApplied = useRef(false);
+  useEffect(() => {
+    if (!selectedPlan || planCompanyApplied.current || !initialSelectionApplied.current) return;
+    if (companyTouchedRef.current) return;
+    const picked = items.filter((x) => selected.has(x.id));
+    if (picked.length === 0) return;
+    planCompanyApplied.current = true;
+    const conflict = picked.some((x) => x.mappedCompanyId && x.mappedCompanyId !== selectedPlan.companyId);
+    if (conflict || !(activeIdsRef.current ?? []).includes(selectedPlan.companyId)) return;
+    planCompanyRef.current = selectedPlan.companyId;
+    setCompanyId(selectedPlan.companyId);
+  }, [selectedPlan, items, selected]);
+
   // 사용자 회사 (기본 회사 폴백)
   useEffect(() => {
     fetch("/api/profile")
@@ -121,7 +155,7 @@ export default function CardBatchForm({ initialCompanies, myCategories = [], isA
         const cid: string | undefined = json?.data?.companyId;
         if (!cid || (activeIdsRef.current && !activeIdsRef.current.includes(cid))) return;
         setUserCompanyId(cid);
-        setCompanyId((cur) => (cur || companyTouchedRef.current ? cur : cid));
+        setCompanyId((cur) => (cur || companyTouchedRef.current || planCompanyRef.current ? cur : cid));
       })
       .catch(() => {});
   }, []);
@@ -172,7 +206,14 @@ export default function CardBatchForm({ initialCompanies, myCategories = [], isA
       } else {
         setFailures({});
         setSelectionTouched(false);
-        setSelected(defaultSelection(list, CARD_BATCH_MAX));
+        if (!initialSelectionApplied.current && initialIdsRef.current !== undefined) {
+          const requested = initialIdsRef.current;
+          setSelected(new Set(requested.filter((id) => ids.has(id))));
+          setMissingCount(requested.filter((id) => !ids.has(id)).length);
+        } else {
+          setSelected(defaultSelection(list, CARD_BATCH_MAX));
+        }
+        initialSelectionApplied.current = true;
       }
       // 손으로 고친 제목은 같은 결제가 다시 오면 유지한다.
       const keptEdited = new Set([...editedRef.current].filter((id) => ids.has(id)));
@@ -184,7 +225,7 @@ export default function CardBatchForm({ initialCompanies, myCategories = [], isA
           : buildDefaultTitle(prefixRef.current, x.storeName);
       }
       setTitles(nextTitles);
-      if (!companyTouchedRef.current) {
+      if (!companyTouchedRef.current && !planCompanyRef.current) {
         const pick = pickDefaultCompany(list, userCompanyRef.current, activeIdsRef.current);
         if (pick) setCompanyId(pick);
       }
@@ -204,11 +245,11 @@ export default function CardBatchForm({ initialCompanies, myCategories = [], isA
   }, []);
 
   useEffect(() => {
-    const r = initialDateRange(new Date(), initialFrom);
+    const r = initialDateRange(new Date(), initialFrom, initialTo);
     setFrom(r.from);
     setTo(r.to);
     load(r.from, r.to);
-  }, [load, initialFrom]);
+  }, [load, initialFrom, initialTo]);
 
   const handlePrefixChange = (value: string) => {
     setPrefix(value);
@@ -271,6 +312,8 @@ export default function CardBatchForm({ initialCompanies, myCategories = [], isA
     const picked = items.filter((x) => selected.has(x.id));
     const body: CardBatchRequest = {
       companyId,
+      // 회사가 다르면 서버가 어차피 잇지 못한다 — 화면 경고와 같게 보내지 않는다.
+      ...(selectedPlan && selectedPlan.companyId === companyId ? { planId: selectedPlan.id } : {}),
       category: category.trim(),
       items: picked.map((x) => ({ gowidTxId: x.id, title: (titles[x.id] ?? "").trim() })),
     };
@@ -303,6 +346,8 @@ export default function CardBatchForm({ initialCompanies, myCategories = [], isA
         return;
       }
       const data = json.data as CardBatchResponse;
+      if ((data.planLinked ?? 0) > 0) toast.success(`비용계획에 ${data.planLinked}건을 연결했습니다.`);
+      if (data.planLinkError) toast.error(data.planLinkError);
       const okIds = new Set(data.results.filter((r) => r.ok).map((r) => r.gowidTxId));
       const failMap: Record<string, string> = {};
       for (const r of data.results) if (!r.ok) failMap[r.gowidTxId] = r.message;
@@ -371,6 +416,19 @@ export default function CardBatchForm({ initialCompanies, myCategories = [], isA
       <p className="sr-only" role="status" aria-live="polite">
         {statusMessage}
       </p>
+
+      {selectedPlan && (
+        <PlanLinkedChip
+          title={selectedPlan.title}
+          onCancel={() => setSelectedPlan(null)}
+          warning={selectedPlan.companyId !== companyId ? "계획의 회사와 달라 연결되지 않습니다. 회사를 맞추거나 연결을 해제해주세요." : null}
+        />
+      )}
+      {missingCount > 0 && (
+        <p role="status" className="text-footnote text-[var(--apple-secondary-label)]">
+          선택한 결제 중 {missingCount}건은 목록에 없습니다(이미 올라갔거나 기간 밖).
+        </p>
+      )}
 
       {allDone ? (
         <div className="glass p-8 text-center space-y-4" role="status">
@@ -486,6 +544,7 @@ export default function CardBatchForm({ initialCompanies, myCategories = [], isA
                 <CompanySelector
                   value={companyId}
                   onChange={(id) => {
+                    companyTouchedRef.current = true;
                     setCompanyId(id);
                     setCompanyTouched(true);
                   }}

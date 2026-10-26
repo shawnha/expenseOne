@@ -39,6 +39,7 @@ import {
   planFetch,
   PLAN_STATUS_LABEL,
 } from "./plan-client";
+import { PendingCardSection } from "./pending-card-section";
 import { UnseenChanges } from "./unseen-changes";
 import { useSubmitLock } from "./use-submit-lock";
 
@@ -420,6 +421,7 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
       {linkOpen && (
         <LinkDialog
           planId={plan.id}
+          plannedDate={plan.plannedDate}
           initialKind={linkInitialKind}
           open={linkOpen}
           onOpenChange={setLinkOpen}
@@ -879,12 +881,14 @@ const MAX_LINK_SELECT = 50;
 
 function LinkDialog({
   planId,
+  plannedDate,
   initialKind = "all",
   open,
   onOpenChange,
   onLinked,
 }: {
   planId: string;
+  plannedDate: string;
   /** 열었을 때 선택돼 있는 탭. 닫았다 다시 열면 이 값으로 돌아간다. */
   initialKind?: LinkKind;
   open: boolean;
@@ -991,12 +995,12 @@ function LinkDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent showCloseButton={false} className="sm:max-w-lg max-h-[86dvh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent showCloseButton={false} className="sm:max-w-lg max-h-[86dvh] flex flex-col overflow-hidden">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="text-headline text-[var(--apple-label)]">비용 연결</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-3">
+        <div className="min-h-0 space-y-3 overflow-y-auto px-1 -mx-1">
           <div className="flex gap-1 rounded-full bg-[var(--apple-tertiary-system-fill)] p-1" role="group" aria-label="비용 유형">
             {LINK_KIND_TABS.map((tab) => (
               <button
@@ -1020,6 +1024,13 @@ function LinkDialog({
             ))}
           </div>
 
+          {kind === "card" && (
+            <>
+              <PendingCardSection planId={planId} plannedDate={plannedDate} />
+              <h3 className="pt-2 text-subheadline font-semibold text-[var(--apple-label)]">이미 올린 법카에서 연결</h3>
+            </>
+          )}
+
           <div className="relative">
             <Search
               className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--apple-secondary-label)]"
@@ -1029,7 +1040,7 @@ function LinkDialog({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               maxLength={100}
-              placeholder="제목·가맹점으로 찾기"
+              placeholder={kind === "card" ? "이미 올린 법카의 제목·가맹점으로 찾기" : "제목·가맹점으로 찾기"}
               aria-label="비용 제목 검색"
               className="pl-9"
             />
@@ -1093,7 +1104,7 @@ function LinkDialog({
           )}
         </div>
 
-        <DialogFooter className="items-center gap-2 sm:justify-between">
+        <DialogFooter className="shrink-0 items-center gap-2 sm:justify-between">
           <p className="text-footnote tabular-nums text-[var(--apple-secondary-label)]" aria-live="polite">
             {selected.size === 0
               ? "이을 비용을 골라 주세요"

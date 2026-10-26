@@ -69,6 +69,15 @@ describe("initialDateRange", () => {
     // 정확히 최대 기간(62일)까지는 허용
     assert.equal(initialDateRange(now, "2026-08-25").from, "2026-08-25");
   });
+  it("종료일을 주면 지난 기간도 그대로 연다(비용계획 「법카로 썼어요」)", () => {
+    assert.deepEqual(initialDateRange(now, "2026-01-05", "2026-01-20"), { from: "2026-01-05", to: "2026-01-20" });
+    // 종료일이 이상하면(미래·시작 전·없는 날짜·62일 초과) 예전처럼 오늘까지 — 그것도 안 되면 기본 14일
+    assert.deepEqual(initialDateRange(now, "2026-10-01", "2026-10-30"), { from: "2026-10-01", to: "2026-10-26" });
+    assert.deepEqual(initialDateRange(now, "2026-10-10", "2026-10-01"), { from: "2026-10-10", to: "2026-10-26" });
+    assert.deepEqual(initialDateRange(now, "2026-01-05", "2026-02-31"), defaultDateRange(now));
+    assert.deepEqual(initialDateRange(now, "2026-01-01", "2026-03-15"), defaultDateRange(now));
+    assert.deepEqual(initialDateRange(now, "2026-01-01", "2026-03-04"), { from: "2026-01-01", to: "2026-03-04" });
+  });
 });
 
 describe("sumSelected", () => {
