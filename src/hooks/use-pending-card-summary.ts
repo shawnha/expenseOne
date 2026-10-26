@@ -3,10 +3,12 @@
 import { useEffect, useState } from "react";
 import type { PendingCardSummary } from "@/services/card-batch.service";
 
-export function usePendingCardSummary() {
+/** enabled 가 false 면 부르지 않는다(안내 링크가 안 보이는 화면에서 쓸데없는 요청을 막는다) */
+export function usePendingCardSummary(enabled = true) {
   const [summary, setSummary] = useState<PendingCardSummary | null>(null);
 
   useEffect(() => {
+    if (!enabled) return;
     const controller = new AbortController();
 
     async function load() {
@@ -25,7 +27,7 @@ export function usePendingCardSummary() {
 
     void load();
     return () => controller.abort();
-  }, []);
+  }, [enabled]);
 
   return summary;
 }

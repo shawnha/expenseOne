@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { pendingCardLabel } from "./pending-summary";
+import { pendingCardBatchHref, pendingCardLabel } from "./pending-summary";
 
 describe("pendingCardLabel", () => {
   it("결제 건수에 쉼표를 넣는다", () => {
@@ -18,6 +18,18 @@ describe("pendingCardLabel", () => {
   it("유효한 건수가 아니면 숨긴다", () => {
     for (const count of [-1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
       assert.equal(pendingCardLabel(count), null);
+    }
+  });
+});
+
+describe("pendingCardBatchHref", () => {
+  it("가장 오래된 날짜부터 열도록 from 을 붙인다", () => {
+    assert.equal(pendingCardBatchHref("2026-09-03"), "/expenses/new/card-batch?from=2026-09-03");
+  });
+
+  it("날짜가 없거나 형식이 다르면 기본 주소", () => {
+    for (const d of [null, undefined, "", "20260903", "2026-9-3", "2026-09-03&x=1"]) {
+      assert.equal(pendingCardBatchHref(d), "/expenses/new/card-batch");
     }
   });
 });

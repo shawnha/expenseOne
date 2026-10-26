@@ -5,7 +5,12 @@ import CardBatchForm from "./card-batch-form";
 
 export const dynamic = "force-dynamic";
 
-export default async function CardBatchPage() {
+export default async function CardBatchPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const { from } = await searchParams;
   const authUser = await getAuthUser();
   const [companies, myCategories, me] = await Promise.all([
     getActiveCompanies(),
@@ -19,5 +24,10 @@ export default async function CardBatchPage() {
     currency: c.currency,
   }));
 
-  return <CardBatchForm initialCompanies={serialized} myCategories={myCategories} isAdmin={me?.role === "ADMIN"} />;
+  return <CardBatchForm
+      initialCompanies={serialized}
+      myCategories={myCategories}
+      isAdmin={me?.role === "ADMIN"}
+      initialFrom={typeof from === "string" ? from : undefined}
+    />;
 }
