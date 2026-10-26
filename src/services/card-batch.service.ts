@@ -106,6 +106,43 @@ export async function listPendingCardTransactions(
   return { items, truncated: rows.length > LIST_LIMIT };
 }
 
+/** 「아직 안 올린 결제 N건」 — 최근 days 일 동안 내 카드의 미처리 고위드 결제 요약 */
+export interface PendingCardSummary {
+  count: number;
+  /** 원화 청구 금액 합계(원) */
+  totalAmount: number;
+  /** YYYY-MM-DD (없으면 null) */
+  oldestDate: string | null;
+  newestDate: string | null;
+  days: number;
+}
+
+/**
+ * 내 카드의 아직 안 올린 결제를 최근 days 일만 센다(그보다 오래된 건은 이미 다른 경로로 정리됐거나
+ * 오래 묵은 것이라 첫 화면에서 「할 일」로 보여 주면 소음이 된다 — 전체는 한 번에 올리기 화면에서 기간으로 본다).
+ * 같은 날짜에 이미 비슷한 비용을 올린 건(possibleDuplicate)도 포함한다 — 정확한 판단은 목록 화면에서.
+ */
+export async function summarizePendingCardTransactions(userId: string, days = 60): Promise<PendingCardSummary> {
+  const rows = rowsOf(
+    await db.execute(sql`
+      SELECT count(*)::int AS count, coalesce(sum(g.amount), 0)::bigint AS total,
+             min(g.expense_date) AS oldest, max(g.expense_date) AS newest
+        FROM expenseone.gowid_transactions g
+       WHERE g.user_id = ${userId}::uuid
+         AND g.status = 'pending'
+         AND g.expense_date >= to_char((now() AT TIME ZONE 'Asia/Seoul')::date - ${days}::int, 'YYYYMMDD')
+    `),
+  );
+  const r = rows[0] ?? {};
+  return {
+    count: Number(r.count ?? 0),
+    totalAmount: Number(r.total ?? 0),
+    oldestDate: r.oldest ? compactToIso(String(r.oldest)) : null,
+    newestDate: r.newest ? compactToIso(String(r.newest)) : null,
+    days,
+  };
+}
+
 export interface BatchUser {
   id: string;
   name: string;
