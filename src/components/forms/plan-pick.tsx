@@ -249,7 +249,7 @@ export function PlanPickPanel({
         </h2>
       </div>
       <p className="mb-3 text-footnote text-[var(--apple-secondary-label)]">
-        고르면 제목·회사·납기일을 채우고, 입금요청을 그 계획에 연결합니다. 금액은 직접 입력해주세요.
+        고르면 제목·회사·납기일·금액을 채우고, 입금요청을 그 계획에 연결합니다. 표시된 칸이 맞는지 확인해주세요.
       </p>
 
       {mine.length > 0 && (
