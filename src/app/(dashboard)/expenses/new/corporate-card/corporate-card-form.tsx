@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -52,10 +52,11 @@ import { useFormBusy } from "@/hooks/use-form-busy";
 import { usePendingCardSummary } from "@/hooks/use-pending-card-summary";
 import { pendingCardBatchHref, pendingCardLabel } from "@/lib/card-batch/pending-summary";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
-import { CardPlanSuggestions, useCardSuggestions } from "@/components/forms/plan-pick";
-import { planLinkFailed } from "@/lib/plans/pick-ui";
+import { CardPlanSuggestions, PlanLinkedChip, usePreselectedPlan, type PlanPick, useCardSuggestions } from "@/components/forms/plan-pick";
+import { planLinkFailed, shouldFillCompany } from "@/lib/plans/pick-ui";
 
 interface CorporateCardFormProps {
+  planId?: string;
   initialCompanies?: { id: string; name: string; slug: string; currency: string }[];
   /** 본인이 예전에 직접 입력한 카테고리 (최근순). 매번 다시 타이핑하지 않게 버튼으로 띄운다. */
   myCategories?: string[];
@@ -70,7 +71,7 @@ interface CorporateCardFormProps {
   };
 }
 
-export default function CorporateCardForm({ initialCompanies, prefillData, myCategories = [], myMerchantCategories = {} }: CorporateCardFormProps) {
+export default function CorporateCardForm({ initialCompanies, prefillData, myCategories = [], myMerchantCategories = {}, planId }: CorporateCardFormProps) {
   const pendingSummary = usePendingCardSummary(!prefillData);
   const pendingLabel = pendingCardLabel(pendingSummary?.count);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -88,7 +89,22 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
   // Company selection
   const [companyId, setCompanyId] = useState("");
   // 비용계획 연결(GoWid 결제일 때만 후보를 묻는다). 한 건만, 다시 누르면 해제.
-  const [linkPlanId, setLinkPlanId] = useState<string | null>(null);
+  const [selectedPick, setSelectedPick] = useState<PlanPick | null>(null);
+  const companyTouchedRef = useRef(false);
+  const planCompanyRef = useRef<string | null>(null);
+  const preselect = usePreselectedPlan(planId, {
+    onLoaded: (pick) => {
+      setSelectedPick(pick);
+      planCompanyRef.current = pick.companyId;
+      if (shouldFillCompany({
+        touched: companyTouchedRef.current,
+        planCompanyId: pick.companyId,
+        currentCompanyId: companyId,
+        availableCompanyIds: initialCompanies?.map((c) => c.id) ?? [],
+      })) setCompanyId(pick.companyId);
+    },
+    onMissing: () => toast.error("연결하려던 계획을 불러오지 못했습니다."),
+  });
   const [userCompanyId, setUserCompanyId] = useState<string | null>(null);
   const [currency, setCurrency] = useState("KRW");
   const planSuggestions = useCardSuggestions({
@@ -113,13 +129,13 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
           // belongs to a specific company, so submitting under the user's
           // default company would file the expense to the wrong entity for
           // multi-company users.
-          if (!prefillData?.companyId) {
+          if (!prefillData?.companyId && !companyTouchedRef.current && !planCompanyRef.current) {
             setCompanyId(cid);
           }
         }
       })
       .catch(() => {});
-    if (prefillData?.companyId) {
+    if (prefillData?.companyId && !companyTouchedRef.current && !planCompanyRef.current) {
       setCompanyId(prefillData.companyId);
     }
   }, [prefillData?.companyId]);
@@ -209,9 +225,6 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
     }
   }, [prefillData, setValue]);
 
-  // 후보 목록에서 사라진 계획(회사를 바꿔 다시 조회했거나 조회가 실패)은 연결하지 않는다 —
-  // 눈에 안 보이는 연결을 몰래 보내지 않기 위해 화면에 보이는 선택만 쓴다.
-  const selectedPick = planSuggestions.find((p) => p.id === linkPlanId) ?? null;
   // 계획과 법카 건의 회사가 다르면 서버가 연결을 못 한다 — 알리고 보내지 않는다.
   const planCompanyMismatch = !!selectedPick && !!companyId && selectedPick.companyId !== companyId;
   const activePlanId = selectedPick && !planCompanyMismatch ? selectedPick.id : null;
@@ -219,6 +232,7 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
   // Handle company change — only update companyId (currency is independent)
   const handleCompanyChange = useCallback((newCompanyId: string, _newCurrency?: string) => {
     void _newCurrency;
+    companyTouchedRef.current = true;
     setCompanyId(newCompanyId);
   }, []);
 
@@ -529,18 +543,19 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
         </div>
       )}
 
-      {prefillData && (
+      {selectedPick ? (
+        <PlanLinkedChip
+          title={selectedPick.title}
+          onCancel={() => setSelectedPick(null)}
+          warning={planCompanyMismatch ? "계획의 회사와 달라 연결되지 않습니다. 회사를 맞추거나 연결을 해제해주세요." : null}
+        />
+      ) : prefillData && preselect !== "pending" ? (
         <CardPlanSuggestions
           suggestions={planSuggestions}
-          selectedId={selectedPick?.id ?? null}
-          onToggle={(p) => setLinkPlanId((cur) => (cur === p.id ? null : p.id))}
+          selectedId={null}
+          onToggle={setSelectedPick}
         />
-      )}
-      {planCompanyMismatch && (
-        <p role="alert" className="px-1 text-[13px] text-[var(--apple-red)]">
-          계획의 회사와 달라 연결되지 않습니다. 회사를 맞추거나 선택을 해제해주세요.
-        </p>
-      )}
+      ) : null}
 
       <form onSubmit={handleSubmit(onSubmit, onValidationError)} noValidate>
         <div className="glass p-6">
