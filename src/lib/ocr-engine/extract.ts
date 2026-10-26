@@ -5,7 +5,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { OCR_SYSTEM, buildOcrPrompt, ocrModelSchema, toOcrFields, toRotation } from "./prompt";
-import { heicToJpeg, isHeicMime, makeOutputImage, rotateJpeg, toJpegForModel, type Degrees } from "./image";
+import { heicToJpeg, isHeicMime, makeOutputImage, rotateJpeg, tileImageForModel, toJpegForModel, type Degrees } from "./image";
 import type { OcrFields, OcrResult } from "./types";
 
 /** 모델 호출 실패 — 핸들러가 502로 매핑한다 */
@@ -91,9 +91,10 @@ export function createOcrEngine(config: OcrEngineConfig): OcrEngine {
   }
 
   async function callModel(
-    media: MediaBlock,
+    media: MediaBlock | MediaBlock[],
     usage: OcrUsage,
-    deadline: number
+    deadline: number,
+    extraInstruction = ""
   ): Promise<{ fields: OcrFields; rotation: Degrees }> {
     const c = getClient();
     const remaining = Math.max(1000, deadline - Date.now());
@@ -105,7 +106,7 @@ export function createOcrEngine(config: OcrEngineConfig): OcrEngine {
           model: usage.model,
           max_tokens: MAX_TOKENS,
           system: OCR_SYSTEM,
-          messages: [{ role: "user", content: [media, { type: "text", text: prompt }] }],
+          messages: [{ role: "user", content: [...(Array.isArray(media) ? media : [media]), { type: "text", text: prompt + extraInstruction }] }],
           output_config: { effort, format: zodOutputFormat(ocrModelSchema) },
         },
         { signal: AbortSignal.timeout(remaining) }
@@ -169,20 +170,26 @@ export function createOcrEngine(config: OcrEngineConfig): OcrEngine {
 
     const wasHeic = isHeicMime(mime);
     let modelJpeg: Buffer;
+    let tiled: Awaited<ReturnType<typeof tileImageForModel>>;
     try {
       // HEIC 는 한 번만 디코드해서 이후 모든 단계에 JPEG 로 넘긴다
       if (wasHeic) buffer = await heicToJpeg(buffer);
-      modelJpeg = await toJpegForModel(buffer, "image/jpeg");
+      tiled = await tileImageForModel(buffer, "image/jpeg");
+      modelJpeg = tiled ? tiled.tiles[0] : await toJpegForModel(buffer, "image/jpeg");
     } catch {
       throw new OcrInputError("이미지를 읽을 수 없습니다. 다른 사진으로 시도해 주세요.");
     }
 
-    // 돌아간 사진은 바로 세운 사본으로 다시 읽는다 — 돌아간 채로 읽은 값은 믿을 수 없다(실측).
-    // 세운 사본에서도 아직 돌아가 있다고 하면(방향을 잘못 짚은 경우) 한 번 더 고쳐 읽는다.
-    let pass = await callModel(imageBlock(modelJpeg), usage, deadline);
+    // 긴 캡처는 다시 읽지 않는다(타일을 돌려 다시 나누면 비용이 두 배). 방향이 틀어져 보이면 아래에서 낮은 신뢰도로 돌려준다.
+    const direction = tiled?.plan.direction === "vertical" ? "위에서 아래" : "왼쪽에서 오른쪽";
+    const extraInstruction = tiled
+      ? `\n이 이미지들은 하나의 긴 문서를 ${direction} 순서로 겹치게 나눈 것입니다. 같은 줄이 두 장에 겹쳐 보이면 한 번만 읽고, 합계는 문서에 적힌 값을 그대로 쓰세요.`
+      : "";
+    let pass = await callModel(tiled ? tiled.tiles.map(imageBlock) : imageBlock(modelJpeg), usage, deadline, extraInstruction);
     let rotation: Degrees = 0;
     let fields: OcrFields = pass.fields;
-    for (let i = 0; i < MAX_REREADS && pass.rotation !== 0; i++) {
+    // 돌아간 일반 사진은 바로 세워 다시 읽는다 (방향을 잘못 짚으면 한 번 더).
+    for (let i = 0; !tiled && i < MAX_REREADS && pass.rotation !== 0; i++) {
       const next = ((rotation + pass.rotation) % 360) as Degrees;
       try {
         if (deadline - Date.now() < PASS2_MIN_REMAINING_MS) throw new OcrUpstreamError("시간 부족");

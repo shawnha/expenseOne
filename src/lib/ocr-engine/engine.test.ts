@@ -4,12 +4,13 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import sharp from "sharp";
+import Anthropic from "@anthropic-ai/sdk";
 import { ocrModelSchema, toOcrFields, toRotation, type OcrModelOutput } from "./prompt";
-import { makeOutputImage, rotateJpeg, toJpegForModel, verifyMagic } from "./image";
+import { makeOutputImage, planImageTiles, tileImageForModel, rotateJpeg, toJpegForModel, verifyMagic } from "./image";
 import { createRateLimiter } from "./rate-limit";
 import { MAX_PIXELS } from "./image";
 import { createOcrRouteHandler } from "./handler";
-import type { OcrEngine } from "./extract";
+import { createOcrEngine, type OcrEngine } from "./extract";
 
 const base: OcrModelOutput = {
   doc_type: "카드전표/영수증",
@@ -233,5 +234,107 @@ describe("createOcrRouteHandler", () => {
     assert.equal(body.data.fields.merchantName, "가게");
     assert.equal(logs.length, 1);
     assert.deepEqual(Object.keys(logs[0] as object).sort(), ["calls", "inputTokens", "kind", "model", "ms", "outputTokens"]);
+  });
+});
+
+
+describe("긴 이미지 타일", () => {
+  it("5 비율까지는 기존 경로, 그 이상은 긴 방향으로 분할", () => {
+    for (const [w, h] of [[100, 100], [100, 250], [100, 500], [500, 100], [0, 100]]) {
+      assert.equal(planImageTiles(w, h), null);
+    }
+    assert.equal(planImageTiles(100, 501)?.direction, "vertical");
+  });
+  it("가로로 긴 이미지는 나누지 않는다(눕혀 찍은 영수증 → 기존 회전 경로)", () => {
+    for (const [w, h] of [[501, 100], [5200, 1000], [12000, 1170]]) assert.equal(planImageTiles(w, h), null);
+  });
+  it("타일 비율 약 1.6 이하, 약 12% 겹침, 빈틈 없이 처음부터 끝까지", () => {
+    for (const [w, h] of [[1000, 5200]]) {
+      const plan = planImageTiles(w, h)!;
+      assert.equal(plan.regions.length, 4);
+      const vertical = plan.direction === "vertical";
+      let end = 0;
+      for (const [i, r] of plan.regions.entries()) {
+        const start = vertical ? r.top : r.left;
+        const length = vertical ? r.height : r.width;
+        assert.ok(length / Math.min(w, h) <= 1.601);
+        if (i === 0) assert.equal(start, 0);
+        else {
+          assert.ok(start < end);
+          assert.ok(Math.abs((end - start) / length - 0.12) < 0.002);
+        }
+        end = start + length;
+      }
+      assert.equal(end, Math.max(w, h));
+    }
+  });
+  it("아무리 길어도 6장으로 전체 범위를 보존한다", () => {
+    for (const [w, h] of [[1170, 12000], [100, 30000]]) {
+      const plan = planImageTiles(w, h)!;
+      assert.equal(plan.regions.length, 6);
+      const last = plan.regions.at(-1)!;
+      assert.equal(last.top + last.height, h);
+      assert.equal(last.left + last.width, w);
+    }
+  });
+  it("1170×12000 이미지는 6개 JPEG, 각 긴 변 2000px 이하", async () => {
+    const tiled = await tileImageForModel(await makeJpeg(1170, 12000), "image/jpeg");
+    assert.ok(tiled);
+    assert.equal(tiled.tiles.length, 6);
+    assert.equal(tiled.plan.regions[0].top, 0);
+    const last = tiled.plan.regions.at(-1)!;
+    assert.equal(last.top + last.height, 12000);
+    for (const tile of tiled.tiles) {
+      const meta = await sharp(tile).metadata();
+      assert.equal(meta.format, "jpeg");
+      assert.equal(meta.height, 2000);
+      assert.ok(meta.width! > 900 && meta.width! <= 2000);
+    }
+  });
+  it("EXIF 회전 후 방향과 좌표를 사용하고 작은 타일은 확대하지 않는다", async () => {
+    const src = await sharp(await makeJpeg(600, 100)).withMetadata({ orientation: 6 }).toBuffer();
+    const tiled = await tileImageForModel(src, "image/jpeg");
+    assert.ok(tiled);
+    assert.equal(tiled.plan.direction, "vertical");
+    const last = tiled.plan.regions.at(-1)!;
+    assert.equal(last.top + last.height, 600);
+    for (const tile of tiled.tiles) {
+      const meta = await sharp(tile).metadata();
+      assert.equal(meta.width, 100);
+      assert.ok(meta.height! <= 161);
+    }
+    assert.equal(await tileImageForModel(await makeJpeg(100, 250), "image/jpeg"), null);
+  });
+  it("한 요청에 순서대로 보내고 text_top이 돌아가 있어도 재독하지 않는다", async (t) => {
+    const requests: Anthropic.MessageCreateParamsNonStreaming[] = [];
+    t.mock.method(Anthropic.Messages.prototype, "create", async (params: Anthropic.MessageCreateParamsNonStreaming) => {
+      requests.push(params);
+      return { content: [{ type: "text", text: JSON.stringify(base) }], stop_reason: "end_turn", usage: { input_tokens: 5, output_tokens: 6 } };
+    });
+    // SDK 호출을 통째로 대체한다. 실제 fetch가 일어나면 즉시 실패한다.
+    t.mock.method(globalThis, "fetch", () => { throw new Error("네트워크 호출 금지"); });
+    for (const [w, h, direction] of [[100, 600, "위에서 아래"], [120, 700, "위에서 아래"]] as const) {
+      const src = await makeJpeg(w, h);
+      const expected = await tileImageForModel(src, "image/jpeg");
+      const engine = createOcrEngine({ apiKey: "test-only", onLog: () => {} });
+      const { result, usage } = await engine.run({ buffer: src, mime: "image/jpeg" });
+      assert.equal(usage.calls, 1);
+      assert.equal(result.rotation, 0);
+      assert.equal(result.imageJpegBase64, null);
+      assert.equal(result.fields.totalAmount, 12000.5);
+      const content = requests.at(-1)!.messages[0].content;
+      assert.ok(Array.isArray(content));
+      assert.deepEqual(content.slice(0, -1), expected!.tiles.map((tile) => ({
+        type: "image", source: { type: "base64", media_type: "image/jpeg", data: tile.toString("base64") },
+      })));
+      const instruction = content.at(-1)!;
+      assert.equal(instruction.type, "text");
+      if (instruction.type === "text") {
+        assert.ok(instruction.text.includes(direction));
+        assert.ok(instruction.text.includes("한 번만 읽고"));
+        assert.ok(!instruction.text.includes("이미 바로 서 있습니다"));
+      }
+    }
+    assert.equal(requests.length, 2);
   });
 });

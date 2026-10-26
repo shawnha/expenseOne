@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
-import { canReadDocument, documentTypeFromOcr, fileFromOcrImage, readDocument } from "@/lib/ocr-client";
+import { canReadDocument, documentTypeFromOcr, fileFromOcrImage, isOcrDisabledForSession, readDocument } from "@/lib/ocr-client";
+import { getOcrSkipReason, type OcrSkipReason } from "@/lib/ocr-skip";
 import type { OcrResult } from "@/lib/ocr/types";
 import { MAX_TOTAL_FILE_SIZE, type FileWithPreview } from "@/lib/validations/expense-form";
 
@@ -25,6 +26,19 @@ export function useDocumentReader({
   fillDocumentType?: boolean;
 }) {
   const [readingIds, setReadingIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [skipped, setSkipped] = useState<Readonly<Record<string, OcrSkipReason>>>({});
+  const clearSkipped = useCallback((id: string) => {
+    setSkipped((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }, []);
+  const markSkipped = useCallback((item: FileWithPreview) => {
+    if (!filesRef.current.some((f) => f.id === item.id)) return;
+    const reason = getOcrSkipReason(item.file, isOcrDisabledForSession());
+    setSkipped((prev) => reason ? { ...prev, [item.id]: reason } : {});
+  }, [filesRef]);
   const abortRef = useRef<AbortController | null>(null);
   const callbacksRef = useRef({ onFilesChange, onDocumentRead });
   useEffect(() => {
@@ -50,7 +64,10 @@ export function useDocumentReader({
       const result = await readDocument(item.file, signal);
       if (signal?.aborted) return;
       finish(item.id);
-      if (!result) return;
+      if (!result) {
+        markSkipped(item);
+        return;
+      }
 
       const current = filesRef.current;
       const cur = current.find((f) => f.id === item.id);
@@ -76,14 +93,19 @@ export function useDocumentReader({
       }
       callbacksRef.current.onDocumentRead?.(item.id, result);
     },
-    [filesRef, finish, fillDocumentType]
+    [filesRef, finish, fillDocumentType, markSkipped]
   );
 
   /** 새로 붙인 첨부를 읽기 시작한다 (기다리지 않는다) */
   const read = useCallback(
     (items: FileWithPreview[]) => {
       if (!callbacksRef.current.onDocumentRead) return;
-      const targets = items.filter((f) => canReadDocument(f.file));
+      const targets = items.filter((item) => {
+        clearSkipped(item.id);
+        if (canReadDocument(item.file)) return true;
+        markSkipped(item);
+        return false;
+      });
       if (targets.length === 0) return;
       setReadingIds((prev) => new Set([...prev, ...targets.map((t) => t.id)]));
       let index = 0;
@@ -95,8 +117,8 @@ export function useDocumentReader({
       };
       void Promise.all(Array.from({ length: Math.min(CONCURRENCY, targets.length) }, worker));
     },
-    [readOne]
+    [readOne, clearSkipped, markSkipped]
   );
 
-  return { read, readingCount: readingIds.size, readingIds };
+  return { read, readingCount: readingIds.size, readingIds, skipped: isOcrDisabledForSession() ? {} : skipped, clearSkipped };
 }
