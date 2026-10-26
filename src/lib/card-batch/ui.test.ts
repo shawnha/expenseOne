@@ -4,6 +4,7 @@ import {
   buildDefaultTitle,
   reapplyPrefix,
   defaultDateRange,
+  initialDateRange,
   kstDateString,
   sumSelected,
   pickDefaultCompany,
@@ -51,6 +52,22 @@ describe("date range (KST)", () => {
   });
   it("월 경계를 넘는다", () => {
     assert.equal(defaultDateRange(new Date("2026-03-05T00:00:00Z")).from, "2026-02-19");
+  });
+});
+
+describe("initialDateRange", () => {
+  const now = new Date("2026-10-26T03:00:00Z");
+  it("링크가 준 시작일 ~ 오늘", () => {
+    assert.deepEqual(initialDateRange(now, "2026-08-28"), { from: "2026-08-28", to: "2026-10-26" });
+    assert.deepEqual(initialDateRange(now, "2026-10-26"), { from: "2026-10-26", to: "2026-10-26" });
+  });
+  it("없거나 이상한 값·미래·최대 기간 초과면 기본 14일", () => {
+    const fallback = defaultDateRange(now);
+    for (const v of [undefined, null, "", "20260828", "2026-02-31", "2026-10-27", "2026-08-24", "abc"]) {
+      assert.deepEqual(initialDateRange(now, v), fallback, String(v));
+    }
+    // 정확히 최대 기간(62일)까지는 허용
+    assert.equal(initialDateRange(now, "2026-08-25").from, "2026-08-25");
   });
 });
 

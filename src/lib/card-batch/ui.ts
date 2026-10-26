@@ -1,7 +1,7 @@
 /**
  * 법카 여러 건 한 번에 올리기 화면의 순수 헬퍼 (React·DOM 없음).
  */
-import type { PendingCardTx } from "./types";
+import { CARD_BATCH_MAX_RANGE_DAYS, type PendingCardTx } from "./types";
 
 /** 기본 제목: 앞머리 + 가맹점. 앞머리·가맹점이 비면 있는 쪽만 쓴다. */
 export function buildDefaultTitle(prefix: string, storeName: string | null | undefined): string {
@@ -42,6 +42,20 @@ export function defaultDateRange(now: Date, days = 14): { from: string; to: stri
   const to = kstDateString(now);
   const from = kstDateString(new Date(now.getTime() - days * 24 * 60 * 60 * 1000));
   return { from, to };
+}
+
+/**
+ * 처음 열 때 조회 기간: 안내 링크가 준 시작일(?from=)이 올바르고 최대 기간 안이면 그날~오늘, 아니면 기본 기간.
+ */
+export function initialDateRange(now: Date, requestedFrom?: string | null): { from: string; to: string } {
+  const fallback = defaultDateRange(now);
+  if (!requestedFrom || !/^\d{4}-\d{2}-\d{2}$/.test(requestedFrom)) return fallback;
+  const fromMs = Date.parse(`${requestedFrom}T00:00:00Z`);
+  // 2026-02-31 처럼 없는 날짜는 Date 가 다음 달로 넘기므로 되돌려 비교해 거른다
+  if (!Number.isFinite(fromMs) || new Date(fromMs).toISOString().slice(0, 10) !== requestedFrom) return fallback;
+  const days = (Date.parse(`${fallback.to}T00:00:00Z`) - fromMs) / 86_400_000;
+  if (days < 0 || days > CARD_BATCH_MAX_RANGE_DAYS) return fallback;
+  return { from: requestedFrom, to: fallback.to };
 }
 
 /** 선택된 결제의 금액 합계(원) */

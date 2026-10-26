@@ -49,6 +49,8 @@ import { resolveCreatedExpenseId } from "@/lib/utils/submit-result";
 import { cn } from "@/lib/utils";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useFormBusy } from "@/hooks/use-form-busy";
+import { usePendingCardSummary } from "@/hooks/use-pending-card-summary";
+import { pendingCardBatchHref, pendingCardLabel } from "@/lib/card-batch/pending-summary";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { CardPlanSuggestions, useCardSuggestions } from "@/components/forms/plan-pick";
 import { planLinkFailed } from "@/lib/plans/pick-ui";
@@ -69,6 +71,8 @@ interface CorporateCardFormProps {
 }
 
 export default function CorporateCardForm({ initialCompanies, prefillData, myCategories = [], myMerchantCategories = {} }: CorporateCardFormProps) {
+  const pendingSummary = usePendingCardSummary(!prefillData);
+  const pendingLabel = pendingCardLabel(pendingSummary?.count);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploadBusy, setIsUploadBusy] = useState(false); // 사진 줄이는 중엔 제출 잠금
   const [showSuccess, setShowSuccess] = useState(false);
@@ -508,10 +512,10 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
 
       {!prefillData && (
         <Link
-          href="/expenses/new/card-batch"
+          href={pendingLabel ? pendingCardBatchHref(pendingSummary?.oldestDate) : "/expenses/new/card-batch"}
           className="flex items-center gap-1 min-h-11 text-[13px] font-medium text-[var(--apple-blue)]"
         >
-          결제가 여러 건이면 한 번에 올리기
+          {pendingLabel ? `${pendingLabel} — 한 번에 올리기` : "결제가 여러 건이면 한 번에 올리기"}
           <ArrowRight className="size-3.5" aria-hidden />
         </Link>
       )}

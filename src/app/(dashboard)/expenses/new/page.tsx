@@ -5,6 +5,8 @@ import { CreditCard, Banknote, ArrowRight, Undo2, ReceiptText, CalendarPlus, Lay
 import { TiltCard } from "@/components/layout/tilt-card";
 // 계획 모듈이 아니라 메뉴 게이트다(/api/plans/flag 한 번). 계획 코드를 이 화면 묶음에 넣지 않는다.
 import { PlansNavGate } from "@/components/plans/plans-nav-gate";
+import { usePendingCardSummary } from "@/hooks/use-pending-card-summary";
+import { pendingCardBatchHref, pendingCardLabel } from "@/lib/card-batch/pending-summary";
 
 const expenseTypes = [
   {
@@ -45,11 +47,24 @@ const salesTypes = [
 
 type TypeItem = (typeof expenseTypes)[number] | (typeof salesTypes)[number];
 
-function TypeCard({ type, index }: { type: TypeItem; index: number }) {
+function TypeCard({
+  type,
+  index,
+  pendingLabel,
+  pendingHref,
+}: {
+  type: TypeItem;
+  index: number;
+  pendingLabel?: string | null;
+  pendingHref?: string;
+}) {
+  // 안내는 「한 번에 올리기」 카드에만 — 두 카드에 같은 문구가 겹치지 않게
+  const showPending = type.href === "/expenses/new/card-batch" && !!pendingLabel;
+
   return (
     <TiltCard>
       <Link
-        href={type.href}
+        href={showPending && pendingHref ? pendingHref : type.href}
         className={`glass p-5 flex flex-col gap-3 transition-all duration-200 hover:bg-[rgba(0,0,0,0.05)] dark:hover:bg-[rgba(255,255,255,0.08)] hover:shadow-lg hover:scale-[1.02] group apple-press animate-card-enter stagger-${index + 1}`}
       >
         <div className="flex items-center justify-center size-12 rounded-2xl bg-[var(--apple-secondary-system-background)]">
@@ -63,6 +78,12 @@ function TypeCard({ type, index }: { type: TypeItem; index: number }) {
           <p className="text-footnote text-[var(--apple-secondary-label)] leading-relaxed mt-1">
             {type.description}
           </p>
+          {/* 불러온 뒤에만 나타난다 — 0건인 사람에게 빈자리를 남기지 않는다 */}
+          {showPending && (
+            <p className="mt-1 text-footnote font-medium tabular-nums text-[var(--apple-blue)] animate-fade-up">
+              {pendingLabel}
+            </p>
+          )}
         </div>
       </Link>
     </TiltCard>
@@ -70,6 +91,10 @@ function TypeCard({ type, index }: { type: TypeItem; index: number }) {
 }
 
 export default function NewExpensePage() {
+  const summary = usePendingCardSummary();
+  const pendingLabel = pendingCardLabel(summary?.count);
+  const pendingHref = pendingCardBatchHref(summary?.oldestDate);
+
   return (
     <div className="mx-auto max-w-lg space-y-5">
       <div className="animate-fade-up">
@@ -85,7 +110,7 @@ export default function NewExpensePage() {
         </h2>
         <div className="grid gap-4 sm:grid-cols-2">
           {expenseTypes.map((type, index) => (
-            <TypeCard key={type.href} type={type} index={index} />
+            <TypeCard key={type.href} type={type} index={index} pendingLabel={pendingLabel} pendingHref={pendingHref} />
           ))}
         </div>
       </section>

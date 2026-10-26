@@ -106,6 +106,58 @@ export async function listPendingCardTransactions(
   return { items, truncated: rows.length > LIST_LIMIT };
 }
 
+/** 「아직 안 올린 결제 N건」 — 최근 days 일 동안 내 카드의 미처리 고위드 결제 요약 */
+export interface PendingCardSummary {
+  count: number;
+  /** 원화 청구 금액 합계(원) */
+  totalAmount: number;
+  /** YYYY-MM-DD (없으면 null) */
+  oldestDate: string | null;
+  newestDate: string | null;
+  days: number;
+}
+
+/**
+ * 내 카드의 아직 안 올린 결제를 오늘 포함 최근 days 일만 센다(그보다 오래된 건은 이미 다른 경로로 정리됐거나
+ * 오래 묵은 것이라 첫 화면에서 「할 일」로 보여 주면 소음이 된다 — 전체는 한 번에 올리기 화면에서 기간으로 본다).
+ * - 목록(listPendingCardTransactions)과 같은 중복 의심 조건에 걸리는 건(알림 없이 손으로 이미 올린 것)은 뺀다.
+ *   목록 화면에서는 그대로 보이고 「이미 올렸을 수 있음」으로 표시된다.
+ * - source 는 거르지 않는다. codef 출처 행은 ERP 동기화가 넣는 다른 카드(예: 파트너스 0180)의 실제 결제이고
+ *   고위드 행과 겹치지 않는다(10-26 확인). 목록·일괄 제출도 출처를 가리지 않는다.
+ */
+export async function summarizePendingCardTransactions(userId: string, days = 60): Promise<PendingCardSummary> {
+  const rows = rowsOf(
+    await db.execute(sql`
+      SELECT count(*)::int AS count, coalesce(sum(g.amount), 0)::bigint AS total,
+             min(g.expense_date) AS oldest, max(g.expense_date) AS newest
+        FROM expenseone.gowid_transactions g
+       WHERE g.user_id = ${userId}::uuid
+         AND g.status = 'pending'
+         AND g.expense_date >= to_char((now() AT TIME ZONE 'Asia/Seoul')::date - (${days}::int - 1), 'YYYYMMDD')
+         AND NOT EXISTS (
+           SELECT 1 FROM expenseone.expenses e
+            WHERE e.submitted_by_id = ${userId}::uuid
+              AND e.type = 'CORPORATE_CARD' AND e.status <> 'CANCELLED'
+              AND e.transaction_date BETWEEN to_date(g.expense_date, 'YYYYMMDD') - 2
+                                         AND to_date(g.expense_date, 'YYYYMMDD') + 2
+              AND (e.amount = g.amount
+                   OR (g.store_name IS NOT NULL AND e.merchant_name IS NOT NULL
+                       AND lower(trim(e.merchant_name)) = lower(trim(g.store_name))))
+              AND NOT EXISTS (SELECT 1 FROM expenseone.gowid_transactions g2
+                               WHERE g2.consumed_expense_id = e.id)
+         )
+    `),
+  );
+  const r = rows[0] ?? {};
+  return {
+    count: Number(r.count ?? 0),
+    totalAmount: Number(r.total ?? 0),
+    oldestDate: r.oldest ? compactToIso(String(r.oldest)) : null,
+    newestDate: r.newest ? compactToIso(String(r.newest)) : null,
+    days,
+  };
+}
+
 export interface BatchUser {
   id: string;
   name: string;
