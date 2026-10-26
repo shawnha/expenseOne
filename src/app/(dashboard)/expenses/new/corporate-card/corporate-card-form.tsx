@@ -95,6 +95,9 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
   const preselect = usePreselectedPlan(planId, {
     onLoaded: (pick) => {
       setSelectedPick(pick);
+      // 카드에 회사가 정해진 결제(고위드 카드 매핑)면 그 회사를 지킨다 — 계획 회사로 몰래 바꾸면 다른 법인 비용이 된다
+      // (리뷰 10-27). 다르면 칩이 「회사가 달라 연결되지 않습니다」를 보이고 planId 는 보내지 않는다(activePlanId).
+      if (prefillData?.companyId) return;
       planCompanyRef.current = pick.companyId;
       if (shouldFillCompany({
         touched: companyTouchedRef.current,
