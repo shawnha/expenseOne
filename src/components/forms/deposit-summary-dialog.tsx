@@ -42,7 +42,12 @@ export function DepositSummaryDialog({ open, summary, submitting, onCancel, onCo
         </DialogHeader>
 
         {/* 내용만 스크롤하고 수정·제출 버튼은 항상 보이게 둔다. */}
-        <dl className="min-h-0 min-w-0 flex-1 space-y-1 overflow-y-auto overscroll-contain">
+        {/* 키보드로도 스크롤할 수 있게 포커스를 받는다(Safari 는 포커스 없는 스크롤 영역을 키보드로 못 내린다). */}
+        <dl
+          tabIndex={0}
+          aria-label="제출할 내용"
+          className="min-h-0 min-w-0 flex-1 space-y-1 overflow-y-auto overscroll-contain rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--apple-blue)]"
+        >
           {summary?.rows.map((row) => (
             <div
               key={row.key}

@@ -117,8 +117,14 @@ export function shouldAutoFillOcrAmount(form: { supplyAmount: number; amountTouc
  * 달러 문서의 금액(달러, 소수 둘째 자리까지). 폼이 받는 외화는 USD 뿐이라 다른 통화(CNY·CAD 등)는 null —
  * 화면은 지금처럼 「직접 환산해 입력」 안내를 둔다. 셋째 자리 이하가 있으면 잘못 읽은 값으로 보고 넣지 않는다.
  */
-export function ocrUsdAmount(f: { currency?: string | null; totalAmount?: number | null }): number | null {
+export function ocrUsdAmount(f: {
+  currency?: string | null;
+  totalAmount?: number | null;
+  amountIncludesVat?: string | null;
+}): number | null {
   if ((f.currency ?? "").trim().toUpperCase() !== "USD") return null;
+  // 「부가세 별도」로 읽힌 달러 문서는 한국 부가세 10%를 더할지 애매하다(해외 거래처는 보통 붙이지 않는다) — 넣지 않고 안내만 둔다.
+  if (f.amountIncludesVat === "no") return null;
   const t = f.totalAmount;
   if (t == null || !Number.isFinite(t) || t <= 0) return null;
   const cents = Math.round(t * 100);

@@ -71,6 +71,8 @@ describe("사진 자동 채우기 조건", () => {
     assert.equal(ocrUsdAmount({ currency: "usd", totalAmount: 123.45 }), 123.45);
     assert.equal(ocrUsdAmount({ currency: "USD", totalAmount: 1200 }), 1200);
     assert.equal(ocrUsdAmount({ currency: "USD", totalAmount: 1.005 }), null);
+    assert.equal(ocrUsdAmount({ currency: "USD", totalAmount: 100, amountIncludesVat: "no" }), null);
+    assert.equal(ocrUsdAmount({ currency: "USD", totalAmount: 100, amountIncludesVat: "unknown" }), 100);
     for (const f of [
       { currency: "KRW", totalAmount: 1000 },
       { currency: "CNY", totalAmount: 100 },
