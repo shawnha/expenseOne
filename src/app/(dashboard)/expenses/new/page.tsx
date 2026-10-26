@@ -5,6 +5,8 @@ import { CreditCard, Banknote, ArrowRight, Undo2, ReceiptText, CalendarPlus, Lay
 import { TiltCard } from "@/components/layout/tilt-card";
 // 계획 모듈이 아니라 메뉴 게이트다(/api/plans/flag 한 번). 계획 코드를 이 화면 묶음에 넣지 않는다.
 import { PlansNavGate } from "@/components/plans/plans-nav-gate";
+import { usePendingCardSummary } from "@/hooks/use-pending-card-summary";
+import { pendingCardLabel } from "@/lib/card-batch/pending-summary";
 
 const expenseTypes = [
   {
@@ -45,7 +47,9 @@ const salesTypes = [
 
 type TypeItem = (typeof expenseTypes)[number] | (typeof salesTypes)[number];
 
-function TypeCard({ type, index }: { type: TypeItem; index: number }) {
+function TypeCard({ type, index, pendingLabel }: { type: TypeItem; index: number; pendingLabel?: string | null }) {
+  const showPending = type.href === "/expenses/new/corporate-card" || type.href === "/expenses/new/card-batch";
+
   return (
     <TiltCard>
       <Link
@@ -63,6 +67,15 @@ function TypeCard({ type, index }: { type: TypeItem; index: number }) {
           <p className="text-footnote text-[var(--apple-secondary-label)] leading-relaxed mt-1">
             {type.description}
           </p>
+          {showPending && (
+            <div className="mt-1 min-h-5" aria-live="polite">
+              {pendingLabel && (
+                <p className="text-footnote font-medium tabular-nums text-[var(--apple-blue)]">
+                  {pendingLabel}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </Link>
     </TiltCard>
@@ -70,6 +83,9 @@ function TypeCard({ type, index }: { type: TypeItem; index: number }) {
 }
 
 export default function NewExpensePage() {
+  const summary = usePendingCardSummary();
+  const pendingLabel = pendingCardLabel(summary?.count);
+
   return (
     <div className="mx-auto max-w-lg space-y-5">
       <div className="animate-fade-up">
@@ -85,7 +101,7 @@ export default function NewExpensePage() {
         </h2>
         <div className="grid gap-4 sm:grid-cols-2">
           {expenseTypes.map((type, index) => (
-            <TypeCard key={type.href} type={type} index={index} />
+            <TypeCard key={type.href} type={type} index={index} pendingLabel={pendingLabel} />
           ))}
         </div>
       </section>
