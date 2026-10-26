@@ -79,6 +79,57 @@ async function decodable(buffer: Buffer, mime: string): Promise<Buffer> {
   return isHeicMime(mime) ? heicToJpeg(buffer) : buffer;
 }
 
+export interface ImageTilePlan {
+  direction: "vertical" | "horizontal";
+  regions: { left: number; top: number; width: number; height: number }[];
+}
+
+/** 긴 캡처를 약 12% 겹치게 나눈다. 6장을 넘으면 타일 비율 제한보다 전체 범위를 우선한다. */
+export function planImageTiles(width: number, height: number): ImageTilePlan | null {
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) return null;
+  const vertical = height > width;
+  const long = Math.max(width, height);
+  const short = Math.min(width, height);
+  if (long / short <= 2.5) return null;
+
+  const overlap = 0.12;
+  const target = short * 1.6;
+  const count = Math.min(6, Math.ceil((long / target - overlap) / (1 - overlap)));
+  const length = Math.ceil(long / (1 + (count - 1) * (1 - overlap)));
+  const regions = Array.from({ length: count }, (_, i) => {
+    const start = Math.round(i * (long - length) / (count - 1));
+    return vertical
+      ? { left: 0, top: start, width, height: length }
+      : { left: start, top: 0, width: length, height };
+  });
+  return { direction: vertical ? "vertical" : "horizontal", regions };
+}
+
+/** EXIF 회전을 먼저 적용한 원본에서 자른다. 보통 사진은 null → 기존 단일 이미지 경로. */
+export async function tileImageForModel(buffer: Buffer, mime: string): Promise<{
+  plan: ImageTilePlan;
+  tiles: Buffer[];
+} | null> {
+  const src = await decodable(buffer, mime);
+  const meta = await sharp(src, sharpOpts).metadata();
+  let width = meta.width ?? 0;
+  let height = meta.height ?? 0;
+  if ((meta.orientation ?? 1) >= 5) [width, height] = [height, width];
+  const plan = planImageTiles(width, height);
+  if (!plan) return null;
+
+  const { data, info } = await sharp(src, sharpOpts).rotate().raw().toBuffer({ resolveWithObject: true });
+  const tiles: Buffer[] = [];
+  for (const region of plan.regions) {
+    tiles.push(await sharp(data, { raw: { width: info.width, height: info.height, channels: info.channels } })
+      .extract(region)
+      .resize({ width: 2000, height: 2000, fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 85 })
+      .toBuffer());
+  }
+  return { plan, tiles };
+}
+
 /** 모델에 보낼 사본: EXIF 회전 적용, 긴 변 2000px 이내, JPEG 85 */
 export async function toJpegForModel(buffer: Buffer, mime: string): Promise<Buffer> {
   const src = await decodable(buffer, mime);
