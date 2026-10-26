@@ -286,6 +286,7 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
       shiftMonth,
       openEdit: (card) => setDialog({ card, mode: "edit" }),
       createDepositRequest: (card) => router.push(`/expenses/new/deposit-request?plan=${card.id}`),
+      prefetchDepositRequest: (card) => router.prefetch(`/expenses/new/deposit-request?plan=${card.id}`),
       linkCardPayment: (card) => router.push(`/plans/${card.id}?link=card`),
       openDelete: (card) => setDialog({ card, mode: "cancel" }),
       swipeOpenId,

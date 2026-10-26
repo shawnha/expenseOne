@@ -156,6 +156,11 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
   });
 
   const [menuOpen, setMenuOpen] = useState(false);
+  // 「…」·오른쪽 클릭·길게 누르기 모두 메뉴를 열 때 입금요청 폼을 준비한다.
+  useEffect(() => {
+    if (menuOpen && actionable) board.prefetchDepositRequest(card);
+  }, [menuOpen, actionable, board, card]);
+
   /** true 면 "…" 버튼에, false 면 ContextMenu 가 잡은 지점(오른쪽 클릭·길게 누르기)에 붙인다. */
   const [anchorToButton, setAnchorToButton] = useState(false);
   /**

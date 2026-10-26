@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, EyeOff, Link2, Plus, Repeat, Search, Sparkles } from "lucide-react";
+import { ArrowLeft, Banknote, CreditCard, EyeOff, Link2, Plus, Repeat, Search, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -188,8 +188,8 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
 
       {/* 머리 */}
       <section className="glass p-4 sm:p-5 animate-fade-up">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
+        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row">
+          <div className="min-w-0 sm:flex-1">
             <div className="flex flex-wrap items-center gap-2">
               {plan.status !== "PLANNED" && (
                 <span className="glass-badge glass-badge-gray">
@@ -230,9 +230,30 @@ export function PlanDetailView({ detail }: PlanDetailViewProps) {
             )}
           </div>
           {canEdit && (
-            <Button type="button" size="lg" variant="outline" onClick={() => setEditOpen(true)}>
-              수정
-            </Button>
+            <div className="flex max-w-full flex-wrap items-center gap-2 sm:ml-auto sm:justify-end">
+              <Link
+                href={`/expenses/new/deposit-request?plan=${plan.id}`}
+                className={buttonVariants({ size: "lg" })}
+              >
+                <Banknote className="size-4" aria-hidden="true" />
+                입금요청으로 만들기
+              </Link>
+              <Button
+                type="button"
+                size="lg"
+                variant="outline"
+                onClick={() => {
+                  setLinkInitialKind("card");
+                  setLinkOpen(true);
+                }}
+              >
+                <CreditCard className="size-4 text-[var(--apple-blue)]" aria-hidden="true" />
+                법카로 썼어요
+              </Button>
+              <Button type="button" size="lg" variant="outline" onClick={() => setEditOpen(true)}>
+                수정
+              </Button>
+            </div>
           )}
         </div>
 
