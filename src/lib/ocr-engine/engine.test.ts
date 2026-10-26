@@ -1,13 +1,15 @@
 /**
  * OCR 순수 함수 단위 테스트 (네트워크 호출 없음). 실행: npm run test:unit
  */
-import { describe, it, beforeEach } from "node:test";
+import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import sharp from "sharp";
 import { ocrModelSchema, toOcrFields, toRotation, type OcrModelOutput } from "./prompt";
 import { makeOutputImage, rotateJpeg, toJpegForModel, verifyMagic } from "./image";
-import { checkRateLimit, resetRateLimit } from "./rate-limit";
-import { MAX_PIXELS } from "../image-resize";
+import { createRateLimiter } from "./rate-limit";
+import { MAX_PIXELS } from "./image";
+import { createOcrRouteHandler } from "./handler";
+import type { OcrEngine } from "./extract";
 
 const base: OcrModelOutput = {
   doc_type: "카드전표/영수증",
@@ -125,16 +127,111 @@ describe("이미지 전처리", () => {
   });
 });
 
-describe("checkRateLimit", () => {
-  beforeEach(() => resetRateLimit());
-  it("창 안에서 max 초과 시 거부, 사용자별 분리", () => {
-    for (let i = 0; i < 3; i++) assert.ok(checkRateLimit("u1", 1000 + i, 3, 10_000));
-    assert.ok(!checkRateLimit("u1", 1010, 3, 10_000));
-    assert.ok(checkRateLimit("u2", 1010, 3, 10_000));
+describe("createRateLimiter", () => {
+  it("창 안에서 max 초과 시 거부, 키별 분리", () => {
+    const rl = createRateLimiter({ max: 3, windowMs: 10_000 });
+    for (let i = 0; i < 3; i++) assert.ok(rl.check("u1", 1000 + i));
+    assert.ok(!rl.check("u1", 1010));
+    assert.ok(rl.check("u2", 1010));
   });
   it("창이 지나면 다시 허용", () => {
-    for (let i = 0; i < 3; i++) checkRateLimit("u1", 1000, 3, 10_000);
-    assert.ok(!checkRateLimit("u1", 5000, 3, 10_000));
-    assert.ok(checkRateLimit("u1", 11_001, 3, 10_000));
+    const rl = createRateLimiter({ max: 3, windowMs: 10_000 });
+    for (let i = 0; i < 3; i++) rl.check("u1", 1000);
+    assert.ok(!rl.check("u1", 5000));
+    assert.ok(rl.check("u1", 11_001));
+  });
+});
+
+// ---- 핸들러 (네트워크 없음, 가짜 엔진) ----
+const fakeEngine: OcrEngine = {
+  async run() {
+    throw new Error("엔진은 호출되면 안 된다");
+  },
+};
+const okAuth = async () => ({ key: "u1" });
+
+function post(opts: { length?: string | null; file?: { type: string; bytes: number[] | string } } = {}): Request {
+  const form = new FormData();
+  if (opts.file) {
+    const data = typeof opts.file.bytes === "string" ? opts.file.bytes : new Uint8Array(opts.file.bytes);
+    form.append("file", new File([data], "a", { type: opts.file.type }));
+  }
+  const headers = new Headers();
+  if (opts.length !== null) headers.set("content-length", opts.length ?? "100");
+  // 본문은 실제 직렬화에 맡기지 않는다 — Content-Length 검사는 formData 파싱 전에 끝난다
+  return new Request("http://localhost/api/ocr", { method: "POST", body: form, headers });
+}
+async function errCode(res: Response): Promise<string> {
+  return ((await res.json()) as { error: { code: string } }).error.code;
+}
+
+describe("createOcrRouteHandler", () => {
+  it("엔진이 null 이면 503 OCR_DISABLED", async () => {
+    const h = createOcrRouteHandler({ engine: () => null, identify: okAuth });
+    const res = await h(post());
+    assert.equal(res.status, 503);
+    assert.equal(await errCode(res), "OCR_DISABLED");
+  });
+  it("identify 가 Response 를 돌려주면 그대로 응답", async () => {
+    const h = createOcrRouteHandler({
+      engine: () => fakeEngine,
+      identify: async () => new Response("no", { status: 401 }),
+    });
+    const res = await h(post());
+    assert.equal(res.status, 401);
+    assert.equal(await res.text(), "no");
+  });
+  it("Content-Length 없으면 411", async () => {
+    const h = createOcrRouteHandler({ engine: () => fakeEngine, identify: okAuth });
+    const req = post({ length: null });
+    req.headers.delete("content-length");
+    const res = await h(req);
+    assert.equal(res.status, 411);
+    assert.equal(await errCode(res), "LENGTH_REQUIRED");
+  });
+  it("Content-Length 가 너무 크면 413", async () => {
+    const h = createOcrRouteHandler({ engine: () => fakeEngine, identify: okAuth });
+    const res = await h(post({ length: String(10 * 1024 * 1024) }));
+    assert.equal(res.status, 413);
+    assert.equal(await errCode(res), "PAYLOAD_TOO_LARGE");
+  });
+  it("지원하지 않는 MIME 은 400", async () => {
+    const h = createOcrRouteHandler({ engine: () => fakeEngine, identify: okAuth });
+    const res = await h(post({ file: { type: "text/plain", bytes: "hello" } }));
+    assert.equal(res.status, 400);
+    assert.equal(await errCode(res), "VALIDATION_ERROR");
+  });
+  it("매직 바이트가 안 맞으면 400", async () => {
+    const h = createOcrRouteHandler({ engine: () => fakeEngine, identify: okAuth });
+    const res = await h(post({ file: { type: "image/jpeg", bytes: "not a jpeg" } }));
+    assert.equal(res.status, 400);
+  });
+  it("레이트 리밋 초과는 429 (본문을 읽기 전)", async () => {
+    const h = createOcrRouteHandler({
+      engine: () => fakeEngine,
+      identify: okAuth,
+      rateLimiter: { check: () => false },
+    });
+    const res = await h(post());
+    assert.equal(res.status, 429);
+    assert.equal(await errCode(res), "RATE_LIMITED");
+  });
+  it("성공 시 { data } 와 사용량 로그(내용 없음)", async () => {
+    const logs: unknown[] = [];
+    const engine: OcrEngine = {
+      async run() {
+        return {
+          result: { fields: toOcrFields(base), rotation: 0, imageJpegBase64: null },
+          usage: { model: "m", calls: 1, inputTokens: 5, outputTokens: 6 },
+        };
+      },
+    };
+    const h = createOcrRouteHandler({ engine: () => engine, identify: okAuth, onLog: (e) => logs.push(e) });
+    const res = await h(post({ file: { type: "image/jpeg", bytes: [0xff, 0xd8, 0xff, 0xe0, 1, 2] } }));
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as { data: { fields: { merchantName: string } } };
+    assert.equal(body.data.fields.merchantName, "가게");
+    assert.equal(logs.length, 1);
+    assert.deepEqual(Object.keys(logs[0] as object).sort(), ["calls", "inputTokens", "kind", "model", "ms", "outputTokens"]);
   });
 });
