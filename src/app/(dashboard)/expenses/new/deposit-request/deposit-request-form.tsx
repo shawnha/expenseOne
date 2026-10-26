@@ -54,9 +54,12 @@ import type { PayeeSuggestion } from "@/services/autofill.service";
 import { accountKey, holderKey } from "@/lib/utils/autofill";
 import { getCategoryLabel } from "@/lib/utils/expense-utils";
 import { CompanySelector } from "@/components/forms/company-selector";
+import { AutoFillBand } from "@/components/forms/autofill-band";
+import { DepositSummaryDialog } from "@/components/forms/deposit-summary-dialog";
 import dynamic from "next/dynamic";
 const SubmitSuccessDialog = dynamic(() => import("@/components/forms/submit-success-dialog").then(m => m.SubmitSuccessDialog), { ssr: false });
 import {
+  DOCUMENT_TYPE_OPTIONS,
   depositRequestFormSchema,
   type DepositRequestFormData,
   type FileWithPreview,
@@ -66,6 +69,21 @@ import {
   formatDateISO,
 } from "@/lib/validations/expense-form";
 import { calcDepositAmount, calcDepositBreakdownKRW } from "@/lib/utils/deposit-amount";
+import {
+  activeFills,
+  buildDepositSummary,
+  dropFills,
+  planFillsToUndo,
+  fillKey,
+  ocrUsdAmount,
+  payeeForVendor,
+  planAmountToFill,
+  recordFill,
+  shouldAutoFillOcrAccount,
+  shouldAutoFillOcrAmount,
+  shouldAutoFillOcrUsdAmount,
+  type FillRecords,
+} from "@/lib/deposit-prefill";
 import { percentageForAmount, prePaidSplit } from "@/lib/utils/pre-paid";
 import { countUploadFailures, uploadFailureMessage } from "@/lib/utils/upload-results";
 import { resolveCreatedExpenseId } from "@/lib/utils/submit-result";
@@ -118,6 +136,21 @@ interface DepositRequestFormProps {
 export default function DepositRequestForm({ initialCompanies, myCategories = [], myPayees = [], recurringPrefill = null, planId }: DepositRequestFormProps) {
   const prefill = recurringPrefill;
   const prefillAmount = prefill && prefill.requestMode === "AUTO" ? prefill.expectedAmount : 0;
+  // 자동으로 채운 칸(띠 표시). 값이 그때와 같을 때만 띠가 보인다 — lib/deposit-prefill.
+  const [fills, setFills] = useState<FillRecords>(() => {
+    if (!prefill) return {};
+    let r: FillRecords = {};
+    r = recordFill(r, "title", "recurring", fillKey.title(prefill.title));
+    r = recordFill(r, "company", "recurring", fillKey.company(prefill.companyId));
+    r = recordFill(r, "account", "recurring", fillKey.account(prefill.bankName, prefill.accountHolder, prefill.accountNumber));
+    r = recordFill(r, "category", "recurring", fillKey.category(prefill.category));
+    r = recordFill(r, "amount", "recurring", fillKey.amount(prefillAmount, "KRW"));
+    if (prefill.dueDate) {
+      const [y, m, d] = prefill.dueDate.split("-").map(Number);
+      r = recordFill(r, "dueDate", "recurring", fillKey.dueDate(new Date(y, m - 1, d)));
+    }
+    return r;
+  });
   const [repeat, setRepeat] = useState<RepeatMonthlyValue>(defaultRepeatMonthly);
   const [files, setFiles] = useState<FileWithPreview[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -243,13 +276,27 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
   const [selectedPlan, setSelectedPlan] = useState<PlanPick | null>(null);
   const { mine: planMine, others: planOthers } = usePlanPicks(!recurringPrefill);
 
-  // 고르면 채우는 칸: 제목(비어 있을 때만) · 회사(직접 고르지 않았을 때만) · 납기일(DAY·비어 있음·오늘 이후).
-  // 금액은 절대 채우지 않는다 — 계획 금액은 예산이라 실제 입금액과 다르다.
+  // 계획을 고를 때(·?plan= 으로 들어올 때) 읽는 최신 금액 상태. usePreselectedPlan 은 첫 렌더의 콜백을 쓰므로
+  // 상태를 직접 잡으면 그 사이 사람이 친 금액을 덮을 수 있다.
+  const amountStateRef = useRef({ supplyAmount: prefillAmount, amountTouched: false, currency: "KRW", freelancer: false });
+  useEffect(() => {
+    amountStateRef.current = { supplyAmount, amountTouched, currency, freelancer: freelancerDeduction };
+  }, [supplyAmount, amountTouched, currency, freelancerDeduction]);
+
+  // 고르면 채우는 칸(2026-10-26 오너 결정으로 금액·계좌 추가, 채운 칸은 띠로 확인 — lib/deposit-prefill):
+  // 제목(비어 있을 때만) · 회사(직접 고르지 않았을 때만) · 납기일(DAY·비어 있음·오늘 이후)
+  // · 금액(원화 계획 + 금액 칸이 비어 있을 때만, 「부가세 포함」) · 거래처와 같은 예금주의 지난 계좌(계좌 칸이 비어 있을 때만).
   const applyPlan = useCallback(
     (pick: PlanPick) => {
       const opts = { shouldValidate: true, shouldDirty: true } as const;
       setSelectedPlan(pick);
-      if (shouldFillTitle(getValues("title"))) setValue("title", pick.title, opts);
+      let rec: FillRecords = {};
+      const filled: string[] = [];
+      if (shouldFillTitle(getValues("title"))) {
+        setValue("title", pick.title, opts);
+        rec = recordFill(rec, "title", "plan", fillKey.title(pick.title));
+        filled.push("제목");
+      }
       if (
         shouldFillCompany({
           touched: companyTouchedRef.current,
@@ -259,6 +306,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
         })
       ) {
         setCompanyId(pick.companyId);
+        rec = recordFill(rec, "company", "plan", fillKey.company(pick.companyId));
       }
       const due = dueDateToFill({
         datePrecision: pick.datePrecision,
@@ -266,9 +314,45 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
         currentDueDate: getValues("dueDate"),
         today: todayKST(),
       });
-      if (due) setValue("dueDate", isoToLocalDate(due), { shouldDirty: true });
+      if (due) {
+        const dueDate = isoToLocalDate(due);
+        setValue("dueDate", dueDate, { shouldDirty: true });
+        rec = recordFill(rec, "dueDate", "plan", fillKey.dueDate(dueDate));
+        filled.push("납기일");
+      }
+      // 계획 금액은 지급 총액으로 본다 → 「부가세 포함」(입력 금액 = 최종 금액). 원천징수는 지금 토글대로.
+      const st = amountStateRef.current;
+      const planAmount = planAmountToFill(pick, st);
+      if (planAmount != null) {
+        setVatIncluded(false);
+        setSupplyAmount(planAmount);
+        setAmountDisplay(formatAmount(planAmount));
+        setValue("amount", calcDepositAmount(planAmount, "KRW", false, st.freelancer), { shouldValidate: true });
+        rec = recordFill(rec, "amount", "plan", fillKey.amount(planAmount, "KRW"));
+        filled.push("금액");
+      }
+      const payee = payeeForVendor(pick.vendorName, myPayees, {
+        bankName: getValues("bankName"),
+        accountHolder: getValues("accountHolder"),
+        accountNumber: getValues("accountNumber"),
+      });
+      if (payee) {
+        setValue("bankName", payee.bankName, opts);
+        setValue("accountHolder", payee.accountHolder, opts);
+        setValue("accountNumber", accountKey(payee.accountNumber), opts);
+        rec = recordFill(rec, "account", "payee", fillKey.account(payee.bankName, payee.accountHolder, payee.accountNumber), { viaPlan: true });
+        filled.push("계좌");
+        if (!getValues("category")?.trim() && payee.category) {
+          setValue("category", payee.category, opts);
+          rec = recordFill(rec, "category", "payee", fillKey.category(payee.category), { viaPlan: true });
+        }
+      }
+      setFills((prev) => ({ ...prev, ...rec }));
+      if (filled.length > 0) {
+        toast.success(`계획에서 ${filled.join("·")}을 채웠습니다. 표시된 칸이 맞는지 확인해주세요.`);
+      }
     },
-    [setValue, getValues, companyId, initialCompanies],
+    [setValue, getValues, companyId, initialCompanies, myPayees],
   );
   // 목록에서 고른 직후에는 칩의 ×로, 연결을 푼 직후에는 목록 제목으로 포커스를 옮긴다(사라진 요소에서 포커스가 body 로 떨어지지 않게).
   const [focusTarget, setFocusTarget] = useState<"chip" | "panel" | null>(null);
@@ -279,10 +363,40 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
     },
     [applyPlan],
   );
+  // 연결을 풀면 계획으로 채웠고 아직 손대지 않은 칸을 비운다 — 남겨 두면 다음 계획이 못 채우고, 앞 계획의 금액·계좌가
+  // 「비용계획에서 채움」 띠를 단 채 다른 계획으로 제출된다(리뷰 10-27). 사람이 고친 칸은 그대로 둔다. 회사는 비울 수 없어 띠만 뺀다.
   const cancelPlanLink = useCallback(() => {
     setFocusTarget("panel");
     setSelectedPlan(null);
-  }, []);
+    const st = amountStateRef.current;
+    const undo = planFillsToUndo(fills, {
+      title: fillKey.title(getValues("title")),
+      company: fillKey.company(companyId),
+      dueDate: fillKey.dueDate(getValues("dueDate") ?? null),
+      amount: fillKey.amount(st.supplyAmount, st.currency),
+      account: fillKey.account(getValues("bankName"), getValues("accountHolder"), getValues("accountNumber")),
+      category: fillKey.category(getValues("category")),
+    });
+    if (undo.length === 0) return;
+    const opts = { shouldValidate: false, shouldDirty: true } as const;
+    for (const f of undo) {
+      if (f === "title") setValue("title", "", opts);
+      if (f === "dueDate") setValue("dueDate", null, { shouldDirty: true });
+      if (f === "category") setValue("category", "", opts);
+      if (f === "account") {
+        setValue("bankName", "", opts);
+        setValue("accountHolder", "", opts);
+        setValue("accountNumber", "", opts);
+      }
+      if (f === "amount") {
+        setVatIncluded(false);
+        setSupplyAmount(0);
+        setAmountDisplay("");
+        setValue("amount", 0, { shouldValidate: false });
+      }
+    }
+    setFills((prev) => dropFills(prev, undo));
+  }, [fills, getValues, setValue, companyId]);
   const preselect = usePreselectedPlan(recurringPrefill ? undefined : planId, {
     onLoaded: applyPlan,
     onMissing: () =>
@@ -350,8 +464,10 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
       setValue("accountNumber", accountKey(p.accountNumber), opts);
 
       const filled = ["계좌"];
+      let rec = recordFill({}, "account", "payee", fillKey.account(p.bankName, p.accountHolder, p.accountNumber));
       if (!getValues("category")?.trim() && p.category) {
         setValue("category", p.category, opts);
+        rec = recordFill(rec, "category", "payee", fillKey.category(p.category));
         filled.push("카테고리");
       }
       // 계획을 골라 둔 상태면 회사는 계획이 정한 대로 둔다(법인이 다르면 연결이 안 된다).
@@ -363,8 +479,10 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
         initialCompanies?.some((c) => c.id === p.companyId)
       ) {
         setCompanyId(p.companyId);
+        rec = recordFill(rec, "company", "payee", fillKey.company(p.companyId));
         filled.push("회사");
       }
+      setFills((prev) => ({ ...prev, ...rec }));
       toast.success(`지난번 ${filled.join("·")} 정보를 채웠습니다. 금액은 직접 입력해주세요.`);
     },
     [setValue, getValues, companyId, initialCompanies, selectedPlan]
@@ -401,9 +519,17 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
     .filter((x): x is OcrFields => !!x);
   const ocrAmount = ocrAttached.map(suggestAmountKRW).find((x): x is AmountSuggestion => !!x) ?? null;
   const ocrAccount = ocrAttached.map(suggestAccount).find((x): x is AccountSuggestion => !!x) ?? null;
+  const ocrUsd = ocrAttached.map(ocrUsdAmount).find((x): x is number => x != null) ?? null;
   const foreignFields = ocrAmount
     ? undefined
-    : ocrAttached.find((x) => x.totalAmount && x.currency && x.currency.toUpperCase() !== "KRW");
+    : ocrAttached.find(
+        (x) =>
+          x.totalAmount &&
+          x.currency &&
+          x.currency.toUpperCase() !== "KRW" &&
+          // 달러 금액을 이미 그 값으로 채웠으면 안내가 필요 없다
+          !(currency === "USD" && ocrUsd != null && supplyAmount === ocrUsd && ocrUsdAmount(x) === ocrUsd),
+      );
   const amountSug =
     ocrAmount && !(supplyAmount === ocrAmount.base && vatIncluded === ocrAmount.vatExclusive) ? ocrAmount : null;
   const accountSug =
@@ -440,6 +566,78 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
       onApply={() => applyOcrAccount(accountSug)}
     />
   ) : null;
+
+  // 사진(첨부 서류)에서 읽은 금액·계좌를 **빈 칸에만** 바로 넣는다(2026-10-26 오너 결정, 띠로 확인 + 제출 전 요약).
+  // 칸마다 한 번만 — 사람이 지운 칸을 다시 채우지 않는다. 이미 값이 있으면 지금처럼 「적용」 칩으로 남는다.
+  const ocrAutoDone = useRef<Set<"amount" | "account">>(new Set());
+  useEffect(() => {
+    const done = ocrAutoDone.current;
+    let rec: FillRecords = {};
+    const filled: string[] = [];
+    if (!done.has("amount")) {
+      if (ocrAmount && shouldAutoFillOcrAmount({ supplyAmount, amountTouched, currency })) {
+        done.add("amount");
+        setVatIncluded(ocrAmount.vatExclusive);
+        setSupplyAmount(ocrAmount.base);
+        setAmountDisplay(formatAmount(ocrAmount.base));
+        setValue("amount", calcDepositAmount(ocrAmount.base, "KRW", ocrAmount.vatExclusive, freelancerDeduction), { shouldValidate: true });
+        rec = recordFill(rec, "amount", "ocr", fillKey.amount(ocrAmount.base, "KRW"));
+        filled.push("금액");
+      } else if (!ocrAmount && ocrUsd != null && shouldAutoFillOcrUsdAmount({ supplyAmount, amountTouched })) {
+        // 달러 문서 — 폼을 달러로 바꾸고 넣는다(통화 바꾸기와 같은 정리: 선지급 금액 지정은 원화 건만).
+        done.add("amount");
+        setCurrency("USD");
+        if (getValues("prePaidFixedAmount") != null) {
+          setValue("prePaidFixedAmount", null);
+          setValue("prePaidPercentage", 50);
+        }
+        setPrePaidUnit("percent");
+        setVatIncluded(false);
+        setSupplyAmount(ocrUsd);
+        setAmountDisplay(String(ocrUsd));
+        setValue("amount", calcDepositAmount(ocrUsd, "USD", false, freelancerDeduction), { shouldValidate: true });
+        rec = recordFill(rec, "amount", "ocr", fillKey.amount(ocrUsd, "USD"));
+        filled.push("달러 금액");
+      }
+    }
+    if (
+      !done.has("account") &&
+      ocrAccount &&
+      shouldAutoFillOcrAccount({ bankName: typedBank, accountHolder: typedHolder, accountNumber: typedAccount })
+    ) {
+      done.add("account");
+      const opts = { shouldValidate: true, shouldDirty: true } as const;
+      if (ocrAccount.bankName) setValue("bankName", ocrAccount.bankName, opts);
+      setValue("accountHolder", ocrAccount.accountHolder, opts);
+      setValue("accountNumber", ocrAccount.accountNumber, opts);
+      rec = recordFill(
+        rec,
+        "account",
+        "ocr",
+        fillKey.account(ocrAccount.bankName ?? "", ocrAccount.accountHolder, ocrAccount.accountNumber),
+      );
+      filled.push(ocrAccount.bankName ? "계좌" : "계좌(은행은 직접 선택)");
+    }
+    if (filled.length > 0) {
+      setFills((prev) => ({ ...prev, ...rec }));
+      toast.success(`첨부 서류에서 ${filled.join("·")}를 채웠습니다. 표시된 칸이 맞는지 확인해주세요.`);
+    }
+    // 새로 읽힌 값이 생길 때만 본다. 폼 값은 조건 판단에만 쓰고(칸마다 한 번), 바뀔 때마다 다시 돌 필요는 없다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ocrAmount?.base, ocrAmount?.vatExclusive, ocrUsd, ocrAccount?.accountNumber, ocrAccount?.accountHolder, ocrAccount?.bankName]);
+
+  // 지금 띠를 보여 줄 칸 — 채운 값 그대로인 칸만.
+  const watchedTitle = watch("title");
+  const watchedCategory = watch("category");
+  const watchedDueDate = watch("dueDate");
+  const autoFilled = activeFills(fills, {
+    title: fillKey.title(watchedTitle),
+    company: fillKey.company(companyId),
+    dueDate: fillKey.dueDate(watchedDueDate ?? null),
+    amount: fillKey.amount(supplyAmount, currency),
+    account: fillKey.account(typedBank, typedHolder, typedAccount),
+    category: fillKey.category(watchedCategory),
+  });
 
   // amount 필드 = KRW 원 / USD 센트. 부가세·원천징수 배율은 통화별 최소 단위로
   // 바꾼 뒤 적용한다 — 예전엔 토글이 달러 값에 배율만 곱해 100분의 1로 저장됐다.
@@ -504,8 +702,8 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
     [setValue, supplyAmount, vatIncluded, currency]
   );
 
-  // 사진에서 읽은 결과 — 칸을 바로 채우지 않고 「적용」 제안만 만든다. 첫 번째로 읽힌 값이 이긴다
-  // (견적서에서 금액, 통장사본에서 계좌처럼 첨부마다 다른 값이 나오는 게 보통이다).
+  // 사진에서 읽은 결과 — 빈 칸이면 아래 효과가 바로 넣고(띠 표시), 이미 값이 있으면 「적용」 제안으로 남는다.
+  // 첫 번째로 읽힌 값이 이긴다(견적서에서 금액, 통장사본에서 계좌처럼 첨부마다 다른 값이 나오는 게 보통이다).
   const handleDocumentRead = useCallback((fileId: string, result: OcrResult) => {
     setOcrResults((prev) => [...prev.filter((r) => r.fileId !== fileId), { fileId, fields: result.fields }]);
   }, []);
@@ -614,7 +812,10 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
     toast.error(errorMsg);
   };
 
-  const onSubmit = async (data: DepositRequestFormData) => {
+  // 제출 전 요약(2026-10-26 오너 결정) — 검사를 통과하면 바로 보내지 않고 요약 창을 연다. 「제출」을 눌러야 보낸다.
+  const [pendingSubmit, setPendingSubmit] = useState<DepositRequestFormData | null>(null);
+
+  const onSubmit = (data: DepositRequestFormData) => {
     if (!validateFiles()) {
       return;
     }
@@ -629,6 +830,50 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
         return;
       }
     }
+    setPendingSubmit(data);
+  };
+
+  // 요약 창에 보여 줄 행. 숫자는 폼 미리보기·저장과 같은 함수로 계산한다(lib/deposit-prefill buildDepositSummary).
+  const submitSummary = pendingSubmit
+    ? buildDepositSummary({
+        companyName: initialCompanies?.find((c) => c.id === companyId)?.name ?? null,
+        categoryLabel: pendingSubmit.category ? getCategoryLabel(pendingSubmit.category) : null,
+        title: pendingSubmit.title,
+        currency,
+        supplyAmount,
+        vatAdded: vatIncluded,
+        freelancer: freelancerDeduction,
+        rate: exchangeRate?.rate ?? null,
+        bankName: pendingSubmit.bankName,
+        accountHolder: pendingSubmit.accountHolder,
+        accountNumber: pendingSubmit.accountNumber,
+        dueDate: pendingSubmit.dueDate ?? null,
+        isUrgent: !!pendingSubmit.isUrgent,
+        isPrePaid: !!pendingSubmit.isPrePaid,
+        prePaidMode,
+        prePaidUnit,
+        prePaidPercentage: pendingSubmit.prePaidPercentage ?? null,
+        prePaidFixedAmount: pendingSubmit.prePaidFixedAmount ?? null,
+        plan: selectedPlan && !prefill ? { title: selectedPlan.title, linked: !planCompanyMismatch } : null,
+        attachments: {
+          count: files.length,
+          typeLabels: files
+            .map((f) => (f.documentType ? DOCUMENT_TYPE_OPTIONS.find((o) => o.value === f.documentType)?.label ?? f.documentType : null))
+            .filter((x): x is string => !!x),
+        },
+        branch: askBranch ? branch : null,
+        purchaseCount: purchase.isPurchase ? purchase.lines.filter((l) => l.pharmacyName.trim()).length : 0,
+        description: pendingSubmit.description ?? null,
+        autoFilled,
+      })
+    : null;
+
+  /** 요약 창의 「제출」. 요약을 연 뒤 폼이 바뀌지 않게 창이 폼을 덮는다(창을 닫으면 다시 고칠 수 있다). */
+  const confirmSubmit = async () => {
+    const data = pendingSubmit;
+    if (!data || isSubmitting) return;
+    setPendingSubmit(null);
+    const byAmount = data.isPrePaid && prePaidMode === "partial" && prePaidUnit === "amount";
 
     setIsSubmitting(true);
 
@@ -834,27 +1079,31 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
 
           <div className="space-y-5">
             {/* 회사 선택 */}
-            <CompanySelector
-              value={companyId}
-              onChange={handleCompanyChange}
-              userCompanyId={userCompanyId}
-              initialCompanies={initialCompanies}
-            />
+            <AutoFillBand source={autoFilled.company}>
+              <CompanySelector
+                value={companyId}
+                onChange={handleCompanyChange}
+                userCompanyId={userCompanyId}
+                initialCompanies={initialCompanies}
+              />
+            </AutoFillBand>
 
             {/* 카테고리 — 프리셋 + 내가 쓰던 것 + 직접 입력 */}
-            <Controller
-              name="category"
-              control={control}
-              render={({ field }) => (
-                <CategorySelectField
-                  value={field.value ?? ""}
-                  onChange={field.onChange}
-                  myCategories={myCategories}
-                  suggestion={categorySuggestion}
-                  error={errors.category?.message}
-                />
-              )}
-            />
+            <AutoFillBand source={autoFilled.category}>
+              <Controller
+                name="category"
+                control={control}
+                render={({ field }) => (
+                  <CategorySelectField
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    myCategories={myCategories}
+                    suggestion={categorySuggestion}
+                    error={errors.category?.message}
+                  />
+                )}
+              />
+            </AutoFillBand>
 
             {/* 호점 — 리테일 마트/약국일 때만. 다른 경우엔 의미 없는 칸이라 숨긴다. */}
             {askBranch && (
@@ -862,22 +1111,24 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
             )}
 
             {/* 제목 */}
-            <div className="space-y-1.5">
-              <Label htmlFor="title">
-                제목 <span className="text-[var(--apple-red)]">*</span>
-              </Label>
-              <Input
-                id="title"
-                placeholder="예: 외주 개발비 지급 요청"
-                aria-invalid={!!errors.title}
-                {...register("title")}
-              />
-              {errors.title && (
-                <p className="text-xs text-[var(--apple-red)]">
-                  {errors.title.message}
-                </p>
-              )}
-            </div>
+            <AutoFillBand source={autoFilled.title}>
+              <div className="space-y-1.5">
+                <Label htmlFor="title">
+                  제목 <span className="text-[var(--apple-red)]">*</span>
+                </Label>
+                <Input
+                  id="title"
+                  placeholder="예: 외주 개발비 지급 요청"
+                  aria-invalid={!!errors.title}
+                  {...register("title")}
+                />
+                {errors.title && (
+                  <p className="text-xs text-[var(--apple-red)]">
+                    {errors.title.message}
+                  </p>
+                )}
+              </div>
+            </AutoFillBand>
 
             {/* 금액 */}
             <div className="space-y-1.5">
@@ -917,33 +1168,35 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
                   ))}
                 </div>
               </div>
-              <div className="relative">
-                {currency === "USD" && (
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--apple-secondary-label)] pointer-events-none">
-                    $
-                  </span>
-                )}
-                <Input
-                  id="amount"
-                  placeholder="0"
-                  inputMode={currency === "USD" ? "decimal" : "numeric"}
-                  value={amountDisplay}
-                  onChange={handleAmountChange}
-                  aria-invalid={!!errors.amount}
-                  aria-describedby={selectedPlan && !prefill && currency === "KRW" ? "plan-amount-ref" : undefined}
-                  className={currency === "USD" ? "pl-7 pr-4" : "pr-10"}
-                />
-                {currency !== "USD" && (
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--apple-secondary-label)] pointer-events-none">원</span>
-                )}
-              </div>
-              {amountSugNode}
+              <AutoFillBand source={autoFilled.amount}>
+                <div className="relative">
+                  {currency === "USD" && (
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--apple-secondary-label)] pointer-events-none">
+                      $
+                    </span>
+                  )}
+                  <Input
+                    id="amount"
+                    placeholder="0"
+                    inputMode={currency === "USD" ? "decimal" : "numeric"}
+                    value={amountDisplay}
+                    onChange={handleAmountChange}
+                    aria-invalid={!!errors.amount}
+                    aria-describedby={selectedPlan && !prefill && currency === "KRW" ? "plan-amount-ref" : undefined}
+                    className={currency === "USD" ? "pl-7 pr-4" : "pr-10"}
+                  />
+                  {currency !== "USD" && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--apple-secondary-label)] pointer-events-none">원</span>
+                  )}
+                </div>
+                {amountSugNode}
 
-              {selectedPlan && !prefill && currency === "KRW" && (
-                <p id="plan-amount-ref" className="mt-1.5 text-[13px] text-[var(--apple-secondary-label)]">
-                  계획 금액 {formatWon(selectedPlan.amount)} (참고)
-                </p>
-              )}
+                {selectedPlan && !prefill && currency === "KRW" && (
+                  <p id="plan-amount-ref" className="mt-1.5 text-[13px] text-[var(--apple-secondary-label)]">
+                    계획 금액 {formatWon(selectedPlan.amount)} (참고)
+                  </p>
+                )}
+              </AutoFillBand>
 
               {/* USD exchange rate info */}
               {currency === "USD" && (
@@ -1316,171 +1569,177 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
               </div>
             )}
 
-            {/* 은행명 */}
-            <div className="space-y-1.5">
-              <Label>
-                은행명 <span className="text-[var(--apple-red)]">*</span>
-              </Label>
-              <Controller
-                name="bankName"
-                control={control}
-                render={({ field }) => (
-                  <Popover open={bankOpen} onOpenChange={setBankOpen}>
-                    <PopoverTrigger
-                      className={cn(
-                        "flex h-10 w-full items-center justify-between rounded-xl border border-[var(--apple-separator)] bg-[var(--apple-secondary-system-background)] px-3 text-sm transition-colors hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]",
-                        !field.value && "text-[var(--apple-secondary-label)]",
-                        errors.bankName && "border-[var(--apple-red)] ring-2 ring-[rgba(255,59,48,0.2)]"
-                      )}
+            <AutoFillBand source={autoFilled.account}>
+              <div className="space-y-5">
+                {/* 은행명 */}
+                <div className="space-y-1.5">
+                  <Label>
+                    은행명 <span className="text-[var(--apple-red)]">*</span>
+                  </Label>
+                  <Controller
+                    name="bankName"
+                    control={control}
+                    render={({ field }) => (
+                      <Popover open={bankOpen} onOpenChange={setBankOpen}>
+                        <PopoverTrigger
+                          className={cn(
+                            "flex h-10 w-full items-center justify-between rounded-xl border border-[var(--apple-separator)] bg-[var(--apple-secondary-system-background)] px-3 text-sm transition-colors hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]",
+                            !field.value && "text-[var(--apple-secondary-label)]",
+                            errors.bankName && "border-[var(--apple-red)] ring-2 ring-[rgba(255,59,48,0.2)]"
+                          )}
+                        >
+                          {field.value || "은행 선택"}
+                          <ChevronsUpDown className="size-4 text-[var(--apple-secondary-label)] shrink-0" />
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="은행 검색..." />
+                            <CommandList>
+                              <CommandEmpty>검색 결과가 없습니다.</CommandEmpty>
+                              <CommandGroup>
+                                {BANK_LIST.map((bank) => (
+                                  <CommandItem
+                                    key={bank}
+                                    value={bank}
+                                    onSelect={() => {
+                                      field.onChange(bank);
+                                      setBankOpen(false);
+                                    }}
+                                    data-checked={field.value === bank}
+                                  >
+                                    {bank}
+                                    {field.value === bank && (
+                                      <Check className="ml-auto size-4 text-[var(--apple-blue)]" />
+                                    )}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    )}
+                  />
+                  {errors.bankName && (
+                    <p className="text-xs text-[var(--apple-red)]">
+                      {errors.bankName.message}
+                    </p>
+                  )}
+                </div>
+
+                {/* 예금주 */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="accountHolder">
+                    예금주 <span className="text-[var(--apple-red)]">*</span>
+                  </Label>
+                  <Input
+                    id="accountHolder"
+                    placeholder="예: 홍길동"
+                    aria-invalid={!!errors.accountHolder}
+                    {...register("accountHolder")}
+                  />
+                  {holderMatch && !holderMatchApplied && (
+                    <button
+                      type="button"
+                      onClick={() => applyPayee(holderMatch)}
+                      className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2 text-left glass-input sm:min-h-9"
                     >
-                      {field.value || "은행 선택"}
-                      <ChevronsUpDown className="size-4 text-[var(--apple-secondary-label)] shrink-0" />
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                      <Command>
-                        <CommandInput placeholder="은행 검색..." />
-                        <CommandList>
-                          <CommandEmpty>검색 결과가 없습니다.</CommandEmpty>
-                          <CommandGroup>
-                            {BANK_LIST.map((bank) => (
-                              <CommandItem
-                                key={bank}
-                                value={bank}
-                                onSelect={() => {
-                                  field.onChange(bank);
-                                  setBankOpen(false);
-                                }}
-                                data-checked={field.value === bank}
-                              >
-                                {bank}
-                                {field.value === bank && (
-                                  <Check className="ml-auto size-4 text-[var(--apple-blue)]" />
-                                )}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                )}
-              />
-              {errors.bankName && (
-                <p className="text-xs text-[var(--apple-red)]">
-                  {errors.bankName.message}
-                </p>
-              )}
-            </div>
+                      <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--apple-secondary-label)]">
+                        지난번 계좌{" "}
+                        <span className="font-medium text-[var(--apple-label)]">
+                          {holderMatch.bankName} {holderMatch.accountNumber}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-[13px] font-semibold text-[var(--apple-blue)]">불러오기</span>
+                    </button>
+                  )}
+                  {errors.accountHolder && (
+                    <p className="text-xs text-[var(--apple-red)]">
+                      {errors.accountHolder.message}
+                    </p>
+                  )}
+                </div>
 
-            {/* 예금주 */}
-            <div className="space-y-1.5">
-              <Label htmlFor="accountHolder">
-                예금주 <span className="text-[var(--apple-red)]">*</span>
-              </Label>
-              <Input
-                id="accountHolder"
-                placeholder="예: 홍길동"
-                aria-invalid={!!errors.accountHolder}
-                {...register("accountHolder")}
-              />
-              {holderMatch && !holderMatchApplied && (
-                <button
-                  type="button"
-                  onClick={() => applyPayee(holderMatch)}
-                  className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2 text-left glass-input sm:min-h-9"
-                >
-                  <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--apple-secondary-label)]">
-                    지난번 계좌{" "}
-                    <span className="font-medium text-[var(--apple-label)]">
-                      {holderMatch.bankName} {holderMatch.accountNumber}
-                    </span>
-                  </span>
-                  <span className="shrink-0 text-[13px] font-semibold text-[var(--apple-blue)]">불러오기</span>
-                </button>
-              )}
-              {errors.accountHolder && (
-                <p className="text-xs text-[var(--apple-red)]">
-                  {errors.accountHolder.message}
-                </p>
-              )}
-            </div>
-
-            {/* 계좌번호 */}
-            <div className="space-y-1.5">
-              <Label htmlFor="accountNumber">
-                계좌번호 <span className="text-[var(--apple-red)]">*</span>
-              </Label>
-              <Input
-                id="accountNumber"
-                placeholder="숫자만 입력"
-                inputMode="numeric"
-                aria-invalid={!!errors.accountNumber}
-                {...register("accountNumber", {
-                  onChange: (e) => {
-                    e.target.value = e.target.value.replace(/[^\d]/g, "");
-                  },
-                })}
-              />
-              {errors.accountNumber && (
-                <p className="text-xs text-[var(--apple-red)]">
-                  {errors.accountNumber.message}
-                </p>
-              )}
-            </div>
+                {/* 계좌번호 */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="accountNumber">
+                    계좌번호 <span className="text-[var(--apple-red)]">*</span>
+                  </Label>
+                  <Input
+                    id="accountNumber"
+                    placeholder="숫자만 입력"
+                    inputMode="numeric"
+                    aria-invalid={!!errors.accountNumber}
+                    {...register("accountNumber", {
+                      onChange: (e) => {
+                        e.target.value = e.target.value.replace(/[^\d]/g, "");
+                      },
+                    })}
+                  />
+                  {errors.accountNumber && (
+                    <p className="text-xs text-[var(--apple-red)]">
+                      {errors.accountNumber.message}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </AutoFillBand>
 
             {/* 납입 기일 (선택) */}
-            <div className="space-y-1.5">
-              <Label>
-                납입 기일 <span className="text-[11px] text-[var(--apple-secondary-label)] font-normal">(선택)</span>
-              </Label>
-              <Controller
-                name="dueDate"
-                control={control}
-                render={({ field }) => (
-                  <div className="flex items-center gap-2">
-                    <Popover open={dueDateOpen} onOpenChange={setDueDateOpen}>
-                      <PopoverTrigger
-                        className={cn(
-                          "flex h-10 flex-1 items-center justify-start gap-2 rounded-xl border border-[var(--apple-separator)] bg-[var(--apple-secondary-system-background)] px-3 text-sm transition-colors hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]",
-                          !field.value && "text-[var(--apple-secondary-label)]"
-                        )}
-                      >
-                        <CalendarIcon className="size-4 text-[var(--apple-secondary-label)]" />
-                        {field.value ? format(field.value, "yyyy.MM.dd", { locale: ko }) : "날짜 선택"}
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value ?? undefined}
-                          onSelect={(date) => {
-                            field.onChange(date ?? null);
-                            setDueDateOpen(false);
-                          }}
-                          disabled={(date) => {
-                            const today = new Date();
-                            today.setHours(0, 0, 0, 0);
-                            return date < today;
-                          }}
-                          locale={ko}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    {field.value && (
-                      <button
-                        type="button"
-                        onClick={() => field.onChange(null)}
-                        className="text-xs text-[var(--apple-secondary-label)] hover:text-[var(--apple-red)] px-2 py-1"
-                      >
-                        해제
-                      </button>
-                    )}
-                  </div>
-                )}
-              />
-              <p className="text-[11px] text-[var(--apple-secondary-label)]">
-                납입 기일 지정 시 7일/3일/1일 전, 당일에 관리자에게 알림이 전송됩니다.
-              </p>
-            </div>
+            <AutoFillBand source={autoFilled.dueDate}>
+              <div className="space-y-1.5">
+                <Label>
+                  납입 기일 <span className="text-[11px] text-[var(--apple-secondary-label)] font-normal">(선택)</span>
+                </Label>
+                <Controller
+                  name="dueDate"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="flex items-center gap-2">
+                      <Popover open={dueDateOpen} onOpenChange={setDueDateOpen}>
+                        <PopoverTrigger
+                          className={cn(
+                            "flex h-10 flex-1 items-center justify-start gap-2 rounded-xl border border-[var(--apple-separator)] bg-[var(--apple-secondary-system-background)] px-3 text-sm transition-colors hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]",
+                            !field.value && "text-[var(--apple-secondary-label)]"
+                          )}
+                        >
+                          <CalendarIcon className="size-4 text-[var(--apple-secondary-label)]" />
+                          {field.value ? format(field.value, "yyyy.MM.dd", { locale: ko }) : "날짜 선택"}
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value ?? undefined}
+                            onSelect={(date) => {
+                              field.onChange(date ?? null);
+                              setDueDateOpen(false);
+                            }}
+                            disabled={(date) => {
+                              const today = new Date();
+                              today.setHours(0, 0, 0, 0);
+                              return date < today;
+                            }}
+                            locale={ko}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      {field.value && (
+                        <button
+                          type="button"
+                          onClick={() => field.onChange(null)}
+                          className="text-xs text-[var(--apple-secondary-label)] hover:text-[var(--apple-red)] px-2 py-1"
+                        >
+                          해제
+                        </button>
+                      )}
+                    </div>
+                  )}
+                />
+                <p className="text-[11px] text-[var(--apple-secondary-label)]">
+                  납입 기일 지정 시 7일/3일/1일 전, 당일에 관리자에게 알림이 전송됩니다.
+                </p>
+              </div>
+            </AutoFillBand>
 
           </div>
         </div>
@@ -1555,6 +1814,14 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
         </div>
       </form>
       )}
+
+      <DepositSummaryDialog
+        open={!!pendingSubmit && !!submitSummary}
+        summary={submitSummary}
+        submitting={isSubmitting}
+        onCancel={() => setPendingSubmit(null)}
+        onConfirm={() => void confirmSubmit()}
+      />
 
       <SubmitSuccessDialog
         open={showSuccess}
