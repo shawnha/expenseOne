@@ -17,6 +17,10 @@ const CLIENT_TIMEOUT_MS = 35_000;
 // 한 번 꺼져 있다고(503) 확인되면 이 페이지에서는 다시 묻지 않는다
 let disabledForSession = false;
 
+export function isOcrDisabledForSession(): boolean {
+  return disabledForSession;
+}
+
 export function canReadDocument(file: File): boolean {
   return (
     !disabledForSession &&

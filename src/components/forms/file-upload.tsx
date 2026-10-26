@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { isShrinkableImage, shrinkImageForUpload } from "@/lib/image-resize";
+import { ocrSkipAnnouncement, ocrSkipMessage, type OcrSkipReason } from "@/lib/ocr-skip";
 import type { OcrResult } from "@/lib/ocr/types";
 import { useDocumentReader } from "@/components/forms/use-document-reader";
 import {
@@ -85,7 +86,7 @@ export function FileUpload({
   useLayoutEffect(() => {
     filesRef.current = files;
   }, [files]);
-  const { read: readDocuments, readingCount } = useDocumentReader({ filesRef: filesRef, onFilesChange, onDocumentRead, fillDocumentType: false });
+  const { read: readDocuments, readingCount, skipped, clearSkipped } = useDocumentReader({ filesRef: filesRef, onFilesChange, onDocumentRead, fillDocumentType: false });
   useEffect(() => {
     onBusyChangeRef.current = onBusyChange;
   }, [onBusyChange]);
@@ -181,6 +182,7 @@ export function FileUpload({
 
   const removeFile = useCallback(
     (id: string) => {
+      clearSkipped(id);
       const fileToRemove = filesRef.current.find((f) => f.id === id);
       if (fileToRemove?.preview) {
         URL.revokeObjectURL(fileToRemove.preview);
@@ -190,7 +192,7 @@ export function FileUpload({
       onFilesChange(updated);
       setFileError(null);
     },
-    [onFilesChange]
+    [onFilesChange, clearSkipped]
   );
 
   const handleDrop = useCallback(
@@ -326,6 +328,10 @@ export function FileUpload({
         </div>
       )}
 
+      <OcrSkipAnnouncer
+        text={onDocumentRead ? ocrSkipAnnouncement(files.map((f) => ({ id: f.id, name: f.file.name })), skipped) : ""}
+      />
+
       {/* File list */}
       {files.length > 0 && (
         <div className="space-y-2">
@@ -333,6 +339,7 @@ export function FileUpload({
             <FilePreviewItem
               key={fileItem.id}
               fileItem={fileItem}
+              skipReason={onDocumentRead ? skipped[fileItem.id] : undefined}
               onRemove={() => removeFile(fileItem.id)}
             />
           ))}
@@ -355,12 +362,28 @@ export function FileUpload({
 // File Preview Item
 // ============================================================
 
+function OcrSkipMessage({ reason }: { reason?: OcrSkipReason }) {
+  if (!reason) return null;
+  return <p className="text-xs text-muted-foreground">{ocrSkipMessage(reason)}</p>;
+}
+
+/** 늘 붙어 있는 알림 영역 — 읽기가 끝난 뒤 생긴 안내도 화면 읽기 프로그램이 파일 이름과 함께 읽는다 */
+function OcrSkipAnnouncer({ text }: { text: string }) {
+  return (
+    <div role="status" aria-live="polite" className="sr-only">
+      {text}
+    </div>
+  );
+}
+
 function FilePreviewItem({
   fileItem,
+  skipReason,
   onRemove,
   children,
 }: {
   fileItem: FileWithPreview;
+  skipReason?: OcrSkipReason;
   onRemove: () => void;
   children?: React.ReactNode;
 }) {
@@ -390,6 +413,7 @@ function FilePreviewItem({
         <p className="text-xs text-muted-foreground">
           {formatFileSize(fileItem.file.size)}
         </p>
+        <OcrSkipMessage reason={skipReason} />
         {children}
       </div>
 
@@ -447,7 +471,7 @@ export function FileUploadWithDocType({
   useLayoutEffect(() => {
     filesRef2.current = files;
   }, [files]);
-  const { read: readDocuments, readingCount } = useDocumentReader({ filesRef: filesRef2, onFilesChange, onDocumentRead, fillDocumentType: true });
+  const { read: readDocuments, readingCount, skipped, clearSkipped } = useDocumentReader({ filesRef: filesRef2, onFilesChange, onDocumentRead, fillDocumentType: true });
   useEffect(() => {
     onBusyChangeRef.current = onBusyChange;
   }, [onBusyChange]);
@@ -543,6 +567,7 @@ export function FileUploadWithDocType({
 
   const removeFile = useCallback(
     (id: string) => {
+      clearSkipped(id);
       const fileToRemove = filesRef2.current.find((f) => f.id === id);
       if (fileToRemove?.preview) {
         URL.revokeObjectURL(fileToRemove.preview);
@@ -552,7 +577,7 @@ export function FileUploadWithDocType({
       onFilesChange(updated);
       setFileError(null);
     },
-    [onFilesChange]
+    [onFilesChange, clearSkipped]
   );
 
   const handleDrop = useCallback(
@@ -691,6 +716,10 @@ export function FileUploadWithDocType({
         </div>
       )}
 
+      <OcrSkipAnnouncer
+        text={onDocumentRead ? ocrSkipAnnouncement(files.map((f) => ({ id: f.id, name: f.file.name })), skipped) : ""}
+      />
+
       {/* File list with document type */}
       {files.length > 0 && (
         <div className="space-y-2">
@@ -698,6 +727,7 @@ export function FileUploadWithDocType({
             <FilePreviewWithDocType
               key={fileItem.id}
               fileItem={fileItem}
+              skipReason={onDocumentRead ? skipped[fileItem.id] : undefined}
               onRemove={() => removeFile(fileItem.id)}
               onDocumentTypeChange={(docType) =>
                 onDocumentTypeChange(fileItem.id, docType)
@@ -728,11 +758,13 @@ import { DocumentTypeSelect } from "./document-type-select";
 
 function FilePreviewWithDocType({
   fileItem,
+  skipReason,
   onRemove,
   onDocumentTypeChange,
   hasError,
 }: {
   fileItem: FileWithPreview;
+  skipReason?: OcrSkipReason;
   onRemove: () => void;
   onDocumentTypeChange: (documentType: string) => void;
   hasError: boolean;
@@ -769,6 +801,7 @@ function FilePreviewWithDocType({
           <p className="text-xs text-muted-foreground">
             {formatFileSize(fileItem.file.size)}
           </p>
+          <OcrSkipMessage reason={skipReason} />
         </div>
       </div>
 
