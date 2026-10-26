@@ -36,6 +36,8 @@ export interface CardBatchRequest {
   companyId: string;
   category: string;
   items: Array<{ gowidTxId: string; title: string; description?: string | null }>;
+  /** 비용계획 「법카로 썼어요」에서 왔으면 그 계획. 올린 비용을 한 번에 잇는다(라우트가 linkExpenses 로). */
+  planId?: string | null;
 }
 
 export type CardBatchItemResult =
@@ -47,6 +49,10 @@ export interface CardBatchResponse {
   created: number;
   failed: number;
   results: CardBatchItemResult[];
+  /** planId 를 보냈을 때만: 계획에 이어진 건수. 비용은 그대로 두고 연결만 실패할 수 있다(회사가 다름 등). */
+  planLinked?: number;
+  /** 연결이 하나도 안 됐을 때 이유(사람이 읽는 말). */
+  planLinkError?: string | null;
 }
 
 /** 한 번에 올릴 수 있는 최대 건수 */
