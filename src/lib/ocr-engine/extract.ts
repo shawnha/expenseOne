@@ -180,10 +180,10 @@ export function createOcrEngine(config: OcrEngineConfig): OcrEngine {
       throw new OcrInputError("이미지를 읽을 수 없습니다. 다른 사진으로 시도해 주세요.");
     }
 
-    // 긴 디지털 캡처는 바로 서 있다고 보고 재독하지 않는다.
+    // 긴 캡처는 다시 읽지 않는다(타일을 돌려 다시 나누면 비용이 두 배). 방향이 틀어져 보이면 아래에서 낮은 신뢰도로 돌려준다.
     const direction = tiled?.plan.direction === "vertical" ? "위에서 아래" : "왼쪽에서 오른쪽";
     const extraInstruction = tiled
-      ? `\n이 이미지들은 하나의 긴 문서를 ${direction} 순서로 겹치게 나눈 것입니다. 겹치는 부분의 금액과 항목을 중복 집계하지 말아주세요. 문서는 이미 바로 서 있습니다.`
+      ? `\n이 이미지들은 하나의 긴 문서를 ${direction} 순서로 겹치게 나눈 것입니다. 같은 줄이 두 장에 겹쳐 보이면 한 번만 읽고, 합계는 문서에 적힌 값을 그대로 쓰세요.`
       : "";
     let pass = await callModel(tiled ? tiled.tiles.map(imageBlock) : imageBlock(modelJpeg), usage, deadline, extraInstruction);
     let rotation: Degrees = 0;

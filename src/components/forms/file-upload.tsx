@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { isShrinkableImage, shrinkImageForUpload } from "@/lib/image-resize";
-import type { OcrSkipReason } from "@/lib/ocr-skip";
+import { ocrSkipAnnouncement, ocrSkipMessage, type OcrSkipReason } from "@/lib/ocr-skip";
 import type { OcrResult } from "@/lib/ocr/types";
 import { useDocumentReader } from "@/components/forms/use-document-reader";
 import {
@@ -328,6 +328,10 @@ export function FileUpload({
         </div>
       )}
 
+      <OcrSkipAnnouncer
+        text={onDocumentRead ? ocrSkipAnnouncement(files.map((f) => ({ id: f.id, name: f.file.name })), skipped) : ""}
+      />
+
       {/* File list */}
       {files.length > 0 && (
         <div className="space-y-2">
@@ -360,12 +364,15 @@ export function FileUpload({
 
 function OcrSkipMessage({ reason }: { reason?: OcrSkipReason }) {
   if (!reason) return null;
+  return <p className="text-xs text-muted-foreground">{ocrSkipMessage(reason)}</p>;
+}
+
+/** 늘 붙어 있는 알림 영역 — 읽기가 끝난 뒤 생긴 안내도 화면 읽기 프로그램이 파일 이름과 함께 읽는다 */
+function OcrSkipAnnouncer({ text }: { text: string }) {
   return (
-    <p className="text-xs text-[var(--apple-secondary-label)]">
-      {reason === "too_large"
-        ? "크기가 커서 자동 인식은 건너뛰었습니다."
-        : "자동 인식을 하지 못했습니다. 금액은 직접 입력해주세요."}
-    </p>
+    <div role="status" aria-live="polite" className="sr-only">
+      {text}
+    </div>
   );
 }
 
@@ -708,6 +715,10 @@ export function FileUploadWithDocType({
           <span>{displayError}</span>
         </div>
       )}
+
+      <OcrSkipAnnouncer
+        text={onDocumentRead ? ocrSkipAnnouncement(files.map((f) => ({ id: f.id, name: f.file.name })), skipped) : ""}
+      />
 
       {/* File list with document type */}
       {files.length > 0 && (

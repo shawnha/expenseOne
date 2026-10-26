@@ -84,13 +84,22 @@ export interface ImageTilePlan {
   regions: { left: number; top: number; width: number; height: number }[];
 }
 
+/**
+ * 이 비율(긴 변/짧은 변)을 넘을 때만 나눈다. 1179×4938(4.2) 캡처는 한 장으로도 금액을 맞게 읽었고
+ * 나누면 토큰이 약 3배(3,375 → 10,436)라서, 한 장으로는 글자가 뭉개지는 아주 긴 캡처만 나눈다.
+ */
+export const TILE_MIN_ASPECT = 5;
+
 /** 긴 캡처를 약 12% 겹치게 나눈다. 6장을 넘으면 타일 비율 제한보다 전체 범위를 우선한다. */
 export function planImageTiles(width: number, height: number): ImageTilePlan | null {
   if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) return null;
+  // 세로로 긴 것만 나눈다. 가로로 아주 긴 이미지는 눕혀 찍은 긴 영수증일 때가 많아서
+  // 기존 경로(방향 확인 → 바로 세워 다시 읽기)가 맞다.
   const vertical = height > width;
+  if (!vertical) return null;
   const long = Math.max(width, height);
   const short = Math.min(width, height);
-  if (long / short <= 2.5) return null;
+  if (long / short <= TILE_MIN_ASPECT) return null;
 
   const overlap = 0.12;
   const target = short * 1.6;

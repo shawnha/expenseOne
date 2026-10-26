@@ -239,15 +239,17 @@ describe("createOcrRouteHandler", () => {
 
 
 describe("긴 이미지 타일", () => {
-  it("2.5 비율까지는 기존 경로, 그 이상은 긴 방향으로 분할", () => {
-    for (const [w, h] of [[100, 100], [100, 250], [250, 100], [0, 100]]) {
+  it("5 비율까지는 기존 경로, 그 이상은 긴 방향으로 분할", () => {
+    for (const [w, h] of [[100, 100], [100, 250], [100, 500], [500, 100], [0, 100]]) {
       assert.equal(planImageTiles(w, h), null);
     }
-    assert.equal(planImageTiles(100, 251)?.direction, "vertical");
-    assert.equal(planImageTiles(251, 100)?.direction, "horizontal");
+    assert.equal(planImageTiles(100, 501)?.direction, "vertical");
+  });
+  it("가로로 긴 이미지는 나누지 않는다(눕혀 찍은 영수증 → 기존 회전 경로)", () => {
+    for (const [w, h] of [[501, 100], [5200, 1000], [12000, 1170]]) assert.equal(planImageTiles(w, h), null);
   });
   it("타일 비율 약 1.6 이하, 약 12% 겹침, 빈틈 없이 처음부터 끝까지", () => {
-    for (const [w, h] of [[1000, 5000], [5000, 1000]]) {
+    for (const [w, h] of [[1000, 5200]]) {
       const plan = planImageTiles(w, h)!;
       assert.equal(plan.regions.length, 4);
       const vertical = plan.direction === "vertical";
@@ -267,7 +269,7 @@ describe("긴 이미지 타일", () => {
     }
   });
   it("아무리 길어도 6장으로 전체 범위를 보존한다", () => {
-    for (const [w, h] of [[1170, 12000], [12000, 1170], [100, 30000]]) {
+    for (const [w, h] of [[1170, 12000], [100, 30000]]) {
       const plan = planImageTiles(w, h)!;
       assert.equal(plan.regions.length, 6);
       const last = plan.regions.at(-1)!;
@@ -311,7 +313,7 @@ describe("긴 이미지 타일", () => {
     });
     // SDK 호출을 통째로 대체한다. 실제 fetch가 일어나면 즉시 실패한다.
     t.mock.method(globalThis, "fetch", () => { throw new Error("네트워크 호출 금지"); });
-    for (const [w, h, direction] of [[100, 600, "위에서 아래"], [600, 100, "왼쪽에서 오른쪽"]] as const) {
+    for (const [w, h, direction] of [[100, 600, "위에서 아래"], [120, 700, "위에서 아래"]] as const) {
       const src = await makeJpeg(w, h);
       const expected = await tileImageForModel(src, "image/jpeg");
       const engine = createOcrEngine({ apiKey: "test-only", onLog: () => {} });
@@ -329,7 +331,8 @@ describe("긴 이미지 타일", () => {
       assert.equal(instruction.type, "text");
       if (instruction.type === "text") {
         assert.ok(instruction.text.includes(direction));
-        assert.ok(instruction.text.includes("중복 집계하지"));
+        assert.ok(instruction.text.includes("한 번만 읽고"));
+        assert.ok(!instruction.text.includes("이미 바로 서 있습니다"));
       }
     }
     assert.equal(requests.length, 2);
