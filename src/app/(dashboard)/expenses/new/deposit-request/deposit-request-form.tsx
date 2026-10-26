@@ -54,6 +54,8 @@ import type { PayeeSuggestion } from "@/services/autofill.service";
 import { accountKey, holderKey } from "@/lib/utils/autofill";
 import { getCategoryLabel } from "@/lib/utils/expense-utils";
 import { CompanySelector } from "@/components/forms/company-selector";
+import { AutoFillBand } from "@/components/forms/autofill-band";
+import { DepositSummaryDialog } from "@/components/forms/deposit-summary-dialog";
 import dynamic from "next/dynamic";
 const SubmitSuccessDialog = dynamic(() => import("@/components/forms/submit-success-dialog").then(m => m.SubmitSuccessDialog), { ssr: false });
 import {
@@ -1045,27 +1047,31 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
 
           <div className="space-y-5">
             {/* 회사 선택 */}
-            <CompanySelector
-              value={companyId}
-              onChange={handleCompanyChange}
-              userCompanyId={userCompanyId}
-              initialCompanies={initialCompanies}
-            />
+            <AutoFillBand source={autoFilled.company}>
+              <CompanySelector
+                value={companyId}
+                onChange={handleCompanyChange}
+                userCompanyId={userCompanyId}
+                initialCompanies={initialCompanies}
+              />
+            </AutoFillBand>
 
             {/* 카테고리 — 프리셋 + 내가 쓰던 것 + 직접 입력 */}
-            <Controller
-              name="category"
-              control={control}
-              render={({ field }) => (
-                <CategorySelectField
-                  value={field.value ?? ""}
-                  onChange={field.onChange}
-                  myCategories={myCategories}
-                  suggestion={categorySuggestion}
-                  error={errors.category?.message}
-                />
-              )}
-            />
+            <AutoFillBand source={autoFilled.category}>
+              <Controller
+                name="category"
+                control={control}
+                render={({ field }) => (
+                  <CategorySelectField
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    myCategories={myCategories}
+                    suggestion={categorySuggestion}
+                    error={errors.category?.message}
+                  />
+                )}
+              />
+            </AutoFillBand>
 
             {/* 호점 — 리테일 마트/약국일 때만. 다른 경우엔 의미 없는 칸이라 숨긴다. */}
             {askBranch && (
@@ -1073,22 +1079,24 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
             )}
 
             {/* 제목 */}
-            <div className="space-y-1.5">
-              <Label htmlFor="title">
-                제목 <span className="text-[var(--apple-red)]">*</span>
-              </Label>
-              <Input
-                id="title"
-                placeholder="예: 외주 개발비 지급 요청"
-                aria-invalid={!!errors.title}
-                {...register("title")}
-              />
-              {errors.title && (
-                <p className="text-xs text-[var(--apple-red)]">
-                  {errors.title.message}
-                </p>
-              )}
-            </div>
+            <AutoFillBand source={autoFilled.title}>
+              <div className="space-y-1.5">
+                <Label htmlFor="title">
+                  제목 <span className="text-[var(--apple-red)]">*</span>
+                </Label>
+                <Input
+                  id="title"
+                  placeholder="예: 외주 개발비 지급 요청"
+                  aria-invalid={!!errors.title}
+                  {...register("title")}
+                />
+                {errors.title && (
+                  <p className="text-xs text-[var(--apple-red)]">
+                    {errors.title.message}
+                  </p>
+                )}
+              </div>
+            </AutoFillBand>
 
             {/* 금액 */}
             <div className="space-y-1.5">
@@ -1128,33 +1136,35 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
                   ))}
                 </div>
               </div>
-              <div className="relative">
-                {currency === "USD" && (
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--apple-secondary-label)] pointer-events-none">
-                    $
-                  </span>
-                )}
-                <Input
-                  id="amount"
-                  placeholder="0"
-                  inputMode={currency === "USD" ? "decimal" : "numeric"}
-                  value={amountDisplay}
-                  onChange={handleAmountChange}
-                  aria-invalid={!!errors.amount}
-                  aria-describedby={selectedPlan && !prefill && currency === "KRW" ? "plan-amount-ref" : undefined}
-                  className={currency === "USD" ? "pl-7 pr-4" : "pr-10"}
-                />
-                {currency !== "USD" && (
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--apple-secondary-label)] pointer-events-none">원</span>
-                )}
-              </div>
-              {amountSugNode}
+              <AutoFillBand source={autoFilled.amount}>
+                <div className="relative">
+                  {currency === "USD" && (
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--apple-secondary-label)] pointer-events-none">
+                      $
+                    </span>
+                  )}
+                  <Input
+                    id="amount"
+                    placeholder="0"
+                    inputMode={currency === "USD" ? "decimal" : "numeric"}
+                    value={amountDisplay}
+                    onChange={handleAmountChange}
+                    aria-invalid={!!errors.amount}
+                    aria-describedby={selectedPlan && !prefill && currency === "KRW" ? "plan-amount-ref" : undefined}
+                    className={currency === "USD" ? "pl-7 pr-4" : "pr-10"}
+                  />
+                  {currency !== "USD" && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--apple-secondary-label)] pointer-events-none">원</span>
+                  )}
+                </div>
+                {amountSugNode}
 
-              {selectedPlan && !prefill && currency === "KRW" && (
-                <p id="plan-amount-ref" className="mt-1.5 text-[13px] text-[var(--apple-secondary-label)]">
-                  계획 금액 {formatWon(selectedPlan.amount)} (참고)
-                </p>
-              )}
+                {selectedPlan && !prefill && currency === "KRW" && (
+                  <p id="plan-amount-ref" className="mt-1.5 text-[13px] text-[var(--apple-secondary-label)]">
+                    계획 금액 {formatWon(selectedPlan.amount)} (참고)
+                  </p>
+                )}
+              </AutoFillBand>
 
               {/* USD exchange rate info */}
               {currency === "USD" && (
@@ -1527,171 +1537,177 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
               </div>
             )}
 
-            {/* 은행명 */}
-            <div className="space-y-1.5">
-              <Label>
-                은행명 <span className="text-[var(--apple-red)]">*</span>
-              </Label>
-              <Controller
-                name="bankName"
-                control={control}
-                render={({ field }) => (
-                  <Popover open={bankOpen} onOpenChange={setBankOpen}>
-                    <PopoverTrigger
-                      className={cn(
-                        "flex h-10 w-full items-center justify-between rounded-xl border border-[var(--apple-separator)] bg-[var(--apple-secondary-system-background)] px-3 text-sm transition-colors hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]",
-                        !field.value && "text-[var(--apple-secondary-label)]",
-                        errors.bankName && "border-[var(--apple-red)] ring-2 ring-[rgba(255,59,48,0.2)]"
-                      )}
+            <AutoFillBand source={autoFilled.account}>
+              <div className="space-y-5">
+                {/* 은행명 */}
+                <div className="space-y-1.5">
+                  <Label>
+                    은행명 <span className="text-[var(--apple-red)]">*</span>
+                  </Label>
+                  <Controller
+                    name="bankName"
+                    control={control}
+                    render={({ field }) => (
+                      <Popover open={bankOpen} onOpenChange={setBankOpen}>
+                        <PopoverTrigger
+                          className={cn(
+                            "flex h-10 w-full items-center justify-between rounded-xl border border-[var(--apple-separator)] bg-[var(--apple-secondary-system-background)] px-3 text-sm transition-colors hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]",
+                            !field.value && "text-[var(--apple-secondary-label)]",
+                            errors.bankName && "border-[var(--apple-red)] ring-2 ring-[rgba(255,59,48,0.2)]"
+                          )}
+                        >
+                          {field.value || "은행 선택"}
+                          <ChevronsUpDown className="size-4 text-[var(--apple-secondary-label)] shrink-0" />
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="은행 검색..." />
+                            <CommandList>
+                              <CommandEmpty>검색 결과가 없습니다.</CommandEmpty>
+                              <CommandGroup>
+                                {BANK_LIST.map((bank) => (
+                                  <CommandItem
+                                    key={bank}
+                                    value={bank}
+                                    onSelect={() => {
+                                      field.onChange(bank);
+                                      setBankOpen(false);
+                                    }}
+                                    data-checked={field.value === bank}
+                                  >
+                                    {bank}
+                                    {field.value === bank && (
+                                      <Check className="ml-auto size-4 text-[var(--apple-blue)]" />
+                                    )}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    )}
+                  />
+                  {errors.bankName && (
+                    <p className="text-xs text-[var(--apple-red)]">
+                      {errors.bankName.message}
+                    </p>
+                  )}
+                </div>
+
+                {/* 예금주 */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="accountHolder">
+                    예금주 <span className="text-[var(--apple-red)]">*</span>
+                  </Label>
+                  <Input
+                    id="accountHolder"
+                    placeholder="예: 홍길동"
+                    aria-invalid={!!errors.accountHolder}
+                    {...register("accountHolder")}
+                  />
+                  {holderMatch && !holderMatchApplied && (
+                    <button
+                      type="button"
+                      onClick={() => applyPayee(holderMatch)}
+                      className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2 text-left glass-input sm:min-h-9"
                     >
-                      {field.value || "은행 선택"}
-                      <ChevronsUpDown className="size-4 text-[var(--apple-secondary-label)] shrink-0" />
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                      <Command>
-                        <CommandInput placeholder="은행 검색..." />
-                        <CommandList>
-                          <CommandEmpty>검색 결과가 없습니다.</CommandEmpty>
-                          <CommandGroup>
-                            {BANK_LIST.map((bank) => (
-                              <CommandItem
-                                key={bank}
-                                value={bank}
-                                onSelect={() => {
-                                  field.onChange(bank);
-                                  setBankOpen(false);
-                                }}
-                                data-checked={field.value === bank}
-                              >
-                                {bank}
-                                {field.value === bank && (
-                                  <Check className="ml-auto size-4 text-[var(--apple-blue)]" />
-                                )}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                )}
-              />
-              {errors.bankName && (
-                <p className="text-xs text-[var(--apple-red)]">
-                  {errors.bankName.message}
-                </p>
-              )}
-            </div>
+                      <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--apple-secondary-label)]">
+                        지난번 계좌{" "}
+                        <span className="font-medium text-[var(--apple-label)]">
+                          {holderMatch.bankName} {holderMatch.accountNumber}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-[13px] font-semibold text-[var(--apple-blue)]">불러오기</span>
+                    </button>
+                  )}
+                  {errors.accountHolder && (
+                    <p className="text-xs text-[var(--apple-red)]">
+                      {errors.accountHolder.message}
+                    </p>
+                  )}
+                </div>
 
-            {/* 예금주 */}
-            <div className="space-y-1.5">
-              <Label htmlFor="accountHolder">
-                예금주 <span className="text-[var(--apple-red)]">*</span>
-              </Label>
-              <Input
-                id="accountHolder"
-                placeholder="예: 홍길동"
-                aria-invalid={!!errors.accountHolder}
-                {...register("accountHolder")}
-              />
-              {holderMatch && !holderMatchApplied && (
-                <button
-                  type="button"
-                  onClick={() => applyPayee(holderMatch)}
-                  className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2 text-left glass-input sm:min-h-9"
-                >
-                  <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--apple-secondary-label)]">
-                    지난번 계좌{" "}
-                    <span className="font-medium text-[var(--apple-label)]">
-                      {holderMatch.bankName} {holderMatch.accountNumber}
-                    </span>
-                  </span>
-                  <span className="shrink-0 text-[13px] font-semibold text-[var(--apple-blue)]">불러오기</span>
-                </button>
-              )}
-              {errors.accountHolder && (
-                <p className="text-xs text-[var(--apple-red)]">
-                  {errors.accountHolder.message}
-                </p>
-              )}
-            </div>
-
-            {/* 계좌번호 */}
-            <div className="space-y-1.5">
-              <Label htmlFor="accountNumber">
-                계좌번호 <span className="text-[var(--apple-red)]">*</span>
-              </Label>
-              <Input
-                id="accountNumber"
-                placeholder="숫자만 입력"
-                inputMode="numeric"
-                aria-invalid={!!errors.accountNumber}
-                {...register("accountNumber", {
-                  onChange: (e) => {
-                    e.target.value = e.target.value.replace(/[^\d]/g, "");
-                  },
-                })}
-              />
-              {errors.accountNumber && (
-                <p className="text-xs text-[var(--apple-red)]">
-                  {errors.accountNumber.message}
-                </p>
-              )}
-            </div>
+                {/* 계좌번호 */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="accountNumber">
+                    계좌번호 <span className="text-[var(--apple-red)]">*</span>
+                  </Label>
+                  <Input
+                    id="accountNumber"
+                    placeholder="숫자만 입력"
+                    inputMode="numeric"
+                    aria-invalid={!!errors.accountNumber}
+                    {...register("accountNumber", {
+                      onChange: (e) => {
+                        e.target.value = e.target.value.replace(/[^\d]/g, "");
+                      },
+                    })}
+                  />
+                  {errors.accountNumber && (
+                    <p className="text-xs text-[var(--apple-red)]">
+                      {errors.accountNumber.message}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </AutoFillBand>
 
             {/* 납입 기일 (선택) */}
-            <div className="space-y-1.5">
-              <Label>
-                납입 기일 <span className="text-[11px] text-[var(--apple-secondary-label)] font-normal">(선택)</span>
-              </Label>
-              <Controller
-                name="dueDate"
-                control={control}
-                render={({ field }) => (
-                  <div className="flex items-center gap-2">
-                    <Popover open={dueDateOpen} onOpenChange={setDueDateOpen}>
-                      <PopoverTrigger
-                        className={cn(
-                          "flex h-10 flex-1 items-center justify-start gap-2 rounded-xl border border-[var(--apple-separator)] bg-[var(--apple-secondary-system-background)] px-3 text-sm transition-colors hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]",
-                          !field.value && "text-[var(--apple-secondary-label)]"
-                        )}
-                      >
-                        <CalendarIcon className="size-4 text-[var(--apple-secondary-label)]" />
-                        {field.value ? format(field.value, "yyyy.MM.dd", { locale: ko }) : "날짜 선택"}
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value ?? undefined}
-                          onSelect={(date) => {
-                            field.onChange(date ?? null);
-                            setDueDateOpen(false);
-                          }}
-                          disabled={(date) => {
-                            const today = new Date();
-                            today.setHours(0, 0, 0, 0);
-                            return date < today;
-                          }}
-                          locale={ko}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    {field.value && (
-                      <button
-                        type="button"
-                        onClick={() => field.onChange(null)}
-                        className="text-xs text-[var(--apple-secondary-label)] hover:text-[var(--apple-red)] px-2 py-1"
-                      >
-                        해제
-                      </button>
-                    )}
-                  </div>
-                )}
-              />
-              <p className="text-[11px] text-[var(--apple-secondary-label)]">
-                납입 기일 지정 시 7일/3일/1일 전, 당일에 관리자에게 알림이 전송됩니다.
-              </p>
-            </div>
+            <AutoFillBand source={autoFilled.dueDate}>
+              <div className="space-y-1.5">
+                <Label>
+                  납입 기일 <span className="text-[11px] text-[var(--apple-secondary-label)] font-normal">(선택)</span>
+                </Label>
+                <Controller
+                  name="dueDate"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="flex items-center gap-2">
+                      <Popover open={dueDateOpen} onOpenChange={setDueDateOpen}>
+                        <PopoverTrigger
+                          className={cn(
+                            "flex h-10 flex-1 items-center justify-start gap-2 rounded-xl border border-[var(--apple-separator)] bg-[var(--apple-secondary-system-background)] px-3 text-sm transition-colors hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]",
+                            !field.value && "text-[var(--apple-secondary-label)]"
+                          )}
+                        >
+                          <CalendarIcon className="size-4 text-[var(--apple-secondary-label)]" />
+                          {field.value ? format(field.value, "yyyy.MM.dd", { locale: ko }) : "날짜 선택"}
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value ?? undefined}
+                            onSelect={(date) => {
+                              field.onChange(date ?? null);
+                              setDueDateOpen(false);
+                            }}
+                            disabled={(date) => {
+                              const today = new Date();
+                              today.setHours(0, 0, 0, 0);
+                              return date < today;
+                            }}
+                            locale={ko}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      {field.value && (
+                        <button
+                          type="button"
+                          onClick={() => field.onChange(null)}
+                          className="text-xs text-[var(--apple-secondary-label)] hover:text-[var(--apple-red)] px-2 py-1"
+                        >
+                          해제
+                        </button>
+                      )}
+                    </div>
+                  )}
+                />
+                <p className="text-[11px] text-[var(--apple-secondary-label)]">
+                  납입 기일 지정 시 7일/3일/1일 전, 당일에 관리자에게 알림이 전송됩니다.
+                </p>
+              </div>
+            </AutoFillBand>
 
           </div>
         </div>
@@ -1766,6 +1782,14 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
         </div>
       </form>
       )}
+
+      <DepositSummaryDialog
+        open={!!pendingSubmit && !!submitSummary}
+        summary={submitSummary}
+        submitting={isSubmitting}
+        onCancel={() => setPendingSubmit(null)}
+        onConfirm={() => void confirmSubmit()}
+      />
 
       <SubmitSuccessDialog
         open={showSuccess}
