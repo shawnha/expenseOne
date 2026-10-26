@@ -42,8 +42,11 @@ export function PendingCardSection({ planId, plannedDate }: { planId: string; pl
     if (picked.length === 1) {
       router.push(`/expenses/new/corporate-card?gowidTxId=${picked[0].id}&plan=${planId}`);
     } else if (picked.length > 1) {
-      const earliest = picked.map((item) => item.date).sort()[0];
-      router.push(`/expenses/new/card-batch?plan=${planId}&from=${earliest}&ids=${picked.map((item) => item.id).join(",")}`);
+      // 지난 계획이면 「오늘까지」가 62일을 넘어 기본 14일로 돌아간다 — 고른 결제가 보이도록 종료일도 넘긴다.
+      const dates = picked.map((item) => item.date).sort();
+      router.push(
+        `/expenses/new/card-batch?plan=${planId}&from=${dates[0]}&to=${dates[dates.length - 1]}&ids=${picked.map((item) => item.id).join(",")}`,
+      );
     }
   };
 

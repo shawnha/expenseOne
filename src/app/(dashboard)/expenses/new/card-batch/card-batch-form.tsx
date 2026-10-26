@@ -45,6 +45,8 @@ interface CardBatchFormProps {
   isAdmin?: boolean;
   /** 「아직 안 올린 결제 N건」 링크가 준 시작일(YYYY-MM-DD). 검사는 initialDateRange 가 한다 */
   initialFrom?: string;
+  /** 비용계획에서 지난 기간 결제를 골라 왔을 때의 종료일(YYYY-MM-DD) */
+  initialTo?: string;
 }
 
 const TITLE_MAX = 200;
@@ -61,7 +63,7 @@ function rangeError(from: string, to: string): string | null {
   return null;
 }
 
-export default function CardBatchForm({ initialCompanies, myCategories = [], isAdmin = false, initialFrom, planId, initialIds }: CardBatchFormProps) {
+export default function CardBatchForm({ initialCompanies, myCategories = [], isAdmin = false, initialFrom, initialTo, planId, initialIds }: CardBatchFormProps) {
   // 관리자 전용: 공용 카드(주인 없는 카드) 결제 보기 + 카드 끝 4자리로 좁히기. 불러오기를 눌러야 적용된다.
   const [sharedCards, setSharedCards] = useState(false);
   const [sharedCardLast4, setSharedCardLast4] = useState("");
@@ -235,11 +237,11 @@ export default function CardBatchForm({ initialCompanies, myCategories = [], isA
   }, []);
 
   useEffect(() => {
-    const r = initialDateRange(new Date(), initialFrom);
+    const r = initialDateRange(new Date(), initialFrom, initialTo);
     setFrom(r.from);
     setTo(r.to);
     load(r.from, r.to);
-  }, [load, initialFrom]);
+  }, [load, initialFrom, initialTo]);
 
   const handlePrefixChange = (value: string) => {
     setPrefix(value);

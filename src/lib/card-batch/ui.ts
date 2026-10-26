@@ -47,15 +47,33 @@ export function defaultDateRange(now: Date, days = 14): { from: string; to: stri
 /**
  * 처음 열 때 조회 기간: 안내 링크가 준 시작일(?from=)이 올바르고 최대 기간 안이면 그날~오늘, 아니면 기본 기간.
  */
-export function initialDateRange(now: Date, requestedFrom?: string | null): { from: string; to: string } {
+export function initialDateRange(
+  now: Date,
+  requestedFrom?: string | null,
+  /** 비용계획 「법카로 썼어요」처럼 지난 기간을 열 때의 종료일. 없거나 맞지 않으면 오늘 */
+  requestedTo?: string | null,
+): { from: string; to: string } {
   const fallback = defaultDateRange(now);
-  if (!requestedFrom || !/^\d{4}-\d{2}-\d{2}$/.test(requestedFrom)) return fallback;
-  const fromMs = Date.parse(`${requestedFrom}T00:00:00Z`);
-  // 2026-02-31 처럼 없는 날짜는 Date 가 다음 달로 넘기므로 되돌려 비교해 거른다
-  if (!Number.isFinite(fromMs) || new Date(fromMs).toISOString().slice(0, 10) !== requestedFrom) return fallback;
-  const days = (Date.parse(`${fallback.to}T00:00:00Z`) - fromMs) / 86_400_000;
+  const fromMs = isoDayMs(requestedFrom);
+  if (fromMs == null) return fallback;
+  const todayMs = Date.parse(`${fallback.to}T00:00:00Z`);
+  // 종료일: 시작일 이후 · 오늘 이전 · 최대 기간 안일 때만. 아니면 오늘(예전 동작)
+  const toMs = isoDayMs(requestedTo);
+  const to =
+    toMs != null && toMs >= fromMs && toMs <= todayMs && (toMs - fromMs) / 86_400_000 <= CARD_BATCH_MAX_RANGE_DAYS
+      ? requestedTo!
+      : fallback.to;
+  const days = (Date.parse(`${to}T00:00:00Z`) - fromMs) / 86_400_000;
   if (days < 0 || days > CARD_BATCH_MAX_RANGE_DAYS) return fallback;
-  return { from: requestedFrom, to: fallback.to };
+  return { from: requestedFrom!, to };
+}
+
+/** YYYY-MM-DD 가 실제 있는 날짜면 그날 0시(UTC) ms, 아니면 null. 2026-02-31 처럼 없는 날짜는 Date 가 다음 달로 넘기므로 되돌려 비교해 거른다 */
+function isoDayMs(v: string | null | undefined): number | null {
+  if (!v || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
+  const ms = Date.parse(`${v}T00:00:00Z`);
+  if (!Number.isFinite(ms) || new Date(ms).toISOString().slice(0, 10) !== v) return null;
+  return ms;
 }
 
 /** 선택된 결제의 금액 합계(원) */

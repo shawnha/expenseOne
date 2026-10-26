@@ -13,7 +13,7 @@ export default async function CardBatchPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { from, plan, ids } = await searchParams;
+  const { from, to, plan, ids } = await searchParams;
   const authUser = await getAuthUser();
   const [companies, myCategories, me] = await Promise.all([
     getActiveCompanies(),
@@ -32,6 +32,7 @@ export default async function CardBatchPage({
       myCategories={myCategories}
       isAdmin={me?.role === "ADMIN"}
       initialFrom={typeof from === "string" ? from : undefined}
+      initialTo={typeof to === "string" ? to : undefined}
       planId={typeof plan === "string" && UUID_RE.test(plan) ? plan : undefined}
       initialIds={typeof ids === "string" ? [...new Set(ids.split(",").filter((id) => UUID_RE.test(id)).map((id) => id.toLowerCase()))].slice(0, CARD_BATCH_MAX) : undefined}
     />;
