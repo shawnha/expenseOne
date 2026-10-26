@@ -72,6 +72,8 @@ import { calcDepositAmount, calcDepositBreakdownKRW } from "@/lib/utils/deposit-
 import {
   activeFills,
   buildDepositSummary,
+  dropFills,
+  planFillsToUndo,
   fillKey,
   ocrUsdAmount,
   payeeForVendor,
@@ -338,11 +340,11 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
         setValue("bankName", payee.bankName, opts);
         setValue("accountHolder", payee.accountHolder, opts);
         setValue("accountNumber", accountKey(payee.accountNumber), opts);
-        rec = recordFill(rec, "account", "payee", fillKey.account(payee.bankName, payee.accountHolder, payee.accountNumber));
+        rec = recordFill(rec, "account", "payee", fillKey.account(payee.bankName, payee.accountHolder, payee.accountNumber), { viaPlan: true });
         filled.push("계좌");
         if (!getValues("category")?.trim() && payee.category) {
           setValue("category", payee.category, opts);
-          rec = recordFill(rec, "category", "payee", fillKey.category(payee.category));
+          rec = recordFill(rec, "category", "payee", fillKey.category(payee.category), { viaPlan: true });
         }
       }
       setFills((prev) => ({ ...prev, ...rec }));
@@ -361,10 +363,40 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
     },
     [applyPlan],
   );
+  // 연결을 풀면 계획으로 채웠고 아직 손대지 않은 칸을 비운다 — 남겨 두면 다음 계획이 못 채우고, 앞 계획의 금액·계좌가
+  // 「비용계획에서 채움」 띠를 단 채 다른 계획으로 제출된다(리뷰 10-27). 사람이 고친 칸은 그대로 둔다. 회사는 비울 수 없어 띠만 뺀다.
   const cancelPlanLink = useCallback(() => {
     setFocusTarget("panel");
     setSelectedPlan(null);
-  }, []);
+    const st = amountStateRef.current;
+    const undo = planFillsToUndo(fills, {
+      title: fillKey.title(getValues("title")),
+      company: fillKey.company(companyId),
+      dueDate: fillKey.dueDate(getValues("dueDate") ?? null),
+      amount: fillKey.amount(st.supplyAmount, st.currency),
+      account: fillKey.account(getValues("bankName"), getValues("accountHolder"), getValues("accountNumber")),
+      category: fillKey.category(getValues("category")),
+    });
+    if (undo.length === 0) return;
+    const opts = { shouldValidate: false, shouldDirty: true } as const;
+    for (const f of undo) {
+      if (f === "title") setValue("title", "", opts);
+      if (f === "dueDate") setValue("dueDate", null, { shouldDirty: true });
+      if (f === "category") setValue("category", "", opts);
+      if (f === "account") {
+        setValue("bankName", "", opts);
+        setValue("accountHolder", "", opts);
+        setValue("accountNumber", "", opts);
+      }
+      if (f === "amount") {
+        setVatIncluded(false);
+        setSupplyAmount(0);
+        setAmountDisplay("");
+        setValue("amount", 0, { shouldValidate: false });
+      }
+    }
+    setFills((prev) => dropFills(prev, undo));
+  }, [fills, getValues, setValue, companyId]);
   const preselect = usePreselectedPlan(recurringPrefill ? undefined : planId, {
     onLoaded: applyPlan,
     onMissing: () =>

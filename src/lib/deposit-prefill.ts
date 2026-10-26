@@ -34,7 +34,7 @@ export const FILL_SOURCE_LABEL: Record<FillSource, string> = {
  * 채운 순간의 값을 기억해 둔다. 띠는 **지금 값이 그때 값과 같을 때만** 보인다 — 사람이 고치면 값이 달라져
  * 띠가 저절로 빠지므로 칸마다 onChange 를 따로 엮지 않는다. 값 비교는 아래 fillKey 로만 한다.
  */
-export type FillRecords = Partial<Record<FillField, { source: FillSource; key: string }>>;
+export type FillRecords = Partial<Record<FillField, { source: FillSource; key: string; viaPlan?: boolean }>>;
 
 const ymdKey = (d: Date | null | undefined) =>
   d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` : "";
@@ -51,10 +51,35 @@ export const fillKey = {
   category: (c: string | null | undefined) => (c ?? "").trim(),
 };
 
-/** 채운 칸을 기록한다. 빈 값(key "")은 기록하지 않는다. */
-export function recordFill(rec: FillRecords, field: FillField, source: FillSource, key: string): FillRecords {
+/**
+ * 채운 칸을 기록한다. 빈 값(key "")은 기록하지 않는다.
+ * viaPlan: 계획을 골라서 채운 값(계획 거래처로 찾은 지난 계좌 등) — 계획 연결을 풀면 함께 되돌린다.
+ */
+export function recordFill(
+  rec: FillRecords,
+  field: FillField,
+  source: FillSource,
+  key: string,
+  opts: { viaPlan?: boolean } = {},
+): FillRecords {
   if (!key) return rec;
-  return { ...rec, [field]: { source, key } };
+  return { ...rec, [field]: { source, key, ...(opts.viaPlan || source === "plan" ? { viaPlan: true } : {}) } };
+}
+
+/**
+ * 계획 연결을 풀 때 되돌릴 칸 — 계획을 골라서 채웠고 **아직 사람이 고치지 않은** 칸만.
+ * 되돌리지 않으면 다음에 고른 계획이 빈 칸이 아니라서 못 채우고, 앞 계획의 금액·계좌가 띠를 단 채 뒤 계획으로 제출된다(리뷰 10-27).
+ */
+export function planFillsToUndo(rec: FillRecords, current: Record<FillField, string>): FillField[] {
+  return (Object.keys(rec) as FillField[]).filter((f) => rec[f]?.viaPlan && rec[f]!.key === current[f]);
+}
+
+/** 기록에서 칸을 뺀다. */
+export function dropFills(rec: FillRecords, fields: FillField[]): FillRecords {
+  if (fields.length === 0) return rec;
+  const next = { ...rec };
+  for (const f of fields) delete next[f];
+  return next;
 }
 
 /** 지금 값(칸별 키)과 비교해 띠를 보여 줄 칸만 남긴다. */

@@ -4,7 +4,9 @@ import {
   accountFieldsEmpty,
   buildDepositSummary,
   activeFills,
+  dropFills,
   fillKey,
+  planFillsToUndo,
   recordFill,
   ocrUsdAmount,
   payeeForVendor,
@@ -101,6 +103,20 @@ describe("띠 표시 상태", () => {
     assert.deepEqual(activeFills(rec, same), { title: "plan", amount: "plan", account: "ocr" });
     assert.deepEqual(activeFills(rec, { ...same, amount: fillKey.amount(500000, "KRW") }), { title: "plan", account: "ocr" });
     assert.deepEqual(activeFills(rec, { ...same, account: fillKey.account("신한은행", "샘플", "12345678") }), { title: "plan", amount: "plan" });
+  });
+  it("계획 연결을 풀면 계획으로 채운(그대로인) 칸만 되돌린다", () => {
+    let rec = recordFill({}, "amount", "plan", fillKey.amount(550000, "KRW"));
+    rec = recordFill(rec, "title", "plan", fillKey.title("촬영"));
+    rec = recordFill(rec, "account", "payee", fillKey.account("국민은행", "샘플", "12345678"), { viaPlan: true });
+    rec = recordFill(rec, "category", "payee", fillKey.category("기타")); // 사람이 고른 지난 계좌 — 계획과 무관
+    rec = recordFill(rec, "company", "ocr", fillKey.company("c1"));
+    const cur = {
+      title: "촬영 수정함", company: "c1", dueDate: "", amount: fillKey.amount(550000, "KRW"),
+      account: fillKey.account("국민은행", "샘플", "12345678"), category: "기타",
+    };
+    assert.deepEqual(planFillsToUndo(rec, cur).sort(), ["account", "amount"]);
+    assert.deepEqual(Object.keys(dropFills(rec, ["account", "amount"])).sort(), ["category", "company", "title"]);
+    assert.equal(dropFills(rec, []), rec);
   });
   it("빈 값은 기록하지 않는다(나중에 비운 칸에 띠가 남지 않게)", () => {
     assert.deepEqual(recordFill({}, "amount", "plan", fillKey.amount(0, "KRW")), {});
