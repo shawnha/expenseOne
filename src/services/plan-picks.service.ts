@@ -22,8 +22,10 @@ const CARD_SUGGEST_LIMIT = 5;
 export interface PlanPick {
   id: string;
   title: string;
-  /** 계획 금액(원) — 예산이라 폼에 넣지 않고 참고로만 보여 준다 */
+  /** 계획 금액 — 입금요청 폼은 원화 계획이면 금액 칸을 이 값으로 채우고 띠로 확인을 받는다(2026-10-26 오너 결정, lib/deposit-prefill) */
   amount: number;
+  /** 계획 통화. 지금 운영 계획은 전부 KRW */
+  currency: string;
   plannedDate: string;
   datePrecision: string;
   companyId: string;
@@ -40,6 +42,7 @@ interface PickRow {
   id: string;
   title: string;
   amount: number | string;
+  currency: string | null;
   planned_date: string;
   date_precision: string;
   company_id: string;
@@ -55,6 +58,7 @@ function toPick(r: PickRow): PlanPick {
     id: r.id,
     title: r.title,
     amount: num(r.amount),
+    currency: r.currency ?? "KRW",
     plannedDate: r.planned_date,
     datePrecision: r.date_precision,
     companyId: r.company_id,
@@ -79,7 +83,7 @@ export async function listDepositPlanPicks(actor: PlanActorInput): Promise<{ min
     const rows = rowsOf<PickRow>(
       await tx.execute(sql`WITH today AS (SELECT (now() AT TIME ZONE 'Asia/Seoul')::date AS d)
         SELECT p.id, p.title, p.amount, p.planned_date::text AS planned_date, p.date_precision,
-               p.company_id, c.name AS company_name, j.name AS project_name, p.vendor_name,
+               p.company_id, c.name AS company_name, j.name AS project_name, p.vendor_name, p.currency,
                u.name AS owner_name, (p.created_by_id = ${acc.userId}::uuid) AS mine
           FROM expenseone.cost_plans p
           JOIN expenseone.plan_projects j ON j.id = p.project_id AND j.deleted_at IS NULL
@@ -116,7 +120,7 @@ export async function getPlanPick(actor: PlanActorInput, planId: string): Promis
     }
     const rows = rowsOf<PickRow>(
       await tx.execute(sql`SELECT p.id, p.title, p.amount, p.planned_date::text AS planned_date, p.date_precision,
-               p.company_id, c.name AS company_name, j.name AS project_name, p.vendor_name,
+               p.company_id, c.name AS company_name, j.name AS project_name, p.vendor_name, p.currency,
                u.name AS owner_name, (p.created_by_id = ${acc.userId}::uuid) AS mine
           FROM expenseone.cost_plans p
           JOIN expenseone.plan_projects j ON j.id = p.project_id
@@ -142,7 +146,7 @@ export async function suggestPlansForCard(
     const acc = await loadAccess(tx, access(actor));
     const rows = rowsOf<PickRow>(
       await tx.execute(sql`SELECT p.id, p.title, p.amount, p.planned_date::text AS planned_date, p.date_precision,
-               p.company_id, c.name AS company_name, j.name AS project_name, p.vendor_name,
+               p.company_id, c.name AS company_name, j.name AS project_name, p.vendor_name, p.currency,
                u.name AS owner_name, (p.created_by_id = ${acc.userId}::uuid) AS mine
           FROM expenseone.cost_plans p
           JOIN expenseone.plan_projects j ON j.id = p.project_id AND j.deleted_at IS NULL
