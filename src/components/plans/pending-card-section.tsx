@@ -95,7 +95,7 @@ export function PendingCardSection({ planId, plannedDate }: { planId: string; pl
           ))}
         </ul>
       )}
-      {data?.truncated && <p className="text-caption2 text-[var(--apple-secondary-label)]">결제가 많아 일부만 표시했습니다. 한 번에 올리기 화면에서 기간을 좁혀 확인해주세요.</p>}
+      {data?.truncated && <p className="text-caption2 text-[var(--apple-secondary-label)]">결제가 많아 최근 200건만 보입니다. 더 오래된 결제는 한 번에 올리기 화면에서 종료일을 앞당겨 확인해주세요.</p>}
       {!!data?.items.length && (
         <Button type="button" onClick={handleContinue} disabled={selected.size === 0} className="h-11 w-full rounded-full">
           선택한 {selected.size}건 올리고 연결

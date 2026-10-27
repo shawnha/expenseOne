@@ -11,6 +11,7 @@ import {
   formatMonthDay,
   defaultSelection,
   failedFirst,
+  matchesPendingQuery,
 } from "./ui";
 
 describe("buildDefaultTitle", () => {
@@ -138,5 +139,62 @@ describe("failedFirst", () => {
     const items = [{ id: "a" }, { id: "b" }, { id: "c" }];
     assert.deepEqual(failedFirst(items, { c: "x" }).map((x) => x.id), ["c", "a", "b"]);
     assert.equal(failedFirst(items, {}), items);
+  });
+});
+
+describe("matchesPendingQuery", () => {
+  const item = { amount: 12000, date: "2026-10-24", storeName: "Starbucks 강남" };
+
+  it("빈 검색어와 공백은 모두 보인다", () => {
+    assert.equal(matchesPendingQuery(item, ""), true);
+    assert.equal(matchesPendingQuery(item, "  \t\n "), true);
+  });
+
+  it("금액의 쉼표·원·통화 기호를 빼고 부분 일치한다", () => {
+    for (const query of ["12000", "12,000", "12000원", "₩12,000", "120"]) {
+      assert.equal(matchesPendingQuery(item, query), true, query);
+    }
+    assert.equal(matchesPendingQuery({ ...item, amount: 1200 }, "120"), true);
+    assert.equal(matchesPendingQuery({ ...item, amount: 120000 }, "120"), true);
+    for (const query of ["13000", "원", "₩", ",", "abc12000", "12.000"]) {
+      assert.equal(matchesPendingQuery(item, query), false, query);
+    }
+  });
+
+  it("짧은 날짜는 월·일, 긴 날짜는 연도까지 비교한다", () => {
+    for (const query of ["10.24", "10/24", "10-24", "1024", "2026.10.24", "20261024"]) {
+      assert.equal(matchesPendingQuery(item, query), true, query);
+    }
+    for (const query of ["10.25", "1025", "2025.10.24", "20251024"]) {
+      assert.equal(matchesPendingQuery(item, query), false, query);
+    }
+    const january = { ...item, date: "2026-01-02" };
+    for (const query of ["1.2", "1/2", "1-2", "0102", "2026.01.02", "2026.1.2", "20260102"]) {
+      assert.equal(matchesPendingQuery(january, query), true, query);
+    }
+  });
+
+  it("없는 날짜는 다음 달로 넘기지 않고 윤일은 실제 날짜와 비교한다", () => {
+    const march = { ...item, date: "2026-03-03" };
+    for (const query of ["2.31", "0231", "2026.02.31", "20260231", "13/1", "00-24", "10.00"]) {
+      assert.equal(matchesPendingQuery(march, query), false, query);
+    }
+    assert.equal(matchesPendingQuery({ ...item, date: "2024-02-29" }, "2/29"), true);
+    assert.equal(matchesPendingQuery({ ...item, date: "2024-02-29" }, "20240229"), true);
+    assert.equal(matchesPendingQuery({ ...item, date: "2026-03-01" }, "20260229"), false);
+  });
+
+  it("가맹점과 현재 제목은 대소문자 구분 없이 부분 일치한다", () => {
+    assert.equal(matchesPendingQuery(item, "STARBUCKS"), true);
+    assert.equal(matchesPendingQuery(item, "강남"), true);
+    assert.equal(matchesPendingQuery(item, "MEETING", "출장 Meeting 식비"), true);
+    assert.equal(matchesPendingQuery({ ...item, storeName: null }, "택시"), false);
+    assert.equal(matchesPendingQuery({ ...item, storeName: null }, "택시", "출장 택시"), true);
+  });
+
+  it("공백으로 나눈 모든 검색어가 각각 어느 필드에든 맞아야 한다", () => {
+    assert.equal(matchesPendingQuery(item, "  12,000원 \t10.24  STARBUCKS  출장 ", "출장 식비"), true);
+    assert.equal(matchesPendingQuery(item, "12000 10.25 Starbucks"), false);
+    assert.equal(matchesPendingQuery(item, "12000 택시"), false);
   });
 });

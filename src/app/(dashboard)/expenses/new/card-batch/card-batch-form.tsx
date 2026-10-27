@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowLeft, CheckCircle2, Loader2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Loader2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,7 @@ import {
 import {
   buildDefaultTitle,
   initialDateRange,
+  matchesPendingQuery,
   defaultSelection,
   failedFirst,
   formatMonthDay,
@@ -75,6 +76,7 @@ export default function CardBatchForm({ initialCompanies, myCategories = [], isA
   const [to, setTo] = useState("");
 
   const [items, setItems] = useState<PendingCardTx[]>([]);
+  const [query, setQuery] = useState("");
   const [truncated, setTruncated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -211,6 +213,7 @@ export default function CardBatchForm({ initialCompanies, myCategories = [], isA
           setSelected(new Set(requested.filter((id) => ids.has(id))));
           setMissingCount(requested.filter((id) => !ids.has(id)).length);
         } else {
+          // 최신순 목록의 앞에서 중복을 제외한 최대 건수까지 기본 선택한다.
           setSelected(defaultSelection(list, CARD_BATCH_MAX));
         }
         initialSelectionApplied.current = true;
@@ -271,13 +274,27 @@ export default function CardBatchForm({ initialCompanies, myCategories = [], isA
     });
   };
 
-  const allSelected = items.length > 0 && items.every((x) => selected.has(x.id));
+  const filtering = query.trim().length > 0;
+  const visibleItems = useMemo(
+    () => items.filter((x) => matchesPendingQuery(x, query, titles[x.id])),
+    [items, query, titles],
+  );
+  const allSelected = visibleItems.length > 0 && visibleItems.every((x) => selected.has(x.id));
   const toggleAll = () => {
     setSelectionTouched(true);
-    setSelected(allSelected ? new Set() : new Set(items.map((x) => x.id)));
+    // 검색에 가려진 선택도 제출하므로 보이는 행만 바꾼다.
+    setSelected((cur) => {
+      const next = new Set(cur);
+      for (const x of visibleItems) {
+        if (allSelected) next.delete(x.id);
+        else next.add(x.id);
+      }
+      return next;
+    });
   };
 
   const selectedCount = items.filter((x) => selected.has(x.id)).length;
+  const hiddenSelectedCount = selectedCount - visibleItems.filter((x) => selected.has(x.id)).length;
   const total = useMemo(() => sumSelected(items, selected), [items, selected]);
   const emptyTitleSelected = items.some((x) => selected.has(x.id) && !(titles[x.id] ?? "").trim());
   const overMax = selectedCount > CARD_BATCH_MAX;
@@ -381,7 +398,7 @@ export default function CardBatchForm({ initialCompanies, myCategories = [], isA
   };
 
   const allDone = createdTotal > 0 && items.length === 0 && !loading;
-  const shownItems = useMemo(() => failedFirst(items, failures), [items, failures]);
+  const shownItems = useMemo(() => failedFirst(visibleItems, failures), [visibleItems, failures]);
 
   useEffect(() => {
     if (allDone) doneHeadingRef.current?.focus();
@@ -590,10 +607,64 @@ export default function CardBatchForm({ initialCompanies, myCategories = [], isA
                   type="button"
                   variant="ghost"
                   onClick={toggleAll}
+                  disabled={visibleItems.length === 0}
                   className="rounded-full h-11 px-4 text-[13px] text-[var(--apple-blue)]"
                 >
-                  {allSelected ? "전체 해제" : "전체 선택"}
+                  {filtering ? `보이는 ${visibleItems.length}건 ${allSelected ? "해제" : "선택"}` : allSelected ? "전체 해제" : "전체 선택"}
                 </Button>
+              )}
+            </div>
+
+            <div className="mb-3">
+              <Label htmlFor="cb-search" className="sr-only">결제 검색</Label>
+              <div className="relative">
+                <Input
+                  id="cb-search"
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="금액·날짜·가맹점으로 찾기 (예: 12000, 10.24)"
+                  className="h-11 pr-12 bg-[var(--apple-secondary-system-background)] backdrop-blur-none [&::-webkit-search-cancel-button]:appearance-none"
+                />
+                {query && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    aria-label="검색어 지우기"
+                    onClick={() => setQuery("")}
+                    className="absolute right-0 top-0 size-11 rounded-full p-0 text-[var(--apple-secondary-label)]"
+                  >
+                    <X className="size-4" aria-hidden />
+                  </Button>
+                )}
+              </div>
+              {filtering && (
+                <div className="mt-2 space-y-1 text-footnote text-[var(--apple-secondary-label)] tabular-nums" role="status">
+                  <p>{items.length}건 중 {visibleItems.length}건</p>
+                  {hiddenSelectedCount > 0 && (
+                    <div className="p-3 rounded-xl bg-[rgba(255,149,0,0.12)] text-[13px] text-[#C93400] dark:text-[#FF9F0A]">
+                      <p>선택한 {selectedCount}건 중 {hiddenSelectedCount}건은 검색에 가려져 있어요</p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => {
+                          setSelectionTouched(true);
+                          const visibleIds = new Set(visibleItems.map((x) => x.id));
+                          setSelected((cur) => {
+                            const next = new Set(cur);
+                            for (const x of items) {
+                              if (!visibleIds.has(x.id)) next.delete(x.id);
+                            }
+                            return next;
+                          });
+                        }}
+                        className="mt-1 h-11 rounded-full px-4 text-[13px] text-[#C93400] dark:text-[#FF9F0A]"
+                      >
+                        가려진 {hiddenSelectedCount}건 선택 해제
+                      </Button>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 
@@ -610,9 +681,9 @@ export default function CardBatchForm({ initialCompanies, myCategories = [], isA
               </div>
             )}
 
-            {!loading && !loadError && items.length === 0 && (
+            {!loading && !loadError && visibleItems.length === 0 && (
               <p className="py-10 text-center text-footnote text-[var(--apple-secondary-label)]">
-                이 기간에 아직 올리지 않은 법카 결제가 없습니다.
+                {filtering ? "찾는 결제가 없어요. 기간을 넓혀 보세요." : "이 기간에 아직 올리지 않은 법카 결제가 없습니다."}
               </p>
             )}
 
@@ -708,7 +779,7 @@ export default function CardBatchForm({ initialCompanies, myCategories = [], isA
 
             {truncated && (
               <p className="mt-3 p-3 rounded-xl bg-[rgba(255,149,0,0.12)] text-[13px] text-[#C93400] dark:text-[#FF9F0A]">
-                결제가 많아 일부만 표시했습니다. 기간을 좁혀서 다시 불러와주세요.
+                결제가 많아 최근 200건만 보입니다. 더 오래된 결제는 종료일을 앞당겨 다시 불러와주세요.
               </p>
             )}
 
@@ -756,7 +827,9 @@ export default function CardBatchForm({ initialCompanies, myCategories = [], isA
                     올리는 중…
                   </>
                 ) : (
-                  `${selectedCount}건 올리기`
+                  hiddenSelectedCount > 0
+                    ? `${selectedCount}건 올리기 · 가려진 ${hiddenSelectedCount}건 포함`
+                    : `${selectedCount}건 올리기`
                 )}
               </Button>
             </div>
