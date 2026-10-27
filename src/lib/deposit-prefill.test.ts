@@ -11,6 +11,7 @@ import {
   ocrUsdAmount,
   payeeForVendor,
   planAmountToFill,
+  shouldReplacePlanAmountWithOcr,
   shouldAutoFillOcrAccount,
   shouldAutoFillOcrAmount,
   shouldAutoFillOcrUsdAmount,
@@ -231,5 +232,74 @@ describe("buildDepositSummary", () => {
     assert.equal(rowOf(s, "purchase")?.value, "약국 2곳");
     assert.equal(rowOf(s, "description")?.value, "메모");
     assert.equal(rowOf(s, "attachments")?.value, "0개");
+  });
+});
+
+
+describe("계획 금액 → 서류 금액 안전 판정", () => {
+  const current = { title: "", company: "", dueDate: "", amount: "KRW:1000000", account: "", category: "" };
+  const input = {
+    fills: recordFill({}, "amount", "plan", current.amount), current,
+    amountTouched: false, currency: "KRW", amount: 1000000,
+    ocrAmount: { base: 1200000, vatExclusive: true }, freelancer: false,
+    pendingSubmit: false, isSubmitting: false,
+  };
+  it("그대로인 계획 금액만 교체하고 서류 출처는 계획 해제에도 남는다", () => {
+    assert.equal(shouldReplacePlanAmountWithOcr(input), true);
+    const rec = recordFill(input.fills, "amount", "ocr", "KRW:1200000");
+    assert.deepEqual(planFillsToUndo(rec, { ...current, amount: "KRW:1200000" }), []);
+    for (const source of ["payee", "recurring", "ocr"] as const) {
+      assert.equal(shouldReplacePlanAmountWithOcr({ ...input, fills: recordFill({}, "amount", source, current.amount) }), false);
+    }
+    assert.equal(shouldReplacePlanAmountWithOcr({ ...input, fills: {} }), false);
+  });
+  it("직접 입력·적용·자동 키 불일치·외화·서류 없음·요약·제출 중에는 금지", () => {
+    for (const patch of [
+      { amountTouched: true }, { current: { ...current, amount: "KRW:999999" } },
+      { currency: "USD" }, { ocrAmount: null }, { pendingSubmit: true }, { isSubmitting: true },
+      { amount: 0 },
+    ]) assert.equal(shouldReplacePlanAmountWithOcr({ ...input, ...patch }), false);
+  });
+  it("최종액으로 동등 비교, 부가세·원천징수 조합과 엄격한 배율 경계", () => {
+    for (const freelancer of [false, true]) {
+      for (const vatExclusive of [false, true]) {
+        const ocrAmount = { base: 1000000, vatExclusive };
+        const amount = calcDepositAmount(ocrAmount.base, "KRW", vatExclusive, freelancer);
+        assert.equal(shouldReplacePlanAmountWithOcr({ ...input, amount, ocrAmount, freelancer }), false);
+      }
+    }
+    // 공급가는 같아도 부가세가 다르면 최종액이 달라 교체한다.
+    assert.equal(shouldReplacePlanAmountWithOcr({ ...input, ocrAmount: { base: 1000000, vatExclusive: true } }), true);
+    for (const base of [1, 499999, 500000, 2000000, 12000000, NaN, Infinity]) {
+      assert.equal(shouldReplacePlanAmountWithOcr({ ...input, ocrAmount: { base, vatExclusive: false } }), false);
+    }
+    for (const base of [500001, 999999, 1000001, 1999999]) {
+      assert.equal(shouldReplacePlanAmountWithOcr({ ...input, ocrAmount: { base, vatExclusive: false } }), true);
+    }
+  });
+});
+
+describe("요약 차이 경고", () => {
+  it("연결된 원화 계획·반복 등록 금액과 최종액의 차이", () => {
+    const plan = { title: "계획", linked: true, amount: 1000000 };
+    const s = buildDepositSummary({ ...base, plan, supplyAmount: 1200000, vatAdded: true });
+    assert.deepEqual(rowOf(s, "amount")?.details, ["공급가 1,200,000원 + 부가세 120,000원", "계획 금액 1,000,000원과 달라요 (+320,000원)"]);
+    assert.equal(rowOf(s, "amount")?.warning, true);
+    const recurring = buildDepositSummary({ ...base, plan: null, recurringAmount: 600000 });
+    assert.deepEqual(rowOf(recurring, "amount")?.details, ["등록 금액 600,000원과 달라요 (−50,000원)"]);
+    for (const plan of [{ title: "계획", linked: false, amount: 1 }, { title: "달러", linked: true, amount: 1, currency: "USD" }, { title: "같음", linked: true, amount: 550000 }]) {
+      assert.equal(rowOf(buildDepositSummary({ ...base, plan }), "amount")?.warning, false);
+    }
+  });
+  it("남은 서류 금액·계좌는 서로 다를 때만 경고", () => {
+    const i = { ...base, remainingOcrAmount: 1320000, remainingOcrAccount: { bankName: "국민은행", accountNumber: "12345675678", accountHolder: "홍길동" } };
+    const s = buildDepositSummary(i);
+    assert.deepEqual(rowOf(s, "amount")?.details, ["첨부 서류: 1,320,000원 — 지금 값과 달라요"]);
+    assert.equal(rowOf(s, "amount")?.warning, true);
+    assert.deepEqual(rowOf(s, "account")?.details, ["첨부 서류 계좌(국민은행 …5678)와 달라요"]);
+    assert.equal(rowOf(s, "account")?.warning, true);
+    const same = buildDepositSummary({ ...base, remainingOcrAmount: 550000, remainingOcrAccount: { bankName: null, accountNumber: "123-45678901", accountHolder: " 샘플스튜디오 " } });
+    assert.equal(rowOf(same, "account")?.warning, false);
+    assert.equal(rowOf(same, "amount")?.warning, false);
   });
 });

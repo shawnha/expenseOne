@@ -4,16 +4,16 @@
 // 2026-10-26 오너 결정: 「금액 등도 일단은 채워지고, 고칠지 확인하도록 주변을 띠로 하이라이트하고,
 // 제출 전에 전체 요약을 보여 주면서 한 번 더 확인」. 그래서 **이번 건을 설명하는 출처**는 채운다.
 //   - 비용계획(plan): 제목·회사·납기일(예전부터) + 금액(원화 계획만) + 거래처와 같은 예금주의 지난 계좌
-//   - 첨부 서류(ocr): 금액·계좌 — 칸이 비어 있을 때만
+//   - 첨부 서류(ocr): 빈 금액·계좌 + 그대로인 계획 금액(아래 안전 판정)
 //   - 반복 지급(recurring): 회차 값(예전부터)
 // **지난 건(payee)의 금액은 여전히 채우지 않는다.** 지난달 금액이 그대로 제출된 사고가 그 경로였다
 // (autofill.service 머리 주석). 지난 건에서 오는 건 계좌·카테고리·회사뿐이다.
 //
-// 우선순위: 사람이 친 값 > 먼저 채운 자동값. 나중에 다른 값이 나오면 덮지 않고 「적용」 칩으로 남긴다
+// 우선순위: 사람이 친 값 > 서류 금액 > 계획 금액(안전 판정을 통과할 때만). 나중에 다른 값이 나오면 덮지 않고 「적용」 칩으로 남긴다
 // (칩은 값이 같으면 숨으므로 서로 덮어쓰는 고리가 생기지 않는다).
 // 채운 칸은 띠로 표시하고(FillRecords), 사람이 그 칸을 고쳐 값이 달라지면 띠가 저절로 빠진다.
 // ---------------------------------------------------------------------------
-import { calcDepositBreakdownKRW } from "@/lib/utils/deposit-amount";
+import { calcDepositAmount, calcDepositBreakdownKRW } from "@/lib/utils/deposit-amount";
 import { prePaidSplit } from "@/lib/utils/pre-paid";
 import { accountKey, holderKey } from "@/lib/utils/autofill";
 
@@ -139,6 +139,29 @@ export function shouldAutoFillOcrAmount(form: { supplyAmount: number; amountTouc
 }
 
 /**
+ * 계획 자동값이 그대로이고 사람이 손대지 않은 원화 금액만 서류로 바꾼다.
+ * 요약·제출 중에는 고정하고, 부가세·원천징수 뒤 최종액으로 비교한다.
+ * 같은 최종액은 출처를 유지한다. 절반 이하·두 배 이상은 사람이 칩으로 확인한다.
+ * 1회 제한(ocrAutoDone)은 호출부가 맡는다. 계좌·다른 자동 출처에는 적용하지 않는다.
+ */
+export function shouldReplacePlanAmountWithOcr(i: {
+  fills: FillRecords;
+  current: Record<FillField, string>;
+  amountTouched: boolean;
+  currency: string;
+  amount: number;
+  ocrAmount: { base: number; vatExclusive: boolean } | null;
+  freelancer: boolean;
+  pendingSubmit: boolean;
+  isSubmitting: boolean;
+}): boolean {
+  if (i.amountTouched || i.currency !== "KRW" || i.pendingSubmit || i.isSubmitting) return false;
+  if (activeFills(i.fills, i.current).amount !== "plan" || !i.ocrAmount || !(i.amount > 0)) return false;
+  const final = calcDepositAmount(i.ocrAmount.base, "KRW", i.ocrAmount.vatExclusive, i.freelancer);
+  return Number.isSafeInteger(final) && final !== i.amount && final / i.amount > 0.5 && final / i.amount < 2;
+}
+
+/**
  * 달러 문서의 금액(달러, 소수 둘째 자리까지). 폼이 받는 외화는 USD 뿐이라 다른 통화(CNY·CAD 등)는 null —
  * 화면은 지금처럼 「직접 환산해 입력」 안내를 둔다. 셋째 자리 이하가 있으면 잘못 읽은 값으로 보고 넣지 않는다.
  */
@@ -198,7 +221,11 @@ export interface DepositSummaryInput {
   prePaidPercentage: number | null;
   prePaidFixedAmount: number | null;
   /** 연결될 계획. 회사가 달라 연결이 안 되면 linked=false. */
-  plan: { title: string; linked: boolean } | null;
+  plan: { title: string; linked: boolean; amount?: number; currency?: string } | null;
+  /** 반복 등록 금액과 적용하지 않은 서류 후보 — 모두 최종 원화 금액. */
+  recurringAmount?: number | null;
+  remainingOcrAmount?: number | null;
+  remainingOcrAccount?: AccountFields | null;
   attachments: { count: number; typeLabels: string[] };
   branch: string | null;
   /** 사입 약국 줄 수(사입이 아니면 0). */
@@ -268,12 +295,24 @@ export function buildDepositSummary(i: DepositSummaryInput): DepositSummary {
     if (i.freelancer) {
       details.push(`원천징수 3.3% −${won(bd.withholdingKRW)} (공제 전 ${won(bd.totalBeforeWithholdingKRW)})`);
     }
+    const reference = i.recurringAmount != null
+      ? { label: "등록 금액", amount: i.recurringAmount }
+      : i.plan?.linked && (i.plan.currency ?? "KRW") === "KRW" && i.plan.amount != null
+        ? { label: "계획 금액", amount: i.plan.amount } : null;
+    if (reference && bd.finalKRW !== reference.amount) {
+      const diff = bd.finalKRW - reference.amount;
+      details.push(`${reference.label} ${won(reference.amount)}과 달라요 (${diff > 0 ? "+" : "−"}${won(Math.abs(diff))})`);
+    }
+    if (i.remainingOcrAmount != null && i.remainingOcrAmount !== bd.finalKRW) {
+      details.push(`첨부 서류: ${won(i.remainingOcrAmount)} — 지금 값과 달라요`);
+    }
     rows.push(
       row({
         key: "amount",
         label: i.freelancer ? "지급액 (3.3% 공제 후)" : "금액",
         value: isUSD ? `약 ${won(bd.finalKRW)}` : won(bd.finalKRW),
         details,
+        warning: !!(reference && bd.finalKRW !== reference.amount) || (i.remainingOcrAmount != null && i.remainingOcrAmount !== bd.finalKRW),
         source: src("amount"),
       }),
     );
@@ -306,6 +345,12 @@ export function buildDepositSummary(i: DepositSummaryInput): DepositSummary {
     }
   }
 
+  const otherAccount = i.remainingOcrAccount;
+  const accountMismatch = !!otherAccount && (
+    accountKey(otherAccount.accountNumber) !== accountKey(i.accountNumber) ||
+    holderKey(otherAccount.accountHolder) !== holderKey(i.accountHolder) ||
+    (!!otherAccount.bankName && otherAccount.bankName !== i.bankName)
+  );
   const acct = [i.bankName.trim(), i.accountNumber.trim()].filter(Boolean).join(" ");
   rows.push(
     row({
@@ -313,6 +358,8 @@ export function buildDepositSummary(i: DepositSummaryInput): DepositSummary {
       label: "받는 계좌",
       value: acct ? `${acct} · ${i.accountHolder.trim() || "-"}` : "-",
       source: src("account"),
+      details: accountMismatch ? [`첨부 서류 계좌(${[otherAccount.bankName, `…${accountKey(otherAccount.accountNumber).slice(-4)}`].filter(Boolean).join(" ")})와 달라요`] : [],
+      warning: accountMismatch,
     }),
   );
   rows.push(row({ key: "dueDate", label: "납기일", value: i.dueDate ? ymd(i.dueDate) : "지정 안 함", source: src("dueDate") }));
