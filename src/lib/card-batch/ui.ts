@@ -139,3 +139,36 @@ export function failedFirst<T extends { id: string }>(items: T[], failures: Reco
 export function formatMonthDay(date: string): string {
   return `${date.slice(5, 7)}.${date.slice(8, 10)}`;
 }
+
+/** 검색어마다 금액·날짜·가맹점·현재 제목 중 하나가 맞아야 한다. 선택 상태는 건드리지 않는다. */
+export function matchesPendingQuery(
+  item: Pick<PendingCardTx, "amount" | "date" | "storeName">,
+  query: string,
+  title = "",
+): boolean {
+  const amount = String(item.amount).replace(/\D/g, "");
+  const store = (item.storeName ?? "").toLowerCase();
+  const currentTitle = title.toLowerCase();
+  return query.trim().split(/\s+/).filter(Boolean).every((token) => {
+    const digits = token.replace(/[,원₩]/g, "");
+    return (/^\d+$/.test(digits) && amount.includes(digits))
+      || matchesQueryDate(item.date, token)
+      || store.includes(token.toLowerCase())
+      || currentTitle.includes(token.toLowerCase());
+  });
+}
+
+/** 짧은 날짜는 월·일만, 연도가 있으면 날짜 전체를 비교한다. 없는 날짜는 넘겨서 해석하지 않는다. */
+function matchesQueryDate(date: string, token: string): boolean {
+  const full = /^(\d{4})[.]([0-9]{1,2})[.]([0-9]{1,2})$/.exec(token)
+    ?? /^(\d{4})(\d{2})(\d{2})$/.exec(token);
+  if (full) {
+    const iso = `${full[1]}-${pad2(Number(full[2]))}-${pad2(Number(full[3]))}`;
+    return isoDayMs(iso) != null && date === iso;
+  }
+  const short = /^(\d{1,2})[./-](\d{1,2})$/.exec(token)
+    ?? /^(\d{2})(\d{2})$/.exec(token);
+  if (!short) return false;
+  const monthDay = `${pad2(Number(short[1]))}-${pad2(Number(short[2]))}`;
+  return isoDayMs(`2000-${monthDay}`) != null && date.slice(5) === monthDay;
+}

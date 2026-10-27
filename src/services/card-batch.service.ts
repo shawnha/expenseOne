@@ -88,7 +88,7 @@ export async function listPendingCardTransactions(
          AND g.status = 'pending'
          AND g.expense_date BETWEEN ${fromCompact} AND ${toCompact}
          ${card}
-       ORDER BY g.expense_date, g.expense_time NULLS LAST, g.id
+       ORDER BY g.expense_date DESC, g.expense_time DESC NULLS LAST, g.id DESC
        LIMIT ${LIST_LIMIT + 1}
     `),
   );
