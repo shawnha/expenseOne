@@ -4,6 +4,7 @@ import Link from "next/link";
 import { CreditCard, Banknote, ArrowRight, Undo2, ReceiptText, CalendarPlus, Layers } from "lucide-react";
 import { TiltCard } from "@/components/layout/tilt-card";
 // 계획 데이터는 서버에서 읽고, 클라이언트에는 직렬화한 목록만 넘긴다.
+import { PlansNavGate } from "@/components/plans/plans-nav-gate";
 import { SoonPlansSection } from "@/components/plans/soon-plans-section";
 import type { SoonPlans } from "@/services/plan-picks.service";
 import { usePendingCardSummary } from "@/hooks/use-pending-card-summary";
@@ -91,10 +92,37 @@ function TypeCard({
   );
 }
 
-export function NewExpenseChooser({ plansEnabled, soonPlans }: { plansEnabled: boolean; soonPlans: SoonPlans | null }) {
+export function NewExpenseChooser({ plansEnabled, soonPlans }: { plansEnabled: boolean | null; soonPlans: SoonPlans | null }) {
   const summary = usePendingCardSummary();
   const pendingLabel = pendingCardLabel(summary?.count);
   const pendingHref = pendingCardBatchHref(summary?.oldestDate);
+
+  const plansSection = (
+    <section aria-labelledby="group-future" className="space-y-3">
+      <h2 id="group-future" className="text-footnote font-semibold text-[var(--apple-secondary-label)]">
+        앞으로 쓸 돈
+      </h2>
+      <TiltCard>
+        <Link
+          href="/plans?new=1"
+          className="group flex items-center gap-4 rounded-[16px] border border-dashed border-[var(--apple-separator)] p-5 transition-colors hover:border-[var(--apple-blue)] hover:bg-[rgba(0,122,255,0.04)] apple-press animate-card-enter stagger-5"
+        >
+          <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--apple-secondary-system-background)]">
+            <CalendarPlus className="size-6 text-[var(--apple-blue)]" aria-hidden="true" />
+          </div>
+          <div className="min-w-0">
+            <span className="flex items-center gap-1 text-subheadline font-semibold text-[var(--apple-label)]">
+              비용계획 세우기
+              <ArrowRight className="size-3.5 opacity-0 -translate-x-1 transition-all duration-200 group-hover:translate-x-0 group-hover:opacity-100 text-[var(--apple-blue)]" aria-hidden="true" />
+            </span>
+            <p className="mt-1 text-footnote leading-relaxed text-[var(--apple-secondary-label)]">
+              예정만 적어 둡니다 · 돈은 나가지 않습니다
+            </p>
+          </div>
+        </Link>
+      </TiltCard>
+    </section>
+  );
 
   return (
     <div className="mx-auto max-w-lg space-y-5">
@@ -118,33 +146,8 @@ export function NewExpenseChooser({ plansEnabled, soonPlans }: { plansEnabled: b
         </div>
       </section>
 
-      {/* 비용계획 권한이 있는 사람에게만. 없으면 이 구역 전체가 없다. */}
-      {plansEnabled && (
-        <section aria-labelledby="group-future" className="space-y-3">
-          <h2 id="group-future" className="text-footnote font-semibold text-[var(--apple-secondary-label)]">
-            앞으로 쓸 돈
-          </h2>
-          <TiltCard>
-          <Link
-            href="/plans?new=1"
-            className="group flex items-center gap-4 rounded-[16px] border border-dashed border-[var(--apple-separator)] p-5 transition-colors hover:border-[var(--apple-blue)] hover:bg-[rgba(0,122,255,0.04)] apple-press animate-card-enter stagger-5"
-          >
-            <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--apple-secondary-system-background)]">
-              <CalendarPlus className="size-6 text-[var(--apple-blue)]" aria-hidden="true" />
-            </div>
-            <div className="min-w-0">
-              <span className="flex items-center gap-1 text-subheadline font-semibold text-[var(--apple-label)]">
-                비용계획 세우기
-                <ArrowRight className="size-3.5 opacity-0 -translate-x-1 transition-all duration-200 group-hover:translate-x-0 group-hover:opacity-100 text-[var(--apple-blue)]" aria-hidden="true" />
-              </span>
-              <p className="mt-1 text-footnote leading-relaxed text-[var(--apple-secondary-label)]">
-                예정만 적어 둡니다 · 돈은 나가지 않습니다
-              </p>
-            </div>
-          </Link>
-          </TiltCard>
-        </section>
-      )}
+      {/* 권한이 미확정이면 기존 클라이언트 게이트로 확인한다. */}
+      {plansEnabled === null ? <PlansNavGate>{plansSection}</PlansNavGate> : plansEnabled ? plansSection : null}
 
       <section aria-labelledby="group-sales" className="space-y-3">
         <h2 id="group-sales" className="text-footnote font-semibold text-[var(--apple-secondary-label)]">

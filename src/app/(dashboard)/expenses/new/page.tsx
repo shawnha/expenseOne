@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function NewExpensePage() {
   const user = await getCachedCurrentUser();
   if (!user) redirect("/login");
-  let plansEnabled = false;
+  let plansEnabled: boolean | null = null;
   let soonPlans: SoonPlans | null = null;
   let expired = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -20,15 +20,17 @@ export default async function NewExpensePage() {
     const result = await Promise.race([
       (async () => {
         const allowed = await isCostPlanningAllowed(user.id);
-        if (!allowed || expired) return null;
-        const plans = await listSoonPlans({ id: user.id, role: user.role });
-        return { plansEnabled: true, soonPlans: plans };
+        if (expired) return null;
+        // 권한은 목록 실패·시간 초과와 별개로 유지한다.
+        plansEnabled = allowed;
+        if (!allowed) return null;
+        return await listSoonPlans({ id: user.id, role: user.role });
       })(),
       new Promise<null>((resolve) => {
         timer = setTimeout(() => { expired = true; resolve(null); }, 1500);
       }),
     ]);
-    if (result) ({ plansEnabled, soonPlans } = result);
+    soonPlans = result;
   } catch (err) {
     unstable_rethrow(err);
     // flag·목록 실패가 기존 제출 메뉴를 막지 않게 SQL·params 없는 요약만 남긴다.
