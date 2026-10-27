@@ -71,7 +71,7 @@ export function SoonPlansSection({ plans }: { plans: SoonPlans }) {
         {expanded && plans.additional.map((plan) => <SoonPlanRow key={plan.id} plan={plan} />)}
       </ul>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        {plans.moreCount > 0 && !(expanded && plans.hasMore) && (
+        {plans.moreCount > 0 && (
           <button
             type="button"
             aria-expanded={expanded}

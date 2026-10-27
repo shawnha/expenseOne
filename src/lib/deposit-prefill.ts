@@ -139,26 +139,38 @@ export function shouldAutoFillOcrAmount(form: { supplyAmount: number; amountTouc
 }
 
 /**
- * 계획 자동값이 그대로이고 사람이 손대지 않은 원화 금액만 서류로 바꾼다.
- * 요약·제출 중에는 고정하고, 부가세·원천징수 뒤 최종액으로 비교한다.
- * 같은 최종액은 출처를 유지한다. 절반 이하·두 배 이상은 사람이 칩으로 확인한다.
- * 1회 제한(ocrAutoDone)은 호출부가 맡는다. 계좌·다른 자동 출처에는 적용하지 않는다.
+ * 서류 금액 판정은 여기서만 한다. 요약·제출·수동 편집·1회 처리 뒤에는 바꾸지 않는다.
+ * 빈 칸은 기존대로 채우되, 계획 교체는 통화가 확실한 원화만 허용한다(반복은 제외).
+ * 같은 최종액은 출처를 유지하고 done만 기록한다. 배율은 계획을 채운 기준의 최종액과 비교한다.
+ * 절반 이하·두 배 이상이면 칩으로 남긴다. 계좌 판정은 별도다.
  */
-export function shouldReplacePlanAmountWithOcr(i: {
+export function decideOcrAmount(i: {
   fills: FillRecords;
   current: Record<FillField, string>;
+  supplyAmount: number;
   amountTouched: boolean;
   currency: string;
   amount: number;
-  ocrAmount: { base: number; vatExclusive: boolean } | null;
+  planFinal: number | null;
+  ocrAmount: { base: number; vatExclusive: boolean; currency: string | null } | null;
+  ocrUsd: number | null;
   freelancer: boolean;
+  recurring: boolean;
+  done: boolean;
   pendingSubmit: boolean;
   isSubmitting: boolean;
-}): boolean {
-  if (i.amountTouched || i.currency !== "KRW" || i.pendingSubmit || i.isSubmitting) return false;
-  if (activeFills(i.fills, i.current).amount !== "plan" || !i.ocrAmount || !(i.amount > 0)) return false;
-  const final = calcDepositAmount(i.ocrAmount.base, "KRW", i.ocrAmount.vatExclusive, i.freelancer);
-  return Number.isSafeInteger(final) && final !== i.amount && final / i.amount > 0.5 && final / i.amount < 2;
+}): "replacePlan" | "markDone" | "fillEmpty" | "fillUsd" | "none" {
+  if (i.done || i.amountTouched || i.pendingSubmit || i.isSubmitting) return "none";
+  if (i.ocrAmount) {
+    if (shouldAutoFillOcrAmount(i)) return "fillEmpty";
+    if (i.recurring || i.currency !== "KRW" || i.ocrAmount.currency !== "KRW" ||
+      activeFills(i.fills, i.current).amount !== "plan" || !(i.amount > 0) || !(i.planFinal && i.planFinal > 0)) return "none";
+    const final = calcDepositAmount(i.ocrAmount.base, "KRW", i.ocrAmount.vatExclusive, i.freelancer);
+    if (!Number.isSafeInteger(final)) return "none";
+    if (final === i.amount) return "markDone";
+    return final / i.planFinal > 0.5 && final / i.planFinal < 2 ? "replacePlan" : "none";
+  }
+  return i.ocrUsd != null && shouldAutoFillOcrUsdAmount(i) ? "fillUsd" : "none";
 }
 
 /**
@@ -253,6 +265,15 @@ export interface DepositSummary {
 }
 
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
+/** 계획 원액과 비교에 쓰는 공제 후 금액을 구분해서 보여 준다. */
+export function formatPlanAmountReference(
+  amount: number,
+  freelancer: boolean,
+  withholdingLabel: "3.3% 공제 후" | "공제 후" = "3.3% 공제 후",
+): string {
+  return `${won(amount)}${freelancer ? `(${withholdingLabel} ${won(calcDepositAmount(amount, "KRW", false, true))})` : ""}`;
+}
+
 const usd = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const ymd = (d: Date) =>
   `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
@@ -296,12 +317,12 @@ export function buildDepositSummary(i: DepositSummaryInput): DepositSummary {
       details.push(`원천징수 3.3% −${won(bd.withholdingKRW)} (공제 전 ${won(bd.totalBeforeWithholdingKRW)})`);
     }
     const reference = i.recurringAmount != null
-      ? { label: "등록 금액", amount: i.recurringAmount }
+      ? { label: `등록 금액 ${won(i.recurringAmount)}`, amount: i.recurringAmount }
       : i.plan?.linked && (i.plan.currency ?? "KRW") === "KRW" && i.plan.amount != null
-        ? { label: "계획 금액", amount: i.plan.amount } : null;
+        ? { label: `계획 금액 ${formatPlanAmountReference(i.plan.amount, i.freelancer, "공제 후")}`, amount: calcDepositAmount(i.plan.amount, "KRW", false, i.freelancer) } : null;
     if (reference && bd.finalKRW !== reference.amount) {
       const diff = bd.finalKRW - reference.amount;
-      details.push(`${reference.label} ${won(reference.amount)}과 달라요 (${diff > 0 ? "+" : "−"}${won(Math.abs(diff))})`);
+      details.push(`${reference.label}과 달라요 (${diff > 0 ? "+" : "−"}${won(Math.abs(diff))})`);
     }
     if (i.remainingOcrAmount != null && i.remainingOcrAmount !== bd.finalKRW) {
       details.push(`첨부 서류: ${won(i.remainingOcrAmount)} — 지금 값과 달라요`);

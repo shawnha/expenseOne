@@ -4,7 +4,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { OcrFields } from "./types";
-import { cardAmountMismatch, suggestAccount, suggestAmountKRW } from "./suggest";
+import { cardAmountMismatch, suggestAccount, suggestAmountKRW, suggestAmountKRWWithCurrency } from "./suggest";
 import { normalizeBankName } from "../banks";
 
 const f = (over: Partial<OcrFields>): OcrFields => ({
@@ -26,6 +26,16 @@ const f = (over: Partial<OcrFields>): OcrFields => ({
 });
 
 describe("suggestAmountKRW", () => {
+  it("입금요청 후보는 통화를 보존하고 기존 호출부의 반환값은 그대로다", () => {
+    for (const currency of ["KRW", "krw", null]) {
+      const fields = f({ totalAmount: 1000000, currency });
+      assert.deepEqual(suggestAmountKRWWithCurrency(fields), {
+        base: 1000000, vatExclusive: false, total: 1000000, currency: currency?.toUpperCase() ?? null,
+      });
+      assert.deepEqual(suggestAmountKRW(fields), { base: 1000000, vatExclusive: false, total: 1000000 });
+    }
+    assert.equal(suggestAmountKRWWithCurrency(f({ totalAmount: 100, currency: "USD" })), null);
+  });
   it("공급가+부가세가 폼 계산과 맞으면 공급가 + 부가세 별도", () => {
     assert.deepEqual(suggestAmountKRW(f({ supplyAmount: 473000, vatAmount: 47300, totalAmount: 520300 })), {
       base: 473000, vatExclusive: true, total: 520300,

@@ -32,30 +32,45 @@ export function WelcomeTourGate({
     }
     let alive = true;
     let request = 0;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const open = async (mode: TourMode) => {
+    const timers = new Set<ReturnType<typeof setTimeout>>();
+    const open = async (mode: TourMode, automatic = false) => {
       const current = ++request;
-      const allowed = plansEnabled ?? await Promise.race([
-        loadPlansFlag(),
-        new Promise<boolean>((resolve) => { timer = setTimeout(() => resolve(false), 1000); }),
-      ]);
-      clearTimeout(timer);
-      // 열린 뒤 늦게 도착한 flag로 단계 수를 바꾸지 않는다.
-      if (alive && current === request) setTour((shown) => shown ?? { mode, plansEnabled: allowed });
+      // 호출마다 자기 타이머를 정리한다. 메뉴 재열기가 자동 열기의 타이머를 덮지 않는다.
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      let allowed = plansEnabled ?? false;
+      try {
+        allowed = plansEnabled ?? await Promise.race([
+          loadPlansFlag(),
+          new Promise<boolean>((resolve) => {
+            timer = setTimeout(() => resolve(false), 1000);
+            timers.add(timer);
+          }),
+        ]);
+      } catch {
+        // flag 실패 시 계획 단계만 뺀다.
+      } finally {
+        clearTimeout(timer);
+        if (timer) timers.delete(timer);
+      }
+      // 열린 뒤 늦게 도착한 flag로 단계 수를 바꾸지 않는다. 자동 열기는 여전히 홈일 때만.
+      if (alive && current === request && (!automatic || window.location.pathname === "/")) {
+        setTour((shown) => shown ?? { mode, plansEnabled: allowed });
+      }
     };
     if (window.location.pathname === "/") {
-      let mode: TourMode | null = "full";
+      let mode: TourMode | null = null;
       try {
         mode = getTourMode(localStorage.getItem(KEY), localStorage.getItem(V2_KEY));
       } catch {}
-      if (mode) void open(mode);
+      if (mode) void open(mode, true);
       else window.dispatchEvent(new Event("expenseone:tour-closed"));
     }
     const onOpen = () => { void open("full"); };
     window.addEventListener("expenseone:open-tour", onOpen);
     return () => {
       alive = false;
-      clearTimeout(timer);
+      for (const timer of timers) clearTimeout(timer);
+      timers.clear();
       window.removeEventListener("expenseone:open-tour", onOpen);
     };
   }, [enabled, plansEnabled]);

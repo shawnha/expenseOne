@@ -38,6 +38,7 @@ import type { OcrFields, OcrResult } from "@/lib/ocr/types";
 import {
   suggestAccount,
   suggestAmountKRW,
+  suggestAmountKRWWithCurrency,
   type AccountSuggestion,
   type AmountSuggestion,
 } from "@/lib/ocr/suggest";
@@ -72,6 +73,7 @@ import { calcDepositAmount, calcDepositBreakdownKRW } from "@/lib/utils/deposit-
 import {
   activeFills,
   buildDepositSummary,
+  formatPlanAmountReference,
   dropFills,
   planFillsToUndo,
   fillKey,
@@ -79,10 +81,8 @@ import {
   payeeForVendor,
   planAmountToFill,
   recordFill,
-  shouldReplacePlanAmountWithOcr,
+  decideOcrAmount,
   shouldAutoFillOcrAccount,
-  shouldAutoFillOcrAmount,
-  shouldAutoFillOcrUsdAmount,
   type FillRecords,
 } from "@/lib/deposit-prefill";
 import { percentageForAmount, prePaidSplit } from "@/lib/utils/pre-paid";
@@ -524,7 +524,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
   const ocrAttached = files
     .map((f) => ocrResults.find((r) => r.fileId === f.id)?.fields)
     .filter((x): x is OcrFields => !!x);
-  const ocrAmount = ocrAttached.map(suggestAmountKRW).find((x): x is AmountSuggestion => !!x) ?? null;
+  const ocrAmount = ocrAttached.map(suggestAmountKRWWithCurrency).find((x) => !!x) ?? null;
   const ocrAccount = ocrAttached.map(suggestAccount).find((x): x is AccountSuggestion => !!x) ?? null;
   const ocrUsd = ocrAttached.map(ocrUsdAmount).find((x): x is number => x != null) ?? null;
   const foreignFields = ocrAmount
@@ -540,11 +540,14 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
   const currentFinal = calcDepositAmount(supplyAmount, currency, vatIncluded, freelancerDeduction);
   const ocrFinal = ocrAmount ? calcDepositAmount(ocrAmount.base, "KRW", ocrAmount.vatExclusive, freelancerDeduction) : null;
   const amountSug = ocrAmount && (currency !== "KRW" || currentFinal !== ocrFinal) ? ocrAmount : null;
-  const planDifference = selectedPlan && !prefill && currency === "KRW" && currentFinal !== selectedPlan.amount
-    ? currentFinal - selectedPlan.amount : null;
-  const largePlanDifference = !!amountSug && !!selectedPlan && currentFinal > 0 &&
-    (ocrFinal! / currentFinal <= 0.5 || ocrFinal! / currentFinal >= 2);
-  const recurringDifference = !!prefill && !!amountSug && currentFinal > 0;
+  const planFinal = selectedPlan && (selectedPlan.currency ?? "KRW") === "KRW"
+    ? calcDepositAmount(selectedPlan.amount, "KRW", false, freelancerDeduction) : null;
+  const planDifference = selectedPlan && !prefill && currency === "KRW" && planFinal != null && currentFinal !== planFinal
+    ? currentFinal - planFinal : null;
+  const largePlanDifference = !!amountSug && !prefill && currency === "KRW" && planFinal != null && planFinal > 0 &&
+    (ocrFinal! / planFinal <= 0.5 || ocrFinal! / planFinal >= 2);
+  // 반복 등록액은 공제 없는 지급 총액이다. 현재 폼의 VAT·원천징수 방식을 다시 적용하지 않는다.
+  const recurringDifference = !!prefill && !!amountSug && ocrFinal !== prefill.expectedAmount;
   const accountSug =
     ocrAccount &&
     !(
@@ -567,7 +570,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
         <OcrNotice tone="warn">
           {recurringDifference
             ? `첨부 서류 금액 ${formatAmount(ocrFinal!)}원 · 등록 금액 ${formatAmount(prefill!.expectedAmount)}원과 달라요`
-            : `서류 금액 ${formatAmount(ocrFinal!)}원이 계획 ${formatWon(selectedPlan!.amount)}과 크게 달라요`}
+            : `서류 금액 ${formatAmount(ocrFinal!)}원이 계획 ${formatPlanAmountReference(selectedPlan!.amount, freelancerDeduction)}과 크게 달라요`}
           <button type="button" disabled={!!pendingSubmit || isSubmitting} onClick={() => applyOcrAmount(amountSug)} className="min-h-11 rounded-full px-3 font-semibold text-[var(--apple-blue)]">
             {recurringDifference ? "서류 금액 적용" : "서류 금액으로"}
           </button>
@@ -601,23 +604,24 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
     const done = ocrAutoDone.current;
     let rec: FillRecords = {};
     const filled: string[] = [];
-    if (!done.has("amount")) {
+    {
       const current = { title: "", company: "", dueDate: "", account: "", category: "", amount: fillKey.amount(supplyAmount, currency) };
-      const replace = shouldReplacePlanAmountWithOcr({
-        fills, current, amountTouched, currency, amount: currentFinal, ocrAmount,
-        freelancer: freelancerDeduction, pendingSubmit: !!pendingSubmit, isSubmitting,
+      const decision = decideOcrAmount({
+        fills, current, supplyAmount, amountTouched, currency, amount: currentFinal, planFinal, ocrAmount, ocrUsd,
+        freelancer: freelancerDeduction, recurring: !!prefill, done: done.has("amount"),
+        pendingSubmit: !!pendingSubmit, isSubmitting,
       });
-      if (ocrAmount && currency === "KRW" && !amountTouched && activeFills(fills, current).amount === "plan" && ocrFinal === currentFinal) {
+      if (decision === "markDone") {
         // 최종액이 같으면 부가세 방식과 계획 출처를 그대로 두고 1회 처리를 마친다.
         done.add("amount");
-      } else if (ocrAmount && (replace || shouldAutoFillOcrAmount({ supplyAmount, amountTouched, currency }))) {
+      } else if (ocrAmount && (decision === "replacePlan" || decision === "fillEmpty")) {
         done.add("amount");
         setVatIncluded(ocrAmount.vatExclusive);
         setSupplyAmount(ocrAmount.base);
         setAmountDisplay(formatAmount(ocrAmount.base));
         setValue("amount", calcDepositAmount(ocrAmount.base, "KRW", ocrAmount.vatExclusive, freelancerDeduction), { shouldValidate: true });
         rec = recordFill(rec, "amount", "ocr", fillKey.amount(ocrAmount.base, "KRW"));
-        if (replace) {
+        if (decision === "replacePlan") {
           const sourceFile = files.find((file) => {
             const fields = ocrResults.find((r) => r.fileId === file.id)?.fields;
             return fields && !!suggestAmountKRW(fields);
@@ -625,7 +629,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
           const docLabel = sourceFile?.documentType ? DOCUMENT_TYPE_OPTIONS.find((o) => o.value === sourceFile.documentType)?.label ?? sourceFile.documentType : null;
           toast.success(`첨부 서류${docLabel ? `(${docLabel})` : ""} 금액 ${formatAmount(ocrFinal!)}원${ocrAmount.vatExclusive ? `(공급가 ${formatAmount(ocrAmount.base)} + 부가세)` : ""}으로 바꿨어요 · 계획 ${formatWon(selectedPlan?.amount ?? currentFinal)}`);
         } else filled.push("금액");
-      } else if (!ocrAmount && ocrUsd != null && shouldAutoFillOcrUsdAmount({ supplyAmount, amountTouched })) {
+      } else if (decision === "fillUsd" && ocrUsd != null) {
         // 달러 문서 — 폼을 달러로 바꾸고 넣는다(통화 바꾸기와 같은 정리: 선지급 금액 지정은 원화 건만).
         done.add("amount");
         setCurrency("USD");
@@ -666,7 +670,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
     }
     // 새로 읽힌 값이 생길 때만 본다. 폼 값은 조건 판단에만 쓰고(칸마다 한 번), 바뀔 때마다 다시 돌 필요는 없다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ocrAmount?.base, ocrAmount?.vatExclusive, ocrUsd, ocrAccount?.accountNumber, ocrAccount?.accountHolder, ocrAccount?.bankName]);
+  }, [ocrAmount?.base, ocrAmount?.vatExclusive, ocrAmount?.currency, ocrUsd, ocrAccount?.accountNumber, ocrAccount?.accountHolder, ocrAccount?.bankName]);
 
   // 지금 띠를 보여 줄 칸 — 채운 값 그대로인 칸만.
   const watchedTitle = watch("title");
@@ -732,6 +736,9 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
     (checked: boolean) => {
       setVatIncluded(checked);
       if (supplyAmount > 0) {
+        // 금액이 있을 때만 의미가 바뀐다. 빈 칸은 계획·서류 자동 채움을 유지한다.
+        setAmountTouched(true);
+        setFills((prev) => dropFills(prev, ["amount"]));
         setValue("amount", calcDepositAmount(supplyAmount, currency, checked, freelancerDeduction), { shouldValidate: true });
       }
     },
@@ -742,6 +749,9 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
     (checked: boolean) => {
       setFreelancerDeduction(checked);
       if (supplyAmount > 0) {
+        // 금액이 있을 때만 의미가 바뀐다. 빈 칸은 계획·서류 자동 채움을 유지한다.
+        setAmountTouched(true);
+        setFills((prev) => dropFills(prev, ["amount"]));
         setValue("amount", calcDepositAmount(supplyAmount, currency, vatIncluded, checked), { shouldValidate: true });
       }
     },
@@ -847,9 +857,11 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
 
   const onValidationError = (fieldErrors: Record<string, unknown>) => {
     if (!validateFiles()) return;
-    // 실제 DOM 순서로 첫 오류를 찾는다. 증빙 → 기본 → 입금 정보 순서와 항상 같다.
+    // RHF 인자를 동기적으로 읽는다. 다음 프레임의 errors/aria 갱신 시점에 의존하지 않는다.
+    const fieldOrder = ["category", "title", "amount", "isUrgent", "isPrePaid", "prePaidPercentage", "prePaidFixedAmount", "description", "bankName", "accountHolder", "accountNumber", "dueDate"];
+    const firstField = fieldOrder.find((field) => fieldErrors[field]);
     requestAnimationFrame(() => {
-      const first = document.querySelector<HTMLElement>('form [aria-invalid="true"]');
+      const first = firstField ? document.getElementById(firstField) ?? document.querySelector<HTMLElement>(`[data-field="${firstField}"]`) : null;
       first?.scrollIntoView({ block: "center" });
       first?.focus({ preventScroll: true });
     });
@@ -861,6 +873,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
       accountHolder: "예금주",
       accountNumber: "계좌번호",
       description: "설명",
+      dueDate: "납입 기일",
       isUrgent: "긴급",
       isPrePaid: "선지급",
       prePaidPercentage: "선지급 비율",
@@ -1180,7 +1193,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
               <button type="button" className="min-h-11 rounded-full text-left" onClick={() => document.getElementById(amountSug ? "amount" : accountSug ? "accountNumber" : autoFilled.amount === "ocr" ? "amount" : "accountNumber")?.scrollIntoView({ block: "center" })}>
                 {amountSug || accountSug
                   ? `서류 값 ${Number(!!amountSug) + Number(!!accountSug)}개가 지금 값과 달라요`
-                  : [autoFilled.amount === "ocr" ? `금액 ${currency === "KRW" ? `${formatAmount(currentFinal)}원` : `$${supplyAmount}`}` : "", autoFilled.account === "ocr" ? `계좌 ${typedBank} …${accountKey(typedAccount).slice(-4)}` : ""].filter(Boolean).join(" · ") + "를 채웠어요"} ↓ 확인하기
+                  : [autoFilled.amount === "ocr" ? `금액 ${currency === "KRW" ? `${formatAmount(currentFinal)}원` : `$${supplyAmount}`}` : "", autoFilled.account === "ocr" ? ["계좌", typedBank.trim(), `…${accountKey(typedAccount).slice(-4)}`].filter(Boolean).join(" ") : ""].filter(Boolean).join(" · ") + " 채움"} ↓ 확인하기
               </button>
             )}
           </div>
@@ -1210,6 +1223,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
                 control={control}
                 render={({ field }) => (
                   <CategorySelectField
+                    id="category"
                     value={field.value ?? ""}
                     onChange={field.onChange}
                     myCategories={myCategories}
@@ -1297,7 +1311,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
                     value={amountDisplay}
                     onChange={handleAmountChange}
                     aria-invalid={!!errors.amount}
-                    aria-describedby={selectedPlan && !prefill && currency === "KRW" ? "plan-amount-ref" : undefined}
+                    aria-describedby={selectedPlan && !prefill && currency === "KRW" && planFinal != null ? "plan-amount-ref" : undefined}
                     className={currency === "USD" ? "pl-7 pr-4" : "pr-10"}
                   />
                   {currency !== "USD" && (
@@ -1306,10 +1320,10 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
                 </div>
                 {amountSugNode}
 
-                {selectedPlan && !prefill && currency === "KRW" && (
+                {selectedPlan && !prefill && currency === "KRW" && planFinal != null && (
                   <div id="plan-amount-ref" hidden={planDifference == null} className="mt-1.5 text-[13px] text-[var(--apple-secondary-label)]">
                     {planDifference != null && <>
-                    계획 {formatWon(selectedPlan.amount)} · 서류 {planDifference > 0 ? "+" : "−"}{formatWon(Math.abs(planDifference))} ({selectedPlan.amount > 0 ? Math.round(Math.abs(planDifference) / selectedPlan.amount * 100) : 0}% {planDifference > 0 ? "많음" : "적음"})
+                    계획 {formatPlanAmountReference(selectedPlan.amount, freelancerDeduction)} · {autoFilled.amount === "ocr" ? "서류" : "지금"} {planDifference > 0 ? "+" : "−"}{formatWon(Math.abs(planDifference))} ({planFinal! > 0 ? Math.round(Math.abs(planDifference) / planFinal! * 100) : 0}% {planDifference > 0 ? "많음" : "적음"})
                     <button type="button" disabled={!!pendingSubmit || isSubmitting} className="min-h-11 rounded-full px-3 font-semibold text-[var(--apple-blue)]" onClick={() => {
                       ocrAutoDone.current.add("amount");
                       setVatIncluded(false);
@@ -1426,6 +1440,8 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
               <label className="flex items-center gap-3 cursor-pointer select-none px-3 py-2.5 rounded-xl glass-subtle hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)] transition-colors">
                 <input
                   type="checkbox"
+                  id="isUrgent"
+                  aria-invalid={!!errors.isUrgent}
                   {...register("isUrgent")}
                   className="size-5 rounded-md border-2 border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] accent-[var(--apple-red)] cursor-pointer transition-colors checked:border-[var(--apple-red)]"
                   aria-describedby="urgent-desc"
@@ -1443,6 +1459,8 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
                     <label className="flex items-center gap-3 cursor-pointer select-none px-3 py-2.5 rounded-xl glass-subtle hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)] transition-colors">
                       <input
                         type="checkbox"
+                        id="isPrePaid"
+                        aria-invalid={!!errors.isPrePaid}
                         checked={field.value ?? false}
                         onChange={(e) => {
                           field.onChange(e.target.checked);
@@ -1533,6 +1551,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
                                 <div className="relative w-32">
                                   <Input
                                     id="prePaidPercentage"
+                                    aria-invalid={!!errors.prePaidPercentage}
                                     type="number"
                                     min={1}
                                     max={99}
@@ -1563,7 +1582,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
                                       setValue("prePaidFixedAmount", digits ? parseInt(digits, 10) : null);
                                     }}
                                     className="pr-8 tabular-nums"
-                                    aria-invalid={prePaidFixedError != null}
+                                    aria-invalid={!!errors.prePaidFixedAmount || prePaidFixedError != null}
                                     aria-describedby={prePaidFixedError ? "prePaidFixedAmount-error" : undefined}
                                   />
                                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--apple-secondary-label)] pointer-events-none">원</span>
@@ -1629,6 +1648,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
               <Label htmlFor="description">설명</Label>
               <Textarea
                 id="description"
+                aria-invalid={!!errors.description}
                 placeholder="추가 설명을 입력해주세요 (선택사항)"
                 rows={3}
                 {...register("description")}
@@ -1709,6 +1729,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
                     render={({ field }) => (
                       <Popover open={bankOpen} onOpenChange={setBankOpen}>
                         <PopoverTrigger
+                          id="bankName"
                           aria-invalid={!!errors.bankName}
                           className={cn(
                             "flex h-10 w-full items-center justify-between rounded-xl border border-[var(--apple-separator)] bg-[var(--apple-secondary-system-background)] px-3 text-sm transition-colors hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]",
@@ -1830,6 +1851,8 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
                     <div className="flex items-center gap-2">
                       <Popover open={dueDateOpen} onOpenChange={setDueDateOpen}>
                         <PopoverTrigger
+                          id="dueDate"
+                          aria-invalid={!!errors.dueDate}
                           className={cn(
                             "flex h-10 flex-1 items-center justify-start gap-2 rounded-xl border border-[var(--apple-separator)] bg-[var(--apple-secondary-system-background)] px-3 text-sm transition-colors hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]",
                             !field.value && "text-[var(--apple-secondary-label)]"

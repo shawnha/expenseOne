@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 // ---------------------------------------------------------------------------
 
 interface CategorySelectFieldProps {
+  id?: string;
   value: string;
   onChange: (value: string) => void;
   /** 본인이 예전에 직접 입력한 카테고리 (최근순). 서버에서 내려준다. */
@@ -45,6 +46,7 @@ export function isKnownCategory(value: string, myCategories: string[] = []): boo
 }
 
 export function CategorySelectField({
+  id,
   value,
   onChange,
   myCategories = [],
@@ -120,7 +122,7 @@ export function CategorySelectField({
             <span className="shrink-0 text-[13px] font-semibold text-[var(--apple-blue)]">적용</span>
           </button>
         )}
-        <div className="flex flex-wrap gap-2" role="group" aria-label="카테고리 선택">
+        <div id={id} data-field={id} tabIndex={-1} aria-invalid={!!error} className="flex flex-wrap gap-2" role="group" aria-label="카테고리 선택">
           {CATEGORY_OPTIONS.map((opt) => (
             <button
               key={opt.value}

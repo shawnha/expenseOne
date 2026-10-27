@@ -50,6 +50,12 @@ export function suggestAmountKRW(f: OcrFields): AmountSuggestion | null {
   return { base: total, vatExclusive: false, total };
 }
 
+/** 입금요청 안전 판정용 통화. 기존 후보 함수의 반환값은 다른 폼에서 그대로 쓴다. */
+export function suggestAmountKRWWithCurrency(f: OcrFields): (AmountSuggestion & { currency: string | null }) | null {
+  const amount = suggestAmountKRW(f);
+  return amount ? { ...amount, currency: f.currency?.trim().toUpperCase() || null } : null;
+}
+
 export interface AccountSuggestion {
   /** 목록 이름으로 못 맞추면 null — 은행은 직원이 고른다 */
   bankName: BankName | null;

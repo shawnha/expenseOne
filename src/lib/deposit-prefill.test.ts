@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   accountFieldsEmpty,
   buildDepositSummary,
+  formatPlanAmountReference,
   activeFills,
   dropFills,
   fillKey,
@@ -11,7 +12,7 @@ import {
   ocrUsdAmount,
   payeeForVendor,
   planAmountToFill,
-  shouldReplacePlanAmountWithOcr,
+  decideOcrAmount,
   shouldAutoFillOcrAccount,
   shouldAutoFillOcrAmount,
   shouldAutoFillOcrUsdAmount,
@@ -236,46 +237,79 @@ describe("buildDepositSummary", () => {
 });
 
 
-describe("계획 금액 → 서류 금액 안전 판정", () => {
+describe("서류 금액 결정", () => {
   const current = { title: "", company: "", dueDate: "", amount: "KRW:1000000", account: "", category: "" };
   const input = {
     fills: recordFill({}, "amount", "plan", current.amount), current,
-    amountTouched: false, currency: "KRW", amount: 1000000,
-    ocrAmount: { base: 1200000, vatExclusive: true }, freelancer: false,
-    pendingSubmit: false, isSubmitting: false,
+    supplyAmount: 1000000, amountTouched: false, currency: "KRW", amount: 1000000, planFinal: 1000000,
+    ocrAmount: { base: 1200000, vatExclusive: true, currency: "KRW" as string | null }, ocrUsd: null,
+    freelancer: false, recurring: false, done: false, pendingSubmit: false, isSubmitting: false,
   };
-  it("그대로인 계획 금액만 교체하고 서류 출처는 계획 해제에도 남는다", () => {
-    assert.equal(shouldReplacePlanAmountWithOcr(input), true);
+  it("그대로인 계획만 교체하고 서류 출처는 계획 해제에도 남는다", () => {
+    assert.equal(decideOcrAmount(input), "replacePlan");
     const rec = recordFill(input.fills, "amount", "ocr", "KRW:1200000");
     assert.deepEqual(planFillsToUndo(rec, { ...current, amount: "KRW:1200000" }), []);
     for (const source of ["payee", "recurring", "ocr"] as const) {
-      assert.equal(shouldReplacePlanAmountWithOcr({ ...input, fills: recordFill({}, "amount", source, current.amount) }), false);
+      assert.equal(decideOcrAmount({ ...input, fills: recordFill({}, "amount", source, current.amount) }), "none");
     }
-    assert.equal(shouldReplacePlanAmountWithOcr({ ...input, fills: {} }), false);
+    assert.equal(decideOcrAmount({ ...input, fills: {} }), "none");
   });
-  it("직접 입력·적용·자동 키 불일치·외화·서류 없음·요약·제출 중에는 금지", () => {
+  it("수동 편집·키 불일치·외화·서류 없음·요약·제출·처리 완료·반복은 교체하지 않는다", () => {
     for (const patch of [
       { amountTouched: true }, { current: { ...current, amount: "KRW:999999" } },
       { currency: "USD" }, { ocrAmount: null }, { pendingSubmit: true }, { isSubmitting: true },
-      { amount: 0 },
-    ]) assert.equal(shouldReplacePlanAmountWithOcr({ ...input, ...patch }), false);
+      { amount: 0 }, { done: true }, { recurring: true }, { planFinal: null },
+    ]) assert.equal(decideOcrAmount({ ...input, ...patch }), "none");
+    // VAT 별도로 바꾼 뒤 원래 계획과 같은 서류가 와도 사람의 변경을 지킨다.
+    assert.equal(decideOcrAmount({ ...input, amount: 1100000, amountTouched: true,
+      fills: dropFills(input.fills, ["amount"]), ocrAmount: { base: 1000000, vatExclusive: false, currency: "KRW" } }), "none");
   });
-  it("최종액으로 동등 비교, 부가세·원천징수 조합과 엄격한 배율 경계", () => {
+  it("통화 불명은 계획 교체를 막되 빈 칸은 기존대로 채운다", () => {
+    for (const currency of [null, "unknown"]) {
+      const ocrAmount = { ...input.ocrAmount, currency };
+      assert.equal(decideOcrAmount({ ...input, ocrAmount }), "none");
+      assert.equal(decideOcrAmount({ ...input, ocrAmount, supplyAmount: 0, amount: 0 }), "fillEmpty");
+    }
+  });
+  it("같은 최종액이면 원천징수·VAT 조합과 관계없이 done만 기록한다", () => {
     for (const freelancer of [false, true]) {
       for (const vatExclusive of [false, true]) {
-        const ocrAmount = { base: 1000000, vatExclusive };
+        const ocrAmount = { base: 1000000, vatExclusive, currency: "KRW" };
         const amount = calcDepositAmount(ocrAmount.base, "KRW", vatExclusive, freelancer);
-        assert.equal(shouldReplacePlanAmountWithOcr({ ...input, amount, ocrAmount, freelancer }), false);
+        const planFinal = calcDepositAmount(1000000, "KRW", false, freelancer);
+        assert.equal(decideOcrAmount({ ...input, amount, planFinal, ocrAmount, freelancer }), "markDone");
       }
     }
-    // 공급가는 같아도 부가세가 다르면 최종액이 달라 교체한다.
-    assert.equal(shouldReplacePlanAmountWithOcr({ ...input, ocrAmount: { base: 1000000, vatExclusive: true } }), true);
+  });
+  it("배율은 현재값이 아닌 계획 최종액 기준이고 0.5·2는 거절한다", () => {
     for (const base of [1, 499999, 500000, 2000000, 12000000, NaN, Infinity]) {
-      assert.equal(shouldReplacePlanAmountWithOcr({ ...input, ocrAmount: { base, vatExclusive: false } }), false);
+      assert.equal(decideOcrAmount({ ...input, ocrAmount: { base, vatExclusive: false, currency: "KRW" } }), "none");
     }
     for (const base of [500001, 999999, 1000001, 1999999]) {
-      assert.equal(shouldReplacePlanAmountWithOcr({ ...input, ocrAmount: { base, vatExclusive: false } }), true);
+      assert.equal(decideOcrAmount({ ...input, ocrAmount: { base, vatExclusive: false, currency: "KRW" } }), "replacePlan");
     }
+    assert.equal(decideOcrAmount({ ...input, amount: 1500000,
+      ocrAmount: { base: 2000000, vatExclusive: false, currency: "KRW" } }), "none");
+  });
+  it("빈 원화·달러 칸은 채우되 수동 편집·요약·제출 중에는 비어도 고정한다", () => {
+    const empty = { ...input, supplyAmount: 0, amount: 0, fills: {} };
+    assert.equal(decideOcrAmount(empty), "fillEmpty");
+    assert.equal(decideOcrAmount({ ...empty, recurring: true }), "fillEmpty");
+    const usd = { ...empty, ocrAmount: null, ocrUsd: 123.45 };
+    assert.equal(decideOcrAmount(usd), "fillUsd");
+    assert.equal(decideOcrAmount({ ...usd, supplyAmount: 1 }), "none");
+    for (const patch of [{ amountTouched: true }, { pendingSubmit: true }, { isSubmitting: true }, { done: true }]) {
+      assert.equal(decideOcrAmount({ ...empty, ...patch }), "none");
+      assert.equal(decideOcrAmount({ ...usd, ...patch }), "none");
+    }
+  });
+});
+
+describe("formatPlanAmountReference", () => {
+  it("차이 안내·크게 다름 안내는 계획 원액과 공제 후 금액을 구분한다", () => {
+    assert.equal(formatPlanAmountReference(1000000, true), "1,000,000원(3.3% 공제 후 967,000원)");
+    assert.equal(formatPlanAmountReference(1000000, true, "공제 후"), "1,000,000원(공제 후 967,000원)");
+    assert.equal(formatPlanAmountReference(1000000, false), "1,000,000원");
   });
 });
 
@@ -290,6 +324,17 @@ describe("요약 차이 경고", () => {
     for (const plan of [{ title: "계획", linked: false, amount: 1 }, { title: "달러", linked: true, amount: 1, currency: "USD" }, { title: "같음", linked: true, amount: 550000 }]) {
       assert.equal(rowOf(buildDepositSummary({ ...base, plan }), "amount")?.warning, false);
     }
+  });
+  it("원천징수 계획은 채운 기준으로 비교하고 반복은 등록 지급액 그대로 비교한다", () => {
+    const plan = { title: "계획", linked: true, amount: 1000000 };
+    const same = buildDepositSummary({ ...base, plan, supplyAmount: 1000000, freelancer: true });
+    assert.equal(same.finalKRW, 967000);
+    assert.equal(rowOf(same, "amount")?.warning, false);
+    assert.equal(rowOf(same, "amount")?.details.some((d) => d.includes("달라요")), false);
+    const diff = buildDepositSummary({ ...base, plan, supplyAmount: 1200000, freelancer: true });
+    assert.ok(rowOf(diff, "amount")?.details.includes("계획 금액 1,000,000원(공제 후 967,000원)과 달라요 (+193,400원)"));
+    const recurring = buildDepositSummary({ ...base, plan: null, supplyAmount: 1000000, freelancer: true, recurringAmount: 967000 });
+    assert.equal(rowOf(recurring, "amount")?.warning, false);
   });
   it("남은 서류 금액·계좌는 서로 다를 때만 경고", () => {
     const i = { ...base, remainingOcrAmount: 1320000, remainingOcrAccount: { bankName: "국민은행", accountNumber: "12345675678", accountHolder: "홍길동" } };
