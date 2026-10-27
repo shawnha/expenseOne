@@ -18,6 +18,11 @@ const PICK_FUTURE_DAYS = 60;
 const PICK_MINE_LIMIT = 10;
 const PICK_OTHERS_LIMIT = 20;
 const CARD_SUGGEST_LIMIT = 5;
+// 「+」 첫 그림에 넣을 범위·건수. 접힌 목록과 펼친 목록도 서버에서 나눈다.
+const SOON_PAST_DAYS = 45;
+const SOON_FUTURE_DAYS = 14;
+const SOON_INITIAL_LIMIT = 3;
+const SOON_EXPANDED_LIMIT = 10;
 
 export interface PlanPick {
   id: string;
@@ -102,6 +107,51 @@ export async function listDepositPlanPicks(actor: PlanActorInput): Promise<{ min
     return {
       mine: picks.filter((p) => p.mine).slice(0, PICK_MINE_LIMIT),
       others: picks.filter((p) => !p.mine).slice(0, PICK_OTHERS_LIMIT),
+    };
+  }, { readOnly: true });
+}
+
+export interface SoonPlan extends PlanPick {
+  /** 한국 시간 오늘 기준. 음수는 지난 계획. */
+  daysUntil: number;
+}
+
+export interface SoonPlans {
+  initial: SoonPlan[];
+  additional: SoonPlan[];
+  moreCount: number;
+  hasMore: boolean;
+}
+
+/** 내가 만든 미지급·미연결 계획. 작성자 조건도 사업 접근 범위를 넓히지는 않는다. */
+export async function listSoonPlans(actor: PlanActorInput): Promise<SoonPlans> {
+  return withPlanTx(async (tx) => {
+    const acc = await loadAccess(tx, access(actor));
+    const rows = rowsOf<PickRow & { days_until: number }>(
+      await tx.execute(sql`WITH today AS (SELECT (now() AT TIME ZONE 'Asia/Seoul')::date AS d)
+        SELECT p.id, p.title, p.amount, p.planned_date::text AS planned_date, p.date_precision,
+               p.company_id, c.name AS company_name, j.name AS project_name, p.vendor_name, p.currency,
+               u.name AS owner_name, TRUE AS mine, (p.planned_date - today.d) AS days_until
+          FROM expenseone.cost_plans p
+          JOIN expenseone.plan_projects j ON j.id = p.project_id AND j.deleted_at IS NULL
+          LEFT JOIN expenseone.companies c ON c.id = p.company_id
+          LEFT JOIN expenseone.users u ON u.id = p.created_by_id
+          CROSS JOIN today
+         WHERE p.deleted_at IS NULL AND p.status = 'PLANNED' AND p.paid_at IS NULL
+           AND p.created_by_id = ${acc.userId}::uuid
+           AND ${projectScopeSql(acc, sql`p.project_id`)}
+           AND p.planned_date BETWEEN today.d - ${SOON_PAST_DAYS}::int AND today.d + ${SOON_FUTURE_DAYS}::int
+           AND NOT EXISTS (SELECT 1 FROM expenseone.plan_expense_links x
+                            WHERE x.plan_id = p.id AND x.unlinked_at IS NULL)
+         ORDER BY p.planned_date, p.id
+         LIMIT ${SOON_EXPANDED_LIMIT + 1}::int`),
+    );
+    const picks = rows.map((r) => ({ ...toPick(r), daysUntil: num(r.days_until) }));
+    return {
+      initial: picks.slice(0, SOON_INITIAL_LIMIT),
+      additional: picks.slice(SOON_INITIAL_LIMIT, SOON_EXPANDED_LIMIT),
+      moreCount: Math.max(0, Math.min(picks.length, SOON_EXPANDED_LIMIT) - SOON_INITIAL_LIMIT),
+      hasMore: picks.length > SOON_EXPANDED_LIMIT,
     };
   }, { readOnly: true });
 }

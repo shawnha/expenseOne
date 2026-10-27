@@ -66,7 +66,7 @@ export function PendingCardSection({ planId, plannedDate }: { planId: string; pl
       ) : data === null ? (
         <p role="status" className="py-3 text-footnote text-[var(--apple-secondary-label)]">결제 내역을 불러오는 중입니다…</p>
       ) : data.items.length === 0 ? (
-        <p className="py-3 text-footnote text-[var(--apple-secondary-label)]">이 기간에 아직 안 올린 법카 결제가 없습니다.</p>
+        <p className="py-3 text-footnote text-[var(--apple-secondary-label)]">아직 올라온 법카 내역이 없어요. 결제 다음 날 아침 알림이 오면 이을 수 있어요.</p>
       ) : (
         <ul className="max-h-[28dvh] space-y-2 overflow-y-auto px-1 py-0.5">
           {data.items.map((item) => (

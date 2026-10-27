@@ -21,6 +21,7 @@ interface StepDef {
   id: string;
   art: TourArt;
   adminOnly?: boolean;
+  plansOnly?: boolean;
   title: string;
   body: (isDesktop: boolean) => string[];
 }
@@ -42,7 +43,7 @@ const STEP_DEFS: StepDef[] = [
       d
         ? "오른쪽 위 파란 「+ 새 비용」 버튼을 누르면 비용을 올릴 수 있어요."
         : "아래 가운데 파란 「+」 버튼을 누르면 비용을 올릴 수 있어요.",
-      "법카사용, 입금요청, 반품/환불 중에서 골라요.",
+      "법카사용·입금요청·반품/환불, 법카 여러 건 한 번에, 세금계산서 발행 요청 중에서 골라요.",
     ],
   },
   {
@@ -56,9 +57,18 @@ const STEP_DEFS: StepDef[] = [
   {
     id: "deposit",
     art: "deposit",
-    title: "입금요청은 증빙 + 계좌",
+    title: "입금요청은 증빙부터",
     body: () => [
-      "돈을 보내 달라는 요청이에요. 견적서·영수증 같은 증빙 파일을 1개 이상 붙이고 파일마다 종류를 고르세요. 받을 은행·예금주·계좌번호도 적어요. 관리자가 승인하면 입금돼요.",
+      "견적서·청구서·통장사본을 먼저 올리면 금액·계좌를 읽어 채워요. 자동으로 채운 칸에는 「…에서 채움」 표시가 붙으니 맞는지 보고, 제출 전 요약에서 한 번 더 확인해요. 관리자가 승인하면 입금돼요.",
+    ],
+  },
+  {
+    id: "plan",
+    art: "create",
+    plansOnly: true,
+    title: "계획에서 바로 올리기",
+    body: () => [
+      "「+」 맨 위 「곧 나갈 내 계획」에서 「입금요청」을 누르면 제목·금액이 채워지고 계획에 연결돼요. 법카로 냈으면 「법카 연결」로 카드 내역을 이어요.",
     ],
   },
   {
@@ -91,8 +101,8 @@ const STEP_DEFS: StepDef[] = [
   },
 ];
 
-export function getTourSteps(role: TourRole, isDesktop: boolean): TourStep[] {
-  return STEP_DEFS.filter((s) => !s.adminOnly || role === "ADMIN").map((s) => ({
+export function getTourSteps(role: TourRole, isDesktop: boolean, plansEnabled: boolean): TourStep[] {
+  return STEP_DEFS.filter((s) => (!s.adminOnly || role === "ADMIN") && (!s.plansOnly || plansEnabled)).map((s) => ({
     id: s.id,
     art: s.art,
     title: s.title,
@@ -100,6 +110,18 @@ export function getTourSteps(role: TourRole, isDesktop: boolean): TourStep[] {
   }));
 }
 
-export function lastStepLabel(): string {
-  return "시작하기";
+export type TourMode = "full" | "new";
+
+/** 이미 본 사람에게는 바뀐 안내만 한 번 더 보여 준다. */
+export function getTourMode(v1: string | null, v2: string | null): TourMode | null {
+  if (v1 !== "done") return "full";
+  return v2 === null ? "new" : null;
+}
+
+export function getNewTourSteps(role: TourRole, isDesktop: boolean, plansEnabled: boolean): TourStep[] {
+  return getTourSteps(role, isDesktop, plansEnabled).filter((s) => s.id === "deposit" || s.id === "plan");
+}
+
+export function lastStepLabel(mode: TourMode = "full"): string {
+  return mode === "new" ? "알겠어요" : "시작하기";
 }

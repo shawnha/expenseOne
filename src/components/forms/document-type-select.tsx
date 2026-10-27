@@ -38,6 +38,8 @@ export function DocumentTypeSelect({
     return (
       <Input
         autoFocus
+        data-document-type-empty={!value ? "true" : undefined}
+        aria-label="문서 유형 입력"
         placeholder="문서유형 입력"
         value={isPreset ? "" : (value ?? "")}
         onChange={(e) => onChange(e.target.value)}
@@ -72,6 +74,7 @@ export function DocumentTypeSelect({
           !value && "text-muted-foreground",
           className
         )}
+        data-document-type-empty={!value ? "true" : undefined}
         aria-label="문서 유형 선택"
         aria-invalid={hasError}
       >
