@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { getTourSteps, lastStepLabel, type TourArt, type TourRole } from "./tour-steps";
+import { getTourSteps, getNewTourSteps, lastStepLabel, type TourArt, type TourRole, type TourMode } from "./tour-steps";
 import s from "./welcome-tour.module.css";
 
 const v = (name: string) => ({ fill: `var(--apple-${name})` });
@@ -189,10 +189,14 @@ export default function WelcomeTour({
   role,
   open,
   onClose,
+  plansEnabled,
+  mode = "full",
 }: {
   role: TourRole;
   open: boolean;
   onClose: () => void;
+  plansEnabled: boolean;
+  mode?: TourMode;
 }) {
   const [isDesktop, setIsDesktop] = useState(() =>
     typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches,
@@ -207,7 +211,10 @@ export default function WelcomeTour({
     return () => mq.removeEventListener("change", on);
   }, []);
 
-  const steps = useMemo(() => getTourSteps(role, isDesktop), [role, isDesktop]);
+  const steps = useMemo(
+    () => (mode === "new" ? getNewTourSteps : getTourSteps)(role, isDesktop, plansEnabled),
+    [role, isDesktop, plansEnabled, mode],
+  );
   const last = steps.length - 1;
   const step = steps[Math.min(index, last)];
 
@@ -252,8 +259,9 @@ export default function WelcomeTour({
 
         <div className="space-y-2">
           <DialogTitle className="text-title3 leading-[25px] text-[var(--apple-label)]">
-            {step.title}
+            {mode === "new" ? "새로 생긴 것" : step.title}
           </DialogTitle>
+          {mode === "new" && <p className="text-subheadline font-semibold text-[var(--apple-label)]">{step.title}</p>}
           <DialogDescription className="space-y-1.5 text-callout text-[var(--apple-secondary-label)]">
             {step.body.map((t) => (
               <span key={t} className="block">{t}</span>
@@ -261,7 +269,7 @@ export default function WelcomeTour({
           </DialogDescription>
         </div>
 
-        <div className="flex items-center justify-center gap-1.5" role="img" aria-label={`${steps.length}단계 중 ${index + 1}단계`}>
+        {steps.length > 1 && <div className="flex items-center justify-center gap-1.5" role="img" aria-label={`${steps.length}단계 중 ${index + 1}단계`}>
           {steps.map((x, i) => (
             <span
               key={x.id}
@@ -273,7 +281,7 @@ export default function WelcomeTour({
             />
           ))}
           <span className="sr-only" aria-live="polite">{index + 1} / {steps.length}</span>
-        </div>
+        </div>}
 
         {/* 「다음」을 DOM 앞에 두고 화면에서는 오른쪽에 — 창이 열릴 때 초점이 주 버튼으로 간다(건너뛰기에 초점 테두리가 뜨던 것). */}
         <div className="flex flex-row-reverse items-center justify-between gap-3">
@@ -282,17 +290,17 @@ export default function WelcomeTour({
             onClick={next}
             className={cn(pill, "min-w-[104px] bg-[var(--apple-blue)] text-white hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)]")}
           >
-            {index >= last ? lastStepLabel() : "다음"}
+            {index >= last ? lastStepLabel(mode) : "다음"}
           </button>
-          {index === 0 ? (
+          {index === 0 && steps.length > 1 ? (
             <button key="skip" type="button" onClick={onClose} className={cn(pill, "text-[var(--apple-secondary-label)] hover:bg-[var(--apple-tertiary-system-fill)]")}>
               건너뛰기
             </button>
-          ) : (
+          ) : index > 0 ? (
             <button key="prev" type="button" onClick={prev} className={cn(pill, "text-[var(--apple-secondary-label)] hover:bg-[var(--apple-tertiary-system-fill)]")}>
               이전
             </button>
-          )}
+          ) : null}
         </div>
       </DialogContent>
     </Dialog>

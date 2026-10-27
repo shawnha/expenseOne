@@ -19,7 +19,7 @@ import { useEffect, useState, type ReactNode } from "react";
 let cached: boolean | null = null;
 let inFlight: Promise<boolean> | null = null;
 
-function loadFlag(): Promise<boolean> {
+export function loadPlansFlag(): Promise<boolean> {
   if (cached !== null) return Promise.resolve(cached);
   inFlight ??= fetch("/api/plans/flag", { headers: { Accept: "application/json" } })
     .then((res) =>
@@ -48,7 +48,7 @@ export function PlansNavGate({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let alive = true;
-    void loadFlag().then((value) => {
+    void loadPlansFlag().then((value) => {
       if (alive) setEnabled(value);
     });
     return () => {
