@@ -437,6 +437,7 @@ function FilePreviewItem({
 // ============================================================
 
 interface FileUploadWithDocTypeProps extends FileUploadProps {
+  onReadingCountChange?: (count: number) => void;
   onDocumentTypeChange: (fileId: string, documentType: string) => void;
   documentTypeErrors?: Record<string, boolean>;
 }
@@ -451,6 +452,7 @@ export function FileUploadWithDocType({
   className,
   onBusyChange,
   onDocumentRead,
+  onReadingCountChange,
 }: FileUploadWithDocTypeProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -472,6 +474,9 @@ export function FileUploadWithDocType({
     filesRef2.current = files;
   }, [files]);
   const { read: readDocuments, readingCount, skipped, clearSkipped } = useDocumentReader({ filesRef: filesRef2, onFilesChange, onDocumentRead, fillDocumentType: true });
+  useEffect(() => {
+    onReadingCountChange?.(readingCount);
+  }, [readingCount, onReadingCountChange]);
   useEffect(() => {
     onBusyChangeRef.current = onBusyChange;
   }, [onBusyChange]);
@@ -659,7 +664,7 @@ export function FileUploadWithDocType({
           <p className="mt-1 text-xs text-muted-foreground">
             JPEG, PNG, WebP, HEIC, PDF (최대 10MB / 총 50MB)
           </p>
-          <p className="mt-0.5 text-xs font-medium text-destructive">
+          <p className={cn("mt-0.5 text-xs font-medium", error ? "text-destructive" : "text-[var(--apple-secondary-label)]")}>
             * 최소 1개의 파일을 첨부해야 합니다
           </p>
         </div>
@@ -740,7 +745,7 @@ export function FileUploadWithDocType({
             {readingCount > 0 && (
               <span className="ml-2 inline-flex items-center gap-1 text-[var(--apple-blue)]">
                 <Loader2 className="size-3 animate-spin motion-reduce:animate-none" aria-hidden />
-                증빙 읽는 중 {readingCount}개
+                증빙 읽는 중 {readingCount}개 · 그동안 아래 칸을 먼저 채워도 돼요
               </span>
             )}
           </p>

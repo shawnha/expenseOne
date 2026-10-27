@@ -170,17 +170,19 @@ function PickRow({
   selected,
   showOwner,
   onToggle,
+  className,
 }: {
   pick: PlanPick;
   selected: boolean;
   showOwner?: boolean;
   onToggle: (pick: PlanPick) => void;
+  className?: string;
 }) {
   const meta = [formatPickDate(pick.plannedDate, pick.datePrecision), pick.projectName, showOwner ? pick.ownerName : null]
     .filter(Boolean)
     .join(" · ");
   return (
-    <li>
+    <li className={className}>
       <button
         type="button"
         onClick={() => onToggle(pick)}
@@ -222,6 +224,7 @@ export function PlanPickPanel({
 }) {
   const [showAllMine, setShowAllMine] = useState(false);
   const [othersToggled, setOthersToggled] = useState(false);
+  const [showAllOthers, setShowAllOthers] = useState(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     if (focusHeadingOnMount) headingRef.current?.focus();
@@ -230,68 +233,82 @@ export function PlanPickPanel({
   }, []);
   if (mine.length === 0 && others.length === 0) return null;
 
-  // 내 계획이 없고 다른 사람 계획만 있으면 접어 둘 이유가 없다 — 바로 펼치고 제목도 맞춘다.
+  // 다른 사람 계획은 처음에는 한 줄로 접어 둔다 — 증빙 첨부를 화면 밖으로 밀어내지 않게.
   const onlyOthers = mine.length === 0;
-  const othersOpen = onlyOthers || othersToggled;
-
+  const othersOpen = othersToggled;
   const visibleMine = showAllMine ? mine : mine.slice(0, 3);
+  const visibleOthers = showAllOthers ? others : others.slice(0, 3);
+  const panelCopy = "고르면 제목·회사·납기일을 채우고 이 계획에 연결합니다. 금액은 서류가 있으면 서류 금액을 씁니다.";
+  const othersToggle = (
+    <button
+      type="button"
+      onClick={() => setOthersToggled((v) => !v)}
+      aria-expanded={othersOpen}
+      aria-controls="plan-pick-others"
+      className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-[13px] font-medium text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)]"
+    >
+      같은 사업 계획에서 불러오기 ({others.length})
+      <ChevronDown className={cn("size-4 transition-transform", othersOpen && "rotate-180")} aria-hidden="true" />
+    </button>
+  );
   return (
-    <section className="glass p-5" aria-labelledby="plan-pick-heading">
-      <div className="mb-3 flex items-center gap-2">
-        <CalendarClock className="size-4 text-[var(--apple-blue)]" aria-hidden="true" />
+    <section className={cn("glass", onlyOthers ? "px-2 py-1" : "p-5")} aria-labelledby="plan-pick-heading">
+      <div className={cn("flex items-center gap-2", !onlyOthers && "mb-3")}>
+        {!onlyOthers && <CalendarClock className="size-4 text-[var(--apple-blue)]" aria-hidden="true" />}
         <h2
           id="plan-pick-heading"
           ref={headingRef}
           tabIndex={-1}
           className="text-subheadline font-semibold text-[var(--apple-label)] outline-none"
         >
-          {onlyOthers ? "같은 사업의 비용계획에서 불러올까요?" : "내 비용계획에서 불러올까요?"}
+          {onlyOthers ? othersToggle : "내 비용계획에서 불러올까요?"}
         </h2>
       </div>
-      <p className="mb-3 text-footnote text-[var(--apple-secondary-label)]">
-        고르면 제목·회사·납기일·금액을 채우고, 입금요청을 그 계획에 연결합니다. 표시된 칸이 맞는지 확인해주세요.
-      </p>
+      {(!onlyOthers || othersOpen) && (
+        <p className={cn("mb-3 text-footnote text-[var(--apple-secondary-label)]", onlyOthers && "px-3 pt-2")}>
+          {panelCopy}
+        </p>
+      )}
 
       {mine.length > 0 && (
         <ul className="space-y-2">
-          {visibleMine.map((p) => (
-            <PickRow key={p.id} pick={p} selected={p.id === selectedId} onToggle={onSelect} />
+          {visibleMine.map((p, index) => (
+            <PickRow key={p.id} pick={p} selected={p.id === selectedId} onToggle={onSelect}
+              className={!showAllMine && index === 2 ? "hidden sm:block" : undefined} />
           ))}
         </ul>
       )}
-      {mine.length > 3 && (
+      {mine.length > 2 && (
         <button
           type="button"
           onClick={() => setShowAllMine((v) => !v)}
           aria-expanded={showAllMine}
-          className="mt-2 inline-flex min-h-11 items-center rounded-full px-3 text-[13px] font-medium text-[var(--apple-blue)]"
+          className={cn("mt-2 inline-flex min-h-11 items-center rounded-full px-3 text-[13px] font-medium text-[var(--apple-blue)]", mine.length === 3 && !showAllMine && "sm:hidden")}
         >
-          {showAllMine ? "접기" : `더 보기 (${mine.length - 3})`}
+          {showAllMine ? "접기" : <><span className="sm:hidden">더 보기 ({mine.length - 2})</span><span className="hidden sm:inline">더 보기 ({mine.length - 3})</span></>}
         </button>
       )}
 
       {others.length > 0 && (
         <div className={onlyOthers ? undefined : "mt-3"}>
-          {!onlyOthers && (
-            <button
-              type="button"
-              onClick={() => setOthersToggled((v) => !v)}
-              aria-expanded={othersOpen}
-              aria-controls="plan-pick-others"
-              className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-[13px] font-medium text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)]"
-            >
-              같은 사업의 다른 계획 보기 ({others.length})
-              <ChevronDown
-                className={cn("size-4 transition-transform", othersOpen && "rotate-180")}
-                aria-hidden="true"
-              />
-            </button>
-          )}
-          <ul id="plan-pick-others" hidden={!othersOpen} className={cn("space-y-2", !onlyOthers && "mt-1")}>
-            {others.map((p) => (
-              <PickRow key={p.id} pick={p} selected={p.id === selectedId} showOwner onToggle={onSelect} />
-            ))}
-          </ul>
+          {!onlyOthers && othersToggle}
+          <div id="plan-pick-others" hidden={!othersOpen} className={cn(onlyOthers ? "px-3 pb-3" : "mt-1")}>
+            <ul className="space-y-2">
+              {visibleOthers.map((p) => (
+                <PickRow key={p.id} pick={p} selected={p.id === selectedId} showOwner onToggle={onSelect} />
+              ))}
+            </ul>
+            {others.length > 3 && (
+              <button
+                type="button"
+                onClick={() => setShowAllOthers((v) => !v)}
+                aria-expanded={showAllOthers}
+                className="mt-2 inline-flex min-h-11 items-center rounded-full px-3 text-[13px] font-medium text-[var(--apple-blue)]"
+              >
+                {showAllOthers ? "접기" : `더 보기 (${others.length - 3})`}
+              </button>
+            )}
+          </div>
         </div>
       )}
     </section>
