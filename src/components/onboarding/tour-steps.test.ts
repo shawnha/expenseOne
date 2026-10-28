@@ -39,14 +39,14 @@ describe("getTourSteps", () => {
       }
     }
   });
-  it("계획 권한이 있을 때만 plan 한 단계를 넣고 기존 그림을 쓴다", () => {
+  it("계획 권한이 있을 때만 plan 한 단계를 넣고 계획 전용 그림을 쓴다", () => {
     for (const role of ["MEMBER", "ADMIN"] as const) {
       const without = getTourSteps(role, false, false);
       const withPlans = getTourSteps(role, false, true);
       assert.equal(withPlans.length, without.length + 1);
       assert.ok(!without.some((s) => s.id === "plan"));
       const plan = withPlans.find((s) => s.id === "plan")!;
-      assert.equal(plan.art, "create");
+      assert.equal(plan.art, "plan");
       assert.equal(plan.title, "계획에서 바로 올리기");
       assert.match(plan.body.join(" "), /곧 나갈 내 계획/);
       assert.equal(withPlans.at(-1)?.id, "done");

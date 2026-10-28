@@ -119,6 +119,42 @@ function Art({ art, isDesktop }: { art: TourArt; isDesktop: boolean }) {
           </g>
         </>
       );
+    case "plan":
+      // 「곧 나갈 내 계획」에서 「입금요청」 누름 → 입금요청 화면이 열리며 칸이 채워지고 계획 연결 줄이 붙는다.
+      return (
+        <>
+          <rect x="14" y="30" width="120" height="104" rx="12" style={FILL} strokeWidth="1.5" {...{ stroke: "var(--apple-separator)" }} />
+          <text x="26" y="50" fontSize="10" fontWeight="600" style={SUB}>곧 나갈 내 계획</text>
+          <rect x="26" y="60" width="62" height="7" rx="3.5" style={LABEL} opacity="0.75" />
+          <text x="26" y="84" fontSize="10" style={SUB}>11.20 · 3,000,000원</text>
+          <circle cx="51" cy="109" r="12" className={cx(s.box, s.planTap)} style={v("blue")} />
+          <rect x="26" y="98" width="50" height="22" rx="11" style={v("blue")} />
+          <text x="51" y="112.5" textAnchor="middle" fontSize="10" fontWeight="600" style={{ fill: "#fff" }}>입금요청</text>
+          <rect x="80" y="98" width="46" height="22" rx="11" style={FILL} strokeWidth="1.2" {...{ stroke: "var(--apple-separator)" }} />
+          <text x="103" y="112.5" textAnchor="middle" fontSize="9.5" fontWeight="600" style={LABEL}>법카 연결</text>
+          <path d="M139 82h12m-4-4 4 4-4 4" fill="none" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={st("secondary-label")} opacity="0.6" />
+          <g className={cx(s.box, s.planForm)}>
+            <rect x="158" y="22" width="110" height="136" rx="12" style={FILL} strokeWidth="1.5" {...{ stroke: "var(--apple-separator)" }} />
+            <g className={cx(s.box, s.chipB)}>
+              <rect x="166" y="30" width="94" height="20" rx="10" style={v("green")} opacity="0.2" />
+              <rect x="172" y="37" width="9" height="6" rx="3" fill="none" strokeWidth="1.6" style={st("green")} />
+              <rect x="177" y="37" width="9" height="6" rx="3" fill="none" strokeWidth="1.6" style={st("green")} />
+              <text x="224" y="44" textAnchor="middle" fontSize="10" fontWeight="600" style={v("green")}>계획 연결</text>
+            </g>
+            {/* 애니메이션이 opacity 를 덮어쓰므로 흐림은 감싼 g 에 둔다 */}
+            <rect x="166" y="58" width="24" height="5" rx="2.5" style={SUB} opacity="0.4" />
+            <rect x="166" y="67" width="94" height="16" rx="8" style={{ fill: "var(--apple-tertiary-system-fill)" }} />
+            <g opacity="0.35"><rect x="166" y="67" width="94" height="16" rx="8" className={s.fill1} style={v("orange")} /></g>
+            <g opacity="0.7"><rect x="174" y="73" width="46" height="4" rx="2" className={cx(s.box, s.chipB)} style={LABEL} /></g>
+            <rect x="166" y="91" width="24" height="5" rx="2.5" style={SUB} opacity="0.4" />
+            <rect x="166" y="100" width="94" height="16" rx="8" style={{ fill: "var(--apple-tertiary-system-fill)" }} />
+            <g opacity="0.35"><rect x="166" y="100" width="94" height="16" rx="8" className={s.fill2} style={v("orange")} /></g>
+            <text x="174" y="111.5" fontSize="9.5" fontWeight="600" className={cx(s.box, s.chipB)} style={LABEL}>3,000,000원</text>
+            <rect x="180" y="128" width="66" height="22" rx="11" style={v("blue")} />
+            <text x="213" y="142.5" textAnchor="middle" fontSize="10" fontWeight="600" style={{ fill: "#fff" }}>제출</text>
+          </g>
+        </>
+      );
     case "status": {
       const chips = [
         ["제출", "blue", 38, 86],

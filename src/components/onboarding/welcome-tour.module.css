@@ -110,6 +110,10 @@
   100% { opacity: 0; transform: scale(0.9); }
 }
 
+/* 4-1 계획에서 바로: 입금요청 누름(ripple) → 화면이 밀려 들어옴(bankIn) → 칸 채움(fill1·2) → 연결 줄(chipB). 모두 5초 */
+.planTap { animation: ripple 5s ease-out infinite; opacity: 0; }
+.planForm { animation: bankIn 5s cubic-bezier(0.16, 1, 0.3, 1) infinite; opacity: 0; }
+
 /* 5 상태 */
 .bell { animation: ring 4s ease-in-out infinite; transform-origin: 50% 10%; transform-box: fill-box; }
 @keyframes ring {
@@ -169,12 +173,12 @@
 @media (prefers-reduced-motion: reduce) {
   .art, .rcpt, .phoneGlow, .plus, .ripple, .riseCard, .swipeCard, .paperWobble, .badge,
   .fill1, .fill2, .tick, .clip, .bank, .chipA, .chipB, .bell, .pop, .rowCheck, .bulk,
-  .ring, .checkMark, .spark {
+  .ring, .checkMark, .spark, .planTap, .planForm {
     animation: none;
   }
   /* 움직임이 없어도 그림이 완성된 모습으로 보이게 */
-  .rcpt, .riseCard, .badge, .clip, .bank, .chipB, .pop, .rowCheck { opacity: 1; }
-  .ripple, .spark { opacity: 0; }
+  .rcpt, .riseCard, .badge, .clip, .bank, .chipB, .pop, .rowCheck, .planForm { opacity: 1; }
+  .ripple, .spark, .planTap { opacity: 0; }
   .fill1, .fill2 { transform: scaleX(1); }
   .tick, .ring, .checkMark { stroke-dashoffset: 0; }
   .chipA { opacity: 0; }

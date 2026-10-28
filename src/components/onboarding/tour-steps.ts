@@ -6,6 +6,7 @@ export type TourArt =
   | "create"
   | "card"
   | "deposit"
+  | "plan"
   | "status"
   | "admin"
   | "done";
@@ -64,7 +65,7 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "plan",
-    art: "create",
+    art: "plan",
     plansOnly: true,
     title: "계획에서 바로 올리기",
     body: () => [
