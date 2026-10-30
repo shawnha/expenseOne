@@ -26,6 +26,7 @@ function SoonPlanRow({ plan }: { plan: SoonPlan }) {
       <div className="mt-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
         <div className="pointer-events-none flex items-center gap-1.5 text-[11px] tabular-nums text-[var(--apple-secondary-label)]">
           <span>{formatPickDate(plan.plannedDate, plan.datePrecision)}</span>
+          {!plan.ownedByMe && plan.ownerName && <span>· 담당 {plan.ownerName}</span>}
           <span className={cn(plan.daysUntil < 0 && "text-[var(--apple-orange)]")}>
             {plan.daysUntil < 0 ? `${-plan.daysUntil}일 지남` : plan.daysUntil === 0 ? "D-day" : `D-${plan.daysUntil}`}
           </span>
@@ -64,7 +65,7 @@ export function SoonPlansSection({ plans }: { plans: SoonPlans }) {
           <CalendarClock className="size-4 text-[var(--apple-blue)]" aria-hidden="true" />
           곧 나갈 내 계획
         </h2>
-        <p className="mt-1 text-footnote text-[var(--apple-secondary-label)]">내가 만든 계획에서 바로 올려요.</p>
+        <p className="mt-1 text-footnote text-[var(--apple-secondary-label)]">내가 참여한 프로젝트 계획에서 바로 올려요. 담당자가 아니어도 돼요.</p>
       </div>
       <ul id="soon-plans-list" className="space-y-2">
         {plans.initial.map((plan) => <SoonPlanRow key={plan.id} plan={plan} />)}
