@@ -589,6 +589,9 @@ export async function getExpenses(
 
   // 후지급 요청됐지만 아직 승인 안 된 건은 관리자 액션이 필요하므로 목록 맨 앞으로
   const remainingPaymentPriority = sql`CASE WHEN ${expenses.remainingPaymentRequested} = true AND ${expenses.remainingPaymentApproved} = false THEN 0 ELSE 1 END`;
+  // 승인을 기다리는 긴급 건은 관리자가 먼저 봐야 하므로 승인 대기 목록에서 맨 앞으로.
+  // 승인·반려가 끝난 건은 더 급할 게 없으니 SUBMITTED 일 때만 올린다.
+  const urgentPriority = sql`CASE WHEN ${expenses.isUrgent} = true AND ${expenses.status} = 'SUBMITTED' THEN 0 ELSE 1 END`;
 
   // Subquery for attachment count per expense
   const attachmentCountSq = db
@@ -623,9 +626,11 @@ export async function getExpenses(
       .where(whereClause)
       .orderBy(
         ...(query.pending === "only"
-          // 처리 대기는 입금 기일이 급한 순, 기일이 없으면 오래 기다린 순.
-          ? [sql`${expenses.dueDate} ASC NULLS LAST`, asc(expenses.createdAt)]
-          : [remainingPaymentPriority, orderFn(orderColumn)]),
+          // 처리 대기는 긴급 먼저, 그다음 입금 기일이 급한 순, 기일이 없으면 오래 기다린 순.
+          ? [urgentPriority, sql`${expenses.dueDate} ASC NULLS LAST`, asc(expenses.createdAt)]
+          : query.status === "SUBMITTED"
+            ? [remainingPaymentPriority, urgentPriority, orderFn(orderColumn)]
+            : [remainingPaymentPriority, orderFn(orderColumn)]),
       )
       .limit(limit)
       .offset(offset),
