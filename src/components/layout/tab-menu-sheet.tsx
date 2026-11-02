@@ -22,6 +22,7 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { PlansNavGate, PlansNavIcon } from "@/components/plans/plans-nav-gate";
 import { badgeCount, badgeText, type NavBadges } from "@/components/layout/use-nav-badges";
+import { ScrollFade } from "@/components/ui/scroll-fade";
 import { cn } from "@/lib/utils";
 import { buildTabMenuItems, OPEN_TOUR_EVENT, type TabMenuIconKey } from "@/components/layout/tab-menu-items";
 
@@ -74,7 +75,7 @@ export default function TabMenuSheet({
         <SheetHeader className="px-5 pb-1 pt-4">
           <SheetTitle className="text-[13px] font-semibold text-[var(--apple-secondary-label)]">메뉴</SheetTitle>
         </SheetHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-2">
+        <ScrollFade className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-2">
           <div className="grid grid-cols-3 gap-1.5">
             {links.map((item) => {
               const Icon = ICONS[item.icon];
@@ -120,7 +121,7 @@ export default function TabMenuSheet({
               {tour.label}
             </button>
           )}
-        </div>
+        </ScrollFade>
       </SheetContent>
     </Sheet>
   );

@@ -8,6 +8,8 @@ import { ArrowLeft, Loader2, Search, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { FileUpload } from "@/components/forms/file-upload";
+import { MorphContent } from "@/components/ui/morph-button";
+import { ScrollFade } from "@/components/ui/scroll-fade";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -383,7 +385,7 @@ export function RefundForm() {
                     반품할 수 있는 승인된 비용이 없습니다.
                   </p>
                 ) : (
-                  <ul className="flex flex-col gap-1.5 max-h-72 overflow-y-auto">
+                  <ScrollFade as="ul" className="flex flex-col gap-1.5 max-h-72 overflow-y-auto">
                     {searchResults.map((e) => (
                       <li key={e.id}>
                         <button
@@ -406,7 +408,7 @@ export function RefundForm() {
                         </button>
                       </li>
                     ))}
-                  </ul>
+                  </ScrollFade>
                 )}
               </div>
             )}
@@ -474,15 +476,17 @@ export function RefundForm() {
             disabled={isSubmitting || isUploadBusy || !original}
             className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-[var(--apple-blue)] text-white text-[15px] font-semibold rounded-full hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] transition-colors disabled:opacity-50 apple-press"
           >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="size-4 animate-spin" /> 등록 중...
-              </>
-            ) : (
-              <>
-                <Undo2 className="size-4" /> 반품 등록
-              </>
-            )}
+            <MorphContent stateKey={isSubmitting ? "busy" : "idle"} className="gap-2">
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" /> 등록 중...
+                </>
+              ) : (
+                <>
+                  <Undo2 className="size-4" /> 반품 등록
+                </>
+              )}
+            </MorphContent>
           </button>
         </div>
       </form>

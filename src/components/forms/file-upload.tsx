@@ -1,5 +1,6 @@
 "use client";
 
+import { useMagneticDrop } from "@/hooks/use-magnetic-drop";
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Upload,
@@ -67,7 +68,7 @@ export function FileUpload({
   onBusyChange,
   onDocumentRead,
 }: FileUploadProps) {
-  const [isDragOver, setIsDragOver] = useState(false);
+  const { isDragOver, onDragOver: handleDragOver, onDragLeave: handleDragLeave, reset: resetDrag, zoneStyle, contentStyle } = useMagneticDrop();
   const [fileError, setFileError] = useState<string | null>(null);
   const [busyStage, setBusyStage] = useState<BusyStage>(null);
   const isBusy = busyStage !== null;
@@ -198,22 +199,12 @@ export function FileUpload({
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
-      setIsDragOver(false);
+      resetDrag();
       const droppedFiles = Array.from(e.dataTransfer.files);
       addFiles(droppedFiles);
     },
-    [addFiles]
+    [addFiles, resetDrag]
   );
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-  }, []);
 
   const handleFileSelect = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -233,10 +224,11 @@ export function FileUpload({
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
+        style={zoneStyle}
         className={cn(
           "relative flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-[var(--glass-border)] p-6 transition-colors",
           isDragOver
-            ? "border-primary bg-primary/5"
+            ? "border-solid border-[var(--apple-blue)] bg-primary/5"
             : displayError
             ? "border-destructive/50 bg-destructive/5"
             : "border-muted-foreground/25 hover:border-muted-foreground/50",
@@ -257,6 +249,7 @@ export function FileUpload({
           }
         }}
       >
+        <div className="flex max-w-full flex-col items-center gap-3" style={contentStyle}>
         {isBusy ? (
           <Loader2 className="size-8 animate-spin text-muted-foreground motion-reduce:animate-none" />
         ) : (
@@ -297,6 +290,7 @@ export function FileUpload({
             <Camera className="size-3.5" />
             카메라 촬영
           </Button>
+        </div>
         </div>
       </div>
 
@@ -454,7 +448,7 @@ export function FileUploadWithDocType({
   onDocumentRead,
   onReadingCountChange,
 }: FileUploadWithDocTypeProps) {
-  const [isDragOver, setIsDragOver] = useState(false);
+  const { isDragOver, onDragOver: handleDragOver, onDragLeave: handleDragLeave, reset: resetDrag, zoneStyle, contentStyle } = useMagneticDrop();
   const [fileError, setFileError] = useState<string | null>(null);
   const [busyStage, setBusyStage] = useState<BusyStage>(null);
   const isBusy = busyStage !== null;
@@ -588,22 +582,12 @@ export function FileUploadWithDocType({
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
-      setIsDragOver(false);
+      resetDrag();
       const droppedFiles = Array.from(e.dataTransfer.files);
       addFiles(droppedFiles);
     },
-    [addFiles]
+    [addFiles, resetDrag]
   );
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-  }, []);
 
   const handleFileSelect = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -623,10 +607,11 @@ export function FileUploadWithDocType({
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
+        style={zoneStyle}
         className={cn(
           "relative flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-[var(--glass-border)] p-6 transition-colors",
           isDragOver
-            ? "border-primary bg-primary/5"
+            ? "border-solid border-[var(--apple-blue)] bg-primary/5"
             : displayError
             ? "border-destructive/50 bg-destructive/5"
             : "border-muted-foreground/25 hover:border-muted-foreground/50",
@@ -647,6 +632,7 @@ export function FileUploadWithDocType({
           }
         }}
       >
+        <div className="flex max-w-full flex-col items-center gap-3" style={contentStyle}>
         {isBusy ? (
           <Loader2 className="size-8 animate-spin text-muted-foreground motion-reduce:animate-none" />
         ) : (
@@ -690,6 +676,7 @@ export function FileUploadWithDocType({
             <Camera className="size-3.5" />
             카메라 촬영
           </Button>
+        </div>
         </div>
       </div>
 

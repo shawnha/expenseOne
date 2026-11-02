@@ -3,6 +3,8 @@
 import { useRef } from "react";
 import { AlertTriangle, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { MorphButton } from "@/components/ui/morph-button";
+import { ScrollFade } from "@/components/ui/scroll-fade";
 import {
   Dialog,
   DialogContent,
@@ -43,7 +45,8 @@ export function DepositSummaryDialog({ open, summary, submitting, onCancel, onCo
 
         {/* 내용만 스크롤하고 수정·제출 버튼은 항상 보이게 둔다. */}
         {/* 키보드로도 스크롤할 수 있게 포커스를 받는다(Safari 는 포커스 없는 스크롤 영역을 키보드로 못 내린다). */}
-        <dl
+        <ScrollFade
+          as="dl"
           tabIndex={0}
           aria-label="제출할 내용"
           className="min-h-0 min-w-0 flex-1 space-y-1 overflow-y-auto overscroll-contain rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--apple-blue)]"
@@ -81,14 +84,15 @@ export function DepositSummaryDialog({ open, summary, submitting, onCancel, onCo
               </dd>
             </div>
           ))}
-        </dl>
+        </ScrollFade>
 
         <DialogFooter className="shrink-0">
           <Button type="button" variant="outline" onClick={onCancel} className="h-11 w-full rounded-full sm:w-auto">
             수정하기
           </Button>
-          <Button
+          <MorphButton
             type="button"
+            stateKey={submitting ? "busy" : "idle"}
             onClick={onConfirm}
             disabled={submitting}
             aria-busy={submitting}
@@ -96,7 +100,7 @@ export function DepositSummaryDialog({ open, summary, submitting, onCancel, onCo
           >
             {submitting && <Loader2 aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" />}
             제출
-          </Button>
+          </MorphButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>

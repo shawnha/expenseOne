@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { HoldToConfirmButton } from "@/components/ui/hold-to-confirm-button";
+import { MorphButton } from "@/components/ui/morph-button";
 import {
   Table,
   TableBody,
@@ -469,10 +471,10 @@ export function PendingTable({ expenses }: PendingTableProps) {
             <Button variant="outline" onClick={() => setApproveTarget(null)} disabled={approving} className="rounded-full">
               취소
             </Button>
-            <Button onClick={handleApprove} disabled={approving} className="rounded-full bg-[var(--apple-green)] hover:bg-[color-mix(in_srgb,var(--apple-green)_85%,black)]">
+            <MorphButton stateKey={approving ? "busy" : "idle"} onClick={handleApprove} disabled={approving} className="rounded-full bg-[var(--apple-green)] hover:bg-[color-mix(in_srgb,var(--apple-green)_85%,black)]">
               {approving && <Loader2 className="size-4 animate-spin" />}
               승인
-            </Button>
+            </MorphButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -553,14 +555,14 @@ export function PendingTable({ expenses }: PendingTableProps) {
             <Button variant="outline" onClick={() => { setBulkAction(null); setBulkSkipNotification(false); }} disabled={bulkProcessing} className="rounded-full">
               취소
             </Button>
-            <Button
-              onClick={handleBulkAction}
+            <HoldToConfirmButton
+              onConfirm={handleBulkAction}
               disabled={bulkProcessing}
               className="rounded-full bg-[var(--apple-green)] hover:bg-[color-mix(in_srgb,var(--apple-green)_85%,black)]"
             >
               {bulkProcessing && <Loader2 className="size-4 animate-spin" />}
-              {selectedIds.size}건 승인
-            </Button>
+              길게 눌러 {selectedIds.size}건 승인
+            </HoldToConfirmButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>

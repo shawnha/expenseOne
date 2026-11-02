@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
+import { MorphButton } from "@/components/ui/morph-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -905,8 +906,10 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
               취소
             </Button>
           </Link>
-          <Button
+          <MorphButton
             type="submit"
+            stateKey={isSubmitting ? "busy" : "idle"}
+            animateWidth
             disabled={isSubmitting || isUploadBusy}
             className="w-full sm:w-auto rounded-full h-12 px-8 text-[15px] font-semibold bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] shadow-[0_4px_14px_rgba(0,122,255,0.4)] hover:shadow-[0_6px_20px_rgba(0,122,255,0.5)] transition-all"
           >
@@ -918,7 +921,7 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
             ) : (
               "제출하기"
             )}
-          </Button>
+          </MorphButton>
         </div>
       </form>
 
