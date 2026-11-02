@@ -1710,3 +1710,15 @@
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* ── MorphButton 라벨 교체 (components/ui/morph-button.tsx) ── */
+@keyframes morph-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes morph-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-6px); }
+}
+.morph-in { animation: morph-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.morph-out { animation: morph-out 180ms cubic-bezier(0.16, 1, 0.3, 1) both; }

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { HoldToConfirmButton } from "@/components/ui/hold-to-confirm-button";
 import {
   Dialog,
   DialogContent,
@@ -73,13 +74,14 @@ export function DeleteExpenseDialog({
           <DialogClose render={<Button variant="outline" />}>
             취소
           </DialogClose>
-          <Button
+          <HoldToConfirmButton
             variant="destructive"
-            onClick={handleDelete}
+            onConfirm={handleDelete}
             disabled={isPending}
+            fillClassName="bg-destructive/25"
           >
-            {isPending ? "삭제 중..." : "삭제"}
-          </Button>
+            {isPending ? "삭제 중..." : "길게 눌러 삭제"}
+          </HoldToConfirmButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -23,6 +23,7 @@ import {
   type IssuerCode,
 } from "@/lib/tax-invoice";
 import type { BuyerSuggestion, ErpSalesDoc } from "@/services/tax-invoice.service";
+import { ScrollFade } from "@/components/ui/scroll-fade";
 import { taxFetch, todayKST, won } from "./api";
 import type { TaxInvoiceFormInitial } from "./initial";
 
@@ -382,7 +383,8 @@ function BuyerNameField({
         className={fieldClass}
       />
       {open && value.trim().length >= 2 && results.length > 0 && (
-        <ul className="glass-strong absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-y-auto rounded-2xl p-1.5" role="listbox">
+        <div className="glass-strong absolute left-0 right-0 top-full z-20 mt-1 rounded-2xl p-1.5">
+        <ScrollFade as="ul" className="max-h-[14.5rem] overflow-y-auto" role="listbox">
           {results.map((b) => (
             <li key={b.bizNo}>
               <button
@@ -407,7 +409,8 @@ function BuyerNameField({
               </button>
             </li>
           ))}
-        </ul>
+        </ScrollFade>
+        </div>
       )}
     </div>
   );
@@ -487,7 +490,8 @@ function ErpDocPicker({
               <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="거래처 이름으로 좁히기" className={cn(fieldClass, "pl-9")} />
             </div>
           </div>
-          <div className="max-h-80 overflow-y-auto rounded-2xl border border-[var(--apple-separator)]">
+          <div className="overflow-hidden rounded-2xl border border-[var(--apple-separator)]">
+          <ScrollFade className="max-h-80 overflow-y-auto">
             {loading && docs === null ? (
               <p className="px-4 py-6 text-center text-footnote text-[var(--apple-secondary-label)]">불러오는 중…</p>
             ) : visible.length === 0 ? (
@@ -521,6 +525,7 @@ function ErpDocPicker({
                 })}
               </ul>
             )}
+          </ScrollFade>
           </div>
         </div>
       )}
