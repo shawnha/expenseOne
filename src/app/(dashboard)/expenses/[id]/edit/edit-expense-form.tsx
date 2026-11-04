@@ -22,7 +22,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { ExpenseNotesField } from "@/components/expenses/expense-notes-field";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -450,11 +450,11 @@ function CorporateCardEditForm({
               )} />
               {errors.transactionDate && <p className="text-xs text-[var(--apple-red)]">{errors.transactionDate.message}</p>}
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="description">설명</Label>
-              <Textarea id="description" placeholder="추가 설명을 입력해주세요 (선택사항)" rows={3} {...register("description")} />
-              {errors.description && <p className="text-xs text-[var(--apple-red)]">{errors.description.message}</p>}
-            </div>
+            <ExpenseNotesField
+              id="description"
+              error={errors.description?.message}
+              {...register("description")}
+            />
           </div>
         </div>
 
@@ -1032,11 +1032,11 @@ function DepositRequestEditForm({
               />
             )} />
 
-            <div className="space-y-1.5">
-              <Label htmlFor="description">설명</Label>
-              <Textarea id="description" placeholder="추가 설명을 입력해주세요 (선택사항)" rows={3} {...register("description")} />
-              {errors.description && <p className="text-xs text-[var(--apple-red)]">{errors.description.message}</p>}
-            </div>
+            <ExpenseNotesField
+              id="description"
+              error={errors.description?.message}
+              {...register("description")}
+            />
           </div>
         </div>
 

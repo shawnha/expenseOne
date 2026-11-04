@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { MorphButton } from "@/components/ui/morph-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { ExpenseNotesField } from "@/components/expenses/expense-notes-field";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -1659,21 +1659,11 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
             </div>
 
             {/* 설명 */}
-            <div className="space-y-1.5">
-              <Label htmlFor="description">설명</Label>
-              <Textarea
-                id="description"
-                aria-invalid={!!errors.description}
-                placeholder="추가 설명을 입력해주세요 (선택사항)"
-                rows={3}
-                {...register("description")}
-              />
-              {errors.description && (
-                <p className="text-xs text-[var(--apple-red)]">
-                  {errors.description.message}
-                </p>
-              )}
-            </div>
+            <ExpenseNotesField
+              id="description"
+              error={errors.description?.message}
+              {...register("description")}
+            />
           </div>
         </div>
 

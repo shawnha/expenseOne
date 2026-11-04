@@ -1,3 +1,4 @@
+import { ExpenseNotes } from "@/components/expenses/expense-notes";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
@@ -471,8 +472,8 @@ export default async function ExpenseDetailPage({
 
         {expense.description && (
           <div className="mt-4 pt-4 border-t border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)]">
-            <span className="text-[13px] text-[var(--apple-secondary-label)]">설명</span>
-            <p className="text-sm mt-1 whitespace-pre-wrap text-[var(--apple-label)]">{expense.description}</p>
+            <span className="text-[13px] text-[var(--apple-secondary-label)]">설명 및 참고 링크</span>
+            <ExpenseNotes value={expense.description} />
           </div>
         )}
 

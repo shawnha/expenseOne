@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { MorphButton } from "@/components/ui/morph-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { ExpenseNotesField } from "@/components/expenses/expense-notes-field";
 
 import {
   PurchaseFields,
@@ -865,20 +865,11 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
             {/* 거래일 — onSubmit에서 new Date()로 직접 설정 */}
 
             {/* 설명 */}
-            <div className="space-y-1.5">
-              <Label htmlFor="description">설명</Label>
-              <Textarea
-                id="description"
-                placeholder="추가 설명을 입력해주세요 (선택사항)"
-                rows={3}
-                {...register("description")}
-              />
-              {errors.description && (
-                <p className="text-xs text-[var(--apple-red)]">
-                  {errors.description.message}
-                </p>
-              )}
-            </div>
+            <ExpenseNotesField
+              id="description"
+              error={errors.description?.message}
+              {...register("description")}
+            />
           </div>
         </div>
 
