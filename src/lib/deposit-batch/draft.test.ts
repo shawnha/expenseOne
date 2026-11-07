@@ -1,0 +1,14 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { applyDocument, blankDraft, draftPayload, draftError } from './draft';
+import type { OcrFields } from '../ocr/types';
+const fields: OcrFields = { docType: '정산서', merchantName: '샘플 업체', totalAmount: 110000, supplyAmount: 100000, vatAmount: 10000, amountIncludesVat: 'yes', currency: 'KRW', date: null, bankName: '신한', accountHolder: '샘플 업체', accountNumber: '110-000-000001', cardLast4: null, confidence: 'high', note: '' };
+const valid = () => ({ ...applyDocument(blankDraft('정산서.pdf'), fields, []), companyId: '11111111-1111-4111-8111-111111111111', category: 'OTHER' });
+test('새 파일은 파일명 외에 지난 요청 금액·계좌를 물려받지 않는다', () => { const d = blankDraft('11월 정산.pdf'); assert.equal(d.title, '11월 정산'); assert.equal(d.amount, ''); assert.equal(d.accountNumber, ''); assert.equal(d.companyId, ''); });
+test('정산서의 최종 금액과 계좌를 파일별로 채운다', () => { const d = valid(); assert.equal(d.amount, '110000'); assert.equal(d.bankName, '신한은행'); assert.equal(d.accountNumber, '110000000001'); assert.equal(d.title, '샘플 업체 정산'); });
+test('늦게 도착한 OCR가 사람이 고친 값을 덮지 않는다', () => { const d = applyDocument({ ...blankDraft('a.pdf'), title: '수동 제목', amount: '25000', bankName: '우리은행' }, fields, ['title', 'amount', 'bankName']); assert.equal(d.title, '수동 제목'); assert.equal(d.amount, '25000'); assert.equal(d.bankName, '우리은행'); });
+test('통장사본은 계좌만 채우고 별도 금액·제목을 추론하지 않는다', () => { const d = applyDocument(blankDraft('통장.pdf'), { ...fields, docType: '통장사본' }, []); assert.equal(d.title, '통장'); assert.equal(d.amount, ''); assert.equal(d.accountNumber, '110000000001'); });
+test('부가세 별도 금액은 최종 지급 금액으로 변환한다', () => { const d = applyDocument(blankDraft('a.pdf'), { ...fields, totalAmount: 100000, supplyAmount: null, vatAmount: null, amountIncludesVat: 'no' }, []); assert.equal(d.amount, '110000'); });
+test('달러는 화면에서 달러, 제출에서는 센트로 바꾼다', () => { const d = { ...valid(), amount: '125.35', currency: 'USD' as const }; assert.equal(draftPayload(d, '2026-11-07').amount, 12535); });
+test('회사·계좌·금액이 불완전하면 검토 완료할 수 없다', () => { assert.match(draftError({ ...valid(), companyId: '' }, '2026-11-07')!, /회사/); assert.match(draftError({ ...valid(), accountNumber: 'abc123' }, '2026-11-07')!, /계좌/); for (const amount of ['', '0', 'Infinity', '-5', '1.5']) assert.ok(draftError({ ...valid(), amount }, '2026-11-07')); });
+test('달러 소수 셋째 자리를 묵시적으로 반올림하지 않는다', () => { assert.throws(() => draftPayload({ ...valid(), currency: 'USD', amount: '1.235' }, '2026-11-07')); });

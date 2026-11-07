@@ -1110,6 +1110,8 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
         </div>
       </div>
 
+      {!prefill && !planId && <nav aria-label="입금요청 작성 방법" className="flex flex-wrap gap-2"><span aria-current="page" className="inline-flex min-h-11 items-center rounded-full bg-[var(--apple-blue)] px-4 text-sm text-white">직접 작성</span><Link className="inline-flex min-h-11 items-center rounded-full px-4 text-sm text-[var(--apple-blue)]" href="/expenses/new/deposit-batch">정산서로 여러 건</Link></nav>}
+
       {prefill && (
         <div className="glass p-5">
           <p className="text-sm font-semibold text-[var(--apple-label)]">

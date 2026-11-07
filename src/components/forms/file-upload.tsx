@@ -1,5 +1,7 @@
 "use client";
 
+import { DocumentScanProgress } from "./document-scan-progress";
+
 import { useMagneticDrop } from "@/hooks/use-magnetic-drop";
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
@@ -89,7 +91,7 @@ export function FileUpload({
   useLayoutEffect(() => {
     filesRef.current = files;
   }, [files]);
-  const { read: readDocuments, readingCount, skipped, clearSkipped } = useDocumentReader({ filesRef: filesRef, onFilesChange, onDocumentRead, fillDocumentType: false });
+  const { read: readDocuments, readingCount, stages, skipped, clearSkipped } = useDocumentReader({ filesRef: filesRef, onFilesChange, onDocumentRead, fillDocumentType: false });
   useEffect(() => {
     onReadingCountChange?.(readingCount);
   }, [readingCount, onReadingCountChange]);
@@ -331,6 +333,8 @@ export function FileUpload({
         text={onDocumentRead ? ocrSkipAnnouncement(files.map((f) => ({ id: f.id, name: f.file.name })), skipped) : ""}
       />
 
+      {onDocumentRead && <DocumentScanProgress files={files.map(f => ({ id: f.id, name: f.file.name }))} stages={stages} />}
+
       {/* File list */}
       {files.length > 0 && (
         <div className="space-y-2">
@@ -472,7 +476,7 @@ export function FileUploadWithDocType({
   useLayoutEffect(() => {
     filesRef2.current = files;
   }, [files]);
-  const { read: readDocuments, readingCount, skipped, clearSkipped } = useDocumentReader({ filesRef: filesRef2, onFilesChange, onDocumentRead, fillDocumentType: true });
+  const { read: readDocuments, readingCount, stages, skipped, clearSkipped } = useDocumentReader({ filesRef: filesRef2, onFilesChange, onDocumentRead, fillDocumentType: true });
   useEffect(() => {
     onReadingCountChange?.(readingCount);
   }, [readingCount, onReadingCountChange]);
@@ -716,6 +720,8 @@ export function FileUploadWithDocType({
       <OcrSkipAnnouncer
         text={onDocumentRead ? ocrSkipAnnouncement(files.map((f) => ({ id: f.id, name: f.file.name })), skipped) : ""}
       />
+
+      {onDocumentRead && <DocumentScanProgress files={files.map(f => ({ id: f.id, name: f.file.name }))} stages={stages} />}
 
       {/* File list with document type */}
       {files.length > 0 && (

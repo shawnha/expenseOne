@@ -132,7 +132,7 @@ export function PendingTable({ expenses }: PendingTableProps) {
         method: "POST",
       });
       if (res.ok) {
-        toast.success("승인되었습니다.");
+        toast.success(`「${approveTarget.title}」 승인 완료`, { description: formatExpenseAmount(approveTarget.amount, approveTarget.currency, approveTarget.amountOriginal) });
         setApproveTarget(null);
         router.refresh();
       } else {

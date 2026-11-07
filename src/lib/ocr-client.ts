@@ -76,6 +76,12 @@ export function documentTypeFromOcr(docType: OcrDocType): string | undefined {
   switch (docType) {
     case "카드전표/영수증":
       return "RECEIPT";
+    case "정산서":
+      return "정산서";
+    case "청구서/인보이스":
+      return "청구서";
+    case "거래명세서":
+      return "거래명세서";
     case "견적서":
       return "ESTIMATE";
     case "통장사본":
