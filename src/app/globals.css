@@ -1722,3 +1722,9 @@
 }
 .morph-in { animation: morph-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 .morph-out { animation: morph-out 180ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* OCR가 실행되는 동안만 표시하는 문서 스캔 피드백. 진행률을 추측하지 않는다. */
+.document-scan-sheet { position: relative; display: grid; place-items: center; width: 48px; height: 64px; flex-shrink: 0; overflow: hidden; border: 1px solid var(--apple-separator); border-radius: 8px; background: var(--apple-system-background); }
+.document-scan-beam { position: absolute; inset: 0 0 auto; height: 20px; background: linear-gradient(transparent, color-mix(in srgb, var(--apple-blue) 16%, transparent)); border-bottom: 2px solid var(--apple-blue); animation: document-scan 1.6s ease-in-out infinite alternate; }
+@keyframes document-scan { from { transform: translateY(0); } to { transform: translateY(44px); } }
+@media (prefers-reduced-motion: reduce) { .document-scan-beam { animation: none; transform: translateY(22px); } }

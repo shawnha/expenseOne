@@ -1,5 +1,7 @@
 "use client";
 
+import { DocumentScanProgress } from "./document-scan-progress";
+
 import { useMagneticDrop } from "@/hooks/use-magnetic-drop";
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
@@ -35,9 +37,10 @@ interface FileUploadProps {
   onBusyChange?: (busy: boolean) => void;
   /**
    * 넘기면 첨부한 사진·PDF를 뒤에서 읽어(OCR) 결과를 파일마다 알려 준다. 칸을 채울지는 부모가 정한다.
-   * 뒤집힌 사진은 바로 세운 사진으로 바꿔 끼운다. 읽는 동안에도 첨부·제출은 막지 않는다.
+   * 뒤집힌 사진은 바로 세운 사진으로 바꿔 끼운다. 읽는 동안에도 첨부할 수 있고, 제출 대기는 부모가 정한다.
    */
   onDocumentRead?: (fileId: string, result: OcrResult) => void;
+  onReadingCountChange?: (count: number) => void;
 }
 
 type BusyStage = "shrink" | null;
@@ -67,6 +70,7 @@ export function FileUpload({
   className,
   onBusyChange,
   onDocumentRead,
+  onReadingCountChange,
 }: FileUploadProps) {
   const { isDragOver, onDragOver: handleDragOver, onDragLeave: handleDragLeave, reset: resetDrag, zoneStyle, contentStyle } = useMagneticDrop();
   const [fileError, setFileError] = useState<string | null>(null);
@@ -87,7 +91,10 @@ export function FileUpload({
   useLayoutEffect(() => {
     filesRef.current = files;
   }, [files]);
-  const { read: readDocuments, readingCount, skipped, clearSkipped } = useDocumentReader({ filesRef: filesRef, onFilesChange, onDocumentRead, fillDocumentType: false });
+  const { read: readDocuments, readingCount, stages, skipped, clearSkipped } = useDocumentReader({ filesRef: filesRef, onFilesChange, onDocumentRead, fillDocumentType: false });
+  useEffect(() => {
+    onReadingCountChange?.(readingCount);
+  }, [readingCount, onReadingCountChange]);
   useEffect(() => {
     onBusyChangeRef.current = onBusyChange;
   }, [onBusyChange]);
@@ -326,6 +333,8 @@ export function FileUpload({
         text={onDocumentRead ? ocrSkipAnnouncement(files.map((f) => ({ id: f.id, name: f.file.name })), skipped) : ""}
       />
 
+      {onDocumentRead && <DocumentScanProgress files={files.map(f => ({ id: f.id, name: f.file.name }))} stages={stages} />}
+
       {/* File list */}
       {files.length > 0 && (
         <div className="space-y-2">
@@ -467,7 +476,7 @@ export function FileUploadWithDocType({
   useLayoutEffect(() => {
     filesRef2.current = files;
   }, [files]);
-  const { read: readDocuments, readingCount, skipped, clearSkipped } = useDocumentReader({ filesRef: filesRef2, onFilesChange, onDocumentRead, fillDocumentType: true });
+  const { read: readDocuments, readingCount, stages, skipped, clearSkipped } = useDocumentReader({ filesRef: filesRef2, onFilesChange, onDocumentRead, fillDocumentType: true });
   useEffect(() => {
     onReadingCountChange?.(readingCount);
   }, [readingCount, onReadingCountChange]);
@@ -711,6 +720,8 @@ export function FileUploadWithDocType({
       <OcrSkipAnnouncer
         text={onDocumentRead ? ocrSkipAnnouncement(files.map((f) => ({ id: f.id, name: f.file.name })), skipped) : ""}
       />
+
+      {onDocumentRead && <DocumentScanProgress files={files.map(f => ({ id: f.id, name: f.file.name }))} stages={stages} />}
 
       {/* File list with document type */}
       {files.length > 0 && (

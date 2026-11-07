@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { MorphButton } from "@/components/ui/morph-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { ExpenseNotesField } from "@/components/expenses/expense-notes-field";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -156,6 +156,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
   const [repeat, setRepeat] = useState<RepeatMonthlyValue>(defaultRepeatMonthly);
   const [files, setFiles] = useState<FileWithPreview[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCompanyCheckBusy, setIsCompanyCheckBusy] = useState(false);
   const [pendingSubmit, setPendingSubmit] = useState<DepositRequestFormData | null>(null);
   const [readingCount, setReadingCount] = useState(0);
   const attachmentRef = useRef<HTMLElement>(null);
@@ -893,6 +894,10 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
   // 검사를 통과하면 요약 창을 연다. 「제출」을 눌러야 보낸다.
 
   const onSubmit = (data: DepositRequestFormData) => {
+    if (readingCount > 0 || isCompanyCheckBusy) {
+      toast.info("첨부 서류와 법인을 확인 중입니다. 완료 후 제출해주세요.");
+      return;
+    }
     if (pendingSubmit || isSubmitting) return;
     // 비동기 검증 사이 OCR이 금액을 바꿨으면 최신 값으로 다시 검사한다. 요약과 POST는 같은 스냅샷을 쓴다.
     if (data.amount !== getValues("amount")) {
@@ -1105,6 +1110,8 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
         </div>
       </div>
 
+      {!prefill && !planId && <nav aria-label="입금요청 작성 방법" className="flex flex-wrap gap-2"><span aria-current="page" className="inline-flex min-h-11 items-center rounded-full bg-[var(--apple-blue)] px-4 text-sm text-white">직접 작성</span><Link className="inline-flex min-h-11 items-center rounded-full px-4 text-sm text-[var(--apple-blue)]" href="/expenses/new/deposit-batch">정산서로 여러 건</Link></nav>}
+
       {prefill && (
         <div className="glass p-5">
           <p className="text-sm font-semibold text-[var(--apple-label)]">
@@ -1214,6 +1221,15 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
                 onChange={handleCompanyChange}
                 userCompanyId={userCompanyId}
                 initialCompanies={initialCompanies}
+                documentFields={ocrAttached}
+                onDocumentCompanyCheckChange={setIsCompanyCheckBusy}
+                allowDocumentAutoSelect={!companyTouchedRef.current && !prefill && !selectedPlan && !pendingSubmit && !isSubmitting && readingCount === 0}
+                documentSelectionLocked={!!pendingSubmit || isSubmitting}
+                onDocumentCompanyChange={(id) => {
+                  companyTouchedRef.current = true;
+                  setCompanyId(id);
+                  setFills((current) => recordFill(current, "company", "ocr", fillKey.company(id)));
+                }}
               />
             </AutoFillBand>
 
@@ -1645,21 +1661,11 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
             </div>
 
             {/* 설명 */}
-            <div className="space-y-1.5">
-              <Label htmlFor="description">설명</Label>
-              <Textarea
-                id="description"
-                aria-invalid={!!errors.description}
-                placeholder="추가 설명을 입력해주세요 (선택사항)"
-                rows={3}
-                {...register("description")}
-              />
-              {errors.description && (
-                <p className="text-xs text-[var(--apple-red)]">
-                  {errors.description.message}
-                </p>
-              )}
-            </div>
+            <ExpenseNotesField
+              id="description"
+              error={errors.description?.message}
+              {...register("description")}
+            />
           </div>
         </div>
 
@@ -1919,7 +1925,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
             type="submit"
             stateKey={isSubmitting ? "busy" : "idle"}
             animateWidth
-            disabled={isSubmitting || isUploadBusy}
+            disabled={isSubmitting || isUploadBusy || readingCount > 0 || isCompanyCheckBusy}
             className="w-full sm:w-auto rounded-full h-12 px-8 text-[15px] font-semibold bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] shadow-[0_4px_14px_rgba(0,122,255,0.4)] hover:shadow-[0_6px_20px_rgba(0,122,255,0.5)] transition-all"
           >
             {isSubmitting ? (

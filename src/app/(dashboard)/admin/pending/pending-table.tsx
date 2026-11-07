@@ -132,7 +132,7 @@ export function PendingTable({ expenses }: PendingTableProps) {
         method: "POST",
       });
       if (res.ok) {
-        toast.success("승인되었습니다.");
+        toast.success(`「${approveTarget.title}」 승인 완료`, { description: formatExpenseAmount(approveTarget.amount, approveTarget.currency, approveTarget.amountOriginal) });
         setApproveTarget(null);
         router.refresh();
       } else {
@@ -343,61 +343,61 @@ export function PendingTable({ expenses }: PendingTableProps) {
             key={expense.id}
             className={`rounded-xl bg-[var(--apple-system-background)] border border-[var(--glass-border)] shadow-sm overflow-hidden animate-card-enter stagger-${Math.min(index + 1, 8)} ${selectedIds.has(expense.id) ? "ring-2 ring-[var(--apple-blue)] ring-opacity-50" : ""}`}
           >
-            <div className="flex items-start gap-3 p-4 pb-2">
-              <div className="pt-0.5" onClick={(e) => e.stopPropagation()}>
+            <div className="relative p-4 pb-2">
+              <label className="absolute left-1 top-1 flex size-11 cursor-pointer items-center justify-center">
                 <Checkbox
                   checked={selectedIds.has(expense.id)}
                   onCheckedChange={() => toggleSelect(expense.id)}
                   aria-label={`${expense.title} 선택`}
                 />
-              </div>
+              </label>
               <button
                 type="button"
                 onClick={() => router.push(`/expenses/${expense.id}`)}
-                className="flex-1 min-w-0 text-left space-y-2 active:bg-[rgba(0,0,0,0.05)] dark:active:bg-[rgba(255,255,255,0.08)] transition-colors"
+                className="block w-full min-w-0 space-y-3 rounded-lg text-left transition-colors active:bg-[var(--apple-tertiary-system-fill)]"
                 aria-label={`${expense.title} 상세 보기`}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-[var(--apple-label)] truncate flex items-center gap-1.5">
-                      <span className="truncate">{expense.title}</span>
-                      {expense.isUrgent && <span className="glass-badge glass-badge-red shrink-0">긴급</span>}
-                      <PrePaidBadge isPrePaid={expense.isPrePaid} percentage={expense.prePaidPercentage} fixedAmount={expense.prePaidFixedAmount} />
-                      <WithholdingBadge applied={expense.hasFreelancerWithholding} />
-                    </p>
-                    <p className="text-xs text-[var(--apple-secondary-label)]">{expense.submitter?.name ?? "알 수 없음"}</p>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {expense.companyName && expense.companySlug && (
-                      <CompanyBadge name={expense.companyName} slug={expense.companySlug} />
-                    )}
-                    <span className="text-xs text-[var(--apple-secondary-label)]">
-                      {getCategoryLabel(expense.category)}
-                    </span>
-                  </div>
+                <div className="min-w-0 pl-8">
+                  <p className="break-words text-sm font-medium leading-5 text-[var(--apple-label)]">
+                    {expense.title}
+                  </p>
+                  <p className="mt-1 break-words text-xs text-[var(--apple-secondary-label)]">
+                    {expense.submitter?.name ?? "알 수 없음"}
+                  </p>
                 </div>
-                <div className="flex items-center justify-between text-sm">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                  {expense.companyName && expense.companySlug && (
+                    <CompanyBadge name={expense.companyName} slug={expense.companySlug} className="max-w-full whitespace-normal break-words" />
+                  )}
                   <span className="text-xs text-[var(--apple-secondary-label)]">
+                    {getCategoryLabel(expense.category)}
+                  </span>
+                  {expense.isUrgent && <span className="glass-badge glass-badge-red">긴급</span>}
+                  <PrePaidBadge isPrePaid={expense.isPrePaid} percentage={expense.prePaidPercentage} fixedAmount={expense.prePaidFixedAmount} />
+                  <WithholdingBadge applied={expense.hasFreelancerWithholding} />
+                </div>
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-[var(--apple-separator)] pt-3">
+                  <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-[var(--apple-secondary-label)]">
                     {formatDate(expense.createdAt)}
                     {expense.attachmentCount > 0 && (
-                      <span className="ml-1.5 inline-flex items-center gap-0.5">
-                        <Paperclip className="size-2.5" />
+                      <span className="inline-flex items-center gap-0.5">
+                        <Paperclip className="size-3" aria-hidden="true" />
                         {expense.attachmentCount}
                       </span>
                     )}
                   </span>
-                  <span className="text-sm font-semibold tabular-nums text-[var(--apple-label)]">
+                  <span className="ml-auto break-words text-right text-sm font-semibold tabular-nums text-[var(--apple-label)]">
                     {formatExpenseAmount(expense.amount, expense.currency, expense.amountOriginal)}
                   </span>
                 </div>
               </button>
             </div>
             <div className="flex gap-2 px-4 pb-4 pt-2">
-              <Button size="sm" className="flex-1 rounded-full bg-[var(--apple-green)] hover:bg-[color-mix(in_srgb,var(--apple-green)_85%,black)] text-white apple-press" onClick={() => setApproveTarget(expense)}>
+              <Button size="sm" className="min-h-11 min-w-0 flex-1 rounded-full bg-[var(--apple-green)] hover:bg-[color-mix(in_srgb,var(--apple-green)_85%,black)] text-white apple-press" onClick={() => setApproveTarget(expense)}>
                 <Check className="size-3.5" />
                 승인
               </Button>
-              <Button size="sm" variant="destructive" className="flex-1 rounded-full apple-press" onClick={() => setRejectTarget(expense)}>
+              <Button size="sm" variant="destructive" className="min-h-11 min-w-0 flex-1 rounded-full apple-press" onClick={() => setRejectTarget(expense)}>
                 <X className="size-3.5" />
                 반려
               </Button>
@@ -412,18 +412,18 @@ export function PendingTable({ expenses }: PendingTableProps) {
           className="fixed left-0 right-0 z-50 flex items-center justify-center px-4 animate-in slide-in-from-bottom-4 fade-in duration-200"
           style={{ bottom: `calc(66px + env(safe-area-inset-bottom, 0px) + 12px)` }}
         >
-          <div className="glass flex items-center gap-3 rounded-full px-5 py-3 shadow-lg border border-white/20 dark:border-white/10">
-            <span className="text-sm font-medium text-[var(--apple-label)] whitespace-nowrap">
+          <div className="glass grid w-full max-w-sm grid-cols-2 items-center gap-2 rounded-2xl px-3 py-3 sm:flex sm:w-auto sm:max-w-full sm:gap-3 sm:rounded-full sm:px-5 shadow-lg border border-white/20 dark:border-white/10">
+            <span className="col-span-2 text-center text-sm font-medium text-[var(--apple-label)] whitespace-nowrap">
               <CheckCheck className="size-4 inline-block mr-1.5 -mt-0.5" />
               {selectedIds.size}건 선택됨
             </span>
-            <div className="w-px h-5 bg-[var(--apple-separator)]" />
+            <div className="hidden sm:block w-px h-5 bg-[var(--apple-separator)]" />
             <Button
               size="sm"
               onClick={() => {
                 setBulkAction("approve");
               }}
-              className="rounded-full bg-[var(--apple-green)] hover:bg-[color-mix(in_srgb,var(--apple-green)_85%,black)] text-white apple-press"
+              className="min-h-11 sm:min-h-0 rounded-full bg-[var(--apple-green)] hover:bg-[color-mix(in_srgb,var(--apple-green)_85%,black)] text-white apple-press"
             >
               <Check className="size-3.5" />
               일괄 승인
@@ -434,7 +434,7 @@ export function PendingTable({ expenses }: PendingTableProps) {
               onClick={() => {
                 setBulkAction("reject");
               }}
-              className="rounded-full apple-press"
+              className="min-h-11 sm:min-h-0 rounded-full apple-press"
             >
               <X className="size-3.5" />
               일괄 반려

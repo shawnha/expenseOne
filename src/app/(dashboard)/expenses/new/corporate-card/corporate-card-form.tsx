@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { MorphButton } from "@/components/ui/morph-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { ExpenseNotesField } from "@/components/expenses/expense-notes-field";
 
 import {
   PurchaseFields,
@@ -76,6 +76,8 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
   const pendingSummary = usePendingCardSummary(!prefillData);
   const pendingLabel = pendingCardLabel(pendingSummary?.count);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCompanyCheckBusy, setIsCompanyCheckBusy] = useState(false);
+  const [readingCount, setReadingCount] = useState(0);
   const [isUploadBusy, setIsUploadBusy] = useState(false); // 사진 줄이는 중엔 제출 잠금
   const [showSuccess, setShowSuccess] = useState(false);
   // 비용은 만들어졌는데 첨부 업로드가 실패한 경우 — 성공 창에서 상세로 안내한다.
@@ -369,6 +371,10 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
   };
 
   const onSubmit = async (data: CorporateCardFormData) => {
+    if (readingCount > 0 || isCompanyCheckBusy) {
+      toast.info("첨부 서류와 법인을 확인 중입니다. 완료 후 제출해주세요.");
+      return;
+    }
     setIsSubmitting(true);
 
     try {
@@ -577,6 +583,14 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
               onChange={handleCompanyChange}
               userCompanyId={userCompanyId}
               initialCompanies={initialCompanies}
+              documentFields={ocrAttached}
+              onDocumentCompanyCheckChange={setIsCompanyCheckBusy}
+              allowDocumentAutoSelect={!companyTouchedRef.current && !prefillData?.companyId && !selectedPick && !isSubmitting && readingCount === 0}
+              documentSelectionLocked={!!prefillData?.companyId || isSubmitting}
+              onDocumentCompanyChange={(id) => {
+                companyTouchedRef.current = true;
+                setCompanyId(id);
+              }}
             />
 
             {/* 제목 */}
@@ -851,20 +865,11 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
             {/* 거래일 — onSubmit에서 new Date()로 직접 설정 */}
 
             {/* 설명 */}
-            <div className="space-y-1.5">
-              <Label htmlFor="description">설명</Label>
-              <Textarea
-                id="description"
-                placeholder="추가 설명을 입력해주세요 (선택사항)"
-                rows={3}
-                {...register("description")}
-              />
-              {errors.description && (
-                <p className="text-xs text-[var(--apple-red)]">
-                  {errors.description.message}
-                </p>
-              )}
-            </div>
+            <ExpenseNotesField
+              id="description"
+              error={errors.description?.message}
+              {...register("description")}
+            />
           </div>
         </div>
 
@@ -886,6 +891,7 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
             onFilesChange={setFiles}
             onBusyChange={setIsUploadBusy}
             onDocumentRead={handleDocumentRead}
+            onReadingCountChange={setReadingCount}
           />
           {(ocrMerchantNode || ocrAmountNode) && (
             <div className="mt-3 space-y-1.5">
@@ -910,7 +916,7 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
             type="submit"
             stateKey={isSubmitting ? "busy" : "idle"}
             animateWidth
-            disabled={isSubmitting || isUploadBusy}
+            disabled={isSubmitting || isUploadBusy || readingCount > 0 || isCompanyCheckBusy}
             className="w-full sm:w-auto rounded-full h-12 px-8 text-[15px] font-semibold bg-[var(--apple-blue)] hover:bg-[color-mix(in_srgb,var(--apple-blue)_85%,black)] shadow-[0_4px_14px_rgba(0,122,255,0.4)] hover:shadow-[0_6px_20px_rgba(0,122,255,0.5)] transition-all"
           >
             {isSubmitting ? (

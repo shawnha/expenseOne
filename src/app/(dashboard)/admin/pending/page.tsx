@@ -1,3 +1,4 @@
+import { getMyRecentApprovals } from "@/services/approval-history.service";
 import Link from "next/link";
 import { BellRing } from "lucide-react";
 import { redirect } from "next/navigation";
@@ -68,9 +69,12 @@ async function getPendingExpenses(company?: string): Promise<PendingExpense[]> {
 export default async function AdminPendingPage({ searchParams }: PendingPageProps) {
   const resolvedParams = await searchParams;
   const company = typeof resolvedParams.company === "string" ? resolvedParams.company : undefined;
-  const [expenses, remainingPayments] = await Promise.all([
+  const me = await getCachedCurrentUser();
+  if (!me || me.role !== "ADMIN") redirect("/");
+  const [expenses, remainingPayments, recentApprovals] = await Promise.all([
     getPendingExpenses(company),
     getPendingRemainingPayments(company),
+    getMyRecentApprovals(me, company),
   ]);
 
   return (
@@ -134,6 +138,15 @@ export default async function AdminPendingPage({ searchParams }: PendingPageProp
           </ul>
         </div>
       )}
+
+      {recentApprovals.length > 0 && <details className="glass p-4" open>
+        <summary className="min-h-11 cursor-pointer text-sm font-semibold text-[var(--apple-label)]">최근 내가 승인한 요청 <span className="font-normal text-[var(--apple-secondary-label)]">· 최근 7일, 최대 10건</span></summary>
+        <ul className="divide-y divide-[var(--apple-separator)]">{recentApprovals.map(item => <li key={item.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-3">
+          <Link href={`/expenses/${item.id}`} className="min-w-0 flex-1 break-words text-sm font-medium text-[var(--apple-blue)] hover:underline">{item.title}</Link>
+          <span className="shrink-0 text-sm tabular-nums">{formatExpenseAmount(item.amount, item.currency, item.amountOriginal)}</span>
+          <p className="w-full text-xs text-[var(--apple-secondary-label)]">{item.submitterName} · {item.companyName} · {item.approvedAt ? new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(item.approvedAt) : ""} 승인</p>
+        </li>)}</ul>
+      </details>}
 
       <div className="glass p-3 sm:p-4 lg:p-5 animate-fade-up-1">
         <div className="flex items-center gap-2 mb-4">

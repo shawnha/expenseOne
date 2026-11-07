@@ -648,9 +648,9 @@ function MobileExpenseCard({
         className="group relative flex flex-col gap-2 p-4 text-left rounded-xl bg-[var(--apple-system-background)] border border-[var(--glass-border)] shadow-sm cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--apple-blue)] focus-visible:ring-offset-1 outline-none"
         aria-label={`${expense.title} 상세 보기`}
       >
-        <div className="flex items-center justify-between gap-2">
-          <span className="flex items-center gap-1.5 min-w-0">
-            <span className="text-sm font-medium text-[var(--apple-label)] truncate">{expense.title}</span>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="flex w-full min-w-0 flex-wrap items-center gap-1.5">
+            <span className="text-sm font-medium text-[var(--apple-label)] w-full break-words leading-5">{expense.title}</span>
             {expense.isUrgent && <span className="glass-badge glass-badge-red shrink-0">긴급</span>}
             <PrePaidBadge isPrePaid={expense.isPrePaid} percentage={expense.prePaidPercentage} fixedAmount={expense.prePaidFixedAmount} />
             <WithholdingBadge applied={expense.hasFreelancerWithholding} />
@@ -661,15 +661,15 @@ function MobileExpenseCard({
             <RemainingPaymentBadge expense={expense} isMine={!!currentUserId && expense.submitter?.id === currentUserId} />
           </span>
         </div>
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <span className={typeInfo.className}>{typeInfo.label}</span>
             <span className="text-xs text-[var(--apple-secondary-label)]">
               {getCategoryLabel(expense.category)}
             </span>
           </div>
           <span
-            className={`text-sm font-medium tabular-nums ${
+            className={`ml-auto text-right text-sm font-medium tabular-nums ${
               expense.type === "REFUND" ? "text-[var(--apple-red)]" : "text-[var(--apple-label)]"
             }`}
           >
@@ -688,10 +688,10 @@ function MobileExpenseCard({
             <span className="whitespace-nowrap">제출 {formatDateKR(expense.createdAt)}</span>
           </div>
         )}
-        <div className="flex items-center justify-between text-xs text-[var(--apple-secondary-label)]">
-          <span className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--apple-secondary-label)]">
+          <span className="flex min-w-0 flex-wrap items-center gap-1.5">
             {expense.companyName && expense.companySlug && (
-              <CompanyBadge name={expense.companyName} slug={expense.companySlug} />
+              <CompanyBadge name={expense.companyName} slug={expense.companySlug} className="max-w-full whitespace-normal break-words" />
             )}
             {!showDueDate && formatDateKR(expense.createdAt)}
           </span>
