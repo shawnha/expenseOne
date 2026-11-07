@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Suspense } from 'react';
+import { safeReturnTo } from '@/lib/auth/return-to';
 
 function CallbackContent() {
   const router = useRouter();
@@ -121,7 +122,9 @@ function CallbackContent() {
           return;
         }
 
-        router.replace(result.redirect || '/');
+        const returnTo = safeReturnTo(sessionStorage.getItem('oauth_return_to'));
+        sessionStorage.removeItem('oauth_return_to');
+        router.replace(result.redirect || returnTo);
       } catch (err) {
         addLog(`Validate error: ${err}`);
         await supabase.auth.signOut();

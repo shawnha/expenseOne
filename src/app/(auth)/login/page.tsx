@@ -6,7 +6,8 @@ import { Suspense, useEffect, useState } from 'react';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { ExpenseOneLogo } from '@/components/layout/expense-one-logo';
 
-const GOOGLE_CLIENT_ID = (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '').trim();
+import type { LoginConfig } from '@/lib/auth/login-config';
+import { safeReturnTo } from '@/lib/auth/return-to';
 
 const ERROR_MESSAGES: Record<string, string> = {
   domain: '허용되지 않은 이메일 도메인입니다. 회사 이메일로 로그인해 주세요.',
@@ -23,7 +24,9 @@ function LoginContent() {
   const router = useRouter();
   const errorCode = searchParams.get('error');
   const debugMsg = searchParams.get('debug');
-  const errorMessage = errorCode ? ERROR_MESSAGES[errorCode] : null;
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const errorMessage = loginError || (errorCode ? ERROR_MESSAGES[errorCode] : null);
+  const returnTo = safeReturnTo(searchParams.get('redirectTo'));
 
   const [loading, setLoading] = useState(false);
 
@@ -38,48 +41,56 @@ function LoginContent() {
       import('@/lib/supabase/client').then(({ createClient }) => {
         const supabase = createClient();
         supabase.auth.getSession().then(({ data: { session } }) => {
-          if (session) router.replace('/');
+          if (session) router.replace(returnTo);
         });
+      }).catch(() => {
+        // 설정이 없는 배포에서도 로그인 화면을 유지하고 버튼에서 오류를 안내한다.
       });
     }
-  }, []);
+  }, [errorCode, returnTo, router]);
 
   const handleLogin = async () => {
     if (loading) return;
     setLoading(true);
 
-    // Clear any stale Supabase session before starting fresh login
-    // (prevents stuck sessions from previous failed domain-mismatch attempts)
+    setLoginError(null);
     try {
+      // 빌드 시 공개 변수가 빠져도 빈 client_id로 Google에 보내지 않는다.
+      const response = await fetch('/api/auth/config', { cache: 'no-store' });
+      const body = await response.json().catch(() => null);
+      if (!response.ok || !body || !['direct', 'supabase'].includes(body.flow)) {
+        throw new Error(body?.error?.message || '로그인 설정을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+      }
+      const config = body as LoginConfig;
+      if (config.flow === 'direct' && !config.clientId?.trim()) throw new Error('로그인 설정을 확인 중입니다. 잠시 후 다시 시도해주세요.');
       const { createClient } = await import('@/lib/supabase/client');
       const supabase = createClient();
       await supabase.auth.signOut();
-    } catch {}
-
-    // Detect if we're inside the splash-shell iframe wrapper.
-    // If so, navigate the TOP window so Google OAuth (which blocks iframe embedding) works.
-    const navTarget: Window =
-      typeof window !== 'undefined' && window.top && window.top !== window
-        ? (window.top as Window)
-        : window;
-
-    // Direct Google OAuth for all devices (avoids PKCE cookie issues with SSR)
-    const callbackUrl = `${window.location.origin}/auth/callback`;
-    const stateValue = `google_direct_${crypto.randomUUID()}`;
-    sessionStorage.setItem('oauth_state', stateValue);
-    const params = new URLSearchParams({
-      client_id: GOOGLE_CLIENT_ID,
-      redirect_uri: callbackUrl,
-      response_type: 'code',
-      scope: 'openid email profile',
-      prompt: 'select_account',
-      state: stateValue,
-    });
-    try {
-      navTarget.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-    } catch {
-      // Fallback: same window (cross-origin top access blocked)
-      window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+      sessionStorage.setItem('oauth_return_to', returnTo);
+      const callbackUrl = `${window.location.origin}/auth/callback`;
+      let destination: string;
+      if (config.flow === 'supabase') {
+        // 미리보기는 Google에 등록된 Supabase 콜백을 통해 PKCE로 인증한다.
+        sessionStorage.removeItem('oauth_state');
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: { redirectTo: callbackUrl, skipBrowserRedirect: true, queryParams: { prompt: 'select_account' } },
+        });
+        if (error || !data.url) throw new Error('Google 로그인을 시작하지 못했습니다. 다시 시도해주세요.');
+        destination = data.url;
+      } else {
+        const stateValue = `google_direct_${crypto.randomUUID()}`;
+        sessionStorage.setItem('oauth_state', stateValue);
+        const params = new URLSearchParams({ client_id: config.clientId, redirect_uri: callbackUrl,
+          response_type: 'code', scope: 'openid email profile', prompt: 'select_account', state: stateValue });
+        destination = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+      }
+      const navTarget: Window = window.top && window.top !== window ? window.top : window;
+      try { navTarget.location.href = destination; }
+      catch { window.location.href = destination; }
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : '로그인을 시작하지 못했습니다. 다시 시도해주세요.');
+      setLoading(false);
     }
   };
 
