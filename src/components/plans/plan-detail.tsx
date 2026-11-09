@@ -1026,6 +1026,17 @@ function LinkDialog({
 
           {kind === "card" && (
             <>
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[var(--apple-tertiary-system-fill)] p-3">
+                <p className="min-w-0 flex-1 text-footnote text-[var(--apple-secondary-label)]">
+                  결제 내역이 아직 없으면 직접 입력할 수 있어요.
+                </p>
+                <Link
+                  href={`/expenses/new/corporate-card?plan=${planId}`}
+                  className={cn(buttonVariants({ variant: "outline", size: "lg" }), "min-h-11 shrink-0")}
+                >
+                  법카 직접 등록
+                </Link>
+              </div>
               <PendingCardSection planId={planId} plannedDate={plannedDate} />
               <h3 className="pt-2 text-subheadline font-semibold text-[var(--apple-label)]">이미 올린 법카에서 연결</h3>
             </>
