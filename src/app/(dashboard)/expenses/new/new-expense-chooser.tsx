@@ -24,6 +24,12 @@ const expenseTypes = [
     icon: <Banknote className="size-6 text-[var(--apple-green)]" />,
   },
   {
+    title: "정산서로 여러 건 입금요청",
+    description: "정산서별로 법인·금액·계좌를 읽고 각각 입금요청을 만듭니다.",
+    href: "/expenses/new/deposit-batch",
+    icon: <Layers className="size-6 text-[var(--apple-green)]" />,
+  },
+  {
     title: "반품/환불",
     description: "반품·환불된 금액을 등록합니다. 원거래에 연결되어 합계에서 차감됩니다.",
     href: "/expenses/new/refund",

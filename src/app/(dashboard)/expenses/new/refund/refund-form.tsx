@@ -369,7 +369,8 @@ export function RefundForm() {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[var(--apple-secondary-label)]" />
                   <Input
-                    placeholder="제목, 가맹점 등으로 원거래 검색..."
+                    type="search"
+                    placeholder="원거래 제목, 가맹점 검색"
                     value={searchTerm}
                     onChange={(e) => handleSearchChange(e.target.value)}
                     className="pl-9"

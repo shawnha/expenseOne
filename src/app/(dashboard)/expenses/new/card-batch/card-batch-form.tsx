@@ -8,6 +8,7 @@ import { AlertTriangle, ArrowLeft, CheckCircle2, Loader2, X } from "lucide-react
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ExpenseNotesField } from "@/components/expenses/expense-notes-field";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { CompanySelector } from "@/components/forms/company-selector";
 import { PlanLinkedChip, usePreselectedPlan, type PlanPick } from "@/components/forms/plan-pick";
@@ -87,6 +88,7 @@ export default function CardBatchForm({ initialCompanies, myCategories = [], isA
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [titles, setTitles] = useState<Record<string, string>>({});
+  const [descriptions, setDescriptions] = useState<Record<string, string>>({});
   const [edited, setEdited] = useState<Set<string>>(new Set());
   const [failures, setFailures] = useState<Record<string, string>>({});
 
@@ -320,7 +322,7 @@ export default function CardBatchForm({ initialCompanies, myCategories = [], isA
 
   // 사용자가 직접 건드린 것만 '수정됨'으로 본다(기본 선택은 제외).
   const dirty =
-    items.length > 0 && (selectionTouched || edited.size > 0 || !!category || !!prefix || companyTouched);
+    items.length > 0 && (selectionTouched || edited.size > 0 || !!category || !!prefix || companyTouched || Object.values(descriptions).some(Boolean));
   useUnsavedChanges(dirty || submitting);
   useFormBusy("card-batch", dirty || submitting);
 
@@ -332,18 +334,23 @@ export default function CardBatchForm({ initialCompanies, myCategories = [], isA
       // 회사가 다르면 서버가 어차피 잇지 못한다 — 화면 경고와 같게 보내지 않는다.
       ...(selectedPlan && selectedPlan.companyId === companyId ? { planId: selectedPlan.id } : {}),
       category: category.trim(),
-      items: picked.map((x) => ({ gowidTxId: x.id, title: (titles[x.id] ?? "").trim() })),
+      items: picked.map((x) => ({
+        gowidTxId: x.id,
+        title: (titles[x.id] ?? "").trim(),
+        description: descriptions[x.id]?.trim() || null,
+      })),
     };
     setSubmitting(true);
     setStatusMessage("올리는 중입니다. 시간이 조금 걸릴 수 있습니다.");
     // 오류·끊김 뒤에는 서버에 이미 올라간 건이 있을 수 있어 대기 목록을 다시 받아 맞춘다.
-    const resync = async () => {
+    const resync = async (knownCreatedIds: ReadonlySet<string> = new Set()) => {
       const r = lastRangeRef.current;
       if (!r) return;
       const list = await load(r.from, r.to, true);
       if (!list) return;
       const still = new Set(list.map((x) => x.id));
-      const gone = picked.filter((x) => !still.has(x.id)).length;
+      // 응답에서 이미 성공으로 센 건은 재조회 때 다시 더하지 않는다.
+      const gone = picked.filter((x) => !still.has(x.id) && !knownCreatedIds.has(x.id)).length;
       if (gone > 0) {
         setCreatedTotal((n) => n + gone);
         toast.info(`${gone}건은 이미 올라가 목록에서 뺐습니다. 남은 건을 확인해주세요.`);
@@ -377,6 +384,7 @@ export default function CardBatchForm({ initialCompanies, myCategories = [], isA
 
       setCreatedTotal((n) => n + data.created);
       setItems((cur) => cur.filter((x) => !okIds.has(x.id)));
+      setDescriptions((cur) => Object.fromEntries(Object.entries(cur).filter(([id]) => !okIds.has(id))));
       setSelected((cur) => {
         const next = new Set(cur);
         okIds.forEach((id) => next.delete(id));
@@ -384,7 +392,7 @@ export default function CardBatchForm({ initialCompanies, myCategories = [], isA
       });
       setFailures(failMap);
       if (data.failed > 0) {
-        await resync();
+        await resync(okIds);
         setFailures(failMap);
         requestAnimationFrame(() => listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
       }
@@ -766,6 +774,18 @@ export default function CardBatchForm({ initialCompanies, myCategories = [], isA
                             aria-invalid={isOn && !(titles[x.id] ?? "").trim()}
                             className="h-11"
                           />
+                          <details className="rounded-lg">
+                            <summary className="min-h-11 cursor-pointer py-3 text-[13px] font-medium text-[var(--apple-blue)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--apple-blue)]">
+                              {descriptions[x.id]?.trim() ? "설명 및 참고 링크 수정" : "설명 및 참고 링크 추가 (선택)"}
+                            </summary>
+                            <ExpenseNotesField
+                              id={`cb-notes-${x.id}`}
+                              aria-label={`${label} 설명 및 참고 링크`}
+                              maxLength={1800}
+                              value={descriptions[x.id] ?? ""}
+                              onChange={(e) => setDescriptions((cur) => ({ ...cur, [x.id]: e.target.value }))}
+                            />
+                          </details>
                           {failure && (
                             <p className="text-[12px] text-[var(--apple-red)]">{failure}</p>
                           )}

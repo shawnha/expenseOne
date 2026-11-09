@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import { canReadDocument, documentTypeFromOcr, fileFromOcrImage, isOcrDisabledForSession, readDocument } from "@/lib/ocr-client";
 import { getOcrSkipReason, type OcrSkipReason } from "@/lib/ocr-skip";
+import type { DocumentReadStage } from "./document-scan-progress";
 import type { OcrResult } from "@/lib/ocr/types";
 import { MAX_TOTAL_FILE_SIZE, type FileWithPreview } from "@/lib/validations/expense-form";
 
@@ -25,6 +26,10 @@ export function useDocumentReader({
   onDocumentRead?: (fileId: string, result: OcrResult) => void;
   fillDocumentType?: boolean;
 }) {
+  const [stages, setStages] = useState<Record<string, DocumentReadStage>>({});
+  const queueRef = useRef<FileWithPreview[]>([]);
+  const activeRef = useRef(0);
+  const inFlightRef = useRef(new Set<string>());
   const [readingIds, setReadingIds] = useState<ReadonlySet<string>>(() => new Set());
   const [skipped, setSkipped] = useState<Readonly<Record<string, OcrSkipReason>>>({});
   const clearSkipped = useCallback((id: string) => {
@@ -37,6 +42,7 @@ export function useDocumentReader({
   const markSkipped = useCallback((item: FileWithPreview) => {
     if (!filesRef.current.some((f) => f.id === item.id)) return;
     const reason = getOcrSkipReason(item.file, isOcrDisabledForSession());
+    setStages((prev) => ({ ...prev, [item.id]: reason === "failed" ? "failed" : "skipped" }));
     setSkipped((prev) => reason ? { ...prev, [item.id]: reason } : {});
   }, [filesRef]);
   const abortRef = useRef<AbortController | null>(null);
@@ -47,7 +53,7 @@ export function useDocumentReader({
   useEffect(() => {
     abortRef.current = new AbortController();
     // 화면을 떠나면 남은 읽기를 멈춘다 (돈이 드는 호출)
-    return () => abortRef.current?.abort();
+    return () => { abortRef.current?.abort(); queueRef.current = []; };
   }, []);
 
   const finish = useCallback((id: string) => {
@@ -61,6 +67,8 @@ export function useDocumentReader({
   const readOne = useCallback(
     async (item: FileWithPreview) => {
       const signal = abortRef.current?.signal;
+      if (signal?.aborted || !filesRef.current.some(f => f.id === item.id)) { finish(item.id); return; }
+      setStages((prev) => ({ ...prev, [item.id]: "reading" }));
       const result = await readDocument(item.file, signal);
       if (signal?.aborted) return;
       finish(item.id);
@@ -91,6 +99,7 @@ export function useDocumentReader({
         filesRef.current = updated; // 다음 결과가 이 변경 위에 쌓이도록 바로 반영
         callbacksRef.current.onFilesChange(updated);
       }
+      setStages((prev) => ({ ...prev, [item.id]: "done" }));
       callbacksRef.current.onDocumentRead?.(item.id, result);
     },
     [filesRef, finish, fillDocumentType, markSkipped]
@@ -101,6 +110,7 @@ export function useDocumentReader({
     (items: FileWithPreview[]) => {
       if (!callbacksRef.current.onDocumentRead) return;
       const targets = items.filter((item) => {
+        if (inFlightRef.current.has(item.id)) return false;
         clearSkipped(item.id);
         if (canReadDocument(item.file)) return true;
         markSkipped(item);
@@ -108,17 +118,24 @@ export function useDocumentReader({
       });
       if (targets.length === 0) return;
       setReadingIds((prev) => new Set([...prev, ...targets.map((t) => t.id)]));
-      let index = 0;
-      const worker = async () => {
-        while (index < targets.length) {
-          const item = targets[index++];
-          await readOne(item);
+      for (const item of targets) inFlightRef.current.add(item.id);
+      setStages((prev) => ({ ...prev, ...Object.fromEntries(targets.map(t => [t.id, "queued" as const])) }));
+      queueRef.current.push(...targets);
+      const pump = () => {
+        while (activeRef.current < CONCURRENCY && queueRef.current.length > 0) {
+          const item = queueRef.current.shift()!;
+          activeRef.current += 1;
+          void readOne(item).catch(() => { markSkipped(item); finish(item.id); }).finally(() => {
+            activeRef.current -= 1;
+            inFlightRef.current.delete(item.id);
+            pump();
+          });
         }
       };
-      void Promise.all(Array.from({ length: Math.min(CONCURRENCY, targets.length) }, worker));
+      pump();
     },
-    [readOne, clearSkipped, markSkipped]
+    [readOne, clearSkipped, markSkipped, finish]
   );
 
-  return { read, readingCount: readingIds.size, readingIds, skipped: isOcrDisabledForSession() ? {} : skipped, clearSkipped };
+  return { read, stages, readingCount: readingIds.size, readingIds, skipped: isOcrDisabledForSession() ? {} : skipped, clearSkipped };
 }

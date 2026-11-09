@@ -7,6 +7,7 @@
 export const OCR_DOC_TYPES = [
   "카드전표/영수증",
   "견적서",
+  "정산서",
   "청구서/인보이스",
   "거래명세서",
   "통장사본",
@@ -22,6 +23,9 @@ export type OcrRotation = 0 | 90 | 180 | 270;
 
 export interface OcrFields {
   docType: OcrDocType;
+  /** 공급받는자·받는자·견적 수신처. 공급자·예금주 업체 정보와 구분한다. */
+  recipientCompanyName?: string | null;
+  recipientBusinessNumber?: string | null;
   /** 돈을 받는 쪽 상호 (우리 회사 아님) */
   merchantName: string | null;
   /** 문서의 최종 합계. KRW는 원, 외화는 그 통화 단위(USD 22.5 → 22.5) */

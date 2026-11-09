@@ -249,15 +249,16 @@ export function ExpenseFilters({ showAdminFilters = false }: ExpenseFiltersProps
       aria-label="비용 필터"
     >
       {/* Search bar + mobile filter toggle */}
-      <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-        <div className="relative flex-1">
+      <div className="flex items-center gap-2 flex-1 min-w-0">
+        <div className="relative min-w-0 flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[var(--apple-secondary-label)]" />
           <Input
-            placeholder="제목, 가맹점, 제출자, 예금주, 카드번호 검색..."
+            type="search"
+            placeholder="제목, 가맹점, 이름 등 검색"
             defaultValue={searchParams.get("search") ?? ""}
             onChange={handleSearchChange}
-            className="pl-9"
-            aria-label="검색어"
+            className="h-11 pl-9 text-sm placeholder:text-[13px]"
+            aria-label="제목, 가맹점, 제출자, 예금주, 카드번호 검색"
           />
         </div>
         <button

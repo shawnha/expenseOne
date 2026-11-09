@@ -19,8 +19,8 @@ function SoonPlanRow({ plan }: { plan: SoonPlan }) {
         aria-label={plan.title}
         className="absolute inset-0 rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--apple-blue)]"
       />
-      <div className="pointer-events-none flex items-center justify-between gap-2">
-        <span className="min-w-0 truncate text-[14px] font-semibold text-[var(--apple-label)]">{plan.title}</span>
+      <div className="pointer-events-none flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+        <span className="min-w-0 basis-40 grow break-words text-[14px] font-semibold text-[var(--apple-label)]">{plan.title}</span>
         <span className="shrink-0 text-[12px] font-medium tabular-nums text-[var(--apple-secondary-label)]">계획 {amount}</span>
       </div>
       <div className="mt-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
@@ -38,15 +38,13 @@ function SoonPlanRow({ plan }: { plan: SoonPlan }) {
           >
             입금요청
           </Link>
-          {plan.daysUntil <= 0 && (
-            <Link
-              href={`/plans/${plan.id}?link=card`}
-              aria-label={`${plan.title} 법카 결제 연결`}
-              className="inline-flex h-11 items-center justify-center rounded-full bg-[var(--apple-tertiary-system-fill)] px-3 text-[12px] font-medium text-[var(--apple-blue)] apple-press"
-            >
-              법카 연결
-            </Link>
-          )}
+          <Link
+            href={`/plans/${plan.id}?link=card`}
+            aria-label={`${plan.title} 법카 등록·연결`}
+            className="inline-flex h-11 items-center justify-center rounded-full bg-[var(--apple-tertiary-system-fill)] px-3 text-[12px] font-medium text-[var(--apple-blue)] apple-press"
+          >
+            법카 등록
+          </Link>
         </div>
       </div>
     </li>
@@ -64,7 +62,7 @@ export function SoonPlansSection({ plans }: { plans: SoonPlans }) {
           <CalendarClock className="size-4 text-[var(--apple-blue)]" aria-hidden="true" />
           곧 나갈 내 계획
         </h2>
-        <p className="mt-1 text-footnote text-[var(--apple-secondary-label)]">내가 만든 계획에서 바로 올려요.</p>
+        <p className="mt-1 text-footnote text-[var(--apple-secondary-label)]">계획에 맞춰 입금요청하거나 법카 사용을 등록해요.</p>
       </div>
       <ul id="soon-plans-list" className="space-y-2">
         {plans.initial.map((plan) => <SoonPlanRow key={plan.id} plan={plan} />)}

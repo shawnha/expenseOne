@@ -47,6 +47,14 @@ describe("ocrModelSchema 관용 파싱", () => {
 });
 
 describe("toOcrFields", () => {
+  it("수신 법인과 공급자 필드를 분리하고 예전 응답도 받는다", () => {
+    const fields = toOcrFields({ ...base, recipient_company_name: "주식회사 한아원", recipient_business_number: "196-81-03665" });
+    assert.equal(fields.recipientCompanyName, "주식회사 한아원");
+    assert.equal(fields.recipientBusinessNumber, "196-81-03665");
+    assert.equal(fields.merchantName, base.merchant_name);
+    assert.equal(toOcrFields(base).recipientBusinessNumber, null);
+  });
+
   it("snake → camel, 음수는 절대값", () => {
     const f = toOcrFields(base);
     assert.equal(f.docType, "카드전표/영수증");
