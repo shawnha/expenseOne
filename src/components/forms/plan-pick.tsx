@@ -29,7 +29,7 @@ async function getJson<T>(url: string): Promise<T | null> {
   }
 }
 
-/** 내 계획 / 같은 사업의 다른 계획. 실패·404 는 빈 목록. */
+/** 내가 참여한 프로젝트 계획 / (대표만) 참여하지 않은 프로젝트 계획. 실패·404 는 빈 목록. */
 export function usePlanPicks(enabled: boolean): { mine: PlanPick[]; others: PlanPick[] } {
   const [state, setState] = useState<{ mine: PlanPick[]; others: PlanPick[] }>({ mine: [], others: [] });
   useEffect(() => {
@@ -233,7 +233,7 @@ export function PlanPickPanel({
   }, []);
   if (mine.length === 0 && others.length === 0) return null;
 
-  // 다른 사람 계획은 처음에는 한 줄로 접어 둔다 — 증빙 첨부를 화면 밖으로 밀어내지 않게.
+  // 참여하지 않은 프로젝트 계획(대표만 보임)은 처음에는 한 줄로 접어 둔다 — 증빙 첨부를 화면 밖으로 밀어내지 않게.
   const onlyOthers = mine.length === 0;
   const othersOpen = othersToggled;
   const visibleMine = showAllMine ? mine : mine.slice(0, 3);
@@ -247,7 +247,7 @@ export function PlanPickPanel({
       aria-controls="plan-pick-others"
       className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-[13px] font-medium text-[var(--apple-secondary-label)] hover:text-[var(--apple-label)]"
     >
-      같은 사업 계획에서 불러오기 ({others.length})
+      다른 프로젝트 계획에서 불러오기 ({others.length})
       <ChevronDown className={cn("size-4 transition-transform", othersOpen && "rotate-180")} aria-hidden="true" />
     </button>
   );
@@ -273,7 +273,7 @@ export function PlanPickPanel({
       {mine.length > 0 && (
         <ul className="space-y-2">
           {visibleMine.map((p, index) => (
-            <PickRow key={p.id} pick={p} selected={p.id === selectedId} onToggle={onSelect}
+            <PickRow key={p.id} pick={p} selected={p.id === selectedId} showOwner={!p.ownedByMe} onToggle={onSelect}
               className={!showAllMine && index === 2 ? "hidden sm:block" : undefined} />
           ))}
         </ul>

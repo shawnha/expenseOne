@@ -7,7 +7,7 @@
  */
 import { sql } from "drizzle-orm";
 import { withPlanTx } from "@/lib/db/plans-client";
-import { loadAccess, projectScopeSql, requirePlanAccess } from "@/lib/plans/permissions";
+import { loadAccess, memberProjectIdsSql, projectScopeSql, requirePlanAccess, type PlanAccess } from "@/lib/plans/permissions";
 import { num, rowsOf } from "@/lib/plans/rows";
 import { rankSuggestions, SUGGEST_DATE_WINDOW_DAYS } from "@/lib/plans/suggest";
 import type { PlanActorInput } from "@/services/plan.service";
@@ -15,7 +15,7 @@ import type { PlanActorInput } from "@/services/plan.service";
 /** 입금요청 불러오기 목록의 날짜 창 (오늘 기준) */
 const PICK_PAST_DAYS = 45;
 const PICK_FUTURE_DAYS = 60;
-const PICK_MINE_LIMIT = 10;
+const PICK_MINE_LIMIT = 20;
 const PICK_OTHERS_LIMIT = 20;
 const CARD_SUGGEST_LIMIT = 5;
 // 「+」 첫 그림에 넣을 범위·건수. 접힌 목록과 펼친 목록도 서버에서 나눈다.
@@ -39,8 +39,10 @@ export interface PlanPick {
   vendorName: string | null;
   /** 담당자(처음 추가한 사람) 이름 */
   ownerName: string | null;
-  /** 내가 담당자인 계획 */
+  /** 내가 참여한 프로젝트의 계획 — 담당자가 아니어도 그 프로젝트 사람이면 바로 올린다(2026-10-30 오너 결정) */
   mine: boolean;
+  /** 내가 담당자(처음 추가한 사람)인 계획 — 목록에 담당자 이름을 붙일지만 정한다 */
+  ownedByMe: boolean;
 }
 
 interface PickRow {
@@ -56,6 +58,7 @@ interface PickRow {
   vendor_name: string | null;
   owner_name: string | null;
   mine: boolean;
+  owned_by_me: boolean;
 }
 
 function toPick(r: PickRow): PlanPick {
@@ -72,14 +75,23 @@ function toPick(r: PickRow): PlanPick {
     vendorName: r.vendor_name,
     ownerName: r.owner_name,
     mine: r.mine,
+    ownedByMe: r.owned_by_me,
   };
 }
 
 const access = (actor: PlanActorInput) => ({ userId: actor.id, role: actor.role });
 
 /**
+ * mine·owned_by_me 두 칸. mine 은 「내가 참여한 프로젝트」(plan_project_members) 기준이고 담당자(created_by_id)는 보지 않는다 —
+ * 대표가 대신 적어 둔 계획도 그 프로젝트 사람이 올릴 수 있어야 한다. 대표라도 참여하지 않은 프로젝트는 mine 이 아니다.
+ * 보이는 범위(projectScopeSql)는 그대로라 권한이 넓어지지 않는다.
+ */
+const mineCols = (acc: PlanAccess) =>
+  sql`(p.project_id IN ${memberProjectIdsSql(acc.userId)}) AS mine, (p.created_by_id = ${acc.userId}::uuid) AS owned_by_me`;
+
+/**
  * 입금요청 폼의 「내 비용계획에서 불러올까요?」 — 아직 아무 비용도 이어지지 않은, 날짜가 가까운 계획.
- * mine = 내가 담당자인 것(기본으로 보임), others = 같은 사업의 다른 사람 것(접어 둠).
+ * mine = 내가 참여한 프로젝트의 계획(담당자 상관없이, 기본으로 보임), others = 대표가 참여하지 않은 프로젝트의 계획(접어 둠).
  * 지급 완료 표시가 된 계획은 뺀다.
  */
 export async function listDepositPlanPicks(actor: PlanActorInput): Promise<{ mine: PlanPick[]; others: PlanPick[] }> {
@@ -89,7 +101,7 @@ export async function listDepositPlanPicks(actor: PlanActorInput): Promise<{ min
       await tx.execute(sql`WITH today AS (SELECT (now() AT TIME ZONE 'Asia/Seoul')::date AS d)
         SELECT p.id, p.title, p.amount, p.planned_date::text AS planned_date, p.date_precision,
                p.company_id, c.name AS company_name, j.name AS project_name, p.vendor_name, p.currency,
-               u.name AS owner_name, (p.created_by_id = ${acc.userId}::uuid) AS mine
+               u.name AS owner_name, ${mineCols(acc)}
           FROM expenseone.cost_plans p
           JOIN expenseone.plan_projects j ON j.id = p.project_id AND j.deleted_at IS NULL
           LEFT JOIN expenseone.companies c ON c.id = p.company_id
@@ -100,7 +112,8 @@ export async function listDepositPlanPicks(actor: PlanActorInput): Promise<{ min
            AND p.planned_date BETWEEN today.d - ${PICK_PAST_DAYS}::int AND today.d + ${PICK_FUTURE_DAYS}::int
            AND NOT EXISTS (SELECT 1 FROM expenseone.plan_expense_links x
                             WHERE x.plan_id = p.id AND x.unlinked_at IS NULL)
-         ORDER BY (p.created_by_id = ${acc.userId}::uuid) DESC, abs(p.planned_date - today.d), p.planned_date, p.id
+         ORDER BY (p.project_id IN ${memberProjectIdsSql(acc.userId)}) DESC, abs(p.planned_date - today.d),
+                  (p.created_by_id = ${acc.userId}::uuid) DESC, p.planned_date, p.id
          LIMIT ${PICK_MINE_LIMIT + PICK_OTHERS_LIMIT + 20}::int`),
     );
     const picks = rows.map(toPick);
@@ -123,7 +136,7 @@ export interface SoonPlans {
   hasMore: boolean;
 }
 
-/** 내가 만든 미지급·미연결 계획. 작성자 조건도 사업 접근 범위를 넓히지는 않는다. */
+/** 내가 참여한 프로젝트의 미지급·미연결 계획(담당자 상관없이). 참여 조건이라 사업 접근 범위를 넓히지 않는다. */
 export async function listSoonPlans(actor: PlanActorInput): Promise<SoonPlans> {
   return withPlanTx(async (tx) => {
     const acc = await loadAccess(tx, access(actor));
@@ -131,19 +144,21 @@ export async function listSoonPlans(actor: PlanActorInput): Promise<SoonPlans> {
       await tx.execute(sql`WITH today AS (SELECT (now() AT TIME ZONE 'Asia/Seoul')::date AS d)
         SELECT p.id, p.title, p.amount, p.planned_date::text AS planned_date, p.date_precision,
                p.company_id, c.name AS company_name, j.name AS project_name, p.vendor_name, p.currency,
-               u.name AS owner_name, TRUE AS mine, (p.planned_date - today.d) AS days_until
+               u.name AS owner_name, TRUE AS mine, (p.created_by_id = ${acc.userId}::uuid) AS owned_by_me,
+               (p.planned_date - today.d) AS days_until
           FROM expenseone.cost_plans p
           JOIN expenseone.plan_projects j ON j.id = p.project_id AND j.deleted_at IS NULL
           LEFT JOIN expenseone.companies c ON c.id = p.company_id
           LEFT JOIN expenseone.users u ON u.id = p.created_by_id
           CROSS JOIN today
          WHERE p.deleted_at IS NULL AND p.status = 'PLANNED' AND p.paid_at IS NULL
-           AND p.created_by_id = ${acc.userId}::uuid
-           AND ${projectScopeSql(acc, sql`p.project_id`)}
+           AND p.project_id IN ${memberProjectIdsSql(acc.userId)}
            AND p.planned_date BETWEEN today.d - ${SOON_PAST_DAYS}::int AND today.d + ${SOON_FUTURE_DAYS}::int
            AND NOT EXISTS (SELECT 1 FROM expenseone.plan_expense_links x
                             WHERE x.plan_id = p.id AND x.unlinked_at IS NULL)
-         ORDER BY p.planned_date, p.id
+         -- 담당자 상관없이 프로젝트 계획 전부라 건수가 많다(10/30 운영: 사람당 28~40건). 오래된 순이면 한 달 지난
+         -- 미표시 계획이 위를 채워 오늘 나갈 계획이 10건 밖으로 밀린다 → 오늘에서 가까운 순, 같으면 앞 날짜 먼저.
+         ORDER BY abs(p.planned_date - today.d), (p.created_by_id = ${acc.userId}::uuid) DESC, p.planned_date, p.id
          LIMIT ${SOON_EXPANDED_LIMIT + 1}::int`),
     );
     const picks = rows.map((r) => ({ ...toPick(r), daysUntil: num(r.days_until) }));
@@ -171,7 +186,7 @@ export async function getPlanPick(actor: PlanActorInput, planId: string): Promis
     const rows = rowsOf<PickRow>(
       await tx.execute(sql`SELECT p.id, p.title, p.amount, p.planned_date::text AS planned_date, p.date_precision,
                p.company_id, c.name AS company_name, j.name AS project_name, p.vendor_name, p.currency,
-               u.name AS owner_name, (p.created_by_id = ${acc.userId}::uuid) AS mine
+               u.name AS owner_name, ${mineCols(acc)}
           FROM expenseone.cost_plans p
           JOIN expenseone.plan_projects j ON j.id = p.project_id
           LEFT JOIN expenseone.companies c ON c.id = p.company_id
@@ -186,6 +201,7 @@ export async function getPlanPick(actor: PlanActorInput, planId: string): Promis
  * 법카 등록(고위드 알림) 때 「이 결제, 계획에 연결할까요?」 — 같은 법인, 결제일 ±45일 계획 최대 5건.
  * 날짜만 맞는 계획은 제안하지 않는다(법카는 소액이 많아 날짜만으로는 엉뚱한 계획이 뜬다 — PR #5 가 법카를
  * 제안에서 뺀 이유). 금액이나 이름이 맞는 계획을 먼저, 나머지는 내가 담당인 계획을 날짜 가까운 순으로.
+ * 여기 나머지는 mine(참여 프로젝트)이 아니라 ownedByMe 다 — 참여 프로젝트 전부면 날짜만 맞는 계획이 결제마다 뜬다.
  * 법카는 한 계획에 여러 장이 이어질 수 있어 이미 연결이 있는 계획도 후보다.
  */
 export async function suggestPlansForCard(
@@ -197,7 +213,7 @@ export async function suggestPlansForCard(
     const rows = rowsOf<PickRow>(
       await tx.execute(sql`SELECT p.id, p.title, p.amount, p.planned_date::text AS planned_date, p.date_precision,
                p.company_id, c.name AS company_name, j.name AS project_name, p.vendor_name, p.currency,
-               u.name AS owner_name, (p.created_by_id = ${acc.userId}::uuid) AS mine
+               u.name AS owner_name, ${mineCols(acc)}
           FROM expenseone.cost_plans p
           JOIN expenseone.plan_projects j ON j.id = p.project_id AND j.deleted_at IS NULL
           LEFT JOIN expenseone.companies c ON c.id = p.company_id
@@ -221,7 +237,7 @@ export async function suggestPlansForCard(
       .map((r) => r.candidate.pick);
     const strongIds = new Set(strong.map((p) => p.id));
     // picks 는 이미 결제일과 가까운 순이다
-    const mine = picks.filter((p) => p.mine && !strongIds.has(p.id));
+    const mine = picks.filter((p) => p.ownedByMe && !strongIds.has(p.id));
     return [...strong, ...mine].slice(0, CARD_SUGGEST_LIMIT);
   }, { readOnly: true });
 }
