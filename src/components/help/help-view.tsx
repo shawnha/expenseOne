@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronDown, PlayCircle, Search } from "lucide-react";
-import { PlansNavGate } from "@/components/plans/plans-nav-gate";
+import { loadPlansFlag } from "@/components/plans/plans-nav-gate";
 import { OPEN_TOUR_EVENT } from "@/components/layout/tab-menu-items";
 import { filterHelpSections, type HelpSection } from "@/lib/help/content";
 
@@ -35,16 +35,17 @@ function Section({ section, query }: { section: HelpSection; query: string }) {
 
 export function HelpView({ sections }: { sections: HelpSection[] }) {
   const [query, setQuery] = useState("");
-  const shown = filterHelpSections(sections, query);
-
-  const render = (s: HelpSection) =>
-    s.plansOnly ? (
-      <PlansNavGate key={s.id}>
-        <Section section={s} query={query} />
-      </PlansNavGate>
-    ) : (
-      <Section key={s.id} section={s} query={query} />
-    );
+  // 비용계획 섹션은 계획 스위치가 켜진 사람에게만. 모르면 숨긴다(메뉴 게이트와 같은 판단·같은 캐시).
+  const [plansOn, setPlansOn] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    void loadPlansFlag().then((on) => alive && setPlansOn(on));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const visible = sections.filter((s) => !s.plansOnly || plansOn);
+  const shown = filterHelpSections(visible, query);
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
@@ -81,18 +82,15 @@ export function HelpView({ sections }: { sections: HelpSection[] }) {
 
       {query.trim() === "" && (
         <nav aria-label="사용법 목차" className="flex flex-wrap gap-1.5">
-          {sections.map((s) => {
-            const chip = (
-              <a
-                key={s.id}
-                href={`#${s.id}`}
-                className="inline-flex h-8 items-center rounded-full bg-[var(--apple-tertiary-system-fill)] px-3 text-[13px] font-medium text-[var(--apple-label)] apple-press"
-              >
-                {s.title}
-              </a>
-            );
-            return s.plansOnly ? <PlansNavGate key={s.id}>{chip}</PlansNavGate> : chip;
-          })}
+          {visible.map((s) => (
+            <a
+              key={s.id}
+              href={`#${s.id}`}
+              className="inline-flex h-8 items-center rounded-full bg-[var(--apple-tertiary-system-fill)] px-3 text-[13px] font-medium text-[var(--apple-label)] apple-press"
+            >
+              {s.title}
+            </a>
+          ))}
         </nav>
       )}
 
@@ -101,7 +99,7 @@ export function HelpView({ sections }: { sections: HelpSection[] }) {
           찾는 내용이 없어요. 관리자에게 물어봐 주세요.
         </p>
       ) : (
-        shown.map(render)
+        shown.map((s) => <Section key={s.id} section={s} query={query} />)
       )}
     </div>
   );

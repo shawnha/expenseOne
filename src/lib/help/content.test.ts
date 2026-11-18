@@ -25,11 +25,19 @@ describe("사용법 내용", () => {
     const r = filterHelpSections(all, "후 지급");
     assert.ok(r.length > 0 && r.every((s) => s.items.length > 0));
     assert.ok(r.some((s) => s.id === "deposit"));
-    assert.ok(filterHelpSections(all, "카드등록").length >= 0);
+    // 떨어져 있는 낱말(「카드」…「등록」)도 찾는다 — 찾기 칸 예시 그대로
+    const reg = filterHelpSections(all, "카드 등록");
+    assert.ok(reg.find((s) => s.id === "card")?.items.some((i) => i.q.includes("알림이 안 와요")));
+    assert.ok(filterHelpSections(all, "취소").some((s) => s.id === "status"));
     assert.deepEqual(filterHelpSections(all, "존재하지않는말xyz"), []);
     // 섹션 이름으로 찾으면 그 섹션 전체
     const refund = filterHelpSections(all, "반품");
     assert.equal(refund.find((s) => s.id === "refund")?.items.length, HELP_SECTIONS.find((s) => s.id === "refund")!.items.length);
+  });
+  it("반복 지급 방식 이름이 등록 화면과 같다", () => {
+    const t = HELP_SECTIONS.find((s) => s.id === "recurring")!.items.flatMap((i) => i.a).join(" ");
+    assert.match(t, /「금액 확인 후 직접 올리기」/);
+    assert.match(t, /「같은 금액으로 자동 제출」/);
   });
   it("직원 검색에 관리자 답이 섞이지 않는다", () => {
     assert.ok(!filterHelpSections(getHelpSections("MEMBER"), "일괄 승인").some((s) => s.adminOnly));

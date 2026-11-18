@@ -141,8 +141,9 @@ export const HELP_SECTIONS: HelpSection[] = [
         q: "월세처럼 매달 나가는 돈은요?",
         a: [
           "메뉴의 「반복 지급」 → 「반복 지급 추가」로 한 번 등록해요.",
-          "날짜가 되면 「올릴 차례」에 뜨고 알림이 와요. 「입금요청 올리기」를 누르면 내용이 채워진 입금요청 화면이 열려요.",
-          "방식은 「금액 확인 알림」(내가 금액을 확인하고 올림)·「자동 제출」(정해진 금액으로 자동으로 올라감)·「계획에만」 중에서 골라요.",
+          "「입금요청은 어떻게 할까요?」에서 방식을 골라요.",
+          "「금액 확인 후 직접 올리기」: 날짜가 되면 알림이 오고 「올릴 차례」에 떠요. 「입금요청 올리기」를 누르면 미리 채운 입금요청 화면이 열려요. 금액이 매달 달라도 괜찮아요.",
+          "「같은 금액으로 자동 제출」: 예정일에 그 금액 그대로 입금요청이 자동으로 올라가요(카테고리와 은행·예금주·계좌번호가 필요해요).",
           "잠시 멈추려면 「일시중지」, 그만두려면 「삭제」를 눌러요. 이미 올린 입금요청은 남아요.",
         ],
       },
@@ -155,7 +156,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         q: "상태는 무슨 뜻인가요?",
         a: [
-          "제출: 관리자가 보기 전 · 승인: 처리됨 · 반려: 사유를 확인하고 고쳐서 다시 올려요 · 취소: 내가 거둬들인 건.",
+          "제출: 관리자가 보기 전 · 승인: 처리됨 · 반려: 사유를 확인하고 고친 내용으로 새로 올려요 · 취소: 내가 거둬들인 건.",
         ],
       },
       {
@@ -191,7 +192,7 @@ export const HELP_SECTIONS: HelpSection[] = [
         q: "계획한 돈을 실제로 쓸 때는요?",
         a: [
           "「+」 맨 위 「곧 나갈 내 계획」에서 「입금요청」을 누르면 제목·금액이 채워지고 그 계획에 연결돼요. 법카로 냈으면 「법카 연결」로 카드 내역을 이어요.",
-          "연결된 입금요청이 모두 승인되면 계획에 「지급 완료」가 자동으로 찍혀요. 승인이 취소되면 다시 풀려요.",
+          "연결된 입금요청이 모두 승인되면(부분 선지급 건은 후지급 승인까지) 계획에 「지급 완료」가 자동으로 찍혀요. 승인이 취소되면 다시 풀려요.",
           "직접 표시하려면 계획 카드의 동그라미(「지급 완료 표시」)를 눌러요.",
         ],
       },
@@ -251,15 +252,20 @@ export function getHelpSections(role: "MEMBER" | "ADMIN"): HelpSection[] {
   return HELP_SECTIONS.filter((s) => !s.adminOnly || role === "ADMIN");
 }
 
-/** 검색어가 질문·답·섹션 이름에 들어 있는 항목만 남긴다. 띄어쓰기·대소문자는 무시. 빈 검색어면 그대로. */
+/**
+ * 검색어로 항목을 거른다. 대소문자 무시. 「후 지급」처럼 붙여 쓸 말을 띄어도 찾고(붙여서 비교),
+ * 「카드 등록」처럼 떨어져 있는 낱말도 찾는다(낱말마다 어딘가에 있으면). 섹션 이름이 맞으면 섹션 전체.
+ */
 export function filterHelpSections(sections: HelpSection[], query: string): HelpSection[] {
   const norm = (t: string) => t.replace(/\s+/g, "").toLowerCase();
-  const q = norm(query);
-  if (!q) return sections;
+  const joined = norm(query);
+  if (!joined) return sections;
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const hit = (text: string) => {
+    const t = norm(text);
+    return t.includes(joined) || words.every((w) => t.includes(w));
+  };
   return sections
-    .map((s) => {
-      if (norm(s.title).includes(q)) return s;
-      return { ...s, items: s.items.filter((i) => norm([i.q, ...i.a].join(" ")).includes(q)) };
-    })
+    .map((s) => (hit(s.title) ? s : { ...s, items: s.items.filter((i) => hit([i.q, ...i.a].join(" "))) }))
     .filter((s) => s.items.length > 0);
 }
