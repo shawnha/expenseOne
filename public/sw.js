@@ -1,6 +1,6 @@
 // ExpenseOne Service Worker — NetworkFirst HTML + CacheFirst static + Web Push
-// mvdsnwgd is replaced at build time by next.config.ts
-const CACHE_NAME = "expenseone-mvdsnwgd";
+// mwliya1c is replaced at build time by next.config.ts
+const CACHE_NAME = "expenseone-mwliya1c";
 
 const APP_SHELL = ["/offline.html", "/splash-shell.html"];
 

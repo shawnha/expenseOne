@@ -6,6 +6,8 @@ import { getActiveCompanies } from "@/services/company.service";
 import { CATEGORY_OPTIONS } from "@/lib/validations/expense-form";
 import { getMyCustomCategories } from "@/services/category.service";
 import { RecurringManager } from "./recurring-manager";
+import { listCardSubscriptions } from "@/services/card-subscription.service";
+import { CardSubscriptionList } from "./card-subscription-list";
 
 // ---------------------------------------------------------------------------
 // 반복 지급
@@ -18,10 +20,11 @@ async function Content({ focusId }: { focusId: string | null }) {
   const user = await getCachedCurrentUser();
   if (!user) redirect("/login");
 
-  const [rows, companies, myCategories] = await Promise.all([
+  const [rows, companies, myCategories, cardSubscriptions] = await Promise.all([
     listRecurringExpenses(user.id, user.role === "ADMIN"),
     getActiveCompanies(),
     getMyCustomCategories(user.id),
+    listCardSubscriptions({ id: user.id, role: user.role }),
   ]);
 
   // 반복 등록은 "한 번 만들어두고 계속 쓰는" 화면이다. 여기서만 프리셋으로
@@ -58,6 +61,8 @@ async function Content({ focusId }: { focusId: string | null }) {
         today={today}
         focusId={focusId}
       />
+
+      <CardSubscriptionList rows={cardSubscriptions} isAdmin={user.role === "ADMIN"} today={today} />
     </div>
   );
 }

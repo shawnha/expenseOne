@@ -403,6 +403,50 @@ export const expensePrePaidAmounts = expenseSchema.table("expense_pre_paid_amoun
 });
 
 /**
+ * card_subscriptions -- 법카 정기 결제 (0031)
+ *
+ * AI 구독처럼 매달 같은 가맹점에서 카드로 나가는 돈. 사람 한 명 × 가맹점 하나 = 한 줄.
+ * merchant_key = 가맹점 이름을 소문자·공백 정리한 값(lib/card-subscription.ts merchantKeyOf) — 같은 가맹점이면
+ * 다음 결제를 같은 정기 결제로 묶는다. 반복 지급(recurring_expenses)과 따로 둔 이유는 그 표를 cron 이
+ * 입금요청 생성에 쓰기 때문이다.
+ */
+export const cardSubscriptions = expenseSchema.table(
+  "card_subscriptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ownerId: uuid("owner_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    companyId: uuid("company_id").references(() => companies.id, { onDelete: "set null" }),
+    merchantKey: text("merchant_key").notNull(),
+    merchantName: text("merchant_name").notNull(),
+    title: text("title").notNull(),
+    category: text("category"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("card_subscriptions_owner_merchant").on(t.ownerId, t.merchantKey)],
+);
+
+/**
+ * card_subscription_charges -- 정기 결제로 표시한 법카 비용 한 건 = 한 줄 (0031)
+ *
+ * expense_id 는 FK 가 없다 — expenses 에 RI 트리거를 붙이지 않는다(결합 검토 P2). 읽을 때 JOIN 으로 거른다.
+ */
+export const cardSubscriptionCharges = expenseSchema.table(
+  "card_subscription_charges",
+  {
+    expenseId: uuid("expense_id").primaryKey(),
+    subscriptionId: uuid("subscription_id")
+      .notNull()
+      .references(() => cardSubscriptions.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("idx_card_subscription_charges_sub").on(t.subscriptionId)],
+);
+
+/**
  * purchase_invoice_lines -- 사입 건의 약국별 납품/발행 줄
  *
  * 사입 한 번으로 들여온 물건을 **여러 약국에 나눠 납품**할 수 있다. 세금계산서는

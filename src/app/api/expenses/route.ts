@@ -124,14 +124,28 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 법카 폼의 「정기 결제」 체크(0031). 표시 규칙은 markCardSubscription 한 곳. 실패해도 비용은 그대로 둔다.
+    let subscriptionMarked: boolean | undefined;
+    if (body?.cardSubscription === true && parsed.data.type === "CORPORATE_CARD" && expense.id) {
+      subscriptionMarked = false;
+      try {
+        const { markCardSubscription } = await import("@/services/card-subscription.service");
+        await markCardSubscription({ id: user.id, role: user.role }, expense.id);
+        subscriptionMarked = true;
+      } catch (err) {
+        console.error("[CardSubscription] mark after create failed:", err instanceof Error ? err.name : "unknown");
+      }
+    }
+
     revalidatePath("/");
     revalidatePath("/expenses");
     revalidatePath("/admin/pending");
 
-    return NextResponse.json(
-      { data: planLinked === undefined ? expense : { ...expense, planLinked } },
-      { status: 201 },
-    );
+    const extra = {
+      ...(planLinked === undefined ? {} : { planLinked }),
+      ...(subscriptionMarked === undefined ? {} : { subscriptionMarked }),
+    };
+    return NextResponse.json({ data: { ...expense, ...extra } }, { status: 201 });
   } catch (err) {
     return handleError(err);
   }
