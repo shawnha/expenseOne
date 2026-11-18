@@ -4,7 +4,7 @@ import { getAuthUser, getCachedClient } from "@/lib/supabase/cached";
 import { listCardMappings, updateCardMappingUser } from "@/services/gowid.service";
 import { db } from "@/lib/db";
 import { gowidCardMappings, companies, users } from "@/lib/db/schema";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 // GET — list card mappings
 // Admin: all mappings; Member: own cards + unmapped cards
@@ -99,6 +99,27 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: { code: "BAD_REQUEST", message: "mappingId 필수" } }, { status: 400 });
   }
 
+  // 직원: 주인 없는 카드를 내 것으로 붙이거나 내 카드를 떼는 것만. 남의 카드는 주인도 법인도 못 바꾼다.
+  // 법인은 아직 법인이 없는 카드에만 정할 수 있다(설정 화면 「내 법인카드」가 보내는 그대로).
+  if (!isAdmin) {
+    const [current] = await db
+      .select({ userId: gowidCardMappings.userId, companyId: gowidCardMappings.companyId })
+      .from(gowidCardMappings)
+      .where(eq(gowidCardMappings.id, mappingId));
+    if (!current) {
+      return NextResponse.json({ error: { code: "NOT_FOUND", message: "매핑을 찾을 수 없습니다" } }, { status: 404 });
+    }
+    if (current.userId && current.userId !== authUser.id) {
+      return NextResponse.json(
+        { error: { code: "FORBIDDEN", message: "다른 사람에게 등록된 카드입니다. 관리자에게 요청해 주세요." } },
+        { status: 403 },
+      );
+    }
+    if (companyId !== undefined && current.companyId && companyId !== current.companyId) {
+      return NextResponse.json({ error: { code: "FORBIDDEN", message: "관리자만 회사를 변경할 수 있습니다" } }, { status: 403 });
+    }
+  }
+
   // Handle issuer update — admin only.
   if (issuer !== undefined) {
     if (!isAdmin) {
@@ -123,10 +144,27 @@ export async function PATCH(request: Request) {
     if (!isAdmin && !(userId === authUser.id || userId === "self")) {
       return NextResponse.json({ error: { code: "FORBIDDEN", message: "관리자만 회사를 변경할 수 있습니다" } }, { status: 403 });
     }
-    await db.update(gowidCardMappings).set({
+    // 직원 요청이면 위 검사를 UPDATE 조건에도 다시 건다 — 검사와 쓰기 사이에 남이 먼저 가져가도 덮어쓰지 않게.
+    const changed = await db.update(gowidCardMappings).set({
       companyId: companyId,
       updatedAt: new Date(),
-    }).where(eq(gowidCardMappings.id, mappingId));
+    }).where(
+      isAdmin
+        ? eq(gowidCardMappings.id, mappingId)
+        : and(
+            eq(gowidCardMappings.id, mappingId),
+            sql`(${gowidCardMappings.userId} IS NULL OR ${gowidCardMappings.userId} = ${authUser.id}::uuid)`,
+            sql`(${gowidCardMappings.companyId} IS NULL OR ${gowidCardMappings.companyId} = ${companyId}::uuid)`,
+          ),
+    ).returning({ id: gowidCardMappings.id });
+    if (changed.length === 0) {
+      return isAdmin
+        ? NextResponse.json({ error: { code: "NOT_FOUND", message: "매핑을 찾을 수 없습니다" } }, { status: 404 })
+        : NextResponse.json(
+            { error: { code: "CONFLICT", message: "그사이 다른 사람에게 등록된 카드입니다. 새로고침해 주세요." } },
+            { status: 409 },
+          );
+    }
     if (userId === undefined) {
       return NextResponse.json({ ok: true });
     }
@@ -149,8 +187,14 @@ export async function PATCH(request: Request) {
   }
 
   const updated = userId !== undefined
-    ? await updateCardMappingUser(mappingId, userId)
+    ? await updateCardMappingUser(mappingId, userId, isAdmin ? undefined : { claimableBy: authUser.id })
     : { id: mappingId };
+  if (!updated && !isAdmin) {
+    return NextResponse.json(
+      { error: { code: "CONFLICT", message: "그사이 다른 사람에게 등록된 카드입니다. 새로고침해 주세요." } },
+      { status: 409 },
+    );
+  }
   if (!updated) {
     return NextResponse.json({ error: { code: "NOT_FOUND", message: "매핑을 찾을 수 없습니다" } }, { status: 404 });
   }

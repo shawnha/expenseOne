@@ -149,14 +149,26 @@ async function claimUnownedTransactions(
   return claimed.length;
 }
 
+/**
+ * 카드 주인을 바꾼다. `claimableBy` 를 주면(직원 본인 요청) **주인이 없거나 그 사람인 카드만** 바뀐다 —
+ * 남에게 등록된 카드를 가로채지 못하게 조건을 UPDATE 한 문장에 넣는다(동시에 눌러도 먼저 온 사람만).
+ * 조건에 안 맞으면 undefined.
+ */
 export async function updateCardMappingUser(
   mappingId: string,
   userId: string | null,
+  guard?: { claimableBy: string },
 ) {
+  const where = guard
+    ? and(
+        eq(gowidCardMappings.id, mappingId),
+        sql`(${gowidCardMappings.userId} IS NULL OR ${gowidCardMappings.userId} = ${guard.claimableBy}::uuid)`,
+      )
+    : eq(gowidCardMappings.id, mappingId);
   const [result] = await db
     .update(gowidCardMappings)
     .set({ userId, updatedAt: new Date() })
-    .where(eq(gowidCardMappings.id, mappingId))
+    .where(where)
     .returning();
 
   // 매핑을 붙이는 순간 **그 카드의 밀린 거래도 함께 되찾는다.**
