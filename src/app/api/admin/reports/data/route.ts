@@ -3,7 +3,7 @@ import { requireAdmin, handleError } from "@/lib/api-utils";
 import { db } from "@/lib/db";
 import { expenses, users, companies, departments } from "@/lib/db/schema";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
-import { signedAmount } from "@/lib/db/amount";
+import { signedAmount, spendType, isSpend } from "@/lib/db/amount";
 
 // ---------------------------------------------------------------------------
 // GET /api/admin/reports/data
@@ -36,14 +36,14 @@ export async function GET(request: NextRequest) {
 
     // -- Build base conditions for current period --
     function buildConditions(start: string, end: string) {
+      // 금액은 실제로 나간 돈만(승인, 반품은 원거래 유형 쪽에서 차감) — 대시보드와 같은 기준.
       const conditions = [
         gte(expenses.transactionDate, start),
         lte(expenses.transactionDate, end),
+        isSpend as ReturnType<typeof eq>,
       ];
       if (type && type !== "ALL") {
-        conditions.push(
-          eq(expenses.type, type as "CORPORATE_CARD" | "DEPOSIT_REQUEST"),
-        );
+        conditions.push(sql`${spendType} = ${type}` as ReturnType<typeof eq>);
       }
       if (companyId && companyId !== "ALL") {
         conditions.push(eq(expenses.companyId, companyId));
@@ -84,8 +84,8 @@ export async function GET(request: NextRequest) {
         totalAmount: sql<number>`coalesce(sum(${signedAmount}), 0)::int`,
         totalCount: sql<number>`count(*)::int`,
         approvedCount: sql<number>`count(*) filter (where ${expenses.status} = 'APPROVED')::int`,
-        corporateCardAmount: sql<number>`coalesce(sum(${signedAmount}) filter (where ${expenses.type} = 'CORPORATE_CARD'), 0)::int`,
-        depositRequestAmount: sql<number>`coalesce(sum(${signedAmount}) filter (where ${expenses.type} = 'DEPOSIT_REQUEST'), 0)::int`,
+        corporateCardAmount: sql<number>`coalesce(sum(${signedAmount}) filter (where ${spendType} = 'CORPORATE_CARD'), 0)::int`,
+        depositRequestAmount: sql<number>`coalesce(sum(${signedAmount}) filter (where ${spendType} = 'DEPOSIT_REQUEST'), 0)::int`,
       })
       .from(expenses)
       .where(withDeptFilter([...currentConditions]));
@@ -127,7 +127,7 @@ export async function GET(request: NextRequest) {
           totalAmount: sql<number>`coalesce(sum(${signedAmount}), 0)::int`,
           totalCount: sql<number>`count(*)::int`,
           approvedCount: sql<number>`count(*) filter (where ${expenses.status} = 'APPROVED')::int`,
-          corporateCardAmount: sql<number>`coalesce(sum(${signedAmount}) filter (where ${expenses.type} = 'CORPORATE_CARD'), 0)::int`,
+          corporateCardAmount: sql<number>`coalesce(sum(${signedAmount}) filter (where ${spendType} = 'CORPORATE_CARD'), 0)::int`,
         })
         .from(expenses)
         .where(withDeptFilter([...prevConditions]));
@@ -196,8 +196,8 @@ export async function GET(request: NextRequest) {
     const typeRatioRows = await db
       .select({
         month: sql<string>`to_char(${expenses.transactionDate}::date, 'YYYY-MM')`,
-        corporateCardAmount: sql<number>`coalesce(sum(${signedAmount}) filter (where ${expenses.type} = 'CORPORATE_CARD'), 0)::int`,
-        depositRequestAmount: sql<number>`coalesce(sum(${signedAmount}) filter (where ${expenses.type} = 'DEPOSIT_REQUEST'), 0)::int`,
+        corporateCardAmount: sql<number>`coalesce(sum(${signedAmount}) filter (where ${spendType} = 'CORPORATE_CARD'), 0)::int`,
+        depositRequestAmount: sql<number>`coalesce(sum(${signedAmount}) filter (where ${spendType} = 'DEPOSIT_REQUEST'), 0)::int`,
       })
       .from(expenses)
       .where(withDeptFilter([...currentConditions]))
@@ -269,11 +269,10 @@ export async function GET(request: NextRequest) {
     const companyConditions = [
       gte(expenses.transactionDate, startDate),
       lte(expenses.transactionDate, endDate),
+      isSpend as ReturnType<typeof eq>,
     ];
     if (type && type !== "ALL") {
-      companyConditions.push(
-        eq(expenses.type, type as "CORPORATE_CARD" | "DEPOSIT_REQUEST"),
-      );
+      companyConditions.push(sql`${spendType} = ${type}` as ReturnType<typeof eq>);
     }
     if (category && category !== "ALL") {
       companyConditions.push(eq(expenses.category, category));
