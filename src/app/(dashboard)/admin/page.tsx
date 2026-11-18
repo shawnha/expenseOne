@@ -169,7 +169,7 @@ function AdminDashboardContent() {
     {
       title: "처리할 일",
       value: `${stats.pendingCount + remainingCount}건`,
-      href: "/admin/pending",
+      href: company ? `/admin/pending?company=${encodeURIComponent(company)}` : "/admin/pending",
       hint: remainingCount > 0 ? `승인 대기 ${stats.pendingCount} · 후지급 ${remainingCount}` : "기간과 상관없이 전체",
     },
     {
@@ -255,13 +255,20 @@ function AdminDashboardContent() {
       {/* Stat Cards */}
       <div className={`grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4 ${loading ? "opacity-60" : ""}`}>
         {statCards.map((card, i) => (
-          <Link key={card.title} href={card.href} className={`block glass-card apple-press p-3 sm:p-4 lg:p-5 ${STAT_CONFIGS[i].accent} animate-card-enter stagger-${i + 1}`}>
+          <Link key={card.title} href={card.href} style={{ containerType: "inline-size" }} className={`block glass-card apple-press p-3 sm:p-4 lg:p-5 ${STAT_CONFIGS[i].accent} animate-card-enter stagger-${i + 1}`}>
             <div className="flex items-center gap-3 mb-3 sm:mb-4">
               <div className={`size-8 sm:size-9 lg:size-10 ${STAT_CONFIGS[i].iconBg}`}>
                 {STAT_CONFIGS[i].icon}
               </div>
             </div>
-            <p className="text-xl sm:text-2xl lg:text-[28px] font-bold tabular-nums tracking-[-0.02em] text-[var(--apple-label)] leading-tight">{card.value}</p>
+            <p
+              className="[--stat-max:20px] sm:[--stat-max:24px] lg:[--stat-max:28px] font-bold tabular-nums tracking-[-0.02em] text-[var(--apple-label)] leading-tight whitespace-nowrap"
+              // 금액이 길면(「올해」 9~10자리) 카드 폭에 맞춰 줄인다 — 사이드바가 있는 1024px 4열에서 넘쳤다.
+              // 글자 폭 ≈ 0.6em 이라 150/글자수 cqw 면 카드 안쪽의 약 90%.
+              style={{ fontSize: `min(var(--stat-max), ${(150 / card.value.length).toFixed(1)}cqw)` }}
+            >
+              {card.value}
+            </p>
             <p className="text-[11px] sm:text-xs lg:text-[13px] font-medium text-[var(--apple-secondary-label)] mt-1">{card.title}</p>
             {card.hint ? (
               <p className="text-[10px] sm:text-[11px] tabular-nums text-[var(--apple-tertiary-label)] mt-0.5">{card.hint}</p>

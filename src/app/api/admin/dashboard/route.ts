@@ -58,7 +58,8 @@ export async function GET(request: NextRequest) {
     // 2. 처리할 일 — 기간 무관(지난달에 올라와 아직 대기인 건도 할 일이다)
     const todoQuery = db
       .select({
-        pendingCount: sql<number>`count(*) filter (where ${expenses.status} = 'SUBMITTED')`,
+        // 「승인 대기」 화면과 같은 기준(입금요청 · SUBMITTED). 법카·반품은 SUBMITTED가 생기지 않는다.
+        pendingCount: sql<number>`count(*) filter (where ${expenses.type} = 'DEPOSIT_REQUEST' and ${expenses.status} = 'SUBMITTED')`,
         // 후지급 요청 대기 — status가 이미 APPROVED라 SUBMITTED로는 안 잡힌다.
         remainingRequestCount: sql<number>`count(*) filter (
           where ${expenses.status} = 'APPROVED'
