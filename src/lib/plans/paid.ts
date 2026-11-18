@@ -6,6 +6,7 @@
 // ---------------------------------------------------------------------------
 
 import { kstDateLabel } from "./erp";
+import { isPartialPrePaid } from "../utils/pre-paid";
 
 /** "2026.09.23 · 하승완". 표시가 없으면 null. 표시한 사람이 지워졌으면(이름 NULL) 날짜만. */
 export function paidStamp(at: string | null, byName: string | null): string | null {
@@ -36,4 +37,44 @@ export function paidToggleToast(next: boolean): string {
 export function unpaidNote(unpaidTotal: number, paidCount: number): string | null {
   if (paidCount === 0) return null;
   return `지급 완료 ${paidCount}건 · 미지급 ${unpaidTotal.toLocaleString("ko-KR")}원`;
+}
+
+// ---------------------------------------------------------------------------
+// 자동 「지급 완료」(입금요청 승인 시) — 언제 찍나
+//
+// 계획에 걸린(해제 안 된) 비용이 **전부 돈이 다 나간 상태**일 때만 찍는다. 금액은 보지 않는다(계획은 추정이다).
+//   - 승인(APPROVED)이어야 한다. 법카는 올리면 바로 승인이라 그대로 나간 돈이다.
+//   - 부분 선지급 건은 후지급까지 승인돼야 한다 — 선지급만 나갔을 때 찍으면 「계획에서 불러오기」에서
+//     빠지고(paid_at IS NULL 필터) 달 머리의 미지급 합계에서도 빠져 남은 돈이 안 보인다.
+//   - 반려·취소된 건은 나갈 돈이 아니라 세지 않는다. 남는 게 없으면 찍지 않는다.
+// ---------------------------------------------------------------------------
+
+
+export interface LinkedPayoutState {
+  status: string;
+  isPrePaid: boolean;
+  prePaidPercentage: number | null;
+  remainingPaymentApproved: boolean;
+}
+
+/** 이 비용의 돈이 다 나갔나. */
+export function isFullyPaidOut(e: LinkedPayoutState): boolean {
+  if (e.status !== "APPROVED") return false;
+  return !isPartialPrePaid(e) || e.remainingPaymentApproved;
+}
+
+/** 계획에 걸린 비용들로 보아 자동으로 「지급 완료」를 찍어도 되나. */
+export function shouldAutoMarkPaid(links: LinkedPayoutState[]): boolean {
+  const live = links.filter((l) => l.status !== "REJECTED" && l.status !== "CANCELLED");
+  return live.length > 0 && live.every(isFullyPaidOut);
+}
+
+/** 이력(after_data)에 남기는 표시 — 승인 취소 때 사람이 직접 찍은 표시는 지우지 않으려고 구분한다. */
+export const AUTO_PAID_REASON = "입금요청 승인 — 자동 지급 완료";
+export const AUTO_UNPAID_REASON = "승인 취소 — 자동 지급 완료 해제";
+
+/** 가장 최근 「지급」 이력이 자동으로 찍은 것인가(after_data = { paid: true, auto: true }). */
+export function lastPaidMarkWasAuto(afterData: unknown): boolean {
+  const d = afterData as { paid?: unknown; auto?: unknown } | null | undefined;
+  return d?.paid === true && d?.auto === true;
 }

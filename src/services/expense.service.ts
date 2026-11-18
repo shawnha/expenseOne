@@ -52,6 +52,7 @@ import { sendPushToAdmins } from "./push.service";
 import { AppError } from "./attachment.service";
 import { getExchangeRate, convertToKRW } from "./exchange-rate.service";
 import { formatExpenseAmount } from "@/lib/utils/expense-utils";
+import { syncPlanPaidSafely } from "./plan-auto-paid";
 import { planPrePaidFixedCreate, planPrePaidFixedUpdate, prePaidSplit, type PrePaidFixedWrite } from "@/lib/utils/pre-paid";
 
 // ---------------------------------------------------------------------------
@@ -1602,6 +1603,9 @@ export async function approveExpense(
     );
   }
 
+  // 이 입금요청이 걸린 비용계획에 「지급 완료」를 자동으로 찍는다(걸린 건이 다 나갔을 때만). 일괄 승인도 거친다.
+  await syncPlanPaidSafely(updated.id, adminId, "approved");
+
   if (options?.skipNotification) {
     return updated;
   }
@@ -1639,7 +1643,7 @@ export async function approveExpense(
 // ---------------------------------------------------------------------------
 // revertApproval -- ADMIN only. 승인 번복: APPROVED → SUBMITTED로 되돌림
 // ---------------------------------------------------------------------------
-export async function revertApproval(expenseId: string) {
+export async function revertApproval(expenseId: string, adminId: string) {
   const [expense] = await db
     .select()
     .from(expenses)
@@ -1689,6 +1693,9 @@ export async function revertApproval(expenseId: string) {
       "이미 처리된 요청입니다. 페이지를 새로고침해주세요.",
     );
   }
+
+  // 승인으로 자동으로 찍힌 「지급 완료」였으면 지운다(사람이 직접 찍은 표시는 둔다).
+  await syncPlanPaidSafely(updated.id, adminId, "unapproved");
 
   // Look up submitter for notification
   const [submitterUser] = await db

@@ -13,10 +13,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const csrfError = validateOrigin(request);
     if (csrfError) return csrfError;
 
-    await requireAdmin();
+    const admin = await requireAdmin();
     const id = validateUUID((await context.params).id);
 
-    const updated = await revertApproval(id);
+    const updated = await revertApproval(id, admin.id);
 
     revalidatePath("/");
     revalidatePath("/expenses");

@@ -3,6 +3,7 @@ import { prePaidSplit } from "@/lib/utils/pre-paid";
 import { getPrePaidFixedAmount } from "@/services/expense.service";
 import { revalidatePath } from "next/cache";
 import { requireAdmin, errorResponse, handleError, validateOrigin, validateUUID } from "@/lib/api-utils";
+import { syncPlanPaidSafely } from "@/services/plan-auto-paid";
 import { db } from "@/lib/db";
 import { expenses, users } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const csrfError = validateOrigin(request);
     if (csrfError) return csrfError;
 
-    await requireAdmin();
+    const admin = await requireAdmin();
     const id = validateUUID((await context.params).id);
 
     // Fetch the expense
@@ -75,6 +76,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (!updated) {
       return errorResponse("VALIDATION_ERROR", "비용 상태가 변경되었습니다. 페이지를 새로고침해주세요.");
     }
+
+    // 후지급까지 나갔으니 걸린 비용계획에 「지급 완료」를 자동으로 찍는다(걸린 건이 다 나갔을 때만).
+    await syncPlanPaidSafely(id, admin.id, "approved");
 
     // 잔금 — 계산은 lib/utils/pre-paid 한 곳에서. 금액으로 정한 선지급이면 그 금액 그대로 뺀다.
     // (후지급 요청 라우트가 부분 선지급만 받으므로 split 은 늘 있다.)
