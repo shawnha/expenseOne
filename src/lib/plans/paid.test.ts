@@ -30,3 +30,40 @@ describe("지급 완료 표시 문구 (lib/plans/paid)", () => {
     assert.equal(unpaidNote(1234567, 2), "지급 완료 2건 · 미지급 1,234,567원");
   });
 });
+
+import { isFullyPaidOut, shouldAutoMarkPaid, lastPaidMarkWasAuto } from "./paid";
+
+describe("자동 지급 완료 판단 (lib/plans/paid)", () => {
+  const paid = { status: "APPROVED", isPrePaid: false, prePaidPercentage: null, remainingPaymentApproved: false };
+  const partial = { status: "APPROVED", isPrePaid: true, prePaidPercentage: 30, remainingPaymentApproved: false };
+
+  it("승인된 일반 건은 다 나간 돈, 제출 상태는 아니다", () => {
+    assert.equal(isFullyPaidOut(paid), true);
+    assert.equal(isFullyPaidOut({ ...paid, status: "SUBMITTED" }), false);
+  });
+
+  it("부분 선지급은 후지급까지 승인돼야 다 나간 것", () => {
+    assert.equal(isFullyPaidOut(partial), false);
+    assert.equal(isFullyPaidOut({ ...partial, remainingPaymentApproved: true }), true);
+  });
+
+  it("선지급 100% 는 부분 선지급이 아니다", () => {
+    assert.equal(isFullyPaidOut({ ...partial, prePaidPercentage: 100 }), true);
+  });
+
+  it("걸린 건이 전부 다 나가야 찍는다. 반려·취소는 세지 않고, 남는 게 없으면 안 찍는다", () => {
+    assert.equal(shouldAutoMarkPaid([paid]), true);
+    assert.equal(shouldAutoMarkPaid([paid, { ...paid, status: "SUBMITTED" }]), false);
+    assert.equal(shouldAutoMarkPaid([paid, { ...paid, status: "REJECTED" }]), true);
+    assert.equal(shouldAutoMarkPaid([{ ...paid, status: "CANCELLED" }]), false);
+    assert.equal(shouldAutoMarkPaid([]), false);
+    assert.equal(shouldAutoMarkPaid([paid, partial]), false);
+  });
+
+  it("최근 표시가 자동이었는지", () => {
+    assert.equal(lastPaidMarkWasAuto({ paid: true, auto: true }), true);
+    assert.equal(lastPaidMarkWasAuto({ paid: true }), false);
+    assert.equal(lastPaidMarkWasAuto({ paid: false, auto: true }), false);
+    assert.equal(lastPaidMarkWasAuto(null), false);
+  });
+});

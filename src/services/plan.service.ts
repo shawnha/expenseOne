@@ -16,6 +16,7 @@ import { describeSchedule, type Schedule } from "@/lib/recurring-schedule";
 import { dbErrorCode, PlanError, mapDbError } from "@/lib/plans/errors";
 import { num, rowsOf } from "@/lib/plans/rows";
 import { containsPattern } from "@/lib/plans/search";
+import { AUTO_PAID_REASON, AUTO_UNPAID_REASON, lastPaidMarkWasAuto, shouldAutoMarkPaid } from "@/lib/plans/paid";
 import {
   SEEN_BASELINE,
   summarizeChanges,
@@ -1398,6 +1399,106 @@ export async function setPlanPaid(
       reason: "지급 완료 표시",
     });
     return loadPaidState(tx, planId);
+  });
+}
+
+/**
+ * 입금요청 승인·후지급 승인·승인 취소 뒤 계획의 「지급 완료」를 맞춘다(시스템 동작, 사람 권한 검사 없음).
+ *
+ * - "approved": 이 비용이 걸린 계획에서 걸린 비용이 전부 다 나갔으면(shouldAutoMarkPaid) 지급 완료를 찍는다.
+ *   이미 찍혀 있으면 그대로 둔다. 표시한 사람 = 승인한 관리자.
+ * - "unapproved": 그 계획의 가장 최근 지급 표시가 **자동**으로 찍힌 것일 때만 지운다 — 사람이 직접 찍은 표시는 둔다.
+ *
+ * setPlanPaid 를 부르지 않는 이유: 승인한 관리자가 그 계획 참여자가 아닐 수 있다(requirePlanAccess 에 걸린다).
+ * 같은 규칙은 지킨다 — 예정(PLANNED)·안 지운 계획만, version 안 올림, 푸시 없음, 이력 남김.
+ * 호출부(승인 경로)는 이 함수가 실패해도 승인을 되돌리지 않는다.
+ */
+export async function syncPlanPaidForExpense(
+  expenseId: string,
+  actorId: string,
+  event: "approved" | "unapproved",
+): Promise<"marked" | "unmarked" | "unchanged"> {
+  return withPlanTx(async (tx) => {
+    const link = rowsOf<{ plan_id: string }>(
+      await tx.execute(sql`SELECT plan_id FROM expenseone.plan_expense_links
+                            WHERE expense_id = ${expenseId}::uuid AND unlinked_at IS NULL
+                            LIMIT 1`),
+    )[0];
+    if (!link) return "unchanged";
+
+    const plan = rowsOf<{ id: string; company_id: string; project_id: string | null; paid_at: Date | null }>(
+      await tx.execute(sql`SELECT id, company_id, project_id, paid_at FROM expenseone.cost_plans
+                            WHERE id = ${link.plan_id}::uuid AND status = 'PLANNED' AND deleted_at IS NULL
+                            FOR UPDATE`),
+    )[0];
+    if (!plan) return "unchanged";
+
+    if (event === "approved") {
+      if (plan.paid_at !== null) return "unchanged";
+      const linked = rowsOf<{
+        status: string;
+        is_pre_paid: boolean;
+        pre_paid_percentage: number | null;
+        remaining_payment_approved: boolean;
+      }>(
+        await tx.execute(sql`SELECT e.status, e.is_pre_paid, e.pre_paid_percentage, e.remaining_payment_approved
+                               FROM expenseone.plan_expense_links x
+                               JOIN expenseone.expenses e ON e.id = x.expense_id
+                              WHERE x.plan_id = ${plan.id}::uuid AND x.unlinked_at IS NULL`),
+      );
+      const ok = shouldAutoMarkPaid(
+        linked.map((l) => ({
+          status: l.status,
+          isPrePaid: l.is_pre_paid === true,
+          prePaidPercentage: l.pre_paid_percentage == null ? null : num(l.pre_paid_percentage),
+          remainingPaymentApproved: l.remaining_payment_approved === true,
+        })),
+      );
+      if (!ok) return "unchanged";
+      await tx.execute(sql`UPDATE expenseone.cost_plans
+                              SET paid_at = now(), paid_by_id = ${actorId}::uuid,
+                                  updated_by_id = ${actorId}::uuid, updated_at = now()
+                            WHERE id = ${plan.id}::uuid`);
+      await logChange(tx, {
+        companyId: plan.company_id,
+        projectId: plan.project_id,
+        planId: plan.id,
+        entityType: "plan",
+        entityId: plan.id,
+        action: "UPDATE",
+        actorId,
+        before: { paid: false },
+        after: { paid: true, auto: true, expenseId },
+        reason: AUTO_PAID_REASON,
+      });
+      return "marked";
+    }
+
+    if (plan.paid_at === null) return "unchanged";
+    const last = rowsOf<{ after_data: unknown }>(
+      await tx.execute(sql`SELECT after_data FROM expenseone.plan_change_log
+                            WHERE plan_id = ${plan.id}::uuid AND entity_type = 'plan'
+                              AND after_data ? 'paid'
+                            ORDER BY created_at DESC LIMIT 1`),
+    )[0];
+    if (!lastPaidMarkWasAuto(last?.after_data)) return "unchanged";
+    await tx.execute(sql`UPDATE expenseone.cost_plans
+                            SET paid_at = NULL, paid_by_id = NULL,
+                                updated_by_id = ${actorId}::uuid, updated_at = now()
+                          WHERE id = ${plan.id}::uuid`);
+    await logChange(tx, {
+      companyId: plan.company_id,
+      projectId: plan.project_id,
+      planId: plan.id,
+      entityType: "plan",
+      entityId: plan.id,
+      action: "UPDATE",
+      actorId,
+      before: { paid: true },
+      after: { paid: false, auto: true, expenseId },
+      reason: AUTO_UNPAID_REASON,
+    });
+    return "unmarked";
   });
 }
 
