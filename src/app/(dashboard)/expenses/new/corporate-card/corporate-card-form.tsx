@@ -55,6 +55,7 @@ import { pendingCardBatchHref, pendingCardLabel } from "@/lib/card-batch/pending
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { CardPlanSuggestions, PlanLinkedChip, usePreselectedPlan, type PlanPick, useCardSuggestions } from "@/components/forms/plan-pick";
 import { planLinkFailed, shouldFillCompany } from "@/lib/plans/pick-ui";
+import { subscriptionKeyOf, subscriptionMarkFailed } from "@/lib/card-subscription";
 
 interface CorporateCardFormProps {
   planId?: string;
@@ -63,6 +64,8 @@ interface CorporateCardFormProps {
   myCategories?: string[];
   /** 내가 예전에 쓴 가맹점 → 그때 카테고리 (키: merchantKey). 같은 가맹점이면 추천한다. */
   myMerchantCategories?: Record<string, MerchantSuggestion>;
+  /** 내가 켜 둔 법카 정기 결제의 가맹점 키(0031). 같은 가맹점이면 「정기 결제」를 미리 켠다. */
+  mySubscriptionKeys?: string[];
   prefillData?: {
     amount: number;
     merchantName: string | null;
@@ -72,7 +75,7 @@ interface CorporateCardFormProps {
   };
 }
 
-export default function CorporateCardForm({ initialCompanies, prefillData, myCategories = [], myMerchantCategories = {}, planId }: CorporateCardFormProps) {
+export default function CorporateCardForm({ initialCompanies, prefillData, myCategories = [], myMerchantCategories = {}, mySubscriptionKeys = [], planId }: CorporateCardFormProps) {
   const pendingSummary = usePendingCardSummary(!prefillData);
   const pendingLabel = pendingCardLabel(pendingSummary?.count);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -211,6 +214,12 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
   const categorySuggestion = merchantHit
     ? { category: merchantHit.category, from: merchantHit.merchantName }
     : null;
+
+  // 「정기 결제」(0031) — 손대기 전에는 내가 켜 둔 정기 결제의 가맹점이면 켜져 있다.
+  // 가맹점이 없거나 「기타」면 고를 수 없다(무엇의 정기 결제인지 묶을 수 없다).
+  const subKey = subscriptionKeyOf(watch("merchantName"));
+  const [subscriptionChoice, setSubscriptionChoice] = useState<boolean | null>(null);
+  const subscriptionOn = subKey !== null && (subscriptionChoice ?? mySubscriptionKeys.includes(subKey));
 
   // Warn on unsaved changes (browser close / refresh)
   useUnsavedChanges(isDirty || files.length > 0);
@@ -388,6 +397,7 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
           isUrgent: false,
           companyId: companyId || undefined,
           ...(activePlanId ? { planId: activePlanId } : {}),
+          ...(subscriptionOn ? { cardSubscription: true } : {}),
           hasFreelancerWithholding: freelancerDeduction,
           ...toPurchasePayload(purchase),
           branch: askBranch ? branch : null,
@@ -407,6 +417,9 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
       const expenseId = resolveCreatedExpenseId(response, result);
       if (planLinkFailed(result)) {
         toast.error("법카 사용 내역은 올라갔지만 비용계획 연결은 실패했습니다. 계획 화면에서 연결해주세요.");
+      }
+      if (subscriptionMarkFailed(result)) {
+        toast.error("법카 사용 내역은 올라갔지만 정기 결제 표시는 실패했습니다.");
       }
 
       // Upload optional attachments (receipts). 법카사용은 첨부 선택사항이라
@@ -689,6 +702,31 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
                   {errors.merchantName.message}
                 </p>
               )}
+              {/* 정기 결제(0031) — AI 구독처럼 매달 나가는 결제. 「반복 지급」 화면 아래 목록에 모인다. */}
+              <label
+                className={cn(
+                  "flex items-start gap-2 pt-1 select-none",
+                  subKey ? "cursor-pointer" : "cursor-not-allowed opacity-60",
+                )}
+              >
+                <input
+                  type="checkbox"
+                  checked={subscriptionOn}
+                  disabled={!subKey}
+                  onChange={(e) => setSubscriptionChoice(e.target.checked)}
+                  className="mt-0.5 size-4 shrink-0 rounded border-[rgba(0,0,0,0.15)] dark:border-[rgba(255,255,255,0.2)] text-[var(--apple-blue)] focus:ring-[var(--apple-blue)] cursor-pointer disabled:cursor-not-allowed"
+                />
+                <span className="text-[13px] leading-snug text-[var(--apple-secondary-label)]">
+                  정기 결제 (매달 나가는 구독)
+                  <span className="block text-[12px] text-[var(--apple-tertiary-label)]">
+                    {subKey
+                      ? "반복 지급 화면의 「법카 정기 결제」에 모아 보여 드려요."
+                      : merchantKey(watch("merchantName")) === "기타"
+                        ? "「기타」 대신 가맹점 이름을 직접 넣으면 고를 수 있어요."
+                        : "가맹점을 넣으면 고를 수 있어요."}
+                  </span>
+                </span>
+              </label>
             </div>
 
             {/* 금액 */}

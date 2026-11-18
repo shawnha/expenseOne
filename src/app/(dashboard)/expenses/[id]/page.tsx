@@ -29,6 +29,9 @@ import { RevertApprovalButton } from "@/components/expenses/revert-approval-butt
 import { AdminQuickEditButton } from "@/components/expenses/admin-quick-edit-button";
 import { canEditExpense } from "@/lib/expense-edit-access";
 import { PrePaidBadge } from "@/components/expenses/pre-paid-badge";
+import { CardSubscriptionToggle } from "@/components/expenses/card-subscription-toggle";
+import { getExpenseSubscriptionTitle } from "@/services/card-subscription.service";
+import { subscriptionKeyOf } from "@/lib/card-subscription";
 import { WithholdingBadge } from "@/components/expenses/withholding-badge";
 import { withholdingSummary } from "@/lib/utils/deposit-amount";
 import { prePaidShareText, prePaidSplit } from "@/lib/utils/pre-paid";
@@ -213,6 +216,15 @@ export default async function ExpenseDetailPage({
   const isCorporateCard = expense.type === "CORPORATE_CARD";
   const isDepositRequest = expense.type === "DEPOSIT_REQUEST";
   const isRefund = expense.type === "REFUND";
+
+  // 법카 정기 결제(0031). 표가 아직 없으면 null 이라 아무것도 안 보인다.
+  const subscriptionTitle = isCorporateCard ? await getExpenseSubscriptionTitle(expense.id) : null;
+  const canToggleSubscription =
+    isCorporateCard &&
+    (isOwner || userRole === "ADMIN") &&
+    subscriptionKeyOf(expense.merchantName) !== null &&
+    expense.status !== "CANCELLED" &&
+    expense.status !== "REJECTED";
 
   // 환불 가능 잔액 (원거래 통화 기준) — '반품 등록' 버튼 노출 여부에 사용
   const isUSD = expense.currency === "USD";
@@ -484,6 +496,19 @@ export default async function ExpenseDetailPage({
             )}
             {expense.cardLastFour && (
               <InfoRow label="카드 끝 4자리" value={`****-${expense.cardLastFour}`} />
+            )}
+            {(subscriptionTitle || canToggleSubscription) && (
+              <div className="flex flex-col gap-1">
+                <span className="text-[13px] text-[var(--apple-secondary-label)]">정기 결제</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium text-[var(--apple-label)]">
+                    {subscriptionTitle ? `정기 결제 · ${subscriptionTitle}` : "아님"}
+                  </span>
+                  {canToggleSubscription && (
+                    <CardSubscriptionToggle expenseId={expense.id} marked={subscriptionTitle !== null} />
+                  )}
+                </div>
+              </div>
             )}
           </div>
         )}
