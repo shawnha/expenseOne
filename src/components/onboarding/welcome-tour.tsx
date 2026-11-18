@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { getTourSteps, getNewTourSteps, lastStepLabel, type TourArt, type TourRole, type TourMode } from "./tour-steps";
+import { getTourSteps, getNewTourSteps, isNewMode, lastStepLabel, type TourArt, type TourRole, type TourMode } from "./tour-steps";
 import s from "./welcome-tour.module.css";
 
 const v = (name: string) => ({ fill: `var(--apple-${name})` });
@@ -91,6 +91,39 @@ function Art({ art, isDesktop }: { art: TourArt; isDesktop: boolean }) {
           <g className={cx(s.box, s.badge)}>
             <circle cx="256" cy="36" r="11" style={v("red")} />
             <text x="256" y="40.5" textAnchor="middle" fontSize="12" fontWeight="700" style={{ fill: "#fff" }}>1</text>
+          </g>
+        </>
+      );
+    case "cardSetup":
+      // 설정 「내 법인카드」: 점선 칩(주인 없는 카드)을 누름 → 파란 내 카드 칩으로 바뀜 → 휴대폰에 알림 배지.
+      return (
+        <>
+          <rect x="14" y="22" width="152" height="136" rx="12" style={FILL} strokeWidth="1.5" {...{ stroke: "var(--apple-separator)" }} />
+          <text x="26" y="42" fontSize="10" fontWeight="600" style={SUB}>내 법인카드</text>
+          <rect x="24" y="52" width="132" height="94" rx="10" fill="none" strokeWidth="1.2" {...{ stroke: "var(--apple-separator)" }} />
+          <rect x="34" y="60" width="44" height="6" rx="3" style={LABEL} opacity="0.7" />
+          <g className={cx(s.box, s.chipA)}>
+            <text x="34" y="87" fontSize="9.5" style={SUB}>등록된 카드 없음</text>
+          </g>
+          <g className={cx(s.box, s.chipB)}>
+            <rect x="34" y="74" width="80" height="20" rx="10" style={v("blue")} opacity="0.16" />
+            <text x="74" y="88" textAnchor="middle" fontSize="10.5" fontWeight="600" fontFamily="ui-monospace, monospace" style={v("blue")}>•••• 1234</text>
+          </g>
+          <path d="M34 106h112" strokeWidth="1" {...{ stroke: "var(--apple-separator)" }} />
+          <circle cx="60" cy="125" r="12" className={cx(s.box, s.planTap)} style={v("blue")} />
+          <g className={cx(s.box, s.chipA)}>
+            <rect x="34" y="115" width="54" height="20" rx="10" fill="none" strokeWidth="1.3" strokeDasharray="4 3" {...{ stroke: "var(--apple-secondary-label)" }} />
+            <text x="61" y="129" textAnchor="middle" fontSize="10" fontWeight="600" fontFamily="ui-monospace, monospace" style={SUB}>+ 1234</text>
+          </g>
+          <path d="M172 90h12m-4-4 4 4-4 4" fill="none" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={st("secondary-label")} opacity="0.6" />
+          <rect x="194" y="34" width="66" height="112" rx="12" style={FILL} strokeWidth="1.5" {...{ stroke: "var(--apple-separator)" }} />
+          <g transform="translate(227 86) scale(0.62) translate(-140 -38)">
+            <path d="M140 14c-12 0-18 9-18 20v10l-6 8h48l-6-8V34c0-11-6-20-18-20z" style={v("orange")} />
+            <circle cx="140" cy="62" r="5" style={v("orange")} />
+          </g>
+          <g className={cx(s.box, s.cardBell)}>
+            <circle cx="244" cy="64" r="9" style={v("red")} />
+            <text x="244" y="68" textAnchor="middle" fontSize="11" fontWeight="700" style={{ fill: "#fff" }}>1</text>
           </g>
         </>
       );
@@ -248,7 +281,7 @@ export default function WelcomeTour({
   }, []);
 
   const steps = useMemo(
-    () => (mode === "new" ? getNewTourSteps : getTourSteps)(role, isDesktop, plansEnabled),
+    () => (isNewMode(mode) ? getNewTourSteps(role, isDesktop, plansEnabled, mode) : getTourSteps(role, isDesktop, plansEnabled)),
     [role, isDesktop, plansEnabled, mode],
   );
   const last = steps.length - 1;
@@ -295,9 +328,9 @@ export default function WelcomeTour({
 
         <div className="space-y-2">
           <DialogTitle className="text-title3 leading-[25px] text-[var(--apple-label)]">
-            {mode === "new" ? "새로 생긴 것" : step.title}
+            {isNewMode(mode) ? "새로 생긴 것" : step.title}
           </DialogTitle>
-          {mode === "new" && <p className="text-subheadline font-semibold text-[var(--apple-label)]">{step.title}</p>}
+          {isNewMode(mode) && <p className="text-subheadline font-semibold text-[var(--apple-label)]">{step.title}</p>}
           <DialogDescription className="space-y-1.5 text-callout text-[var(--apple-secondary-label)]">
             {step.body.map((t) => (
               <span key={t} className="block">{t}</span>

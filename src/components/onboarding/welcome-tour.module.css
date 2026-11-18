@@ -114,6 +114,14 @@
 .planTap { animation: ripple 5s ease-out infinite; opacity: 0; }
 .planForm { animation: bankIn 5s cubic-bezier(0.16, 1, 0.3, 1) infinite; opacity: 0; }
 
+/* 3-1 카드 등록: 점선 칩 누름(planTap) → 내 카드 칩(chipA→chipB) → 알림 배지. 모두 5초 */
+.cardBell { animation: cardBell 5s cubic-bezier(0.34, 1.56, 0.64, 1) infinite; opacity: 0; }
+@keyframes cardBell {
+  0%, 66% { transform: scale(0); opacity: 0; }
+  74%, 92% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1); opacity: 0; }
+}
+
 /* 5 상태 */
 .bell { animation: ring 4s ease-in-out infinite; transform-origin: 50% 10%; transform-box: fill-box; }
 @keyframes ring {
@@ -173,11 +181,11 @@
 @media (prefers-reduced-motion: reduce) {
   .art, .rcpt, .phoneGlow, .plus, .ripple, .riseCard, .swipeCard, .paperWobble, .badge,
   .fill1, .fill2, .tick, .clip, .bank, .chipA, .chipB, .bell, .pop, .rowCheck, .bulk,
-  .ring, .checkMark, .spark, .planTap, .planForm {
+  .ring, .checkMark, .spark, .planTap, .planForm, .cardBell {
     animation: none;
   }
   /* 움직임이 없어도 그림이 완성된 모습으로 보이게 */
-  .rcpt, .riseCard, .badge, .clip, .bank, .chipB, .pop, .rowCheck, .planForm { opacity: 1; }
+  .rcpt, .riseCard, .badge, .clip, .bank, .chipB, .pop, .rowCheck, .planForm, .cardBell { opacity: 1; }
   .ripple, .spark, .planTap { opacity: 0; }
   .fill1, .fill2 { transform: scaleX(1); }
   .tick, .ring, .checkMark { stroke-dashoffset: 0; }

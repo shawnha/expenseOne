@@ -11,6 +11,8 @@ const WelcomeTour = dynamic(() => import("@/components/onboarding/welcome-tour")
 
 const KEY = "expenseone.tour.v1";
 const V2_KEY = "expenseone.tour.v2";
+/** v3 = 「내 카드 등록」 장·관리자 고위드 안내(2026-11-18). */
+const V3_KEY = "expenseone.tour.v3";
 
 export function WelcomeTourGate({
   role,
@@ -60,7 +62,7 @@ export function WelcomeTourGate({
     if (window.location.pathname === "/") {
       let mode: TourMode | null = null;
       try {
-        mode = getTourMode(localStorage.getItem(KEY), localStorage.getItem(V2_KEY));
+        mode = getTourMode(localStorage.getItem(KEY), localStorage.getItem(V2_KEY), localStorage.getItem(V3_KEY));
       } catch {}
       if (mode) void open(mode, true);
       else window.dispatchEvent(new Event("expenseone:tour-closed"));
@@ -80,6 +82,7 @@ export function WelcomeTourGate({
     try {
       if (tour?.mode === "full") localStorage.setItem(KEY, "done");
       localStorage.setItem(V2_KEY, "done");
+      localStorage.setItem(V3_KEY, "done");
     } catch {}
     window.dispatchEvent(new Event("expenseone:tour-closed"));
   }, [tour]);
