@@ -721,7 +721,9 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
                   <span className="block text-[12px] text-[var(--apple-tertiary-label)]">
                     {subKey
                       ? "반복 지급 화면의 「법카 정기 결제」에 모아 보여 드려요."
-                      : "가맹점을 넣으면 고를 수 있어요."}
+                      : merchantKey(watch("merchantName")) === "기타"
+                        ? "「기타」 대신 가맹점 이름을 직접 넣으면 고를 수 있어요."
+                        : "가맹점을 넣으면 고를 수 있어요."}
                   </span>
                 </span>
               </label>

@@ -24,7 +24,8 @@ const LIVE = sql`e.status NOT IN ('CANCELLED', 'REJECTED')`;
 
 /**
  * 이 법카 비용을 정기 결제로 표시한다. 같은 사람·같은 가맹점의 정기 결제가 있으면 거기에 붙이고
- * (해지해 둔 것이면 다시 켠다), 없으면 만든다. 제목·카테고리·법인은 이번 결제 것으로 새로 적는다.
+ * (해지해 둔 것이면 다시 켠다), 없으면 만든다. 제목·카테고리·법인·가맹점 표기는 **가장 최근 결제** 것을 따른다 —
+ * 지난 결제를 상세 화면에서 뒤늦게 표시해도 목록 제목이 옛 것으로 돌아가지 않게.
  * 작성자 또는 관리자만. 이미 표시돼 있으면 그대로 둔다.
  */
 export async function markCardSubscription(actor: SubscriptionActor, expenseId: string): Promise<{ subscriptionId: string }> {
@@ -32,19 +33,26 @@ export async function markCardSubscription(actor: SubscriptionActor, expenseId: 
     const exp = rowsOf<{
       id: string;
       type: string;
+      status: string;
       submitted_by_id: string;
       merchant_name: string | null;
       title: string;
       category: string;
       company_id: string;
+      transaction_date: string;
+      created_at: string;
     }>(
-      await tx.execute(sql`SELECT id, type, submitted_by_id, merchant_name, title, category, company_id
+      await tx.execute(sql`SELECT id, type, status, submitted_by_id, merchant_name, title, category, company_id,
+                                  transaction_date::text AS transaction_date, created_at::text AS created_at
                              FROM expenseone.expenses WHERE id = ${expenseId}::uuid`),
     )[0];
     if (!exp) throw new AppError("NOT_FOUND", "비용을 찾을 수 없습니다.");
     if (exp.type !== "CORPORATE_CARD") throw new AppError("VALIDATION_ERROR", "정기 결제는 법카 사용 건만 표시할 수 있습니다.");
     if (actor.role !== "ADMIN" && exp.submitted_by_id !== actor.id) {
       throw new AppError("FORBIDDEN", "본인이 올린 법카만 정기 결제로 표시할 수 있습니다.");
+    }
+    if (exp.status === "CANCELLED" || exp.status === "REJECTED") {
+      throw new AppError("VALIDATION_ERROR", "취소된 결제는 정기 결제로 표시할 수 없습니다.");
     }
     const key = subscriptionKeyOf(exp.merchant_name);
     if (!key) throw new AppError("VALIDATION_ERROR", "가맹점이 있어야 정기 결제로 표시할 수 있습니다.");
@@ -55,18 +63,28 @@ export async function markCardSubscription(actor: SubscriptionActor, expenseId: 
                            VALUES (${exp.submitted_by_id}::uuid, ${exp.company_id}::uuid, ${key},
                                    ${exp.merchant_name!.trim()}, ${exp.title}, ${exp.category})
                            ON CONFLICT (owner_id, merchant_key) DO UPDATE
-                             SET company_id = EXCLUDED.company_id,
-                                 merchant_name = EXCLUDED.merchant_name,
-                                 title = EXCLUDED.title,
-                                 category = EXCLUDED.category,
-                                 is_active = true,
-                                 updated_at = now()
+                             SET is_active = true, updated_at = now()
                            RETURNING id`),
     )[0];
 
     await tx.execute(sql`INSERT INTO expenseone.card_subscription_charges (expense_id, subscription_id)
                          VALUES (${exp.id}::uuid, ${sub.id}::uuid)
                          ON CONFLICT (expense_id) DO UPDATE SET subscription_id = EXCLUDED.subscription_id`);
+
+    // 이 결제가 이 정기 결제의 가장 최근(살아 있는) 결제일 때만 표기를 따라 바꾼다.
+    await tx.execute(sql`UPDATE expenseone.card_subscriptions s
+                            SET company_id = ${exp.company_id}::uuid,
+                                merchant_name = ${exp.merchant_name!.trim()},
+                                title = ${exp.title},
+                                category = ${exp.category},
+                                updated_at = now()
+                          WHERE s.id = ${sub.id}::uuid
+                            AND NOT EXISTS (
+                              SELECT 1 FROM expenseone.card_subscription_charges c
+                                JOIN expenseone.expenses e ON e.id = c.expense_id
+                               WHERE c.subscription_id = s.id AND e.id <> ${exp.id}::uuid AND ${LIVE}
+                                 AND (e.transaction_date, e.created_at)
+                                     > (${exp.transaction_date}::date, ${exp.created_at}::timestamptz))`);
     return { subscriptionId: sub.id };
   });
 }
