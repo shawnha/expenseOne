@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bell, Plus } from "lucide-react";
+import { Bell, CircleHelp, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -84,6 +84,21 @@ export function Header({ user, title, unreadCount = 0 }: HeaderProps) {
         >
           <Plus className="size-4" />
           <span>새 비용</span>
+        </Link>
+
+        {/* 사용법 — 어느 화면에서든 한 번에 */}
+        <Link
+          href="/help"
+          className={cn(
+            "flex items-center justify-center size-9 sm:size-11 rounded-xl",
+            "transition-all duration-300 [transition-timing-function:cubic-bezier(0.25,0.1,0.25,1)]",
+            "hover:bg-[rgba(0,0,0,0.04)] dark:hover:bg-[rgba(255,255,255,0.06)]",
+            "active:scale-95"
+          )}
+          aria-label="사용법"
+          title="사용법"
+        >
+          <CircleHelp className="size-[18px] text-[var(--apple-secondary-label)]" />
         </Link>
 
         {/* Notifications */}

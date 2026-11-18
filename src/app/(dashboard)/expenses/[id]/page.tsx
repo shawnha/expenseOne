@@ -241,7 +241,11 @@ export default async function ExpenseDetailPage({
     { id: currentUserId, role: userRole },
   );
 
-  const canCancel = isOwner && !isRefund && (expense.status === "SUBMITTED" || expense.status === "APPROVED");
+  // 서버(cancelExpense)와 같은 규칙 — 승인된 입금요청은 취소가 막혀 있으니 버튼도 숨긴다(관리자에게 문의).
+  const canCancel =
+    isOwner &&
+    !isRefund &&
+    (expense.status === "SUBMITTED" || (expense.status === "APPROVED" && !isDepositRequest));
   const isAdmin = userRole === "ADMIN";
   const canApproveReject = isAdmin && !isOwner && expense.type === "DEPOSIT_REQUEST" && expense.status === "SUBMITTED";
   const canRevertApproval = isAdmin && !isOwner && isDepositRequest && expense.status === "APPROVED";
