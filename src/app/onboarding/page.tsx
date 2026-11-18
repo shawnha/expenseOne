@@ -204,7 +204,7 @@ export default function OnboardingPage() {
               }}
             />
             <p className="text-[12px] text-[var(--apple-secondary-label)]">
-              법카사용 내역 제출 시 자동으로 입력됩니다.
+              법카사용 내역 제출 시 자동으로 입력됩니다. 결제 알림은 가입 후 설정 → 「내 법인카드」에서 카드를 등록해야 와요.
             </p>
           </div>
 

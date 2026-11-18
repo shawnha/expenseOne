@@ -8,9 +8,31 @@ const text = (role: "MEMBER" | "ADMIN", d: boolean) =>
     .join(" ");
 
 describe("getTourSteps", () => {
-  it("MEMBER 6단계, ADMIN 7단계", () => {
-    assert.equal(getTourSteps("MEMBER", false, false).length, 6);
-    assert.equal(getTourSteps("ADMIN", true, false).length, 7);
+  it("MEMBER 7단계, ADMIN 8단계", () => {
+    assert.equal(getTourSteps("MEMBER", false, false).length, 7);
+    assert.equal(getTourSteps("ADMIN", true, false).length, 8);
+  });
+  it("법카 알림 바로 뒤에 내 카드 등록 장이 있고, 설정 위치를 화면별로 알려 준다", () => {
+    for (const role of ["MEMBER", "ADMIN"] as const) {
+      for (const d of [true, false]) {
+        const ids = getTourSteps(role, d, false).map((s) => s.id);
+        assert.equal(ids[ids.indexOf("card") + 1], "cardSetup");
+        const setup = getTourSteps(role, d, false).find((s) => s.id === "cardSetup")!;
+        assert.equal(setup.art, "cardSetup");
+        assert.match(setup.body.join(" "), /「내 법인카드」/);
+        assert.match(setup.body.join(" "), /관리자에게/);
+      }
+    }
+    const desk = getTourSteps("MEMBER", true, false).find((s) => s.id === "cardSetup")!.body.join(" ");
+    const mob = getTourSteps("MEMBER", false, false).find((s) => s.id === "cardSetup")!.body.join(" ");
+    assert.match(desk, /왼쪽 메뉴/);
+    assert.match(mob, /아래 「메뉴」/);
+  });
+  it("반복 지급·정기 결제를 한 줄로, 관리자에게는 고위드 카드 지정을 알려 준다", () => {
+    assert.match(text("MEMBER", false), /「반복 지급」/);
+    assert.match(text("MEMBER", false), /「정기 결제」/);
+    assert.doesNotMatch(text("MEMBER", true), /「고위드 카드」/);
+    assert.match(text("ADMIN", true), /「고위드 카드」/);
   });
   it("관리자 단계는 ADMIN 에만 있고 마지막은 끝 단계", () => {
     assert.ok(!getTourSteps("MEMBER", true, false).some((s) => s.id === "admin"));
@@ -52,19 +74,26 @@ describe("getTourSteps", () => {
       assert.equal(withPlans.at(-1)?.id, "done");
     }
   });
-  it("새로 생긴 것은 deposit 한 장, 계획 권한자는 plan까지 두 장", () => {
-    for (const role of ["MEMBER", "ADMIN"] as const) {
-      for (const desktop of [true, false]) {
-        assert.deepEqual(getNewTourSteps(role, desktop, false).map((s) => s.id), ["deposit"]);
-        assert.deepEqual(getNewTourSteps(role, desktop, true).map((s) => s.id), ["deposit", "plan"]);
+  it("새 안내(v3)는 카드 등록 한 장, 관리자는 관리자 장까지", () => {
+    for (const desktop of [true, false]) {
+      for (const plans of [true, false]) {
+        assert.deepEqual(getNewTourSteps("MEMBER", desktop, plans, "new").map((s) => s.id), ["cardSetup"]);
+        assert.deepEqual(getNewTourSteps("ADMIN", desktop, plans, "new").map((s) => s.id), ["cardSetup", "admin"]);
       }
     }
     assert.equal(lastStepLabel("new"), "알겠어요");
+    assert.equal(lastStepLabel("newAll"), "알겠어요");
   });
-  it("저장소 v1·v2 조합으로 전체·새 안내·생략을 고른다", () => {
-    assert.equal(getTourMode(null, null), "full");
-    assert.equal(getTourMode(null, "done"), "full");
-    assert.equal(getTourMode("done", null), "new");
-    assert.equal(getTourMode("done", "done"), null);
+  it("v2 도 못 본 사람(newAll)은 입금요청·계획 장도 함께", () => {
+    assert.deepEqual(getNewTourSteps("MEMBER", false, false, "newAll").map((s) => s.id), ["cardSetup", "deposit"]);
+    assert.deepEqual(getNewTourSteps("MEMBER", false, true, "newAll").map((s) => s.id), ["cardSetup", "deposit", "plan"]);
+    assert.deepEqual(getNewTourSteps("ADMIN", true, true, "newAll").map((s) => s.id), ["cardSetup", "deposit", "plan", "admin"]);
+  });
+  it("저장소 v1·v2·v3 조합으로 전체·새 안내·생략을 고른다", () => {
+    assert.equal(getTourMode(null, null, null), "full");
+    assert.equal(getTourMode(null, "done", "done"), "full");
+    assert.equal(getTourMode("done", null, null), "newAll");
+    assert.equal(getTourMode("done", "done", null), "new");
+    assert.equal(getTourMode("done", "done", "done"), null);
   });
 });
