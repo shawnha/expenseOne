@@ -3,7 +3,7 @@
 import { Suspense, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { DollarSign, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { Wallet, Clock, CreditCard, Landmark } from "lucide-react";
 import { AdminCompanyFilter } from "@/components/admin/company-filter";
 import { MonthNavigator } from "@/components/dashboard/month-navigator";
 import { formatAmount } from "@/lib/validations/expense-form";
@@ -13,37 +13,59 @@ import { getCategoryLabel } from "@/lib/utils/expense-utils";
 // Types
 // ---------------------------------------------------------------------------
 
+// 금액은 실제로 나간 돈(승인)만, 반품은 원거래 유형 쪽에서 뺀다 → cardAmount + depositAmount = totalAmount.
 interface DashboardStats {
   totalAmount: number;
+  cardAmount: number;
+  depositAmount: number;
+  cardCount: number;
+  depositApprovedCount: number;
+  depositRejectedCount: number;
+  /** 기간 무관 — 지금 남은 승인 대기 전부 */
   pendingCount: number;
-  /** 후지급 요청 대기 — status가 APPROVED라 pendingCount엔 안 잡힌다(별도 축). */
-  remainingRequestCount?: number;
-  approvedCount: number;
-  rejectedCount: number;
+  /** 후지급 요청 대기 — status가 APPROVED라 pendingCount엔 안 잡힌다(별도 축). 기간 무관. */
+  remainingRequestCount: number;
 }
 
-interface CategoryBreakdown {
-  category: string;
-  label: string;
+/** 유형별 금액 묶음 — 차트 전환(전체/법카/입금요청)에 쓴다. */
+interface Split {
+  card: number;
+  deposit: number;
   amount: number;
 }
 
-interface MonthlyTrend {
+interface CategoryBreakdown extends Split {
+  category: string;
+}
+
+interface MonthlyTrend extends Split {
   month: string;
   label: string;
-  amount: number;
 }
 
-interface TopSubmitter {
+interface Submitter extends Split {
+  id: string;
   name: string;
-  amount: number;
 }
 
 interface DashboardData {
+  range: { startDate: string; endDate: string };
   stats: DashboardStats;
   categoryBreakdown: CategoryBreakdown[];
   monthlyTrend: MonthlyTrend[];
-  topSubmitters: TopSubmitter[];
+  submitters: Submitter[];
+}
+
+type TypeView = "all" | "card" | "deposit";
+
+const TYPE_VIEWS: { value: TypeView; label: string }[] = [
+  { value: "all", label: "전체" },
+  { value: "card", label: "법카" },
+  { value: "deposit", label: "입금요청" },
+];
+
+function pick(x: Split, view: TypeView): number {
+  return view === "card" ? x.card : view === "deposit" ? x.deposit : x.amount;
 }
 
 function getCurrentMonthKey(): string {
@@ -56,10 +78,10 @@ function isMonthKey(key: string): boolean {
 }
 
 const STAT_CONFIGS = [
-  { icon: <DollarSign key="d" className="size-5 text-[var(--apple-blue)]" />, accent: "glass-card-accent glass-card-accent-blue", iconBg: "icon-container icon-container-blue" },
   { icon: <Clock key="c" className="size-5 text-[var(--apple-orange)]" />, accent: "glass-card-accent glass-card-accent-orange", iconBg: "icon-container icon-container-orange" },
-  { icon: <CheckCircle2 key="ch" className="size-5 text-[var(--apple-green)]" />, accent: "glass-card-accent glass-card-accent-green", iconBg: "icon-container icon-container-green" },
-  { icon: <XCircle key="x" className="size-5 text-[var(--apple-red)]" />, accent: "glass-card-accent glass-card-accent-red", iconBg: "icon-container icon-container-red" },
+  { icon: <Wallet key="w" className="size-5 text-[var(--apple-blue)]" />, accent: "glass-card-accent glass-card-accent-blue", iconBg: "icon-container icon-container-blue" },
+  { icon: <CreditCard key="cc" className="size-5 text-[var(--apple-green)]" />, accent: "glass-card-accent glass-card-accent-green", iconBg: "icon-container icon-container-green" },
+  { icon: <Landmark key="l" className="size-5 text-[var(--apple-indigo)]" />, accent: "glass-card-accent glass-card-accent-indigo", iconBg: "icon-container icon-container-indigo" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -71,6 +93,7 @@ function AdminDashboardContent() {
   const company = searchParams.get("company") ?? "";
   const [period, setPeriod] = useState(getCurrentMonthKey);
   const [data, setData] = useState<DashboardData | null>(null);
+  const [view, setView] = useState<TypeView>("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -100,43 +123,73 @@ function AdminDashboardContent() {
     fetchDashboard();
   }, [fetchDashboard]);
 
-  const stats = data?.stats ?? {
+  const stats: DashboardStats = data?.stats ?? {
     totalAmount: 0,
+    cardAmount: 0,
+    depositAmount: 0,
+    cardCount: 0,
+    depositApprovedCount: 0,
+    depositRejectedCount: 0,
     pendingCount: 0,
     remainingRequestCount: 0,
-    approvedCount: 0,
-    rejectedCount: 0,
   };
 
-  const categoryData = (data?.categoryBreakdown ?? []).map((c) => ({
-    label: getCategoryLabel(c.category),
-    value: c.amount,
-  }));
+  const categoryData = (data?.categoryBreakdown ?? [])
+    .map((c) => ({ label: getCategoryLabel(c.category), value: pick(c, view) }))
+    .filter((c) => c.value > 0)
+    .sort((a, b) => b.value - a.value);
 
   const monthlyData = (data?.monthlyTrend ?? []).map((m) => ({
     label: m.label,
-    value: m.amount,
+    value: pick(m, view),
   }));
 
-  const submitterData = (data?.topSubmitters ?? []).map((s) => ({
-    label: s.name,
-    value: s.amount,
-  }));
+  const submitterData = (data?.submitters ?? [])
+    .map((s) => ({ key: s.id, label: s.name, value: pick(s, view) }))
+    .filter((s) => s.value > 0)
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 5);
 
-  const remainingCount = stats.remainingRequestCount ?? 0;
+  // 목록 화면으로 넘길 때 같은 기간·회사를 그대로 건다.
+  const listHref = (extra: Record<string, string>) => {
+    const p = new URLSearchParams(extra);
+    if (data?.range) {
+      p.set("startDate", data.range.startDate);
+      p.set("endDate", data.range.endDate);
+    }
+    if (company) p.set("company", company);
+    return `/admin/expenses?${p.toString()}`;
+  };
+
+  const remainingCount = stats.remainingRequestCount;
+  const viewLabel = TYPE_VIEWS.find((v) => v.value === view)?.label ?? "전체";
   const statCards: { title: string; value: string; href: string; hint?: string }[] = [
-    { title: "총 비용", value: `${formatAmount(stats.totalAmount)}원`, href: "/admin/expenses" },
-    // ★«승인 대기»는 내가 처리할 일의 총량이어야 한다 — 후지급 요청도 내가 송금하고 승인해야 하는데
-    //   status가 APPROVED라 예전 숫자엔 통째로 빠져 있었다(Shawn 2026-08-21 「목록상에서 잘 안 보인다」).
-    //   합치되 무엇이 섞였는지는 밑줄로 밝힌다 — 숫자만 키우면 어디를 봐야 할지 모른다.
+    // ★«처리할 일»은 기간과 상관없이 지금 남은 전부 — 지난달에 올라와 아직 대기인 입금요청도 할 일이다.
+    //   후지급 요청도 내가 송금하고 승인해야 하는데 status가 APPROVED라 따로 센다(2026-08-21 「목록상에서 잘 안 보인다」).
     {
-      title: "승인 대기",
+      title: "처리할 일",
       value: `${stats.pendingCount + remainingCount}건`,
       href: "/admin/pending",
-      hint: remainingCount > 0 ? `제출 ${stats.pendingCount} · 후지급 ${remainingCount}` : undefined,
+      hint: remainingCount > 0 ? `승인 대기 ${stats.pendingCount} · 후지급 ${remainingCount}` : "기간과 상관없이 전체",
     },
-    { title: "승인 완료", value: `${stats.approvedCount}건`, href: "/admin/expenses?status=APPROVED" },
-    { title: "반려", value: `${stats.rejectedCount}건`, href: "/admin/expenses?status=REJECTED" },
+    {
+      title: "지출 합계",
+      value: `${formatAmount(stats.totalAmount)}원`,
+      href: listHref({ status: "APPROVED" }),
+      hint: "승인된 것만 · 반품 차감",
+    },
+    {
+      title: "법카 사용",
+      value: `${formatAmount(stats.cardAmount)}원`,
+      href: listHref({ type: "CORPORATE_CARD" }),
+      hint: `${stats.cardCount}건`,
+    },
+    {
+      title: "입금요청",
+      value: `${formatAmount(stats.depositAmount)}원`,
+      href: listHref({ type: "DEPOSIT_REQUEST" }),
+      hint: `승인 ${stats.depositApprovedCount}건 · 반려 ${stats.depositRejectedCount}건`,
+    },
   ];
 
   return (
@@ -146,7 +199,7 @@ function AdminDashboardContent() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-title3 text-[var(--apple-label)]">관리자 대시보드</h1>
-            <p className="text-footnote text-[var(--apple-secondary-label)] mt-0.5">전체 비용 현황</p>
+            <p className="text-footnote text-[var(--apple-secondary-label)] mt-0.5">승인된 지출 · 법카와 입금요청 나눠 보기</p>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap" role="group" aria-label="기간 선택">
@@ -217,16 +270,35 @@ function AdminDashboardContent() {
         ))}
       </div>
 
-      {/* Charts — Bento Grid */}
-      <div className="bento-grid animate-fade-up-2">
-        <div className="bento-span-2">
-          <LineChartSection title="월별 추이" data={monthlyData} />
-        </div>
-        <CategoryPieSection title="카테고리별 비용" data={categoryData} />
+      {/* 차트 유형 전환 — 아래 세 차트에 함께 걸린다 */}
+      <div className="flex items-center gap-2 animate-fade-up-2" role="group" aria-label="차트 유형">
+        {TYPE_VIEWS.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            aria-pressed={view === opt.value}
+            onClick={() => setView(opt.value)}
+            className={`px-3 py-1 rounded-full text-[12px] font-medium whitespace-nowrap transition-colors apple-press ${
+              view === opt.value
+                ? "bg-[var(--apple-blue)] text-white"
+                : "bg-[var(--apple-fill)] text-[var(--apple-secondary-label)] hover:bg-[var(--apple-secondary-fill)]"
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
       </div>
 
-      <div className="animate-fade-up-3">
-        <BarSection title="팀원별 비용 상위 5명" data={submitterData} />
+      {/* Charts — Bento Grid */}
+      <div className={`bento-grid animate-fade-up-2 ${loading ? "opacity-60" : ""}`}>
+        <div className="bento-span-2">
+          <LineChartSection title={view === "all" ? "월별 추이" : `월별 추이 · ${viewLabel}`} data={monthlyData} />
+        </div>
+        <CategoryPieSection title={view === "all" ? "카테고리별 비용" : `카테고리별 · ${viewLabel}`} data={categoryData} />
+      </div>
+
+      <div className={`animate-fade-up-3 ${loading ? "opacity-60" : ""}`}>
+        <BarSection title={view === "all" ? "팀원별 비용 상위 5명" : `팀원별 상위 5명 · ${viewLabel}`} data={submitterData} />
       </div>
     </div>
   );
@@ -270,7 +342,7 @@ function BarSection({
   data,
 }: {
   title: string;
-  data: { label: string; value: number }[];
+  data: { key?: string; label: string; value: number }[];
 }) {
   const maxValue = Math.max(...data.map((d) => d.value), 1);
 
@@ -284,7 +356,7 @@ function BarSection({
           {data.map((item, idx) => {
             const pct = (item.value / maxValue) * 100;
             return (
-              <div key={item.label} className="space-y-2">
+              <div key={item.key ?? item.label} className="space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="flex items-center justify-center size-6 rounded-full bg-[rgba(0,122,255,0.08)] text-[11px] font-bold text-[var(--apple-blue)] tabular-nums">
