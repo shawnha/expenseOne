@@ -126,9 +126,16 @@ function RailNavLink({
     <Link
       href={item.href}
       prefetch={true}
-      onClick={handleClick}
-      onMouseEnter={(e) => showTip(e.currentTarget)}
-      onMouseLeave={hideTip}
+      onClick={() => {
+        // 누르면 숨긴다 — 태블릿 터치는 mouseleave 가 오지 않아 툴팁이 화면을 옮긴 뒤에도 남는다.
+        hideTip();
+        handleClick();
+      }}
+      // 마우스일 때만 보인다(터치·펜은 길게 누르기 메뉴와 겹친다).
+      onPointerEnter={(e) => {
+        if (e.pointerType === "mouse") showTip(e.currentTarget);
+      }}
+      onPointerLeave={hideTip}
       onFocus={(e) => {
         if (e.currentTarget.matches(":focus-visible")) showTip(e.currentTarget);
       }}

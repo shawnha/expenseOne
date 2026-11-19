@@ -62,7 +62,7 @@ export function ReportStackBar({ data }: Props) {
               </div>
 
               {/* Percentage label */}
-              <span className="w-[48px] flex-shrink-0 whitespace-nowrap text-right text-[12px] text-[var(--apple-secondary-label)] tabular-nums">
+              <span className="w-[52px] flex-shrink-0 whitespace-nowrap text-right text-[12px] text-[var(--apple-secondary-label)] tabular-nums">
                 {abbreviateAmount(total)}
               </span>
             </div>
