@@ -247,6 +247,7 @@ export default async function ExpenseDetailPage({
     !isRefund &&
     (expense.status === "SUBMITTED" || (expense.status === "APPROVED" && !isDepositRequest));
   const isAdmin = userRole === "ADMIN";
+  const canResubmit = isOwner && isDepositRequest && expense.status === "REJECTED";
   const canApproveReject = isAdmin && !isOwner && expense.type === "DEPOSIT_REQUEST" && expense.status === "SUBMITTED";
   const canRevertApproval = isAdmin && !isOwner && isDepositRequest && expense.status === "APPROVED";
   // 반품 등록: 승인된 원거래(비반품)이고 환불 가능 잔액이 남아 있을 때
@@ -417,11 +418,27 @@ export default async function ExpenseDetailPage({
         </div>
       </div>
 
-      {/* Rejection reason */}
-      {expense.status === "REJECTED" && expense.rejectionReason && (
+      {/* Rejection reason — 본인 입금요청이면 같은 내용으로 다시 올리는 길을 둔다(2026-11-19 디자인 검토 P1).
+          새 요청 화면이 서버에서 본인+입금요청+반려를 다시 확인한다(services/resubmit.service). */}
+      {expense.status === "REJECTED" && (expense.rejectionReason || canResubmit) && (
         <div className="glass p-4 border-l-4 border-l-[#FF3B30] animate-fade-up-2">
-          <p className="text-footnote font-semibold text-[var(--apple-red)] mb-1">반려 사유</p>
-          <p className="text-sm text-[var(--apple-label)]">{expense.rejectionReason}</p>
+          {expense.rejectionReason && (
+            <>
+              <p className="text-footnote font-semibold text-[var(--apple-red)] mb-1">반려 사유</p>
+              <p className="text-sm text-[var(--apple-label)]">{expense.rejectionReason}</p>
+            </>
+          )}
+          {canResubmit && (
+            <div className={cn("flex flex-wrap items-center gap-3", expense.rejectionReason && "mt-3")}>
+              <Link
+                href={`/expenses/new/deposit-request?from=${id}`}
+                className="inline-flex h-11 items-center rounded-full bg-[var(--apple-blue)] px-5 text-sm font-semibold text-white apple-press"
+              >
+                이 내용으로 다시 올리기
+              </Link>
+              <p className="text-[13px] text-[var(--apple-secondary-label)]">금액과 증빙은 새로 넣어요</p>
+            </div>
+          )}
         </div>
       )}
 
