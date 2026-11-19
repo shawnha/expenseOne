@@ -112,6 +112,12 @@ export interface ResubmitSource {
   previousAmount: number;
   hasFreelancerWithholding: boolean;
   rejectionReason: string | null;
+  isUrgent: boolean;
+  /** 호점(리테일 마트/약국). 그 회사·카테고리가 아니면 폼이 묻지 않으므로 무시된다. */
+  branch: string | null;
+  /** 지난 요청에 선지급·사입이 있었는가 — 옮기지 않고 배너에서 다시 켜라고 알린다. */
+  hadPrePaid: boolean;
+  hadPurchase: boolean;
 }
 
 /** 다시 올리기 때 납기일 — 오늘(KST "YYYY-MM-DD") 이전이면 비운다. 지난 날짜로 다시 올리면 바로 「기한 지남」이 된다. */

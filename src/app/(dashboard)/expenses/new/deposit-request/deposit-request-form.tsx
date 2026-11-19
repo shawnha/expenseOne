@@ -182,7 +182,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
   // 다시 올리기면 지난 요청의 3.3% 원천징수를 그대로 켠다 — 빠뜨리면 공제 없이 전액이 나간다(검증이 못 잡는다).
   const [freelancerDeduction, setFreelancerDeduction] = useState(!!resubmit?.hasFreelancerWithholding);
   const [purchase, setPurchase] = useState<PurchaseFieldValues>(emptyPurchaseFields);
-  const [branch, setBranch] = useState<string | null>(null);
+  const [branch, setBranch] = useState<string | null>(resubmit?.branch ?? null);
 
   const [supplyAmount, setSupplyAmount] = useState(prefillAmount);
   // 사진(OCR)에서 읽은 결과 — 첨부별로 들고 있다가, 지금 붙어 있는 첨부 순서대로 제안을 고른다
@@ -262,7 +262,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
       description: prefill?.description ?? resubmit?.description ?? "",
       ...(prefill?.category ? { category: prefill.category } : resubmit?.category ? { category: resubmit.category } : {}),
       ...(prefillAmount > 0 ? { amount: prefillAmount } : {}),
-      isUrgent: false,
+      isUrgent: resubmit?.isUrgent ?? false,
       isPrePaid: false,
       prePaidPercentage: null,
       prePaidFixedAmount: null,
@@ -1158,7 +1158,14 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
               금액은 비워 뒀어요 — 지난 요청 {formatAmount(resubmit.previousAmount)}원(참고).
               {resubmit.hasFreelancerWithholding && " 3.3% 원천징수는 지난 요청대로 켜 뒀어요."}
             </li>
-            <li>증빙 서류는 다시 첨부해 주세요. 비용계획에 연결할 거라면 아래에서 다시 골라 주세요.</li>
+            {(resubmit.hadPrePaid || resubmit.hadPurchase) && (
+              <li>
+                지난 요청의 {[resubmit.hadPrePaid && "선지급", resubmit.hadPurchase && "사입"].filter(Boolean).join("·")} 설정은
+                옮기지 않았어요 — 필요하면 아래에서 다시 켜 주세요.
+              </li>
+            )}
+            <li>증빙 서류는 다시 첨부해 주세요.</li>
+            <li>비용계획에 연결돼 있던 요청이면, 올린 뒤 비용계획 화면에서 새 요청을 연결해 주세요.</li>
           </ul>
           <Link
             href={`/expenses/${resubmit.id}`}

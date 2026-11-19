@@ -30,6 +30,11 @@ export async function getResubmitSource(expenseId: string, userId: string): Prom
         previousAmount: expenses.amount,
         hasFreelancerWithholding: expenses.hasFreelancerWithholding,
         rejectionReason: expenses.rejectionReason,
+        isUrgent: expenses.isUrgent,
+        branch: expenses.branch,
+        // 선지급·사입은 옮기지 않는다(금액·약국 줄에 묶여 있다) — 있었다는 사실만 배너로 알린다.
+        hadPrePaid: expenses.isPrePaid,
+        hadPurchase: expenses.isPurchase,
       })
       .from(expenses)
       .where(
