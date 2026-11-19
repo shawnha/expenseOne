@@ -389,7 +389,9 @@ export default async function ExpenseDetailPage({
               반품 등록
             </Link>
           )}
-          {canCancel && <CancelExpenseButton expenseId={id} />}
+          {canCancel && (
+            <CancelExpenseButton expenseId={id} expenseTitle={expense.title} isDepositRequest={isDepositRequest} />
+          )}
           {canApproveReject && (
             <AdminApproveReject
               expenseId={id}
