@@ -43,3 +43,23 @@ test("isMenuPath", () => {
   assert.equal(isMenuPath("/", true), false);
   assert.equal(isMenuPath("/admin", false), false);
 });
+
+test("ADMIN 항목은 모두 group 이 있고 같은 group 끼리 연속해 있다", () => {
+  const links = buildTabMenuItems(true).filter((i) => i.kind === "link");
+  assert.ok(links.every((l) => l.group));
+  const seen = new Set<string>();
+  let prev: string | undefined;
+  for (const l of links) {
+    if (l.group !== prev) {
+      assert.ok(!seen.has(l.group!), `묶음 ${l.group} 가 쪼개졌다`);
+      seen.add(l.group!);
+      prev = l.group;
+    }
+  }
+});
+
+test("ADMIN 승인 대기는 두 번째 항목", () => {
+  const second = buildTabMenuItems(true)[1];
+  assert.equal(second.label, "승인 대기");
+  assert.equal(second.kind === "link" && second.href, "/admin/pending");
+});
