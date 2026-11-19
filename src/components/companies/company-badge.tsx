@@ -67,7 +67,7 @@ export function CompanyBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium whitespace-nowrap",
+        "inline-flex items-center px-2 py-0.5 rounded-md text-[12px] font-medium whitespace-nowrap",
         companyBadgeStyle(slug),
         className,
       )}

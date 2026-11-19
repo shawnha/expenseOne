@@ -44,7 +44,7 @@ export default function DashboardError({
       {process.env.NODE_ENV !== 'production' && (
         <p className="text-xs text-[var(--apple-red)] mb-4 max-w-sm break-all">{error.message}</p>
       )}
-      <p className="text-[10px] text-[var(--apple-tertiary-label)] mb-4 max-w-sm break-all opacity-50">{error.digest || error.message}</p>
+      <p className="text-[12px] text-[var(--apple-tertiary-label)] mb-4 max-w-sm break-all opacity-50">{error.digest || error.message}</p>
       <div className="flex gap-3">
         <Button
           onClick={() => reset()}

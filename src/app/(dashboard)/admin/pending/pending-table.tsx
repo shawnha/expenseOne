@@ -393,11 +393,11 @@ export function PendingTable({ expenses }: PendingTableProps) {
               </button>
             </div>
             <div className="flex gap-2 px-4 pb-4 pt-2">
-              <Button size="sm" className="flex-1 rounded-full bg-[var(--apple-green)] hover:bg-[color-mix(in_srgb,var(--apple-green)_85%,black)] text-white apple-press" onClick={() => setApproveTarget(expense)}>
+              <Button size="sm" className="h-11 flex-1 rounded-full bg-[var(--apple-green)] hover:bg-[color-mix(in_srgb,var(--apple-green)_85%,black)] text-white apple-press" onClick={() => setApproveTarget(expense)}>
                 <Check className="size-3.5" />
                 승인
               </Button>
-              <Button size="sm" variant="destructive" className="flex-1 rounded-full apple-press" onClick={() => setRejectTarget(expense)}>
+              <Button size="sm" variant="destructive" className="h-11 flex-1 rounded-full apple-press" onClick={() => setRejectTarget(expense)}>
                 <X className="size-3.5" />
                 반려
               </Button>

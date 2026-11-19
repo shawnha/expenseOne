@@ -35,7 +35,7 @@ function ChangeIndicator({ current, previous, comparisonLabel }: ChangeIndicator
 
   if (pct === null) {
     return (
-      <span className="text-[10px] text-muted-foreground">
+      <span className="text-[12px] text-muted-foreground">
         — {comparisonLabel}
       </span>
     );
@@ -46,7 +46,7 @@ function ChangeIndicator({ current, previous, comparisonLabel }: ChangeIndicator
 
   return (
     <span
-      className={`text-[10px] font-medium ${
+      className={`text-[12px] font-medium ${
         isZero
           ? "text-muted-foreground"
           : isPositive
@@ -151,7 +151,7 @@ export function ReportSummaryCards({
           className={`animate-card-enter rounded-2xl p-4 flex flex-col gap-1.5 ${card.bg}`}
           style={{ animationDelay: `${idx * 50}ms` }}
         >
-          <span className="text-[11px] text-muted-foreground leading-none">
+          <span className="text-[12px] text-muted-foreground leading-none">
             {card.label}
           </span>
           <span

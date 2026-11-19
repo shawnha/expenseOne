@@ -78,12 +78,12 @@ export function ReportTopSubmitters({ data }: Props) {
                 )}
 
                 {/* Name */}
-                <span className="text-[11px] text-[var(--apple-label)] text-center max-w-[56px] truncate">
+                <span className="text-[12px] text-[var(--apple-label)] text-center max-w-[56px] truncate">
                   {submitter.name}
                 </span>
 
                 {/* Amount */}
-                <span className="text-[11px] font-semibold text-[var(--apple-secondary-label)] tabular-nums">
+                <span className="text-[12px] font-semibold text-[var(--apple-secondary-label)] tabular-nums">
                   {abbreviateAmount(submitter.amount)}
                 </span>
               </div>

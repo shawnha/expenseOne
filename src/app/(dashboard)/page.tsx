@@ -279,7 +279,7 @@ async function DashboardContent({ month }: { month?: string }) {
                 </div>
               </div>
               <p className="text-xl sm:text-2xl lg:text-[28px] font-bold tracking-[-0.02em] tabular-nums text-[var(--apple-label)] leading-tight">{card.value}</p>
-              <p className="text-[11px] sm:text-xs lg:text-[13px] font-medium text-[var(--apple-secondary-label)] mt-1">{card.title}</p>
+              <p className="text-[12px] sm:text-xs lg:text-[13px] font-medium text-[var(--apple-secondary-label)] mt-1">{card.title}</p>
             </Link>
           </TiltCard>
         ))}

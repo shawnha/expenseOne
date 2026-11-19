@@ -712,7 +712,7 @@ export default async function ExpenseDetailPage({
                     <span className="glass-badge glass-badge-gray">
                       {getDocTypeLabel(attachment.documentType)}
                     </span>
-                    <span className="text-[11px] text-[var(--apple-secondary-label)]">
+                    <span className="text-[12px] text-[var(--apple-secondary-label)]">
                       {formatFileSize(attachment.fileSize)}
                     </span>
                   </div>

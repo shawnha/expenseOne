@@ -168,7 +168,7 @@ export function ConvertToCardDialog({
                   />
                 </PopoverContent>
               </Popover>
-              <p className="text-[11px] text-[var(--apple-secondary-label)]">
+              <p className="text-[12px] text-[var(--apple-secondary-label)]">
                 카드 결제일을 넣어주세요. 결제일 앞뒤 2일 안의 카드 내역이 이 건과 합쳐집니다.
               </p>
             </div>
@@ -176,7 +176,7 @@ export function ConvertToCardDialog({
             <div className="space-y-1.5">
               <Label htmlFor="convert-merchant-name">
                 가맹점명{" "}
-                <span className="text-[11px] font-normal text-[var(--apple-secondary-label)]">(선택)</span>
+                <span className="text-[12px] font-normal text-[var(--apple-secondary-label)]">(선택)</span>
               </Label>
               <Input
                 id="convert-merchant-name"

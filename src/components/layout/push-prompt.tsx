@@ -131,7 +131,7 @@ export function PushPrompt() {
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-[13px] font-medium text-[var(--apple-label)]">알림을 켜시겠어요?</p>
-        <p className="text-[11px] text-[var(--apple-secondary-label)]">승인/반려 결과를 바로 받아보세요</p>
+        <p className="text-[12px] text-[var(--apple-secondary-label)]">승인/반려 결과를 바로 받아보세요</p>
       </div>
       <div className="flex items-center gap-2 shrink-0">
         <button

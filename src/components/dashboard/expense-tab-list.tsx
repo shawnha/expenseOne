@@ -227,7 +227,7 @@ function DashboardExpenseRow({ expense, idx }: { expense: Expense; idx: number }
           </span>
         </div>
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[11px] sm:text-xs text-[var(--apple-secondary-label)]">
+          <span className="text-[12px] sm:text-xs text-[var(--apple-secondary-label)]">
             {formatDateKR(expense.created_at)}
           </span>
           <div className="flex items-center gap-2">
