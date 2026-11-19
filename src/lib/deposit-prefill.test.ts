@@ -16,6 +16,9 @@ import {
   shouldAutoFillOcrAccount,
   shouldAutoFillOcrAmount,
   shouldAutoFillOcrUsdAmount,
+  resubmitDueDate,
+  resubmitFills,
+  FILL_SOURCE_LABEL,
   type DepositSummaryInput,
 } from "./deposit-prefill";
 import { calcDepositAmount } from "./utils/deposit-amount";
@@ -346,5 +349,54 @@ describe("요약 차이 경고", () => {
     const same = buildDepositSummary({ ...base, remainingOcrAmount: 550000, remainingOcrAccount: { bankName: null, accountNumber: "123-45678901", accountHolder: " 샘플스튜디오 " } });
     assert.equal(rowOf(same, "account")?.warning, false);
     assert.equal(rowOf(same, "amount")?.warning, false);
+  });
+});
+
+describe("반려된 요청 다시 올리기", () => {
+  const src = {
+    title: "11월 외주 정산",
+    companyId: "c1",
+    category: "OUTSOURCING",
+    bankName: "국민은행",
+    accountHolder: "테스트",
+    accountNumber: "123-45-6789",
+  };
+
+  it("납기일은 오늘 이후만 남긴다(KST 날짜 문자열 비교)", () => {
+    assert.equal(resubmitDueDate("2026-11-19", "2026-11-19"), "2026-11-19");
+    assert.equal(resubmitDueDate("2026-11-30", "2026-11-19"), "2026-11-30");
+    assert.equal(resubmitDueDate("2026-11-18", "2026-11-19"), null);
+    assert.equal(resubmitDueDate(null, "2026-11-19"), null);
+    assert.equal(resubmitDueDate("11/30", "2026-11-19"), null);
+  });
+
+  it("금액은 띠 기록에 넣지 않는다 — 채우지 않으니까", () => {
+    const r = resubmitFills(src, { companyFilled: true, dueDate: new Date(2026, 10, 30) });
+    assert.equal(r.amount, undefined);
+    assert.deepEqual(Object.keys(r).sort(), ["account", "category", "company", "dueDate", "title"]);
+    for (const f of Object.values(r)) assert.equal(f!.source, "resubmit");
+  });
+
+  it("계획 연결을 풀어도 되돌리지 않는다(viaPlan 아님)", () => {
+    const r = resubmitFills(src, { companyFilled: true, dueDate: null });
+    const current = {
+      title: fillKey.title(src.title),
+      company: "c1",
+      dueDate: "",
+      amount: "",
+      account: fillKey.account(src.bankName, src.accountHolder, src.accountNumber),
+      category: src.category,
+    };
+    assert.deepEqual(planFillsToUndo(r, current), []);
+    assert.deepEqual(Object.keys(activeFills(r, current)).sort(), ["account", "category", "company", "title"]);
+  });
+
+  it("회사가 지금 목록에 없으면 회사 띠를 달지 않는다", () => {
+    const r = resubmitFills(src, { companyFilled: false, dueDate: null });
+    assert.equal(r.company, undefined);
+  });
+
+  it("띠 문구가 있다", () => {
+    assert.equal(FILL_SOURCE_LABEL.resubmit, "반려된 요청에서 채움");
   });
 });

@@ -6,6 +6,8 @@
 //   - 비용계획(plan): 제목·회사·납기일(예전부터) + 금액(원화 계획만) + 거래처와 같은 예금주의 지난 계좌
 //   - 첨부 서류(ocr): 빈 금액·계좌 + 그대로인 계획 금액(아래 안전 판정)
 //   - 반복 지급(recurring): 회차 값(예전부터)
+//   - 반려된 요청 다시 올리기(resubmit): 반려된 내 요청의 제목·회사·카테고리·계좌·납기일·메모 — **금액은 비운다**
+//     (반려 사유가 금액일 수 있고, 재제출 금액이 같은 건 8%뿐). 계좌도 반려 사유일 수 있어 띠로 「확인」을 단다.
 // **지난 건(payee)의 금액은 여전히 채우지 않는다.** 지난달 금액이 그대로 제출된 사고가 그 경로였다
 // (autofill.service 머리 주석). 지난 건에서 오는 건 계좌·카테고리·회사뿐이다.
 //
@@ -17,7 +19,7 @@ import { calcDepositAmount, calcDepositBreakdownKRW } from "@/lib/utils/deposit-
 import { prePaidSplit } from "@/lib/utils/pre-paid";
 import { accountKey, holderKey } from "@/lib/utils/autofill";
 
-export type FillSource = "plan" | "payee" | "ocr" | "recurring";
+export type FillSource = "plan" | "payee" | "ocr" | "recurring" | "resubmit";
 export type FillField = "title" | "company" | "dueDate" | "amount" | "account" | "category";
 /** 지금 띠를 보여 줄 칸과 그 출처. */
 export type AutoFilled = Partial<Record<FillField, FillSource>>;
@@ -28,6 +30,7 @@ export const FILL_SOURCE_LABEL: Record<FillSource, string> = {
   payee: "지난 계좌에서 채움",
   ocr: "첨부 서류에서 채움",
   recurring: "반복 지급에서 채움",
+  resubmit: "반려된 요청에서 채움",
 };
 
 /**
@@ -90,6 +93,51 @@ export function activeFills(rec: FillRecords, current: Record<FillField, string>
     if (r && r.key === current[f]) out[f] = r.source;
   }
   return out;
+}
+
+/** 반려된 내 입금요청에서 가져온 값(services/resubmit.service). 금액은 참고로만 쓴다. */
+export interface ResubmitSource {
+  id: string;
+  title: string;
+  companyId: string;
+  category: string;
+  bankName: string | null;
+  accountHolder: string | null;
+  accountNumber: string | null;
+  description: string | null;
+  /** "YYYY-MM-DD" */
+  dueDate: string | null;
+  currency: string;
+  /** 지난 요청의 원화 금액 — 배너에 참고로만 보인다. 금액 칸에는 넣지 않는다. */
+  previousAmount: number;
+  hasFreelancerWithholding: boolean;
+  rejectionReason: string | null;
+  isUrgent: boolean;
+  /** 호점(리테일 마트/약국). 그 회사·카테고리가 아니면 폼이 묻지 않으므로 무시된다. */
+  branch: string | null;
+  /** 지난 요청에 선지급·사입이 있었는가 — 옮기지 않고 배너에서 다시 켜라고 알린다. */
+  hadPrePaid: boolean;
+  hadPurchase: boolean;
+}
+
+/** 다시 올리기 때 납기일 — 오늘(KST "YYYY-MM-DD") 이전이면 비운다. 지난 날짜로 다시 올리면 바로 「기한 지남」이 된다. */
+export function resubmitDueDate(dueDate: string | null, todayYmd: string): string | null {
+  if (!dueDate || !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) return null;
+  return dueDate >= todayYmd ? dueDate : null;
+}
+
+/** 다시 올리기로 채운 칸의 띠 기록. 금액은 기록하지 않는다(채우지 않으니까). */
+export function resubmitFills(
+  src: Pick<ResubmitSource, "title" | "companyId" | "category" | "bankName" | "accountHolder" | "accountNumber">,
+  opts: { companyFilled: boolean; dueDate: Date | null },
+): FillRecords {
+  let r: FillRecords = {};
+  r = recordFill(r, "title", "resubmit", fillKey.title(src.title));
+  if (opts.companyFilled) r = recordFill(r, "company", "resubmit", fillKey.company(src.companyId));
+  r = recordFill(r, "account", "resubmit", fillKey.account(src.bankName, src.accountHolder, src.accountNumber));
+  r = recordFill(r, "category", "resubmit", fillKey.category(src.category));
+  if (opts.dueDate) r = recordFill(r, "dueDate", "resubmit", fillKey.dueDate(opts.dueDate));
+  return r;
 }
 
 interface AccountFields {

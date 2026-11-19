@@ -84,7 +84,9 @@ import {
   recordFill,
   decideOcrAmount,
   shouldAutoFillOcrAccount,
+  resubmitFills,
   type FillRecords,
+  type ResubmitSource,
 } from "@/lib/deposit-prefill";
 import { percentageForAmount, prePaidSplit } from "@/lib/utils/pre-paid";
 import { countUploadFailures, uploadFailureMessage } from "@/lib/utils/upload-results";
@@ -133,13 +135,24 @@ interface DepositRequestFormProps {
   recurringPrefill?: RecurringPrefill | null;
   /** 비용계획 카드의 「입금요청으로 만들기」(?plan=)로 들어왔을 때 연결할 계획 id. */
   planId?: string;
+  /**
+   * 반려된 내 입금요청 「이 내용으로 다시 올리기」(?from=)로 들어왔을 때 채울 값. 금액은 채우지 않는다.
+   * 반복 회차(recurringPrefill)와는 따로다 — 회차 전용 분기(prefill)는 이 값을 보지 않는다.
+   */
+  resubmit?: ResubmitSource | null;
 }
 
-export default function DepositRequestForm({ initialCompanies, myCategories = [], myPayees = [], recurringPrefill = null, planId }: DepositRequestFormProps) {
+export default function DepositRequestForm({ initialCompanies, myCategories = [], myPayees = [], recurringPrefill = null, planId, resubmit: resubmitProp = null }: DepositRequestFormProps) {
   const prefill = recurringPrefill;
   const prefillAmount = prefill && prefill.requestMode === "AUTO" ? prefill.expectedAmount : 0;
+  // 다시 올리기는 **처음 값만** 정한다(제목·회사·카테고리·계좌·납기일·메모·원천징수·통화). 그 뒤 동작은 빈 새 요청과 같다.
+  const resubmit = prefill ? null : resubmitProp;
+  // 지난 요청의 회사가 지금 고를 수 없는 회사면 비워 둔다(프로필 기본 회사가 들어간다).
+  const resubmitCompanyOk = !!resubmit && !!initialCompanies?.some((c) => c.id === resubmit.companyId);
+  const resubmitDue = resubmit?.dueDate ? isoToLocalDate(resubmit.dueDate) : null;
   // 자동으로 채운 칸(띠 표시). 값이 그때와 같을 때만 띠가 보인다 — lib/deposit-prefill.
   const [fills, setFills] = useState<FillRecords>(() => {
+    if (resubmit) return resubmitFills(resubmit, { companyFilled: resubmitCompanyOk, dueDate: resubmitDue });
     if (!prefill) return {};
     let r: FillRecords = {};
     r = recordFill(r, "title", "recurring", fillKey.title(prefill.title));
@@ -166,9 +179,10 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
   // 금액만 입력한 폼도 "작성 중"으로 보려면 따로 표시해야 한다.
   const [amountTouched, setAmountTouched] = useState(false);
   const [vatIncluded, setVatIncluded] = useState(false);
-  const [freelancerDeduction, setFreelancerDeduction] = useState(false);
+  // 다시 올리기면 지난 요청의 3.3% 원천징수를 그대로 켠다 — 빠뜨리면 공제 없이 전액이 나간다(검증이 못 잡는다).
+  const [freelancerDeduction, setFreelancerDeduction] = useState(!!resubmit?.hasFreelancerWithholding);
   const [purchase, setPurchase] = useState<PurchaseFieldValues>(emptyPurchaseFields);
-  const [branch, setBranch] = useState<string | null>(null);
+  const [branch, setBranch] = useState<string | null>(resubmit?.branch ?? null);
 
   const [supplyAmount, setSupplyAmount] = useState(prefillAmount);
   // 사진(OCR)에서 읽은 결과 — 첨부별로 들고 있다가, 지금 붙어 있는 첨부 순서대로 제안을 고른다
@@ -186,9 +200,9 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
   );
 
   // Company selection
-  const [companyId, setCompanyId] = useState(prefill?.companyId ?? "");
+  const [companyId, setCompanyId] = useState(prefill?.companyId ?? (resubmitCompanyOk ? resubmit!.companyId : ""));
   const [userCompanyId, setUserCompanyId] = useState<string | null>(null);
-  const [currency, setCurrency] = useState("KRW");
+  const [currency, setCurrency] = useState(resubmit?.currency === "USD" ? "USD" : "KRW");
 
   // Exchange rate for USD
   const [exchangeRate, setExchangeRate] = useState<{ rate: number; date: string } | null>(null);
@@ -241,14 +255,14 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
     resolver: zodResolver(depositRequestFormSchema),
     shouldFocusError: false,
     defaultValues: {
-      title: prefill?.title ?? "",
-      bankName: prefill?.bankName ?? "",
-      accountHolder: prefill?.accountHolder ?? "",
-      accountNumber: prefill?.accountNumber ?? "",
-      description: prefill?.description ?? "",
-      ...(prefill?.category ? { category: prefill.category } : {}),
+      title: prefill?.title ?? resubmit?.title ?? "",
+      bankName: prefill?.bankName ?? resubmit?.bankName ?? "",
+      accountHolder: prefill?.accountHolder ?? resubmit?.accountHolder ?? "",
+      accountNumber: prefill?.accountNumber ?? resubmit?.accountNumber ?? "",
+      description: prefill?.description ?? resubmit?.description ?? "",
+      ...(prefill?.category ? { category: prefill.category } : resubmit?.category ? { category: resubmit.category } : {}),
       ...(prefillAmount > 0 ? { amount: prefillAmount } : {}),
-      isUrgent: false,
+      isUrgent: resubmit?.isUrgent ?? false,
       isPrePaid: false,
       prePaidPercentage: null,
       prePaidFixedAmount: null,
@@ -257,7 +271,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
             const [y, m, d] = prefill.dueDate.split("-").map(Number);
             return new Date(y, m - 1, d);
           })()
-        : null,
+        : resubmitDue,
     },
   });
 
@@ -284,7 +298,7 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
   // 계획을 고를 때(·?plan= 으로 들어올 때) 읽는 최신 금액 상태. usePreselectedPlan 은 첫 렌더의 콜백을 쓰므로
   // 상태를 직접 잡으면 그 사이 사람이 친 금액을 덮을 수 있다.
   const amountSourceRef = useRef<string | undefined>(undefined);
-  const amountStateRef = useRef({ supplyAmount: prefillAmount, amountTouched: false, currency: "KRW", freelancer: false, vatAdded: false });
+  const amountStateRef = useRef({ supplyAmount: prefillAmount, amountTouched: false, currency, freelancer: freelancerDeduction, vatAdded: false });
   useEffect(() => {
     amountStateRef.current = { supplyAmount, amountTouched, currency, freelancer: freelancerDeduction, vatAdded: vatIncluded };
   }, [supplyAmount, amountTouched, currency, freelancerDeduction, vatIncluded]);
@@ -1127,6 +1141,38 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
                 : `등록한 금액 ${formatAmount(prefill.expectedAmount)}원 — 이번 회차 금액을 넣어 주세요`}
             </p>
           )}
+        </div>
+      )}
+
+      {resubmit && (
+        <div className="glass p-5 border-l-4 border-l-[var(--apple-orange)]">
+          <p className="text-sm font-semibold text-[var(--apple-label)]">반려된 요청을 다시 올려요</p>
+          {resubmit.rejectionReason && (
+            <p className="mt-2 text-[13px] text-[var(--apple-label)]">
+              <span className="font-semibold text-[var(--apple-red)]">반려 사유</span> {resubmit.rejectionReason}
+            </p>
+          )}
+          <ul className="mt-2 space-y-1 text-[13px] leading-relaxed text-[var(--apple-secondary-label)]">
+            <li>제목·계좌·카테고리는 지난 요청대로 채웠어요. 반려 사유를 보고 틀린 칸을 고쳐 주세요.</li>
+            <li>
+              금액은 비워 뒀어요 — 지난 요청 {formatAmount(resubmit.previousAmount)}원(참고).
+              {resubmit.hasFreelancerWithholding && " 3.3% 원천징수는 지난 요청대로 켜 뒀어요."}
+            </li>
+            {(resubmit.hadPrePaid || resubmit.hadPurchase) && (
+              <li>
+                지난 요청의 {[resubmit.hadPrePaid && "선지급", resubmit.hadPurchase && "사입"].filter(Boolean).join("·")} 설정은
+                옮기지 않았어요 — 필요하면 아래에서 다시 켜 주세요.
+              </li>
+            )}
+            <li>증빙 서류는 다시 첨부해 주세요.</li>
+            <li>비용계획에 연결돼 있던 요청이면, 올린 뒤 비용계획 화면에서 새 요청을 연결해 주세요.</li>
+          </ul>
+          <Link
+            href={`/expenses/${resubmit.id}`}
+            className="mt-3 inline-flex h-11 items-center rounded-full glass-subtle px-5 text-sm font-medium text-[var(--apple-label)]"
+          >
+            지난 요청 보기
+          </Link>
         </div>
       )}
 
