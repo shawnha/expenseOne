@@ -149,7 +149,7 @@ export function ReportDonutChart({ data }: Props) {
           ))}
           {arcs.length > 0 && (
             <div className="mt-1 pt-1 border-t border-[var(--apple-separator)]">
-              <span className="text-[11px] text-[var(--apple-secondary-label)]">
+              <span className="text-[12px] text-[var(--apple-secondary-label)]">
                 합계: {formatKRW(data.reduce((s, d) => s + d.amount, 0))}
               </span>
             </div>

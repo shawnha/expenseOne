@@ -383,7 +383,7 @@ function AppearanceSection() {
           >
             <Icon className="size-5" />
             <span className="text-[13px] font-medium">{label}</span>
-            <span className={`text-[11px] ${mode === value ? "text-white/70" : "text-[var(--apple-tertiary-label)]"}`}>
+            <span className={`text-[12px] ${mode === value ? "text-white/70" : "text-[var(--apple-tertiary-label)]"}`}>
               {desc}
             </span>
           </button>
@@ -484,7 +484,7 @@ function PushTestCard() {
           >
             <p className="font-medium">{result.message}</p>
             {result.debug && (
-              <pre className="mt-2 text-[11px] opacity-70 whitespace-pre-wrap break-all">
+              <pre className="mt-2 text-[12px] opacity-70 whitespace-pre-wrap break-all">
                 {JSON.stringify(result.debug, null, 2)}
               </pre>
             )}
@@ -610,7 +610,7 @@ function MyCardMappings() {
                   >
                     •••• {card.cardLastFour}
                     {card.cardAlias && (
-                      <span className="text-[11px] font-sans text-[var(--apple-secondary-label)]">({card.cardAlias})</span>
+                      <span className="text-[12px] font-sans text-[var(--apple-secondary-label)]">({card.cardAlias})</span>
                     )}
                     <button type="button" onClick={() => handleRemove(card.id)} disabled={busy} className="ml-0.5 text-[12px] opacity-60 hover:opacity-100" title="해제">×</button>
                   </span>
@@ -632,7 +632,7 @@ function MyCardMappings() {
                     className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[12px] font-mono border border-dashed border-[var(--apple-separator)] text-[var(--apple-secondary-label)] hover:border-[var(--apple-blue)] hover:text-[var(--apple-blue)] transition-colors"
                   >
                     + {card.cardLastFour}
-                    {card.cardAlias && <span className="text-[10px] font-sans">({card.cardAlias})</span>}
+                    {card.cardAlias && <span className="text-[12px] font-sans">({card.cardAlias})</span>}
                   </button>
                 ))}
               </div>
@@ -641,7 +641,7 @@ function MyCardMappings() {
         );
       })}
 
-      <p className="text-[11px] text-[var(--apple-tertiary-label)]">
+      <p className="text-[12px] text-[var(--apple-tertiary-label)]">
         카드를 등록하면 해당 카드 거래 시 알림을 받을 수 있습니다.
       </p>
     </div>

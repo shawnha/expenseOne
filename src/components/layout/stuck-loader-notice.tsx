@@ -104,7 +104,7 @@ export function StuckLoaderNotice() {
         </button>
       </div>
       {/* 스크린샷 한 장으로 원인을 좁히기 위한 상태값. */}
-      <p className="mt-2 font-mono text-[10px] leading-relaxed text-[var(--apple-tertiary-label)]">
+      <p className="mt-2 font-mono text-[12px] leading-relaxed text-[var(--apple-tertiary-label)]">
         q={String(diag.queue)} h={diag.hidden} net={diag.online ? "on" : "off"}{" "}
         vis={diag.visibility} b={diag.build}
         {diag.stale ? `→${diag.live} (구버전)` : ""}

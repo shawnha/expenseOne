@@ -199,7 +199,7 @@ export function SwUpdatePrompt() {
           <p className="text-[13px] font-medium text-[var(--apple-label)]">
             새 버전이 있습니다
           </p>
-          <p className="text-[11px] text-[var(--apple-secondary-label)]">
+          <p className="text-[12px] text-[var(--apple-secondary-label)]">
             업데이트하면 최신 기능을 사용할 수 있어요
           </p>
         </div>

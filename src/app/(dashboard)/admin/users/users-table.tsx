@@ -90,7 +90,7 @@ function CompanyLabel({
         className={cn(
           "inline-flex items-center gap-0.5 cursor-pointer hover:opacity-70 transition-opacity disabled:opacity-40 outline-none",
           companySlug
-            ? cn("px-2 py-0.5 rounded-md text-[11px] font-medium whitespace-nowrap", companyBadgeStyle(companySlug))
+            ? cn("px-2 py-0.5 rounded-md text-[12px] font-medium whitespace-nowrap", companyBadgeStyle(companySlug))
             : "text-xs text-[var(--apple-orange)] font-medium"
         )}
       >
@@ -484,7 +484,7 @@ function MobileContextMenu({
         {/* User info header */}
         <div className="px-4 py-2.5 border-b border-[var(--apple-separator)]">
           <p className="text-[13px] font-semibold text-[var(--apple-label)] truncate">{user.name}</p>
-          <p className="text-[11px] text-[var(--apple-secondary-label)] truncate">{user.email}</p>
+          <p className="text-[12px] text-[var(--apple-secondary-label)] truncate">{user.email}</p>
         </div>
 
         {!isSelf && (
@@ -514,7 +514,7 @@ function MobileContextMenu({
             {companies.length > 0 && (
               <div className="border-b border-[var(--apple-separator)]">
                 <div className="px-4 pt-2.5 pb-1">
-                  <span className="text-[11px] font-medium text-[var(--apple-tertiary-label)] uppercase tracking-wider">소속 회사</span>
+                  <span className="text-[12px] font-medium text-[var(--apple-tertiary-label)] uppercase tracking-wider">소속 회사</span>
                 </div>
                 {companies.map((c) => (
                   <button
@@ -629,7 +629,7 @@ function MobileUserCard({
       </div>
 
       {!isSelf && (
-        <p className="text-[11px] text-[var(--apple-tertiary-label)] text-center">
+        <p className="text-[12px] text-[var(--apple-tertiary-label)] text-center">
           길게 눌러서 관리
         </p>
       )}
@@ -934,14 +934,14 @@ export function UsersTable({ users: initialUsers, currentUserId, companies = [],
                       {(user.gowidCards ?? []).map((card) => (
                         <span
                           key={card.id}
-                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[11px] font-mono bg-[rgba(0,122,255,0.1)] text-[#007AFF] dark:bg-[rgba(0,122,255,0.2)]"
+                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[12px] font-mono bg-[rgba(0,122,255,0.1)] text-[#007AFF] dark:bg-[rgba(0,122,255,0.2)]"
                         >
                           {card.cardLastFour}
                           {!isSelf && (
                             <button
                               type="button"
                               onClick={() => handleUnassignCard(user.id, card.id)}
-                              className="ml-0.5 text-[10px] opacity-60 hover:opacity-100"
+                              className="ml-0.5 text-[12px] opacity-60 hover:opacity-100"
                               title="매핑 해제"
                             >
                               ×
@@ -950,14 +950,14 @@ export function UsersTable({ users: initialUsers, currentUserId, companies = [],
                         </span>
                       ))}
                       {(user.gowidCards ?? []).length === 0 && !unmappedCards.length && (
-                        <span className="text-[11px] text-[var(--apple-tertiary-label)]">미등록</span>
+                        <span className="text-[12px] text-[var(--apple-tertiary-label)]">미등록</span>
                       )}
                       {!isSelf && (
                         <DropdownMenu>
                           <DropdownMenuTrigger
                             render={<button type="button" />}
                             disabled={isUpdating}
-                            className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-medium text-[var(--apple-blue)] bg-[rgba(0,122,255,0.06)] hover:bg-[rgba(0,122,255,0.12)] transition-colors"
+                            className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[12px] font-medium text-[var(--apple-blue)] bg-[rgba(0,122,255,0.06)] hover:bg-[rgba(0,122,255,0.12)] transition-colors"
                           >
                             + 카드
                           </DropdownMenuTrigger>

@@ -43,7 +43,7 @@ export function ReportStackBar({ data }: Props) {
           return (
             <div key={row.month} className="flex items-center gap-2">
               {/* Month label */}
-              <span className="w-[36px] flex-shrink-0 text-[11px] text-[var(--apple-secondary-label)]">
+              <span className="w-[36px] flex-shrink-0 whitespace-nowrap text-[12px] text-[var(--apple-secondary-label)]">
                 {row.label}
               </span>
 
@@ -62,7 +62,7 @@ export function ReportStackBar({ data }: Props) {
               </div>
 
               {/* Percentage label */}
-              <span className="w-[48px] flex-shrink-0 text-right text-[11px] text-[var(--apple-secondary-label)] tabular-nums">
+              <span className="w-[48px] flex-shrink-0 whitespace-nowrap text-right text-[12px] text-[var(--apple-secondary-label)] tabular-nums">
                 {abbreviateAmount(total)}
               </span>
             </div>
@@ -74,11 +74,11 @@ export function ReportStackBar({ data }: Props) {
       <div className="mt-4 flex gap-4">
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: "var(--apple-blue)" }} />
-          <span className="text-[11px] text-[var(--apple-secondary-label)]">법인카드</span>
+          <span className="text-[12px] text-[var(--apple-secondary-label)]">법인카드</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: "var(--apple-orange)" }} />
-          <span className="text-[11px] text-[var(--apple-secondary-label)]">입금요청</span>
+          <span className="text-[12px] text-[var(--apple-secondary-label)]">입금요청</span>
         </div>
       </div>
     </div>
