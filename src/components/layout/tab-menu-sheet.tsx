@@ -24,7 +24,7 @@ import { PlansNavGate, PlansNavIcon } from "@/components/plans/plans-nav-gate";
 import { badgeCount, badgeText, type NavBadges } from "@/components/layout/use-nav-badges";
 import { ScrollFade } from "@/components/ui/scroll-fade";
 import { cn } from "@/lib/utils";
-import { buildTabMenuItems, OPEN_TOUR_EVENT, type TabMenuIconKey } from "@/components/layout/tab-menu-items";
+import { buildTabMenuItems, OPEN_TOUR_EVENT, TAB_MENU_GROUP_LABEL, type TabMenuGroup, type TabMenuIconKey, type TabMenuLink } from "@/components/layout/tab-menu-items";
 
 const ICONS: Record<TabMenuIconKey, React.ComponentType<{ className?: string }>> = {
   repeat: Repeat,
@@ -65,21 +65,18 @@ export default function TabMenuSheet({
   const tileClass =
     "relative flex min-h-[76px] flex-col items-center justify-center gap-1.5 rounded-2xl px-1 py-2.5 text-center transition-colors duration-100 active:scale-[0.97] active:bg-[var(--apple-tertiary-system-fill)]";
 
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="bottom"
-        showCloseButton={false}
-        className="max-h-[80dvh] gap-0 p-0 pb-[env(safe-area-inset-bottom,0px)]"
-      >
-        <SheetHeader className="px-5 pb-1 pt-4">
-          <SheetTitle className="text-[13px] font-semibold text-[var(--apple-secondary-label)]">메뉴</SheetTitle>
-        </SheetHeader>
-        <ScrollFade className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-2">
-          <div className="grid grid-cols-3 gap-1.5">
-            {links.map((item) => {
+  const sections: { group: TabMenuGroup; items: TabMenuLink[] }[] = [];
+  for (const l of links) {
+    if (!l.group) continue;
+    const last = sections[sections.length - 1];
+    if (last && last.group === l.group) last.items.push(l);
+    else sections.push({ group: l.group, items: [l] });
+  }
+
+  const renderTile = (item: TabMenuLink) => {
               const Icon = ICONS[item.icon];
-              const active = pathname === item.href || pathname.startsWith(item.href + "/");
+              // /admin(관리 대시보드)은 정확히 그 경로일 때만 — 아니면 모든 관리자 화면에서 같이 켜진다(사이드바와 같은 규칙).
+              const active = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href + "/"));
               const count = item.badgeKey ? badgeCount(badges[item.badgeKey]) : null;
               const tile = (
                 <button
@@ -106,8 +103,31 @@ export default function TabMenuSheet({
                 </button>
               );
               return item.gated ? <PlansNavGate key={item.href}>{tile}</PlansNavGate> : tile;
-            })}
-          </div>
+              };
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="bottom"
+        showCloseButton={false}
+        className="max-h-[80dvh] gap-0 p-0 pb-[env(safe-area-inset-bottom,0px)]"
+      >
+        <SheetHeader className="px-5 pb-1 pt-4">
+          <SheetTitle className="text-[13px] font-semibold text-[var(--apple-secondary-label)]">메뉴</SheetTitle>
+        </SheetHeader>
+        <ScrollFade className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-2">
+          {sections.length > 0 ? (
+            sections.map(({ group, items: groupLinks }) => (
+              <section key={group} aria-label={TAB_MENU_GROUP_LABEL[group]} className="mt-3 first:mt-0">
+                <p className="px-2 pb-1.5 text-[13px] font-semibold text-[var(--apple-secondary-label)]">
+                  {TAB_MENU_GROUP_LABEL[group]}
+                </p>
+                <div className="grid grid-cols-3 gap-1.5">{groupLinks.map(renderTile)}</div>
+              </section>
+            ))
+          ) : (
+            <div className="grid grid-cols-3 gap-1.5">{links.map(renderTile)}</div>
+          )}
           {tour && (
             <button
               type="button"
