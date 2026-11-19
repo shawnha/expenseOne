@@ -367,11 +367,11 @@ export function PendingTable({ expenses }: PendingTableProps) {
                     </p>
                     <p className="text-xs text-[var(--apple-secondary-label)]">{expense.submitter?.name ?? "알 수 없음"}</p>
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex shrink-0 items-center gap-1.5">
                     {expense.companyName && expense.companySlug && (
                       <CompanyBadge name={expense.companyName} slug={expense.companySlug} />
                     )}
-                    <span className="text-xs text-[var(--apple-secondary-label)]">
+                    <span className="whitespace-nowrap text-xs text-[var(--apple-secondary-label)]">
                       {getCategoryLabel(expense.category)}
                     </span>
                   </div>
