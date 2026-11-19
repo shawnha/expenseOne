@@ -76,7 +76,7 @@ export function DepositSummaryDialog({ open, summary, submitting, onCancel, onCo
                   </p>
                 ))}
                 {row.source && (
-                  <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-[var(--apple-orange)]/40 bg-[var(--apple-orange)]/10 px-2 py-1 text-left text-[11px] font-medium text-[var(--apple-label)]">
+                  <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-[var(--apple-orange)]/40 bg-[var(--apple-orange)]/10 px-2 py-1 text-left text-[12px] font-medium text-[var(--apple-label)]">
                     <Sparkles aria-hidden="true" className="size-3 shrink-0 text-[var(--apple-orange)]" />
                     {FILL_SOURCE_LABEL[row.source]}
                   </span>

@@ -269,9 +269,9 @@ function AdminDashboardContent() {
             >
               {card.value}
             </p>
-            <p className="text-[11px] sm:text-xs lg:text-[13px] font-medium text-[var(--apple-secondary-label)] mt-1">{card.title}</p>
+            <p className="text-[12px] sm:text-xs lg:text-[13px] font-medium text-[var(--apple-secondary-label)] mt-1">{card.title}</p>
             {card.hint ? (
-              <p className="text-[10px] sm:text-[11px] tabular-nums text-[var(--apple-tertiary-label)] mt-0.5">{card.hint}</p>
+              <p className="text-[12px] tabular-nums text-[var(--apple-tertiary-label)] mt-0.5">{card.hint}</p>
             ) : null}
           </Link>
         ))}
@@ -355,7 +355,7 @@ function BarSection({
 
   return (
     <div className="glass-card p-4 sm:p-5 lg:p-6">
-      <h3 className="text-subheadline font-semibold text-[var(--apple-label)] mb-5">{title}</h3>
+      <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-5">{title}</h2>
       {data.length === 0 ? (
         <p className="py-6 text-center text-sm text-[var(--apple-secondary-label)]">데이터가 없습니다</p>
       ) : (
@@ -366,7 +366,7 @@ function BarSection({
               <div key={item.key ?? item.label} className="space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="flex items-center justify-center size-6 rounded-full bg-[rgba(0,122,255,0.08)] text-[11px] font-bold text-[var(--apple-blue)] tabular-nums">
+                    <span className="flex items-center justify-center size-6 rounded-full bg-[rgba(0,122,255,0.08)] text-[12px] font-bold text-[var(--apple-blue)] tabular-nums">
                       {idx + 1}
                     </span>
                     <span className="text-[13px] font-medium text-[var(--apple-label)]">{item.label}</span>
@@ -420,7 +420,7 @@ function CategoryPieSection({
 
   return (
     <div className="glass-card p-4 sm:p-5 lg:p-6">
-      <h3 className="text-subheadline font-semibold text-[var(--apple-label)] mb-5">{title}</h3>
+      <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-5">{title}</h2>
       {data.length === 0 ? (
         <p className="py-8 text-center text-sm text-[var(--apple-secondary-label)]">데이터가 없습니다</p>
       ) : (
@@ -446,11 +446,11 @@ function CategoryPieSection({
               ))}
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-[10px] font-medium tracking-wider uppercase text-[var(--apple-secondary-label)]">합계</span>
+              <span className="text-[12px] font-medium tracking-wider uppercase text-[var(--apple-secondary-label)]">합계</span>
               <span className="text-[14px] sm:text-[20px] font-bold text-[var(--apple-label)] tabular-nums tracking-tight leading-tight max-w-[100px] truncate">
                 {formatAmount(total)}
               </span>
-              <span className="text-[11px] text-[var(--apple-secondary-label)]">원</span>
+              <span className="text-[12px] text-[var(--apple-secondary-label)]">원</span>
             </div>
           </div>
 
@@ -491,7 +491,7 @@ function LineChartSection({
   if (data.length === 0) {
     return (
       <div className="glass-card p-4 sm:p-5 lg:p-6">
-        <h3 className="text-subheadline font-semibold text-[var(--apple-label)] mb-5">{title}</h3>
+        <h2 className="text-subheadline font-semibold text-[var(--apple-label)] mb-5">{title}</h2>
         <p className="py-8 text-center text-sm text-[var(--apple-secondary-label)]">데이터가 없습니다</p>
       </div>
     );
@@ -555,7 +555,7 @@ function LineChartSection({
       {/* Header with title, latest value, and change indicator */}
       <div className="flex items-start justify-between mb-5">
         <div>
-          <h3 className="text-subheadline font-semibold text-[var(--apple-label)]">{title}</h3>
+          <h2 className="text-subheadline font-semibold text-[var(--apple-label)]">{title}</h2>
           <div className="flex items-baseline gap-2 mt-1.5">
             <span className="text-[26px] font-bold tabular-nums tracking-tight text-[var(--apple-label)] leading-none">
               {formatAmount(latestValue)}

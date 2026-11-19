@@ -348,7 +348,7 @@ export function SwipeableRow({
                 <span className="flex items-center justify-center size-[22px]">
                   {action.icon}
                 </span>
-                <span className="text-[10px] font-semibold leading-none tracking-tight">
+                <span className="text-[12px] font-semibold leading-none tracking-tight whitespace-nowrap">
                   {isConfirming ? (action.confirmLabel ?? "확인?") : action.label}
                 </span>
               </button>

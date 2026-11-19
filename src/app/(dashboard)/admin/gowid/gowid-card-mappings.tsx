@@ -239,9 +239,9 @@ function IssuerGroup({
           <div className="flex items-center justify-center size-7 rounded-lg bg-[var(--apple-blue)]/10">
             <CreditCard className="size-3.5 text-[var(--apple-blue)]" />
           </div>
-          <h3 className="text-subheadline font-semibold text-[var(--apple-label)]">
+          <h2 className="text-subheadline font-semibold text-[var(--apple-label)]">
             {label}
-          </h3>
+          </h2>
           <span className="glass-badge glass-badge-gray">
             {cards.length}장
           </span>
@@ -253,19 +253,19 @@ function IssuerGroup({
         <table className="w-full">
           <thead>
             <tr className="border-b border-[var(--apple-separator)] bg-[var(--apple-secondary-system-grouped-background)]/50">
-              <th className="px-4 py-2.5 text-left text-[11px] font-medium uppercase tracking-wide text-[var(--apple-secondary-label)]">
+              <th className="px-4 py-2.5 text-left text-[12px] font-medium uppercase tracking-wide text-[var(--apple-secondary-label)]">
                 끝 4자리
               </th>
-              <th className="px-4 py-2.5 text-left text-[11px] font-medium uppercase tracking-wide text-[var(--apple-secondary-label)]">
+              <th className="px-4 py-2.5 text-left text-[12px] font-medium uppercase tracking-wide text-[var(--apple-secondary-label)]">
                 카드 별칭
               </th>
-              <th className="px-4 py-2.5 text-left text-[11px] font-medium uppercase tracking-wide text-[var(--apple-secondary-label)]">
+              <th className="px-4 py-2.5 text-left text-[12px] font-medium uppercase tracking-wide text-[var(--apple-secondary-label)]">
                 발급사
               </th>
-              <th className="px-4 py-2.5 text-left text-[11px] font-medium uppercase tracking-wide text-[var(--apple-secondary-label)]">
+              <th className="px-4 py-2.5 text-left text-[12px] font-medium uppercase tracking-wide text-[var(--apple-secondary-label)]">
                 회사
               </th>
-              <th className="px-4 py-2.5 text-left text-[11px] font-medium uppercase tracking-wide text-[var(--apple-secondary-label)]">
+              <th className="px-4 py-2.5 text-left text-[12px] font-medium uppercase tracking-wide text-[var(--apple-secondary-label)]">
                 매핑된 사용자
               </th>
             </tr>

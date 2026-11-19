@@ -154,7 +154,7 @@ function ExistingAttachmentItem({
           <span className="glass-badge glass-badge-gray">
             {docTypeLabel}
           </span>
-          <span className="text-[11px] text-[var(--apple-secondary-label)]">
+          <span className="text-[12px] text-[var(--apple-secondary-label)]">
             {formatFileSize(attachment.fileSize)}
           </span>
         </div>
@@ -860,7 +860,7 @@ function DepositRequestEditForm({
   const dueDateField = (
     <div className="space-y-1.5">
       <Label>
-        납입 기일 <span className="text-[11px] text-[var(--apple-secondary-label)] font-normal">(선택)</span>
+        납입 기일 <span className="text-[12px] text-[var(--apple-secondary-label)] font-normal">(선택)</span>
       </Label>
       <Controller
         name="dueDate"
@@ -906,7 +906,7 @@ function DepositRequestEditForm({
           </div>
         )}
       />
-      <p className="text-[11px] text-[var(--apple-secondary-label)]">
+      <p className="text-[12px] text-[var(--apple-secondary-label)]">
         납입 기일 지정 시 7일/3일/1일 전, 당일에 관리자에게 알림이 전송됩니다.
       </p>
     </div>

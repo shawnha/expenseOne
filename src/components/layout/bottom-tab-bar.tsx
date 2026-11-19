@@ -190,7 +190,7 @@ export function BottomTabBar({ userId, isAdmin, unreadCount }: BottomTabBarProps
           {/* 5번째 칸: 누르면 메뉴 시트가 열린다(길게 누르기 없음). */}
           <button
             type="button"
-            aria-label="메뉴"
+            aria-label={menuBadge > 0 ? "메뉴, 새 소식 있음" : "메뉴"}
             aria-haspopup="menu"
             aria-expanded={menuOpen}
             onClick={() => {
@@ -213,9 +213,10 @@ export function BottomTabBar({ userId, isAdmin, unreadCount }: BottomTabBarProps
                 )}
               />
               {menuBadge > 0 && (
-                <span className="absolute -top-1.5 -right-2.5 flex items-center justify-center min-w-[16px] h-[16px] rounded-full bg-[var(--apple-red)] text-white text-[11px] font-bold px-1 shadow-[0_2px_8px_rgba(255,59,48,0.35)]">
-                  {menuBadge > 99 ? "99+" : menuBadge}
-                </span>
+                <span
+                  aria-hidden="true"
+                  className="absolute -top-0.5 -right-1 size-[10px] rounded-full bg-[var(--apple-red)] shadow-[0_2px_8px_rgba(255,59,48,0.35)]"
+                />
               )}
             </div>
             <span

@@ -49,7 +49,7 @@ export function ReportDeptBar({ data }: Props) {
                   <span className="text-[12px] font-medium text-[var(--apple-label)] truncate">
                     {dept.department || "미지정"}
                   </span>
-                  <span className="text-[11px] text-[var(--apple-secondary-label)] flex-shrink-0">
+                  <span className="text-[12px] text-[var(--apple-secondary-label)] flex-shrink-0">
                     {dept.count}건
                   </span>
                 </div>

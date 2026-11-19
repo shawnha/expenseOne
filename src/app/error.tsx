@@ -62,7 +62,7 @@ export default function RootError({
           일시적인 오류가 발생했습니다. 다시 시도해주세요.
         </p>
         {error.digest && (
-          <p className="mb-4 break-all text-[10px] text-[var(--apple-tertiary-label,#c7c7cc)] opacity-50">
+          <p className="mb-4 break-all text-[12px] text-[var(--apple-tertiary-label,#c7c7cc)] opacity-50">
             {error.digest}
           </p>
         )}

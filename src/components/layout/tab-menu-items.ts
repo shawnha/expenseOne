@@ -17,6 +17,16 @@ export type TabMenuIconKey =
   | "credit-card"
   | "settings";
 
+export type TabMenuGroup = "admin-work" | "mine" | "settle" | "admin";
+
+/** 관리자 시트의 묶음 제목. */
+export const TAB_MENU_GROUP_LABEL: Record<TabMenuGroup, string> = {
+  "admin-work": "승인·조회",
+  mine: "내 업무",
+  settle: "정산",
+  admin: "관리",
+};
+
 export interface TabMenuLink {
   kind: "link";
   label: string;
@@ -26,6 +36,8 @@ export interface TabMenuLink {
   gated?: boolean;
   /** 줄 오른쪽 숫자(GET /api/nav/badges). */
   badgeKey?: "pending" | "taxInvoices" | "plans";
+  /** 관리자 시트의 묶음(MEMBER 목록은 없음). */
+  group?: TabMenuGroup;
 }
 
 export interface TabMenuTour {
@@ -48,19 +60,23 @@ function linksFor(isAdmin: boolean): TabMenuLink[] {
   if (!isAdmin) {
     return [{ kind: "link", label: "설정", href: "/settings", icon: "settings" }, ...common];
   }
+  const g = (group: TabMenuGroup, l: TabMenuLink): TabMenuLink => ({ ...l, group });
+  const byLabel = (label: string) => common.find((l) => l.label === label)!;
   return [
-    { kind: "link", label: "관리 대시보드", href: "/admin", icon: "layout-dashboard" },
-    ...common,
-    { kind: "link", label: "전체 비용", href: "/admin/expenses", icon: "receipt" },
-    { kind: "link", label: "승인 대기", href: "/admin/pending", icon: "clock", badgeKey: "pending" },
-    { kind: "link", label: "리포트", href: "/admin/reports", icon: "bar-chart" },
-    { kind: "link", label: "사업소득", href: "/admin/freelancers", icon: "user-check" },
-    { kind: "link", label: "마트/약국", href: "/admin/mart-pharmacy", icon: "shopping-bag" },
-    { kind: "link", label: "사입 계산서", href: "/admin/purchase-invoice", icon: "file-text" },
-    { kind: "link", label: "사용자 관리", href: "/admin/users", icon: "users" },
-    { kind: "link", label: "부서 관리", href: "/admin/departments", icon: "building" },
-    { kind: "link", label: "고위드 카드", href: "/admin/gowid", icon: "credit-card" },
-    { kind: "link", label: "설정", href: "/settings", icon: "settings" },
+    g("admin-work", { kind: "link", label: "관리 대시보드", href: "/admin", icon: "layout-dashboard" }),
+    g("admin-work", { kind: "link", label: "승인 대기", href: "/admin/pending", icon: "clock", badgeKey: "pending" }),
+    g("admin-work", { kind: "link", label: "전체 비용", href: "/admin/expenses", icon: "receipt" }),
+    g("admin-work", { kind: "link", label: "리포트", href: "/admin/reports", icon: "bar-chart" }),
+    g("mine", byLabel("반복 지급")),
+    g("mine", byLabel("비용계획")),
+    g("mine", byLabel("세금계산서")),
+    g("settle", { kind: "link", label: "사업소득", href: "/admin/freelancers", icon: "user-check" }),
+    g("settle", { kind: "link", label: "마트/약국", href: "/admin/mart-pharmacy", icon: "shopping-bag" }),
+    g("settle", { kind: "link", label: "사입 계산서", href: "/admin/purchase-invoice", icon: "file-text" }),
+    g("admin", { kind: "link", label: "사용자 관리", href: "/admin/users", icon: "users" }),
+    g("admin", { kind: "link", label: "부서 관리", href: "/admin/departments", icon: "building" }),
+    g("admin", { kind: "link", label: "고위드 카드", href: "/admin/gowid", icon: "credit-card" }),
+    g("admin", { kind: "link", label: "설정", href: "/settings", icon: "settings" }),
   ];
 }
 

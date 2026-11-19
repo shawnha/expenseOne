@@ -69,14 +69,14 @@ export function ReportCompanyCompare({ data }: Props) {
                 </div>
                 <span className="text-[18px] font-bold text-[var(--apple-label)] tabular-nums leading-tight">
                   {company.amount.toLocaleString("ko-KR")}
-                  <span className="text-[11px] font-normal ml-0.5">원</span>
+                  <span className="text-[12px] font-normal ml-0.5">원</span>
                 </span>
                 <div className="flex items-center justify-between mt-1">
-                  <span className="text-[11px] text-[var(--apple-secondary-label)]">
+                  <span className="text-[12px] text-[var(--apple-secondary-label)]">
                     {company.count}건
                   </span>
                   <span
-                    className="text-[11px] font-semibold tabular-nums"
+                    className="text-[12px] font-semibold tabular-nums"
                     style={{ color }}
                   >
                     {pct}%

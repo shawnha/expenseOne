@@ -60,7 +60,7 @@ export function BuildUpdateToast() {
           <p className="text-[13px] font-medium text-[var(--apple-label)]">
             새 버전으로 업데이트되었습니다
           </p>
-          <p className="text-[11px] text-[var(--apple-secondary-label)]">
+          <p className="text-[12px] text-[var(--apple-secondary-label)]">
             최신 기능이 적용되었어요
           </p>
         </div>

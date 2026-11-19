@@ -80,7 +80,7 @@ export function CompanyManager({
             {orphanEnvNames.map((n) => (
               <li
                 key={n}
-                className="rounded-md bg-[rgba(255,149,0,0.12)] px-2 py-0.5 font-mono text-[11px] text-[var(--apple-orange)]"
+                className="rounded-md bg-[rgba(255,149,0,0.12)] px-2 py-0.5 font-mono text-[12px] text-[var(--apple-orange)]"
               >
                 {n}
               </li>
@@ -153,14 +153,14 @@ function CompanyCard({
         <div className="flex min-w-0 flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-2">
             <CompanyBadge name={company.name} slug={company.slug} />
-            <span className="text-[11px] font-medium tabular-nums text-[var(--apple-secondary-label)]">
+            <span className="text-[12px] font-medium tabular-nums text-[var(--apple-secondary-label)]">
               {company.currency}
             </span>
             {!company.isActive && (
-              <span className="glass-badge-gray text-[11px]">비활성</span>
+              <span className="glass-badge-gray text-[12px]">비활성</span>
             )}
           </div>
-          <p className="truncate font-mono text-[11px] text-[var(--apple-secondary-label)]">
+          <p className="truncate font-mono text-[12px] text-[var(--apple-secondary-label)]">
             {company.slug}
           </p>
         </div>
@@ -233,7 +233,7 @@ function IntegrationLine({
           {!ok && optional && " (선택)"}
         </span>
         {!ok && (
-          <span className="truncate font-mono text-[11px] text-[var(--apple-secondary-label)]">
+          <span className="truncate font-mono text-[12px] text-[var(--apple-secondary-label)]">
             {hint} 미설정
           </span>
         )}
@@ -359,7 +359,7 @@ function CompanyDialog({
               placeholder="예: partners"
               className="font-mono"
             />
-            <p className="text-[11px] text-[var(--apple-secondary-label)]">
+            <p className="text-[12px] text-[var(--apple-secondary-label)]">
               {isEdit
                 ? "GOWID_API_KEY / SLACK_* 환경변수 이름의 기준이라 고정입니다."
                 : `환경변수는 GOWID_API_KEY_${slug ? envSuffix(slug) : "<SLUG>"} 형태가 됩니다.`}
@@ -386,7 +386,7 @@ function CompanyDialog({
               ))}
             </div>
             {currencyAffectsExisting && (
-              <p className="text-[11px] text-[var(--apple-secondary-label)]">
+              <p className="text-[12px] text-[var(--apple-secondary-label)]">
                 새로 등록하는 비용의 기본 통화만 바뀝니다. 기존 {company.expenseCount}건은
                 각자 등록 당시 통화 그대로입니다.
               </p>

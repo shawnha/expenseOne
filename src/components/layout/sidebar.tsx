@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useRef, useCallback } from "react";
+import React, { useRef, useCallback, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -54,18 +55,25 @@ const mainNavItems: NavItem[] = [
   },
 ];
 
-const adminNavItems: NavItem[] = [
-  { label: "대시보드", href: "/admin", icon: <LayoutDashboard className="size-[18px] [stroke-width:1.8]" /> },
-  { label: "전체 비용", href: "/admin/expenses", icon: <Receipt className="size-[18px] [stroke-width:1.8]" /> },
-  { label: "승인 대기", href: "/admin/pending", icon: <Clock className="size-[18px] [stroke-width:1.8]" />, badgeKey: "pending", badgeLabel: "승인 대기" },
-  { label: "리포트", href: "/admin/reports", icon: <BarChart3 className="size-[18px] [stroke-width:1.8]" /> },
-  { label: "사업소득", href: "/admin/freelancers", icon: <UserCheck className="size-[18px] [stroke-width:1.8]" /> },
-  { label: "마트/약국", href: "/admin/mart-pharmacy", icon: <ShoppingBag className="size-[18px] [stroke-width:1.8]" /> },
-  { label: "사입 계산서", href: "/admin/purchase-invoice", icon: <FileText className="size-[18px] [stroke-width:1.8]" /> },
-  { label: "사용자 관리", href: "/admin/users", icon: <Users className="size-[18px] [stroke-width:1.8]" /> },
-  { label: "회사 관리", href: "/admin/companies", icon: <Landmark className="size-[18px] [stroke-width:1.8]" /> },
-  { label: "부서 관리", href: "/admin/departments", icon: <Building2 className="size-[18px] [stroke-width:1.8]" /> },
-  { label: "고위드 카드", href: "/admin/gowid", icon: <CreditCard className="size-[18px] [stroke-width:1.8]" /> },
+/** 관리자 메뉴 묶음 — 묶음 사이에 짧은 구분선을 그린다. */
+const adminNavGroups: NavItem[][] = [
+  [
+    { label: "대시보드", href: "/admin", icon: <LayoutDashboard className="size-[18px] [stroke-width:1.8]" /> },
+    { label: "승인 대기", href: "/admin/pending", icon: <Clock className="size-[18px] [stroke-width:1.8]" />, badgeKey: "pending", badgeLabel: "승인 대기" },
+    { label: "전체 비용", href: "/admin/expenses", icon: <Receipt className="size-[18px] [stroke-width:1.8]" /> },
+    { label: "리포트", href: "/admin/reports", icon: <BarChart3 className="size-[18px] [stroke-width:1.8]" /> },
+  ],
+  [
+    { label: "사업소득", href: "/admin/freelancers", icon: <UserCheck className="size-[18px] [stroke-width:1.8]" /> },
+    { label: "마트/약국", href: "/admin/mart-pharmacy", icon: <ShoppingBag className="size-[18px] [stroke-width:1.8]" /> },
+    { label: "사입 계산서", href: "/admin/purchase-invoice", icon: <FileText className="size-[18px] [stroke-width:1.8]" /> },
+  ],
+  [
+    { label: "사용자 관리", href: "/admin/users", icon: <Users className="size-[18px] [stroke-width:1.8]" /> },
+    { label: "회사 관리", href: "/admin/companies", icon: <Landmark className="size-[18px] [stroke-width:1.8]" /> },
+    { label: "부서 관리", href: "/admin/departments", icon: <Building2 className="size-[18px] [stroke-width:1.8]" /> },
+    { label: "고위드 카드", href: "/admin/gowid", icon: <CreditCard className="size-[18px] [stroke-width:1.8]" /> },
+  ],
 ];
 
 const bottomNavItems: NavItem[] = [
@@ -89,6 +97,21 @@ function RailNavLink({
   badge?: number | null;
 }) {
   const iconRef = useRef<HTMLSpanElement>(null);
+  const [tip, setTip] = useState<{ top: number; left: number } | null>(null);
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+  const showTip = useCallback((el: HTMLElement) => {
+    const rect = el.getBoundingClientRect();
+    setTip({ top: rect.top + rect.height / 2, left: rect.right + 8 });
+  }, []);
+  const hideTip = useCallback(() => setTip(null), []);
+  // 숫자의 뜻이 메뉴 이름과 같으면(승인 대기) 「승인 대기 22건」으로 — 「승인 대기 · 승인 대기 22」처럼 겹치지 않게.
+  const badgeLabel = item.badgeLabel && item.badgeLabel !== item.label ? item.badgeLabel : null;
+  const badgeDesc = badge != null ? (badgeLabel ? `${badgeLabel} ${badge}건` : `${badge}건`) : null;
+  const tipText = badgeDesc ? (badgeLabel ? `${item.label} · ${badgeDesc}` : `${item.label} ${badgeDesc}`) : item.label;
 
   const handleClick = useCallback(() => {
     const el = iconRef.current;
@@ -104,10 +127,15 @@ function RailNavLink({
       href={item.href}
       prefetch={true}
       onClick={handleClick}
-      title={badge ? `${item.label} · ${item.badgeLabel ?? "새 소식"} ${badge}` : item.label}
-      aria-label={badge ? `${item.label}, ${item.badgeLabel ?? "새 소식"} ${badge}건` : item.label}
+      onMouseEnter={(e) => showTip(e.currentTarget)}
+      onMouseLeave={hideTip}
+      onFocus={(e) => {
+        if (e.currentTarget.matches(":focus-visible")) showTip(e.currentTarget);
+      }}
+      onBlur={hideTip}
+      aria-label={badgeDesc ? `${item.label}, ${badgeDesc}` : item.label}
       className={cn(
-        "group relative flex items-center justify-center size-9 rounded-xl apple-press overflow-hidden",
+        "group relative flex shrink-0 items-center justify-center size-9 rounded-xl apple-press overflow-hidden",
         "transition-all duration-[350ms] ease-[cubic-bezier(0.25,1,0.5,1)]",
         isActive
           ? "text-[var(--apple-blue)]"
@@ -136,11 +164,18 @@ function RailNavLink({
           {badgeText(badge)}
         </span>
       )}
-      {/* Tooltip */}
-      <span className="pointer-events-none absolute left-full ml-2 px-2 py-1 rounded-lg bg-[var(--apple-label)] text-[var(--apple-system-background)] text-xs font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
-        {item.label}
-        {badge != null && ` · ${item.badgeLabel ?? "새 소식"} ${badge}`}
-      </span>
+      {/* 툴팁 — 링크·nav 가 overflow 를 자르므로 body 로 포털해 fixed 로 그린다. */}
+      {mounted &&
+        tip &&
+        createPortal(
+          <span
+            style={{ position: "fixed", top: tip.top, left: tip.left, transform: "translateY(-50%)" }}
+            className="pointer-events-none px-2 py-1 rounded-lg bg-[var(--apple-label)] text-[var(--apple-system-background)] text-xs font-medium whitespace-nowrap z-[100]"
+          >
+            {tipText}
+          </span>,
+          document.body,
+        )}
     </Link>
   );
 }
@@ -163,7 +198,7 @@ function RailContent({ user }: { user: User }) {
     <div className="flex h-full flex-col items-center">
       {/* Logo (icon only) */}
       <div className="flex h-14 items-center justify-center relative z-[2]">
-        <Link href="/" className="apple-press">
+        <Link href="/" aria-label="홈" className="apple-press">
           <ExpenseOneLogo size="sm" showIcon className="[&>span:last-child]:hidden" />
         </Link>
       </div>
@@ -178,9 +213,13 @@ function RailContent({ user }: { user: User }) {
 
         {isAdmin && (
           <div className="mt-4 flex flex-col items-center gap-1.5 w-full">
-            <div className="w-6 h-px bg-[var(--apple-separator)] opacity-50 mb-1" />
-            {adminNavItems.map((item) => (
-              <RailNavLink key={item.href} item={item} isActive={isActive(item.href)} badge={badgeFor(item)} />
+            {adminNavGroups.map((group, i) => (
+              <React.Fragment key={group[0].href}>
+                <div className={cn("w-6 h-px bg-[var(--apple-separator)] opacity-50", i === 0 ? "mb-1" : "my-1")} />
+                {group.map((item) => (
+                  <RailNavLink key={item.href} item={item} isActive={isActive(item.href)} badge={badgeFor(item)} />
+                ))}
+              </React.Fragment>
             ))}
           </div>
         )}
