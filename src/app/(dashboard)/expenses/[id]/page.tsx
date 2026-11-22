@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
@@ -26,6 +27,8 @@ import { RequestRemainingButton } from "@/components/expenses/request-remaining-
 import { ApproveRemainingButton } from "@/components/expenses/approve-remaining-button";
 import { AdminApproveReject } from "@/components/expenses/admin-approve-reject";
 import { RevertApprovalButton } from "@/components/expenses/revert-approval-button";
+import { ExpensePurposeEditor } from "@/components/expenses/expense-purpose-editor";
+import { getExpensePurpose } from "@/services/expense-purpose.service";
 import { AdminQuickEditButton } from "@/components/expenses/admin-quick-edit-button";
 import { canEditExpense } from "@/lib/expense-edit-access";
 import { PrePaidBadge } from "@/components/expenses/pre-paid-badge";
@@ -482,6 +485,11 @@ export default async function ExpenseDetailPage({
               지금까지 조회조차 안 해서(companyId만 있고 이름이 없었다) 빠져 있었다. */}
           <InfoRow label="회사" value={expense.companyName ?? "-"} />
           <InfoRow label="카테고리" value={getCategoryLabel(expense.category)} />
+          {isAdmin && expense.type !== "REFUND" && (
+            <Suspense fallback={<p className="text-footnote text-[var(--apple-secondary-label)]">비용 성격 불러오는 중…</p>}>
+              <ExpensePurposeField expenseId={expense.id} />
+            </Suspense>
+          )}
           <InfoRow label="거래일" value={formatDateKR(expense.transactionDate)} />
           <InfoRow label="제출자" value={expense.submitter?.name ?? "-"} />
           <InfoRow label="제출일" value={formatDateTimeKR(expense.createdAt)} />
@@ -817,4 +825,12 @@ function TimelineItem({
       </div>
     </div>
   );
+}
+
+async function ExpensePurposeField({ expenseId }: { expenseId: string }) {
+  const result = await getExpensePurpose(expenseId).then((purpose) => ({ purpose }), () => null);
+  if (!result) {
+    return <p className="text-footnote text-[var(--apple-secondary-label)]">비용 성격을 불러오지 못했습니다.</p>;
+  }
+  return <ExpensePurposeEditor key={expenseId} expenseId={expenseId} initialPurpose={result.purpose} />;
 }

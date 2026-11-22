@@ -18,7 +18,6 @@ import {
   lt,
   ilike,
   count,
-  sum,
   exists,
   inArray,
   isNull,
@@ -39,7 +38,9 @@ import type {
   UpdateExpenseInput,
   ExpenseQueryInput,
 } from "@/lib/validations/expense";
-import { signedAmount } from "@/lib/db/amount";
+import { isSpend, signedAmount } from "@/lib/db/amount";
+import { dashboardSpendKind, expensePurposeCondition } from "@/lib/db/expense-purpose";
+import type { ExpensePurposeFilter, ExpenseSpendView } from "@/lib/admin/expense-purpose";
 import {
   notifyExpenseApproved,
   notifyExpenseRejected,
@@ -473,6 +474,7 @@ export async function getExpenses(
   userId: string,
   userRole: "MEMBER" | "ADMIN",
   ownOnly: boolean = true,
+  breakdown?: { purpose: ExpensePurposeFilter; view: ExpenseSpendView },
 ) {
   const { page, limit } = query;
   const offset = (page - 1) * limit;
@@ -570,6 +572,10 @@ export async function getExpenses(
     conditions.push(awaitingPayment);
   } else if (query.pending === "exclude") {
     conditions.push(not(awaitingPayment));
+  }
+
+  if (breakdown && userRole === "ADMIN" && !ownOnly) {
+    conditions.push(isSpend, dashboardSpendKind(breakdown.view), expensePurposeCondition(breakdown.purpose));
   }
 
   const whereClause =

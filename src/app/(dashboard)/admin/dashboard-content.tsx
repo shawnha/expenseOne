@@ -3,7 +3,8 @@
 import { Suspense, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Wallet, Clock, CreditCard, Landmark } from "lucide-react";
+import { Wallet, Clock, CreditCard, Landmark, ChevronDown } from "lucide-react";
+import { CategoryPurposeDetails } from "@/components/admin/category-purpose-details";
 import { CompanyPillGroup } from "@/components/companies/company-pill-group";
 import type { AdminDashboardData } from "@/services/admin-dashboard.service";
 import { MonthNavigator } from "@/components/dashboard/month-navigator";
@@ -69,7 +70,7 @@ export function AdminDashboardContent({ data, period, company, currentMonth, com
   const stats = data?.stats;
 
   const categoryData = (data?.categoryBreakdown ?? [])
-    .map((c) => ({ label: getCategoryLabel(c.category), value: pick(c, view) }))
+    .map((c) => ({ category: c.category, label: getCategoryLabel(c.category), value: pick(c, view) }))
     .filter((c) => c.value > 0)
     .sort((a, b) => b.value - a.value);
 
@@ -246,7 +247,7 @@ export function AdminDashboardContent({ data, period, company, currentMonth, com
         <div className="bento-span-2">
           <LineChartSection title={view === "all" ? "월별 추이" : `월별 추이 · ${viewLabel}`} data={monthlyData} />
         </div>
-        <CategoryPieSection title={view === "all" ? "카테고리별 비용" : `카테고리별 · ${viewLabel}`} data={categoryData} />
+        <CategoryPieSection title={view === "all" ? "카테고리별 비용" : `카테고리별 · ${viewLabel}`} data={categoryData} range={data.range} company={company} view={view} />
       </div>
 
       <div className={`animate-fade-up-3 ${loading ? "opacity-60" : ""}`}>
@@ -309,13 +310,14 @@ function BarSection({
 
 const CATEGORY_COLORS = ["#007AFF", "#34C759", "#FF9500", "#FF3B30", "#AF52DE", "#5AC8FA"];
 
-function CategoryPieSection({
-  title,
-  data,
-}: {
+function CategoryPieSection({ title, data, range, company, view }: {
   title: string;
-  data: { label: string; value: number }[];
+  data: { category: string; label: string; value: number }[];
+  range: AdminDashboardData["range"];
+  company: string;
+  view: TypeView;
 }) {
+  const [expanded, setExpanded] = useState<string | null>(null);
   const total = data.reduce((sum, d) => sum + d.value, 0);
 
   const radius = 70;
@@ -323,7 +325,7 @@ function CategoryPieSection({
   const circumference = 2 * Math.PI * radius;
   const gapAngle = data.length > 1 ? 0.015 : 0;
   const segments = data.reduce<
-    Array<{ label: string; value: number; pct: number; dashLength: number; offset: number; color: string }>
+    Array<{ category: string; label: string; value: number; pct: number; dashLength: number; offset: number; color: string }>
   >((acc, item, i) => {
     const accumulated = acc.reduce((s, x) => s + x.pct, 0);
     const pct = total > 0 ? item.value / total : 0;
@@ -351,7 +353,7 @@ function CategoryPieSection({
               />
               {segments.map((seg) => (
                 <circle
-                  key={seg.label}
+                  key={seg.category}
                   cx="90" cy="90" r={radius}
                   fill="none" stroke={seg.color} strokeWidth={strokeW}
                   strokeLinecap="round"
@@ -375,19 +377,27 @@ function CategoryPieSection({
           <div className="w-full space-y-3">
             {sorted.map((item) => {
               const pctValue = total > 0 ? Math.round(item.pct * 100) : 0;
+              const isOpen = expanded === item.category;
               return (
-                <div key={item.label} className="flex items-center gap-2.5">
-                  <span className="size-3 rounded-md shrink-0" style={{ backgroundColor: item.color, boxShadow: `0 0 8px ${item.color}40` }} />
-                  <span className="text-[13px] font-medium text-[var(--apple-label)] shrink-0 min-w-[48px]">{item.label}</span>
-                  <div className="flex-1 h-1.5 overflow-hidden rounded-full bg-[rgba(0,0,0,0.04)] dark:bg-[rgba(255,255,255,0.06)]">
-                    <div
-                      className="h-full rounded-full transition-all duration-700 ease-out"
-                      style={{ width: `${pctValue}%`, backgroundColor: item.color }}
-                    />
-                  </div>
-                  <span className="text-[13px] font-bold tabular-nums text-[var(--apple-label)] shrink-0 min-w-[36px] text-right">
-                    {pctValue}%
-                  </span>
+                <div key={item.category}>
+                  <button
+                    type="button"
+                    aria-expanded={isOpen}
+                    onClick={() => setExpanded(isOpen ? null : item.category)}
+                    className="flex min-h-11 w-full items-center gap-2 rounded-lg px-1 text-left hover:bg-[var(--apple-tertiary-system-fill)] focus-visible:outline-2 focus-visible:outline-[var(--apple-blue)]"
+                  >
+                    <span aria-hidden="true" className="size-2.5 shrink-0 rounded-sm" style={{ backgroundColor: item.color }} />
+                    <span className="min-w-0 flex-1 break-words text-[13px] font-medium text-[var(--apple-label)]">{item.label}</span>
+                    <span className="flex shrink-0 flex-col items-end tabular-nums">
+                      <span className="text-[13px] font-semibold text-[var(--apple-label)]">{formatAmount(item.value)}원</span>
+                      <span className="text-xs text-[var(--apple-secondary-label)]">{pctValue}%</span>
+                    </span>
+                    <ChevronDown className={`size-4 shrink-0 text-[var(--apple-secondary-label)] ${isOpen ? "rotate-180" : ""}`} aria-hidden="true" />
+                  </button>
+                  {isOpen && <CategoryPurposeDetails
+                    key={JSON.stringify([item.category, range.startDate, range.endDate, company, view])}
+                    category={item.category} startDate={range.startDate} endDate={range.endDate} company={company} view={view}
+                  />}
                 </div>
               );
             })}
