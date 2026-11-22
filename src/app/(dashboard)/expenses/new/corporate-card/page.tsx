@@ -6,6 +6,8 @@ import { getMyMerchantCategories } from "@/services/autofill.service";
 import { getMyActiveSubscriptionKeys } from "@/services/card-subscription.service";
 import CorporateCardForm from "./corporate-card-form";
 
+import { ExpenseTaskGuide } from "@/components/onboarding/expense-task-guide";
+
 export const dynamic = "force-dynamic";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -21,7 +23,7 @@ interface PrefillData {
 export default async function CorporateCardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ gowidTxId?: string; plan?: string | string[] }>;
+  searchParams: Promise<{ gowidTxId?: string; plan?: string | string[]; guide?: string | string[] }>;
 }) {
   const authUser = await getAuthUser();
   const [companies, myCategories, myMerchantCategories, mySubscriptionKeys] = await Promise.all([
@@ -59,6 +61,7 @@ export default async function CorporateCardPage({
 
   return (
     <CorporateCardForm
+      taskGuide={authUser ? <ExpenseTaskGuide kind="card" userId={authUser.id} key={authUser.id} startsOpen={params.guide === "1"} /> : null}
       initialCompanies={serialized}
       prefillData={prefillData}
       planId={typeof params.plan === "string" && UUID_RE.test(params.plan) ? params.plan : undefined}

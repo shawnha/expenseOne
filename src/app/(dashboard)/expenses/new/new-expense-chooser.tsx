@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { CreditCard, Banknote, ArrowRight, Undo2, ReceiptText, CalendarPlus, Layers } from "lucide-react";
 import { TiltCard } from "@/components/layout/tilt-card";
@@ -92,7 +93,11 @@ function TypeCard({
   );
 }
 
-export function NewExpenseChooser({ plansEnabled, soonPlans }: { plansEnabled: boolean | null; soonPlans: SoonPlans | null }) {
+export function NewExpenseChooser({ plansEnabled, soonPlans, firstGuide }: {
+  plansEnabled: boolean | null;
+  soonPlans: SoonPlans | null;
+  firstGuide?: ReactNode;
+}) {
   const summary = usePendingCardSummary();
   const pendingLabel = pendingCardLabel(summary?.count);
   const pendingHref = pendingCardBatchHref(summary?.oldestDate);
@@ -132,6 +137,8 @@ export function NewExpenseChooser({ plansEnabled, soonPlans }: { plansEnabled: b
           제출할 유형을 선택해주세요.
         </p>
       </div>
+
+      {firstGuide}
 
       {soonPlans && <SoonPlansSection plans={soonPlans} />}
 

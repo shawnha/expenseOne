@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -58,6 +60,7 @@ import { planLinkFailed, shouldFillCompany } from "@/lib/plans/pick-ui";
 import { subscriptionKeyOf, subscriptionMarkFailed } from "@/lib/card-subscription";
 
 interface CorporateCardFormProps {
+  taskGuide?: ReactNode;
   planId?: string;
   initialCompanies?: { id: string; name: string; slug: string; currency: string }[];
   /** 본인이 예전에 직접 입력한 카테고리 (최근순). 매번 다시 타이핑하지 않게 버튼으로 띄운다. */
@@ -75,7 +78,7 @@ interface CorporateCardFormProps {
   };
 }
 
-export default function CorporateCardForm({ initialCompanies, prefillData, myCategories = [], myMerchantCategories = {}, mySubscriptionKeys = [], planId }: CorporateCardFormProps) {
+export default function CorporateCardForm({ taskGuide, initialCompanies, prefillData, myCategories = [], myMerchantCategories = {}, mySubscriptionKeys = [], planId }: CorporateCardFormProps) {
   const pendingSummary = usePendingCardSummary(!prefillData);
   const pendingLabel = pendingCardLabel(pendingSummary?.count);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -540,6 +543,8 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
           </p>
         </div>
       </div>
+
+      {taskGuide}
 
       {!prefillData && (
         <Link

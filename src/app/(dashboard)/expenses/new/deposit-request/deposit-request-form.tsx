@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -121,6 +123,7 @@ import {
 // 은행 목록은 @/lib/banks — 사진(OCR)에서 읽은 은행 이름도 같은 목록으로 맞춘다.
 
 interface DepositRequestFormProps {
+  taskGuide?: ReactNode;
   initialCompanies?: { id: string; name: string; slug: string; currency: string }[];
   /** 본인이 예전에 직접 입력한 카테고리 (최근순). */
   myCategories?: string[];
@@ -135,7 +138,7 @@ interface DepositRequestFormProps {
   planId?: string;
 }
 
-export default function DepositRequestForm({ initialCompanies, myCategories = [], myPayees = [], recurringPrefill = null, planId }: DepositRequestFormProps) {
+export default function DepositRequestForm({ taskGuide, initialCompanies, myCategories = [], myPayees = [], recurringPrefill = null, planId }: DepositRequestFormProps) {
   const prefill = recurringPrefill;
   const prefillAmount = prefill && prefill.requestMode === "AUTO" ? prefill.expectedAmount : 0;
   // 자동으로 채운 칸(띠 표시). 값이 그때와 같을 때만 띠가 보인다 — lib/deposit-prefill.
@@ -1104,6 +1107,8 @@ export default function DepositRequestForm({ initialCompanies, myCategories = []
           </p>
         </div>
       </div>
+
+      {!prefill?.submittedExpenseId && taskGuide}
 
       {prefill && (
         <div className="glass p-5">
