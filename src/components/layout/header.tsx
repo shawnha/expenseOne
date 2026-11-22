@@ -3,7 +3,8 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bell, CircleHelp, Plus } from "lucide-react";
+import { Bell, Plus } from "lucide-react";
+import { HelpLink } from "@/components/help/help-link";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -23,7 +24,7 @@ import type { User } from "@/types";
 function MobileLogo() {
   return (
     <div className="lg:hidden">
-      <ExpenseOneLogo size="sm" showIcon />
+      <ExpenseOneLogo size="sm" showIcon className="max-[359px]:[&>span]:sr-only" />
     </div>
   );
 }
@@ -74,6 +75,7 @@ export function Header({ user, title, unreadCount = 0 }: HeaderProps) {
         {/* New expense — desktop nav bar action (HIG: actions in top-right) */}
         <Link
           href="/expenses/new"
+          data-menu-tour="submit"
           className={cn(
             "hidden lg:flex items-center gap-1.5 h-9 px-3 rounded-full",
             "bg-[var(--apple-blue)] text-white text-sm font-medium",
@@ -86,24 +88,12 @@ export function Header({ user, title, unreadCount = 0 }: HeaderProps) {
           <span>새 비용</span>
         </Link>
 
-        {/* 사용법 — 어느 화면에서든 한 번에 */}
-        <Link
-          href="/help"
-          className={cn(
-            "flex items-center justify-center size-11 rounded-xl",
-            "transition-all duration-300 [transition-timing-function:cubic-bezier(0.25,0.1,0.25,1)]",
-            "hover:bg-[rgba(0,0,0,0.04)] dark:hover:bg-[rgba(255,255,255,0.06)]",
-            "active:scale-95"
-          )}
-          aria-label="사용법"
-          title="사용법"
-        >
-          <CircleHelp className="size-[18px] text-[var(--apple-secondary-label)]" />
-        </Link>
+        <HelpLink />
 
         {/* Notifications */}
         <Link
           href="/notifications"
+          data-menu-tour="notifications"
           onClick={() => resetDelta()}
           className={cn(
             "relative flex items-center justify-center size-11 rounded-xl",

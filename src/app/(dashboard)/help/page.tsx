@@ -11,5 +11,5 @@ export default async function HelpPage() {
   const user = await getCachedCurrentUser();
   if (!user) redirect("/login");
   const role = user.role === "ADMIN" ? "ADMIN" : "MEMBER";
-  return <HelpView sections={getHelpSections(role)} />;
+  return <HelpView sections={getHelpSections(role)} isAdmin={role === "ADMIN"} />;
 }

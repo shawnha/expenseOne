@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronDown, PlayCircle, Search } from "lucide-react";
+import { ChevronDown, Focus, PlayCircle, Search } from "lucide-react";
 import { loadPlansFlag } from "@/components/plans/plans-nav-gate";
-import { OPEN_TOUR_EVENT } from "@/components/layout/tab-menu-items";
+import { OPEN_MENU_TOUR_EVENT, OPEN_TOUR_EVENT } from "@/components/layout/tab-menu-items";
+import { HelpUsageSummary } from "./help-usage-summary";
 import { filterHelpSections, type HelpSection } from "@/lib/help/content";
 
 function Section({ section, query }: { section: HelpSection; query: string }) {
@@ -33,7 +34,7 @@ function Section({ section, query }: { section: HelpSection; query: string }) {
   );
 }
 
-export function HelpView({ sections }: { sections: HelpSection[] }) {
+export function HelpView({ sections, isAdmin = false }: { sections: HelpSection[]; isAdmin?: boolean }) {
   const [query, setQuery] = useState("");
   // 비용계획 섹션은 계획 스위치가 켜진 사람에게만. 모르면 숨긴다(메뉴 게이트와 같은 판단·같은 캐시).
   const [plansOn, setPlansOn] = useState(false);
@@ -56,6 +57,20 @@ export function HelpView({ sections }: { sections: HelpSection[] }) {
 
       <button
         type="button"
+        onClick={() => window.dispatchEvent(new Event(OPEN_MENU_TOUR_EVENT))}
+        className="glass-card flex min-h-14 items-center gap-3 px-4 py-3 text-left apple-press"
+      >
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--apple-blue)]/12 text-[var(--apple-blue)]">
+          <Focus className="size-[18px]" aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-semibold text-[var(--apple-label)]">메뉴 안내 다시 보기</span>
+          <span className="block text-xs text-[var(--apple-secondary-label)]">실제 화면에서 제출·비용·알림·사용법 위치를 확인해요.</span>
+        </span>
+      </button>
+
+      <button
+        type="button"
         onClick={() => window.dispatchEvent(new Event(OPEN_TOUR_EVENT))}
         className="glass-card flex min-h-14 items-center gap-3 px-4 py-3 text-left apple-press"
       >
@@ -64,7 +79,7 @@ export function HelpView({ sections }: { sections: HelpSection[] }) {
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-[15px] font-semibold text-[var(--apple-label)]">1분 안내 다시 보기</span>
-          <span className="block text-[12px] text-[var(--apple-secondary-label)]">처음 들어왔을 때 나온 그림 안내</span>
+          <span className="block text-[12px] text-[var(--apple-secondary-label)]">그림으로 보는 주요 기능</span>
         </span>
       </button>
 
@@ -101,6 +116,7 @@ export function HelpView({ sections }: { sections: HelpSection[] }) {
       ) : (
         shown.map((s) => <Section key={s.id} section={s} query={query} />)
       )}
+      {isAdmin && <HelpUsageSummary />}
     </div>
   );
 }
