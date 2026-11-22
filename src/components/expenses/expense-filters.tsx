@@ -100,6 +100,10 @@ export function ExpenseFilters({ showAdminFilters = false }: ExpenseFiltersProps
           current.set(key, value);
         }
       });
+      if ("status" in params || "type" in params) {
+        current.delete("purpose");
+        current.delete("spendView");
+      }
       current.delete("page");
       return current.toString();
     },

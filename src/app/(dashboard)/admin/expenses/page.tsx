@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { expensePurposeFilterSchema, expensePurposeLabel, expenseSpendViewSchema } from "@/lib/admin/expense-purpose";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { ExpenseFilters } from "@/components/expenses/expense-filters";
@@ -47,6 +49,11 @@ async function getAdminExpensesData(searchParams: Record<string, string | string
   const page = Math.max(1, parseInt(pageStr, 10) || 1);
 
   // 상태를 직접 고르면 나누지 않고 예전처럼 한 목록으로 보여 준다.
+  const purpose = expensePurposeFilterSchema.safeParse(searchParams.purpose);
+  const spendView = expenseSpendViewSchema.safeParse(searchParams.spendView);
+  const breakdown = status === "APPROVED" && purpose.success && spendView.success
+    ? { purpose: purpose.data, view: spendView.data }
+    : undefined;
   const splitPending = !status;
   const filters: Omit<ExpenseQueryInput, "page" | "limit"> = {
     type: type as "CORPORATE_CARD" | "DEPOSIT_REQUEST" | "REFUND" | undefined,
@@ -71,6 +78,7 @@ async function getAdminExpensesData(searchParams: Record<string, string | string
       user.id,
       user.role,
       false,
+      breakdown,
     ),
     // 처리 대기는 기간과 상관없이 모은다(올린 날과 입금할 날이 달라 뒤 페이지에 묻히던 건). 첫 페이지에만.
     splitPending && page === 1
@@ -103,16 +111,21 @@ async function getAdminExpensesData(searchParams: Record<string, string | string
 
   return {
     expenses,
-    meta: { page: result.meta.page, totalPages: result.meta.totalPages, total: result.meta.total },
+    meta: result.meta,
     pending: pendingResult ? { expenses: pendingResult.data.map(toRow), total: pendingResult.meta.total } : null,
     splitPending,
+    breakdown,
     currentUserId: user.id,
   };
 }
 
 export default async function AdminExpensesPage({ searchParams }: AdminExpensesPageProps) {
   const resolvedParams = await searchParams;
-  const { expenses, meta, pending, splitPending, currentUserId } = await getAdminExpensesData(resolvedParams);
+  const { expenses, meta, pending, splitPending, breakdown, currentUserId } = await getAdminExpensesData(resolvedParams);
+  const withoutPurpose = new URLSearchParams();
+  for (const [key, value] of Object.entries(resolvedParams)) {
+    if (typeof value === "string" && !["purpose", "spendView", "page"].includes(key)) withoutPurpose.set(key, value);
+  }
   const hasPending = (pending?.expenses.length ?? 0) > 0;
 
   return (
@@ -140,6 +153,15 @@ export default async function AdminExpensesPage({ searchParams }: AdminExpensesP
           <ExpenseFilters showAdminFilters />
         </div>
       </Suspense>
+
+      {breakdown && (
+        <div className="flex flex-wrap items-center gap-x-2 text-sm text-[var(--apple-secondary-label)]">
+          <span>비용 성격 <strong className="text-[var(--apple-label)]">{expensePurposeLabel(breakdown.purpose)}</strong></span>
+          {breakdown.view !== "all" && <span>· {breakdown.view === "card" ? "법카" : "입금요청"} (반품 포함)</span>}
+          <span className="tabular-nums">· {meta.total}건 · 합계 {meta.totalAmount.toLocaleString("ko-KR")}원</span>
+          <Link href={`/admin/expenses?${withoutPurpose}`} className="inline-flex min-h-11 items-center px-2 text-[var(--apple-blue)]">세부 필터 해제</Link>
+        </div>
+      )}
 
       {/* 처리 대기 — 기간과 상관없이 맨 위에 */}
       {pending && (

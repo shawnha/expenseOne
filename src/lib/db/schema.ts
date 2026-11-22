@@ -683,3 +683,11 @@ export type GowidCardMapping = typeof gowidCardMappings.$inferSelect;
 export type NewGowidCardMapping = typeof gowidCardMappings.$inferInsert;
 export type GowidTransaction = typeof gowidTransactions.$inferSelect;
 export type NewGowidTransaction = typeof gowidTransactions.$inferInsert;
+
+/** 비용 분류와 별도로 관리자가 지정하는 비용 성격. */
+export const expensePurposes = expenseSchema.table("expense_purposes", {
+  expenseId: uuid("expense_id").primaryKey(),
+  purpose: text("purpose").notNull(),
+  updatedBy: uuid("updated_by").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
