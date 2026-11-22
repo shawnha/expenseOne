@@ -39,9 +39,11 @@ function getMonthFromKey(key: string): number {
 export function MonthNavigator({
   value,
   onChange,
+  currentMonth,
 }: {
   value?: string;
   onChange?: (month: string) => void;
+  currentMonth?: string;
 } = {}) {
   const router = useRouter();
   const pathname = usePathname();
@@ -49,7 +51,7 @@ export function MonthNavigator({
 
   const isControlled = value !== undefined && onChange !== undefined;
   const month = isControlled ? value : (searchParams.get("month") ?? getCurrentMonthKey());
-  const currentMonthKey = getCurrentMonthKey();
+  const currentMonthKey = currentMonth ?? getCurrentMonthKey();
   const isCurrentMonth = month === currentMonthKey;
 
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -117,8 +119,8 @@ export function MonthNavigator({
     }
   }
 
-  const currentYear = new Date().getFullYear();
-  const currentMonthNum = new Date().getMonth() + 1;
+  const currentYear = getYearFromKey(currentMonthKey);
+  const currentMonthNum = getMonthFromKey(currentMonthKey);
   const selectedMonthNum = getMonthFromKey(month);
   const selectedYear = getYearFromKey(month);
 
