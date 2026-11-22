@@ -116,6 +116,7 @@ export function BottomTabBar({ userId, isAdmin, unreadCount }: BottomTabBarProps
                 <Link
                   key={tab.href}
                   href={tab.href}
+                  data-menu-tour="submit"
                   className={cn(
                     "relative flex flex-col items-center justify-center min-w-[56px] py-1",
                     "transition-all duration-[400ms] ease-[cubic-bezier(0.25,1,0.5,1)]",
@@ -143,6 +144,7 @@ export function BottomTabBar({ userId, isAdmin, unreadCount }: BottomTabBarProps
               <Link
                 key={tab.href}
                 href={tab.href}
+                data-menu-tour={tab.href === "/expenses" ? "expenses" : undefined}
                 onClick={() => {
                   if (tab.resetsNotifications && tab.badge) resetDelta();
                 }}

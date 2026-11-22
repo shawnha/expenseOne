@@ -125,6 +125,7 @@ function RailNavLink({
   return (
     <Link
       href={item.href}
+      data-menu-tour={item.href === "/expenses" ? "expenses" : undefined}
       prefetch={true}
       onClick={() => {
         // 누르면 숨긴다 — 태블릿 터치는 mouseleave 가 오지 않아 툴팁이 화면을 옮긴 뒤에도 남는다.

@@ -50,6 +50,7 @@ export type TabMenuItem = TabMenuLink | TabMenuTour;
 
 /** 안내 팝업이 이 이벤트를 받는다(다른 브랜치). 받는 쪽이 없으면 눌러도 아무 일 없다. */
 export const OPEN_TOUR_EVENT = "expenseone:open-tour";
+export const OPEN_MENU_TOUR_EVENT = "expenseone:open-menu-tour";
 
 function linksFor(isAdmin: boolean): TabMenuLink[] {
   const common: TabMenuLink[] = [

@@ -1,13 +1,17 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import dynamic from "next/dynamic";
+import { usePathname } from "next/navigation";
+import { OPEN_MENU_TOUR_EVENT, OPEN_TOUR_EVENT } from "./tab-menu-items";
 import { loadPlansFlag } from "@/components/plans/plans-nav-gate";
 import { getTourMode, type TourMode } from "@/components/onboarding/tour-steps";
 
 const WelcomeTour = dynamic(() => import("@/components/onboarding/welcome-tour"), {
   ssr: false,
 });
+
+const MenuTour = dynamic(() => import("@/components/onboarding/menu-tour"), { ssr: false });
 
 const KEY = "expenseone.tour.v1";
 const V2_KEY = "expenseone.tour.v2";
@@ -24,7 +28,9 @@ export function WelcomeTourGate({
   /** 이미 읽은 스위치가 있으면 재사용한다. 없으면 메뉴와 같은 요청을 최대 1초 기다린다. */
   plansEnabled?: boolean;
 }) {
-  const [tour, setTour] = useState<{ mode: TourMode; plansEnabled: boolean } | null>(null);
+  const pathname = usePathname();
+  const [tour, setTour] = useState<{ mode: TourMode | "menu"; plansEnabled: boolean } | null>(null);
+  const offeredOnHome = useRef(false);
 
   useEffect(() => {
     if (!enabled) {
@@ -35,8 +41,12 @@ export function WelcomeTourGate({
     let alive = true;
     let request = 0;
     const timers = new Set<ReturnType<typeof setTimeout>>();
-    const open = async (mode: TourMode, automatic = false) => {
+    const open = async (mode: TourMode | "menu", automatic = false) => {
       const current = ++request;
+      if (mode === "menu") {
+        setTour((shown) => shown ?? { mode: "menu", plansEnabled: false });
+        return;
+      }
       // 호출마다 자기 타이머를 정리한다. 메뉴 재열기가 자동 열기의 타이머를 덮지 않는다.
       let timer: ReturnType<typeof setTimeout> | undefined;
       let allowed = plansEnabled ?? false;
@@ -59,28 +69,36 @@ export function WelcomeTourGate({
         setTour((shown) => shown ?? { mode, plansEnabled: allowed });
       }
     };
-    if (window.location.pathname === "/") {
+    if (pathname === "/" && !offeredOnHome.current) {
       let mode: TourMode | null = null;
       try {
         mode = getTourMode(localStorage.getItem(KEY), localStorage.getItem(V2_KEY), localStorage.getItem(V3_KEY));
       } catch {}
-      if (mode) void open(mode, true);
-      else window.dispatchEvent(new Event("expenseone:tour-closed"));
+      if (mode) {
+        void open(mode === "full" ? "menu" : mode, true);
+      } else {
+        offeredOnHome.current = true;
+        window.dispatchEvent(new Event("expenseone:tour-closed"));
+      }
     }
     const onOpen = () => { void open("full"); };
-    window.addEventListener("expenseone:open-tour", onOpen);
+    const onOpenMenu = () => { void open("menu"); };
+    window.addEventListener(OPEN_TOUR_EVENT, onOpen);
+    window.addEventListener(OPEN_MENU_TOUR_EVENT, onOpenMenu);
     return () => {
       alive = false;
       for (const timer of timers) clearTimeout(timer);
       timers.clear();
-      window.removeEventListener("expenseone:open-tour", onOpen);
+      window.removeEventListener(OPEN_TOUR_EVENT, onOpen);
+      window.removeEventListener(OPEN_MENU_TOUR_EVENT, onOpenMenu);
     };
-  }, [enabled, plansEnabled]);
+  }, [enabled, pathname, plansEnabled]);
 
   const onClose = useCallback(() => {
     setTour(null);
+    offeredOnHome.current = true;
     try {
-      if (tour?.mode === "full") localStorage.setItem(KEY, "done");
+      if (tour?.mode === "full" || tour?.mode === "menu") localStorage.setItem(KEY, "done");
       localStorage.setItem(V2_KEY, "done");
       localStorage.setItem(V3_KEY, "done");
     } catch {}
@@ -88,5 +106,6 @@ export function WelcomeTourGate({
   }, [tour]);
 
   if (!enabled || !tour) return null;
+  if (tour.mode === "menu") return <MenuTour onClose={onClose} />;
   return <WelcomeTour role={role} open onClose={onClose} plansEnabled={tour.plansEnabled} mode={tour.mode} />;
 }
