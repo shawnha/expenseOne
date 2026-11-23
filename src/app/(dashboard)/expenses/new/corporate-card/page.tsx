@@ -1,3 +1,4 @@
+import { getPersonalCards } from "@/services/personal-card.service";
 import { getActiveCompanies } from "@/services/company.service";
 import { getAuthUser } from "@/lib/supabase/cached";
 import { getPendingGowidTransaction } from "@/services/gowid.service";
@@ -24,11 +25,12 @@ export default async function CorporateCardPage({
   searchParams: Promise<{ gowidTxId?: string; plan?: string | string[] }>;
 }) {
   const authUser = await getAuthUser();
-  const [companies, myCategories, myMerchantCategories, mySubscriptionKeys] = await Promise.all([
+  const [companies, myCategories, myMerchantCategories, mySubscriptionKeys, personalCards] = await Promise.all([
     getActiveCompanies(),
     authUser ? getMyCustomCategories(authUser.id) : Promise.resolve<string[]>([]),
     authUser ? getMyMerchantCategories(authUser.id) : Promise.resolve({}),
     authUser ? getMyActiveSubscriptionKeys(authUser.id) : Promise.resolve<string[]>([]),
+    authUser ? getPersonalCards(authUser.id) : Promise.resolve([]),
   ]);
   const serialized = companies.map((c) => ({
     id: c.id,
@@ -65,6 +67,7 @@ export default async function CorporateCardPage({
       myCategories={myCategories}
       myMerchantCategories={myMerchantCategories}
       mySubscriptionKeys={mySubscriptionKeys}
+      personalCards={personalCards}
     />
   );
 }

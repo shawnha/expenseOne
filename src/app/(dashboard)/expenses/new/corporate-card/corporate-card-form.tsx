@@ -26,6 +26,7 @@ import {
 import { VatModeSelect } from "@/components/forms/vat-mode-select";
 import { BranchSelectField, shouldAskBranch } from "@/components/forms/branch-select-field";
 import { CategorySelectField } from "@/components/forms/category-select-field";
+import type { PersonalCardNumber } from "@/services/personal-card.service";
 import type { MerchantSuggestion } from "@/services/autofill.service";
 import { merchantKey } from "@/lib/utils/autofill";
 import { CompanySelector } from "@/components/forms/company-selector";
@@ -59,6 +60,7 @@ import { subscriptionKeyOf, subscriptionMarkFailed } from "@/lib/card-subscripti
 
 interface CorporateCardFormProps {
   planId?: string;
+  personalCards?: PersonalCardNumber[];
   initialCompanies?: { id: string; name: string; slug: string; currency: string }[];
   /** 본인이 예전에 직접 입력한 카테고리 (최근순). 매번 다시 타이핑하지 않게 버튼으로 띄운다. */
   myCategories?: string[];
@@ -75,7 +77,7 @@ interface CorporateCardFormProps {
   };
 }
 
-export default function CorporateCardForm({ initialCompanies, prefillData, myCategories = [], myMerchantCategories = {}, mySubscriptionKeys = [], planId }: CorporateCardFormProps) {
+export default function CorporateCardForm({ initialCompanies, prefillData, myCategories = [], myMerchantCategories = {}, mySubscriptionKeys = [], personalCards = [], planId }: CorporateCardFormProps) {
   const pendingSummary = usePendingCardSummary(!prefillData);
   const pendingLabel = pendingCardLabel(pendingSummary?.count);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -92,6 +94,11 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
 
   // Company selection
   const [companyId, setCompanyId] = useState("");
+  const [personalCardChoice, setPersonalCardChoice] = useState<{ companyId: string; cardId: string }>();
+  const availableCards = personalCards.filter((card) => card.companyId === companyId);
+  const personalCardId = personalCardChoice?.companyId === companyId
+    ? personalCardChoice.cardId
+    : availableCards.length === 1 ? availableCards[0].id : "";
   // 비용계획 연결(GoWid 결제일 때만 후보를 묻는다). 한 건만, 다시 누르면 해제.
   const [selectedPick, setSelectedPick] = useState<PlanPick | null>(null);
   const companyTouchedRef = useRef(false);
@@ -396,6 +403,7 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
           transactionDate: prefillData?.transactionDate ?? formatDateISO(new Date()),
           isUrgent: false,
           companyId: companyId || undefined,
+          ...(!prefillData && personalCardId ? { personalCardId } : {}),
           ...(activePlanId ? { planId: activePlanId } : {}),
           ...(subscriptionOn ? { cardSubscription: true } : {}),
           hasFreelancerWithholding: freelancerDeduction,
@@ -591,6 +599,17 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
               userCompanyId={userCompanyId}
               initialCompanies={initialCompanies}
             />
+
+            {!prefillData && availableCards.length > 0 && (
+              <label className="grid gap-1.5 text-sm">
+                사용 카드
+                <select aria-label="사용 카드" value={personalCardId} onChange={(event) => setPersonalCardChoice({ companyId, cardId: event.target.value })}
+                  className="h-10 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] px-3 text-sm">
+                  <option value="">기본 카드</option>
+                  {availableCards.map((card) => <option key={card.id} value={card.id}>•••• {card.lastFour}</option>)}
+                </select>
+              </label>
+            )}
 
             {/* 제목 */}
             <div className="space-y-1.5">

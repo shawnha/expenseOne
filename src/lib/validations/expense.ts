@@ -111,6 +111,7 @@ const corporateCardSubmitBase = z.object({
   ...purchaseFields,
   ...branchField,
   type: z.literal("CORPORATE_CARD"),
+  personalCardId: z.uuid().optional(),
   merchantName: z
     .string()
     .max(200, "가맹점명은 200자 이내로 입력해주세요")
