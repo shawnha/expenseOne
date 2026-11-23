@@ -3,7 +3,7 @@
 import Link from "next/link";
 
 import { useState, useRef, useCallback, useEffect, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { Loader2, Trash2, ChevronDown, Check, Shield, ShieldOff, UserX, UserCheck, Building2, Pencil, Plus } from "lucide-react";
+import { Loader2, Trash2, ChevronDown, Check, UserX, UserCheck, Building2, Pencil, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -17,6 +17,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -30,6 +31,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { SettlementCompaniesForm } from "./[id]/settlement-companies/settlement-companies-form";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { CompanyBadge, companyBadgeStyle } from "@/components/companies/company-badge";
@@ -59,6 +62,7 @@ interface UserRow {
   companyName: string | null;
   companySlug: string | null;
   gowidCards?: GowidCard[];
+  settlementCompanyIds?: string[];
 }
 
 function CompanyLabel({
@@ -68,6 +72,7 @@ function CompanyLabel({
   companies,
   disabled,
   onChange,
+  onManageLeader,
 }: {
   companyId: string | null;
   companyName: string | null;
@@ -75,6 +80,7 @@ function CompanyLabel({
   companies: CompanyOption[];
   disabled?: boolean;
   onChange?: (companyId: string | null) => void;
+  onManageLeader?: () => void;
 }) {
   if (!onChange || companies.length === 0) {
     return companyName && companySlug ? (
@@ -112,6 +118,12 @@ function CompanyLabel({
             {c.id === companyId && <Check className="size-3.5 text-[var(--apple-blue)]" />}
           </DropdownMenuItem>
         ))}
+        {onManageLeader && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onManageLeader}>담당 법인 설정</DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -213,10 +225,35 @@ function EditableCell({
   );
 }
 
-const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
-  { value: "ADMIN", label: "관리자" },
+type AccessRole = UserRole | "LEADER";
+
+const ROLE_OPTIONS: { value: AccessRole; label: string }[] = [
   { value: "MEMBER", label: "크루" },
+  { value: "LEADER", label: "리더" },
+  { value: "ADMIN", label: "관리자" },
 ];
+
+function accessRole(user: UserRow): AccessRole {
+  if (user.role === "ADMIN") return "ADMIN";
+  return user.settlementCompanyIds?.length ? "LEADER" : "MEMBER";
+}
+
+function LeaderCompanies({ user, companies, onEdit }: {
+  user: UserRow;
+  companies: CompanyOption[];
+  onEdit: () => void;
+}) {
+  if (accessRole(user) !== "LEADER") return null;
+  const names = companies.filter((company) => user.settlementCompanyIds?.includes(company.id)).map(({ name }) => name);
+
+  return (
+    <button type="button" onClick={onEdit} aria-label={`${user.name} 담당 법인 편집`}
+      className="inline-flex min-h-8 max-w-56 items-center gap-1 rounded-md text-left text-xs font-medium text-[var(--apple-blue)] hover:underline">
+      <span className="break-keep">담당 {names.join(", ")}</span>
+      <Pencil className="size-3 shrink-0" aria-hidden="true" />
+    </button>
+  );
+}
 
 function RoleLabel({
   role,
@@ -224,13 +261,14 @@ function RoleLabel({
   disabled,
   onChange,
 }: {
-  role: string;
+  role: AccessRole;
   interactive: boolean;
   disabled?: boolean;
-  onChange?: (newRole: UserRole) => void;
+  onChange?: (newRole: AccessRole) => void;
 }) {
-  const current = ROLE_OPTIONS.find((o) => o.value === role) ?? ROLE_OPTIONS[1];
-  const badgeClass = role === "ADMIN" ? "glass-badge glass-badge-blue" : "glass-badge glass-badge-gray";
+  const current = ROLE_OPTIONS.find((o) => o.value === role) ?? ROLE_OPTIONS[0];
+  const badgeClass = role === "ADMIN" ? "glass-badge glass-badge-blue"
+    : role === "LEADER" ? "glass-badge glass-badge-green" : "glass-badge glass-badge-gray";
 
   if (!interactive) {
     return <span className={badgeClass}>{current.label}</span>;
@@ -329,7 +367,6 @@ function MobileContextMenu({
   updatingId,
   deletingId,
   companies,
-  onRoleChange,
   onCompanyChange,
   onToggleActive,
   onDelete,
@@ -340,7 +377,6 @@ function MobileContextMenu({
   updatingId: string | null;
   deletingId: string | null;
   companies: CompanyOption[];
-  onRoleChange: (userId: string, newRole: UserRole) => void;
   onCompanyChange: (userId: string, companyId: string | null) => void;
   onToggleActive: (userId: string, isActive: boolean) => void;
   onDelete: (userId: string) => void;
@@ -491,27 +527,6 @@ function MobileContextMenu({
 
         {!isSelf && (
           <>
-            {/* Role toggle */}
-            <button
-              type="button"
-              disabled={isUpdating}
-              onClick={() =>
-                handleAction(() =>
-                  onRoleChange(user.id, user.role === "ADMIN" ? "MEMBER" : "ADMIN"),
-                )
-              }
-              className="w-full px-4 py-3 flex items-center gap-3 active:bg-black/5 disabled:opacity-50 border-b border-[var(--apple-separator)]"
-            >
-              {user.role === "ADMIN" ? (
-                <ShieldOff className="size-[18px] text-[var(--apple-secondary-label)]" />
-              ) : (
-                <Shield className="size-[18px] text-[var(--apple-secondary-label)]" />
-              )}
-              <span className="text-[14px] text-[var(--apple-label)]">
-                {user.role === "ADMIN" ? "크루로 변경" : "관리자로 변경"}
-              </span>
-            </button>
-
             {/* Company change */}
             {companies.length > 0 && (
               <div className="border-b border-[var(--apple-separator)]">
@@ -572,11 +587,17 @@ function MobileContextMenu({
 
 function MobileUserCard({
   user,
+  companies,
   currentUserId,
+  onRoleChange,
+  onEditLeader,
   onLongPress,
 }: {
   user: UserRow;
+  companies: CompanyOption[];
   currentUserId: string;
+  onRoleChange: (role: AccessRole) => void;
+  onEditLeader: () => void;
   onLongPress: (user: UserRow, x: number, y: number) => void;
 }) {
   const isSelf = user.id === currentUserId;
@@ -620,7 +641,7 @@ function MobileUserCard({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <RoleLabel role={user.role} interactive={false} />
+        <RoleLabel role={accessRole(user)} interactive={!isSelf} onChange={onRoleChange} />
         {user.companyName && user.companySlug && (
           <CompanyBadge name={user.companyName} slug={user.companySlug} />
         )}
@@ -630,9 +651,7 @@ function MobileUserCard({
         <span className={SECONDARY}>{formatDate(user.createdAt)}</span>
       </div>
 
-      <Link prefetch={false} href={`/admin/users/${user.id}/settlement-companies`} className="inline-flex min-h-10 items-center text-sm font-medium text-[var(--apple-blue)]">
-        정산 조회 법인
-      </Link>
+      <LeaderCompanies user={user} companies={companies} onEdit={onEditLeader} />
       {!isSelf && (
         <p className="text-[12px] text-[var(--apple-tertiary-label)] text-center">
           길게 눌러서 관리
@@ -648,6 +667,7 @@ export function UsersTable({ users: initialUsers, currentUserId, companies = [],
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [unmappedCards, setUnmappedCards] = useState(initialUnmapped);
+  const [leaderEditor, setLeaderEditor] = useState<{ user: UserRow; assignLeader: boolean } | null>(null);
 
   // 카드 번호 직접 입력 대상 사용자 (null이면 닫힘)
   const [addCardFor, setAddCardFor] = useState<{ id: string; name: string } | null>(null);
@@ -806,17 +826,22 @@ export function UsersTable({ users: initialUsers, currentUserId, companies = [],
     }
   };
 
-  const handleRoleChange = async (userId: string, newRole: UserRole) => {
-    setUpdatingId(userId);
+  const handleRoleChange = async (user: UserRow, newRole: AccessRole) => {
+    if (newRole === "LEADER") {
+      setLeaderEditor({ user, assignLeader: true });
+      return;
+    }
+
+    setUpdatingId(user.id);
     try {
-      const res = await fetch("/api/admin/users", {
-        method: "PATCH",
+      const res = await fetch(`/api/admin/users/${user.id}/settlement-companies`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, role: newRole }),
+        body: JSON.stringify({ accessRole: newRole, companyIds: [] }),
       });
       if (res.ok) {
         setUserList((prev) =>
-          prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u)),
+          prev.map((u) => (u.id === user.id ? { ...u, role: newRole, settlementCompanyIds: [] } : u)),
         );
         toast.success("역할이 변경되었습니다.");
       } else {
@@ -915,28 +940,27 @@ export function UsersTable({ users: initialUsers, currentUserId, companies = [],
                       onSave={(v) => handleFieldChange(user.id, "name", v)}
                     />
                   </TableCell>
-                  <TableCell className={SECONDARY}>
-                    <div>{user.email}</div>
-                    <Link prefetch={false} href={`/admin/users/${user.id}/settlement-companies`} className="inline-block py-1 text-xs font-medium text-[var(--apple-blue)]">
-                      정산 조회 법인
-                    </Link>
-                  </TableCell>
+                  <TableCell className={SECONDARY}>{user.email}</TableCell>
                   <TableCell>
-                    <CompanyLabel
-                      companyId={user.companyId}
-                      companyName={user.companyName}
-                      companySlug={user.companySlug}
-                      companies={companies}
-                      disabled={isUpdating}
-                      onChange={isSelf ? undefined : (cid) => handleCompanyChange(user.id, cid)}
-                    />
+                    <div className="flex flex-col items-start gap-1">
+                      <CompanyLabel
+                        companyId={user.companyId}
+                        companyName={user.companyName}
+                        companySlug={user.companySlug}
+                        companies={companies}
+                        disabled={isUpdating}
+                        onChange={isSelf ? undefined : (cid) => handleCompanyChange(user.id, cid)}
+                        onManageLeader={user.role === "ADMIN" ? undefined : () => setLeaderEditor({ user, assignLeader: accessRole(user) !== "LEADER" })}
+                      />
+                      <LeaderCompanies user={user} companies={companies} onEdit={() => setLeaderEditor({ user, assignLeader: false })} />
+                    </div>
                   </TableCell>
                   <TableCell>
                     <RoleLabel
-                      role={user.role}
+                      role={accessRole(user)}
                       interactive={!isSelf}
                       disabled={isUpdating}
-                      onChange={(newRole) => handleRoleChange(user.id, newRole)}
+                      onChange={(newRole) => void handleRoleChange(user, newRole)}
                     />
                   </TableCell>
                   <TableCell>
@@ -1069,7 +1093,10 @@ export function UsersTable({ users: initialUsers, currentUserId, companies = [],
           <MobileUserCard
             key={user.id}
             user={user}
+            companies={companies}
             currentUserId={currentUserId}
+            onRoleChange={(role) => void handleRoleChange(user, role)}
+            onEditLeader={() => setLeaderEditor({ user, assignLeader: false })}
             onLongPress={(u, x, y) => setContextMenu({ user: u, x, y })}
           />
         ))}
@@ -1083,13 +1110,37 @@ export function UsersTable({ users: initialUsers, currentUserId, companies = [],
           updatingId={updatingId}
           deletingId={deletingId}
           companies={companies}
-          onRoleChange={handleRoleChange}
           onCompanyChange={handleCompanyChange}
           onToggleActive={handleToggleActive}
           onDelete={handleDelete}
           onClose={() => setContextMenu(null)}
         />
       )}
+
+      <Dialog open={leaderEditor !== null} onOpenChange={(open) => !open && setLeaderEditor(null)}>
+        {leaderEditor && (
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{leaderEditor.user.name} 담당 법인</DialogTitle>
+              <DialogDescription>브랜드 정산을 조회할 법인을 선택하세요.</DialogDescription>
+            </DialogHeader>
+            <SettlementCompaniesForm
+              userId={leaderEditor.user.id}
+              companies={companies}
+              selectedIds={leaderEditor.user.settlementCompanyIds ?? []}
+              assignLeader={leaderEditor.assignLeader}
+              onSaved={(companyIds) => {
+                setUserList((prev) => prev.map((user) => user.id === leaderEditor.user.id
+                  ? { ...user, role: "MEMBER", settlementCompanyIds: companyIds }
+                  : user));
+                setLeaderEditor(null);
+                toast.success("담당 법인을 저장했습니다.");
+              }}
+            />
+            <Link href="/admin/companies" className="text-sm font-medium text-[var(--apple-blue)]">새 법인 등록</Link>
+          </DialogContent>
+        )}
+      </Dialog>
 
       {/* 카드번호 직접 입력 — 동기화로 안 들어온 카드용 */}
       <AddCardDialog

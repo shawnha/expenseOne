@@ -22,7 +22,7 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ sou
     if (!input.success) return errorResponse("VALIDATION_ERROR", "브랜드명과 정산월을 확인해 주세요.");
 
     await saveSettlementSubject(source.data, id, admin.id, input.data);
-    revalidatePath("/expenses/brand-settlements");
+    revalidatePath("/expenses");
     revalidatePath(source.data === "PLAN" ? `/plans/${id}` : `/expenses/${id}`);
     return NextResponse.json({ data: { success: true } });
   } catch (error) {

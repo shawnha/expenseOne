@@ -3,10 +3,12 @@
 import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 
-export function SettlementCompaniesForm({ userId, companies, selectedIds }: {
+export function SettlementCompaniesForm({ userId, companies, selectedIds, assignLeader = false, onSaved }: {
   userId: string;
   companies: { id: string; name: string }[];
   selectedIds: string[];
+  assignLeader?: boolean;
+  onSaved?: (companyIds: string[]) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -14,18 +16,19 @@ export function SettlementCompaniesForm({ userId, companies, selectedIds }: {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const companyIds = new FormData(event.currentTarget).getAll("company");
+    const companyIds = new FormData(event.currentTarget).getAll("company").map(String);
     setBusy(true);
     setMessage("");
     try {
       const response = await fetch(`/api/admin/users/${userId}/settlement-companies`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyIds }),
+        body: JSON.stringify({ companyIds, accessRole: assignLeader ? "LEADER" : undefined }),
       });
       const result = await response.json();
       setFailed(!response.ok);
       setMessage(response.ok ? "조회 법인을 저장했습니다." : result.error?.message ?? "조회 법인을 저장하지 못했습니다.");
+      if (response.ok) onSaved?.(companyIds);
     } catch {
       setFailed(true);
       setMessage("조회 법인을 저장하지 못했습니다. 다시 시도해 주세요.");

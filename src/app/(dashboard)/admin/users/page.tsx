@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { users, companies, gowidCardMappings } from "@/lib/db/schema";
+import { brandSettlementViewers } from "@/lib/db/schema-brand-settlement";
 import { desc, eq } from "drizzle-orm";
 import { getAuthUser, getCachedClient } from "@/lib/supabase/cached";
 import { UsersTable } from "./users-table";
@@ -43,7 +44,7 @@ export default async function AdminUsersPage() {
 
   if (profile?.role !== "ADMIN") redirect("/");
 
-  const [allUsers, activeCompanies, cardMappings] = await Promise.all([
+  const [allUsers, activeCompanies, cardMappings, settlementGrants] = await Promise.all([
     db
       .select({
         id: users.id,
@@ -70,6 +71,10 @@ export default async function AdminUsersPage() {
       })
       .from(gowidCardMappings)
       .where(eq(gowidCardMappings.isActive, true)),
+    db.select({ userId: brandSettlementViewers.userId, companyId: brandSettlementViewers.companyId })
+      .from(brandSettlementViewers)
+      .innerJoin(companies, eq(companies.id, brandSettlementViewers.companyId))
+      .where(eq(companies.isActive, true)),
   ]);
 
   // Group card mappings by userId
@@ -86,7 +91,15 @@ export default async function AdminUsersPage() {
     }
   }
 
+  const grantsByUser = new Map<string, string[]>();
+  for (const { userId, companyId } of settlementGrants) {
+    const ids = grantsByUser.get(userId) ?? [];
+    ids.push(companyId);
+    grantsByUser.set(userId, ids);
+  }
+
   const serialized = allUsers.map((u) => ({
+    settlementCompanyIds: grantsByUser.get(u.id) ?? [],
     ...u,
     createdAt: u.createdAt.toISOString(),
     cardLastFour: u.cardLastFour,

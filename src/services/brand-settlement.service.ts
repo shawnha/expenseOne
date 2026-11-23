@@ -12,18 +12,17 @@ import { AppError } from "./attachment.service";
 const PAGE_SIZE = 20;
 
 const visibleCompanies = (userId: string) => sql`
-  SELECT c.id, c.name, c.sort_order
+  SELECT c.id, c.name, c.slug, c.sort_order
     FROM expenseone.companies c
     JOIN expenseone.users u ON u.id = ${userId}::uuid AND u.is_active = true
-   WHERE c.is_active = true
-     AND (u.role = 'ADMIN' OR EXISTS (
+   WHERE u.role = 'ADMIN' OR (c.is_active = true AND EXISTS (
        SELECT 1 FROM expenseone.brand_settlement_viewers v
        WHERE v.user_id = u.id AND v.company_id = c.id
      ))`;
 
 export async function getSettlementCompanies(userId: string) {
-  return rowsOf<{ id: string; name: string }>(
-    await db.execute(sql`SELECT id, name FROM (${visibleCompanies(userId)}) c ORDER BY sort_order, name`),
+  return rowsOf<{ id: string; name: string; slug: string }>(
+    await db.execute(sql`SELECT id, name, slug FROM (${visibleCompanies(userId)}) c ORDER BY sort_order, name`),
   );
 }
 
@@ -33,7 +32,12 @@ export function getSettlementViewerCompanies(userId: string) {
     .where(eq(brandSettlementViewers.userId, userId));
 }
 
-export async function saveSettlementViewerCompanies(userId: string, companyIds: string[], grantedById: string) {
+export async function saveSettlementViewerCompanies(
+  userId: string,
+  companyIds: string[],
+  grantedById: string,
+  role?: "MEMBER" | "ADMIN",
+) {
   await db.transaction(async (tx) => {
     const [target] = await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for("update");
     if (!target) throw new AppError("NOT_FOUND", "사용자를 찾을 수 없습니다.");
@@ -58,6 +62,9 @@ export async function saveSettlementViewerCompanies(userId: string, companyIds: 
       await tx.insert(brandSettlementViewers)
         .values(companyIds.map((companyId) => ({ userId, companyId, grantedById })))
         .onConflictDoNothing();
+    }
+    if (role) {
+      await tx.update(users).set({ role, updatedAt: new Date() }).where(eq(users.id, userId));
     }
   });
 }
