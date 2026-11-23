@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import { SettlementSubject } from "@/components/expenses/settlement-subject";
 import type { Metadata } from "next";
 import { notFound, redirect, unstable_rethrow } from "next/navigation";
 import { getCachedCurrentUser } from "@/lib/supabase/cached";
@@ -43,5 +45,16 @@ export default async function PlanDetailPage({ params }: PlanDetailPageProps) {
     throw toSafeError(err);
   }
 
-  return <PlanDetailView detail={detail} />;
+  return (
+    <>
+      <PlanDetailView detail={detail} />
+      {user.role === "ADMIN" && detail.plan.status !== "CANCELLED" && (
+        <div className="mt-4 max-w-4xl">
+          <Suspense fallback={null}>
+            <SettlementSubject id={id} source="PLAN" companyId={detail.plan.companyId} suggestedBrand={detail.plan.brandName} />
+          </Suspense>
+        </div>
+      )}
+    </>
+  );
 }

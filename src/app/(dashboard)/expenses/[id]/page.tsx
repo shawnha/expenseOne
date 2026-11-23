@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import { SettlementSubject } from "@/components/expenses/settlement-subject";
 import { notFound, redirect } from "next/navigation";
 import {
   BellRing,
@@ -693,6 +695,12 @@ export default async function ExpenseDetailPage({
           )}
         </div>
       </div>
+
+      {isAdmin && isDepositRequest && expense.companyId && (
+        <Suspense fallback={null}>
+          <SettlementSubject id={expense.id} source="REQUEST" companyId={expense.companyId} />
+        </Suspense>
+      )}
 
       {/* Attachments */}
       {attachments.length > 0 && (
