@@ -6,6 +6,7 @@ import {
   companies,
   purchaseInvoiceLines,
   expensePrePaidAmounts,
+  expenseTeamShares,
 } from "@/lib/db/schema";
 import {
   eq,
@@ -1447,10 +1448,11 @@ export async function deleteExpense(
     deleteConditions.push(eq(expenses.submittedById, userId));
   }
 
-  const [deleted] = await db
-    .delete(expenses)
-    .where(and(...deleteConditions))
-    .returning();
+  const deleted = await db.transaction(async (tx) => {
+    const [row] = await tx.delete(expenses).where(and(...deleteConditions)).returning();
+    if (row) await tx.delete(expenseTeamShares).where(eq(expenseTeamShares.expenseId, row.id));
+    return row;
+  });
 
   if (!deleted) {
     throw new AppError(

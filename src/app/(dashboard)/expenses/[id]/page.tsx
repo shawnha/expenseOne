@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import { ExpenseTeamShare } from "@/components/expenses/expense-team-share";
 import { notFound, redirect } from "next/navigation";
 import {
   BellRing,
@@ -693,6 +695,12 @@ export default async function ExpenseDetailPage({
           )}
         </div>
       </div>
+
+      {expense.companyId && (isOwner || isAdmin) && (
+        <Suspense fallback={null}>
+          <ExpenseTeamShare expense={{ id: expense.id, submittedById: expense.submittedById, companyId: expense.companyId }} />
+        </Suspense>
+      )}
 
       {/* Attachments */}
       {attachments.length > 0 && (

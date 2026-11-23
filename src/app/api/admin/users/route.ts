@@ -3,7 +3,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { requireAdmin, errorResponse, handleError, validateOrigin } from "@/lib/api-utils";
 import { db } from "@/lib/db";
-import { users, expenses, notifications, attachments } from "@/lib/db/schema";
+import { users, expenses, notifications, attachments, expenseTeamMembers, expenseTeamShares } from "@/lib/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
@@ -163,6 +163,8 @@ export async function DELETE(request: NextRequest) {
 
     // Delete user and all related data in a transaction
     await db.transaction(async (tx) => {
+      await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for("update");
+
       // Delete notifications for the user (as recipient)
       await tx.delete(notifications).where(eq(notifications.recipientId, userId));
 
@@ -179,11 +181,14 @@ export async function DELETE(request: NextRequest) {
         .set({ approvedById: null })
         .where(eq(expenses.approvedById, userId));
 
-      // Delete expenses (attachments cascade automatically)
-      await tx.delete(expenses).where(eq(expenses.submittedById, userId));
+      // Delete expenses (attachments cascade automatically).
+      const deletedExpenses = await tx.delete(expenses).where(eq(expenses.submittedById, userId)).returning({ id: expenses.id });
+      if (deletedExpenses.length > 0) {
+        await tx.delete(expenseTeamShares).where(inArray(expenseTeamShares.expenseId, deletedExpenses.map((expense) => expense.id)));
+      }
 
-      // Delete user
       await tx.delete(users).where(eq(users.id, userId));
+      await tx.delete(expenseTeamMembers).where(eq(expenseTeamMembers.userId, userId));
     });
 
     // Clean up storage files (non-blocking)

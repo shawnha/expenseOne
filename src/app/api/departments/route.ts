@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, requireAdmin, errorResponse, handleError, validateOrigin, jsonWithCache } from "@/lib/api-utils";
 import { db } from "@/lib/db";
-import { departments, users } from "@/lib/db/schema";
+import { departments, expenseTeamMembers, users } from "@/lib/db/schema";
 import { eq, asc, count, sql } from "drizzle-orm";
 import { z } from "zod";
 
@@ -210,6 +210,12 @@ export async function DELETE(request: NextRequest) {
         "VALIDATION_ERROR",
         `이 부서에 소속된 사용자가 ${userCount.count}명 있어 삭제할 수 없습니다.`,
       );
+    }
+
+    const [shared] = await db.select({ userId: expenseTeamMembers.userId })
+      .from(expenseTeamMembers).where(eq(expenseTeamMembers.departmentId, parsed.data.id)).limit(1);
+    if (shared) {
+      return errorResponse("VALIDATION_ERROR", "비용 조회 팀으로 지정된 사용자가 있어 삭제할 수 없습니다.");
     }
 
     await db.delete(departments).where(eq(departments.id, parsed.data.id));
