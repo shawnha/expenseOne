@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
+import { SettlementReview } from "@/components/expenses/settlement-review";
 import { SettlementReviewLink } from "@/components/expenses/settlement-review-link";
 import { ExpenseFilters } from "@/components/expenses/expense-filters";
 import { ExpenseTable } from "@/components/expenses/expense-table";
@@ -125,6 +126,8 @@ async function getExpensesData(searchParams: Record<string, string | string[] | 
 
 export default async function ExpensesPage({ searchParams }: ExpensesPageProps) {
   const resolvedParams = await searchParams;
+  if (resolvedParams.view === "settlements") return <SettlementReview params={resolvedParams} />;
+
   const { expenses, meta, pending, splitPending, currentUserId } = await getExpensesData(resolvedParams);
   const hasPending = (pending?.expenses.length ?? 0) > 0;
 
