@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useState, useRef, useCallback, useEffect, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Loader2, Trash2, ChevronDown, Check, Shield, ShieldOff, UserX, UserCheck, Building2, Pencil, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -628,6 +630,9 @@ function MobileUserCard({
         <span className={SECONDARY}>{formatDate(user.createdAt)}</span>
       </div>
 
+      <Link prefetch={false} href={`/admin/users/${user.id}/expense-teams`} className="inline-flex min-h-10 items-center text-sm font-medium text-[var(--apple-blue)]">
+        비용 조회 팀
+      </Link>
       {!isSelf && (
         <p className="text-[12px] text-[var(--apple-tertiary-label)] text-center">
           길게 눌러서 관리
@@ -910,7 +915,12 @@ export function UsersTable({ users: initialUsers, currentUserId, companies = [],
                       onSave={(v) => handleFieldChange(user.id, "name", v)}
                     />
                   </TableCell>
-                  <TableCell className={SECONDARY}>{user.email}</TableCell>
+                  <TableCell className={SECONDARY}>
+                    <div>{user.email}</div>
+                    <Link prefetch={false} href={`/admin/users/${user.id}/expense-teams`} className="inline-block py-1 text-xs font-medium text-[var(--apple-blue)]">
+                      비용 조회 팀
+                    </Link>
+                  </TableCell>
                   <TableCell>
                     <CompanyLabel
                       companyId={user.companyId}

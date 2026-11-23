@@ -1,5 +1,6 @@
 import {
   pgSchema,
+  primaryKey,
   uuid,
   varchar,
   text,
@@ -243,6 +244,23 @@ export const expenses = expenseSchema.table(
       .where(sql`branch IS NOT NULL`),
   ],
 );
+
+export const expenseTeamMembers = expenseSchema.table(
+  "expense_team_members",
+  {
+    userId: uuid("user_id").notNull(),
+    departmentId: uuid("department_id").notNull().references(() => departments.id, { onDelete: "restrict" }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.departmentId] }),
+    index("idx_expense_team_members_department").on(table.departmentId),
+  ],
+);
+
+export const expenseTeamShares = expenseSchema.table("expense_team_shares", {
+  expenseId: uuid("expense_id").primaryKey(),
+  departmentId: uuid("department_id").references(() => departments.id, { onDelete: "set null" }),
+});
 
 /**
  * recurring_expenses -- 반복 입금요청 템플릿

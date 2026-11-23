@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
+import { ExpenseScopeNav } from "@/components/expenses/expense-scope-nav";
 import { ExpenseFilters } from "@/components/expenses/expense-filters";
 import { ExpenseTable } from "@/components/expenses/expense-table";
 import { Pagination } from "@/components/expenses/pagination";
@@ -154,6 +155,8 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
           </Link>
         </div>
       </div>
+
+      <ExpenseScopeNav current="mine" />
 
       {/* Filters */}
       <Suspense fallback={<div className="h-10 animate-pulse rounded-xl glass-subtle" />}>
