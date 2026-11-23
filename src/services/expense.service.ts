@@ -1,5 +1,6 @@
 import { getPersonalCardForExpense } from "@/services/personal-card.service";
 import { db } from "@/lib/db";
+import { visibleExpenseCompanies } from "@/lib/db/expense-company-access";
 import { expenseDateRange, remainingPaymentDateLabels } from "@/lib/db/remaining-payment-dates";
 import {
   expenses,
@@ -469,21 +470,38 @@ const awaitingPayment = and(
 // ---------------------------------------------------------------------------
 // getExpenses -- list with filters, sort, pagination
 // ---------------------------------------------------------------------------
-export async function getExpenses(
-  query: ExpenseQueryInput & { includeRemainingPaymentDates?: boolean },
+type ExpenseListQuery = ExpenseQueryInput & { includeRemainingPaymentDates?: boolean };
+
+export function getExpenses(
+  query: ExpenseListQuery,
   userId: string,
   userRole: "MEMBER" | "ADMIN",
   ownOnly: boolean = true,
 ) {
+  return listExpenses(query, userId, userRole === "ADMIN" && !ownOnly ? "all" : "own");
+}
+
+export function getCompanyExpenses(query: ExpenseListQuery, userId: string) {
+  return listExpenses(query, userId, "company");
+}
+
+async function listExpenses(query: ExpenseListQuery, userId: string, scope: "own" | "all" | "company") {
   const { page, limit } = query;
   const offset = (page - 1) * limit;
 
   // Build WHERE conditions
   const conditions: ReturnType<typeof eq>[] = [];
 
-  // MEMBER always sees own expenses; ADMIN sees own when ownOnly is true
-  if (userRole === "MEMBER" || ownOnly) {
+  if (scope === "own") {
     conditions.push(eq(expenses.submittedById, userId));
+  } else if (scope === "company") {
+    // Resolve grants in the list query so a revoked grant also takes effect
+    // when the request uses an old company filter or a cached profile.
+    const companyFilter = query.company ? sql`WHERE c.slug = ${query.company}` : sql.empty();
+    conditions.push(
+      inArray(expenses.type, ["DEPOSIT_REQUEST", "CORPORATE_CARD"]),
+      sql`${expenses.companyId} IN (SELECT c.id FROM (${visibleExpenseCompanies(userId)}) c ${companyFilter})`,
+    );
   }
 
   if (query.type) {
@@ -504,11 +522,13 @@ export async function getExpenses(
       or(
         ilike(expenses.title, searchTerm),
         ilike(expenses.merchantName, searchTerm),
-        ilike(expenses.description, searchTerm),
-        ilike(expenses.accountHolder, searchTerm),
-        ilike(expenses.bankName, searchTerm),
-        ilike(expenses.accountNumber, searchTerm),
-        ilike(expenses.cardLastFour, searchTerm),
+        ...(scope === "company" ? [] : [
+          ilike(expenses.description, searchTerm),
+          ilike(expenses.accountHolder, searchTerm),
+          ilike(expenses.bankName, searchTerm),
+          ilike(expenses.accountNumber, searchTerm),
+          ilike(expenses.cardLastFour, searchTerm),
+        ]),
         ilike(expenses.category, searchTerm),
         exists(
           db
@@ -519,7 +539,7 @@ export async function getExpenses(
                 eq(users.id, expenses.submittedById),
                 or(
                   ilike(users.name, searchTerm),
-                  ilike(users.email, searchTerm),
+                  scope === "company" ? undefined : ilike(users.email, searchTerm),
                 ),
               ),
             ),
@@ -527,7 +547,7 @@ export async function getExpenses(
       )!,
     );
   }
-  if (query.company) {
+  if (query.company && scope !== "company") {
     const { getCompanyBySlug } = await import("@/services/company.service");
     const company = await getCompanyBySlug(query.company);
     if (company) {
