@@ -5,6 +5,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/api-utils";
 import { getExpenses } from "@/services/expense.service";
 import { getSettlementCompanies, getSettlementReview, type SettlementRequest } from "@/services/brand-settlement.service";
+import { ExpenseReviewNavigation, SettlementTab } from "@/components/expenses/settlement-review-link";
 import { Pagination } from "@/components/expenses/pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,17 +25,6 @@ const formatDate = (value: string) => value.replace(/-/g, ".");
 
 const labelClass = "grid min-w-0 gap-1.5 text-sm font-medium leading-5 text-[var(--apple-label)]";
 const filterControl = "h-10 w-full min-w-0 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] px-3 py-0 text-base font-normal leading-5 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm";
-
-function SettlementTab({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
-  return (
-    <Link href={href} aria-current={active ? "page" : undefined} prefetch={false}
-      className={`inline-flex min-h-9 shrink-0 items-center rounded-full px-3.5 text-sm font-medium ${active
-        ? "bg-[var(--apple-blue)] text-white"
-        : "text-[var(--apple-secondary-label)] hover:bg-[var(--apple-tertiary-system-fill)]"}`}>
-      {children}
-    </Link>
-  );
-}
 
 export async function SettlementReview({ params }: {
   params: Record<string, string | string[] | undefined>;
@@ -77,10 +67,7 @@ export async function SettlementReview({ params }: {
     <div className="flex max-w-5xl flex-col gap-4 sm:gap-5">
       <div>
         <h1 className="text-title3 text-[var(--apple-label)]">비용 목록</h1>
-        <nav aria-label="비용 목록 보기" className="mt-3 flex w-fit gap-1 rounded-full border border-[var(--apple-separator)] p-1">
-          <SettlementTab href="/expenses" active={false}>내 비용</SettlementTab>
-          <SettlementTab href="/expenses?view=settlements" active>정산 보기</SettlementTab>
-        </nav>
+        <div className="mt-3"><ExpenseReviewNavigation active /></div>
       </div>
       <section aria-label="정산 확인" className="flex flex-col gap-4">
         {isAdmin && (
