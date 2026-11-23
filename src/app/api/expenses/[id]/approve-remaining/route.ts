@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prePaidSplit } from "@/lib/utils/pre-paid";
+import { recordRemainingPaymentAction } from "@/services/remaining-payment.service";
 import { getPrePaidFixedAmount } from "@/services/expense.service";
 import { revalidatePath } from "next/cache";
 import { requireAdmin, errorResponse, handleError, validateOrigin, validateUUID } from "@/lib/api-utils";
 import { syncPlanPaidSafely } from "@/services/plan-auto-paid";
 import { db } from "@/lib/db";
 import { expenses, users } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { createNotification } from "@/services/notification.service";
 import { sendPushToUser } from "@/services/push.service";
 import { notifySlackRemainingPaymentApproved } from "@/services/slack.service";
@@ -59,19 +60,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return errorResponse("VALIDATION_ERROR", "이미 후지급이 승인되었습니다.");
     }
 
-    // Update the expense with state conditions in WHERE to prevent TOCTOU race
-    const [updated] = await db
-      .update(expenses)
-      .set({ remainingPaymentApproved: true, updatedAt: new Date() })
-      .where(
-        and(
-          eq(expenses.id, id),
-          eq(expenses.status, "APPROVED"),
-          eq(expenses.remainingPaymentRequested, true),
-          eq(expenses.remainingPaymentApproved, false),
-        ),
-      )
-      .returning();
+    const updated = await recordRemainingPaymentAction(id, "approve");
 
     if (!updated) {
       return errorResponse("VALIDATION_ERROR", "비용 상태가 변경되었습니다. 페이지를 새로고침해주세요.");

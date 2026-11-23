@@ -28,6 +28,7 @@ import { AdminQuickEditDialog } from "@/components/expenses/admin-quick-edit-dia
 import { PrePaidBadge } from "@/components/expenses/pre-paid-badge";
 import { WithholdingBadge } from "@/components/expenses/withholding-badge";
 import { CompanyBadge } from "@/components/companies/company-badge";
+import type { RemainingPaymentDateLabels } from "@/lib/db/remaining-payment-dates";
 import type { ExpenseType, ExpenseStatus } from "@/types";
 
 interface ExpenseRow {
@@ -56,6 +57,7 @@ interface ExpenseRow {
   hasFreelancerWithholding?: boolean;
   remainingPaymentRequested?: boolean;
   remainingPaymentApproved?: boolean;
+  remainingPaymentDates?: RemainingPaymentDateLabels | null;
   /** 입금 기일("yyyy-mm-dd") — 처리 대기 칸에서만 보여 준다. */
   dueDate?: string | null;
 }
@@ -74,13 +76,20 @@ function RemainingPaymentBadge({ expense, isMine = false }: { expense: ExpenseRo
     return null;
   }
   if (expense.remainingPaymentApproved) {
-    return <span className="glass-badge glass-badge-green shrink-0">후지급 완료</span>;
+    const date = expense.remainingPaymentDates?.approvedOn;
+    return (
+      <span className="glass-badge glass-badge-green shrink-0" title={date ? `후지급 승인일 ${date}` : undefined}>
+        {date ? `후지급 승인 · ${date.slice(5).replace("-", ".")}` : "후지급 완료"}
+      </span>
+    );
   }
   if (expense.remainingPaymentRequested) {
     return (
       <span className="glass-badge glass-badge-orange shrink-0 inline-flex items-center gap-1 font-semibold">
         <BellRing className="size-3" aria-hidden="true" />
-        후지급 요청
+        {expense.remainingPaymentDates?.requestedOn
+          ? `후지급 요청 · ${expense.remainingPaymentDates.requestedOn.slice(5).replace("-", ".")}`
+          : "후지급 요청"}
       </span>
     );
   }

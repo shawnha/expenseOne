@@ -13,7 +13,7 @@ interface PendingSectionProps {
 
 /**
  * 목록 맨 위 「처리 대기」 칸 — 아직 처리 안 된 입금요청(승인 대기 + 후지급 요청)을
- * 올린 날짜와 상관없이 모아 기일이 급한 순으로 보여 준다. 올린 지 오래된 건이
+ * 선택한 필터 범위에서 기일이 급한 순으로 보여 준다. 올린 지 오래된 건이
  * 날짜순 목록 뒤 페이지에 묻혀 찾으러 가야 했다. 그 아래 목록은 이 건들을 뺀 나머지다.
  */
 export function PendingSection({ expenses, total, isAdmin = false, currentUserId }: PendingSectionProps) {
@@ -25,7 +25,7 @@ export function PendingSection({ expenses, total, isAdmin = false, currentUserId
           처리 대기 <span className="tabular-nums text-[#C93400] dark:text-[#FF9F0A]">{total}</span>건
         </h2>
         <p className="text-footnote text-[var(--apple-secondary-label)]">
-          기일이 급한 순 · 기간 필터와 상관없이 모아 봐요
+          기일이 급한 순
         </p>
       </div>
       <ExpenseTable

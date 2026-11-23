@@ -9,6 +9,7 @@ import { Pagination } from "@/components/expenses/pagination";
 import { PendingSection, RestListHeading } from "@/components/expenses/pending-section";
 import { Plus, Repeat } from "lucide-react";
 import { getCachedCurrentUser } from "@/lib/supabase/cached";
+import { expenseListPeriod } from "@/lib/expenses/list-period";
 import { getExpenses } from "@/services/expense.service";
 import type { ExpenseType, ExpenseStatus } from "@/types";
 import type { ExpenseQueryInput } from "@/lib/validations/expense";
@@ -30,8 +31,7 @@ async function getExpensesData(searchParams: Record<string, string | string[] | 
   const type = typeof searchParams.type === "string" ? searchParams.type : undefined;
   const status = typeof searchParams.status === "string" ? searchParams.status : undefined;
   const category = typeof searchParams.category === "string" ? searchParams.category : undefined;
-  const startDate = typeof searchParams.startDate === "string" ? searchParams.startDate : undefined;
-  const endDate = typeof searchParams.endDate === "string" ? searchParams.endDate : undefined;
+  const { startDate, endDate } = expenseListPeriod(searchParams);
   const search = typeof searchParams.search === "string" ? searchParams.search : undefined;
   const freelancer = searchParams.freelancer === "true" ? "true" : undefined;
   const prePaidParam = searchParams.prePaid;
@@ -42,7 +42,10 @@ async function getExpensesData(searchParams: Record<string, string | string[] | 
 
   // 상태를 직접 고르면 나누지 않고 예전처럼 한 목록으로 보여 준다.
   const splitPending = !status;
-  const filters: Omit<ExpenseQueryInput, "page" | "limit"> = {
+  const filters: Omit<ExpenseQueryInput, "page" | "limit"> & { includeRemainingPaymentDates: boolean } = {
+    startDate,
+    endDate,
+    includeRemainingPaymentDates: true,
     type: type as "CORPORATE_CARD" | "DEPOSIT_REQUEST" | "REFUND" | undefined,
     category,
     search,
@@ -60,14 +63,12 @@ async function getExpensesData(searchParams: Record<string, string | string[] | 
           page,
           limit: PAGE_SIZE,
           status: status as "SUBMITTED" | "APPROVED" | "REJECTED" | "CANCELLED" | undefined,
-          startDate,
-          endDate,
           pending: splitPending ? "exclude" : undefined,
         },
         user.id,
         user.role,
       ),
-      // 처리 대기는 기간과 상관없이 모은다(올린 날과 입금받을 날이 달라 뒤 페이지에 묻히던 건). 첫 페이지에만.
+      // 처리 대기는 선택한 기간 안에서 첫 페이지에 모은다.
       splitPending && page === 1
         ? getExpenses({ ...filters, page: 1, limit: PENDING_LIMIT, pending: "only" }, user.id, user.role)
         : null,
@@ -110,6 +111,7 @@ async function getExpensesData(searchParams: Record<string, string | string[] | 
     hasFreelancerWithholding: item.hasFreelancerWithholding ?? false,
     remainingPaymentRequested: item.remainingPaymentRequested ?? false,
     remainingPaymentApproved: item.remainingPaymentApproved ?? false,
+    remainingPaymentDates: item.remainingPaymentDates,
     dueDate: item.dueDate ?? null,
   });
   const expenses = result.data.map(toRow);
@@ -170,7 +172,7 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
         </div>
       </Suspense>
 
-      {/* 처리 대기 — 기간과 상관없이 맨 위에 */}
+      {/* 처리 대기 */}
       {pending && <PendingSection expenses={pending.expenses} total={pending.total} currentUserId={currentUserId} />}
       {/* 2페이지부터는 위 칸이 없어도 아래 목록은 처리 대기를 뺀 것이라 머리를 그대로 단다. */}
       {splitPending && (hasPending || meta.page > 1) && <RestListHeading />}
