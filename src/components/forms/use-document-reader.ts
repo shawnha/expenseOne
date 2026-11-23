@@ -19,11 +19,15 @@ export function useDocumentReader({
   onFilesChange,
   onDocumentRead,
   fillDocumentType = false,
+  purpose,
+  replaceImage = true,
 }: {
   filesRef: MutableRefObject<FileWithPreview[]>;
   onFilesChange: (files: FileWithPreview[]) => void;
   onDocumentRead?: (fileId: string, result: OcrResult) => void;
   fillDocumentType?: boolean;
+  purpose?: "tax-invoice";
+  replaceImage?: boolean;
 }) {
   const [readingIds, setReadingIds] = useState<ReadonlySet<string>>(() => new Set());
   const [skipped, setSkipped] = useState<Readonly<Record<string, OcrSkipReason>>>({});
@@ -61,7 +65,12 @@ export function useDocumentReader({
   const readOne = useCallback(
     async (item: FileWithPreview) => {
       const signal = abortRef.current?.signal;
-      const result = await readDocument(item.file, signal);
+      if (signal?.aborted) return;
+      if (!filesRef.current.some((file) => file.id === item.id)) {
+        finish(item.id);
+        return;
+      }
+      const result = await readDocument(item.file, signal, purpose);
       if (signal?.aborted) return;
       finish(item.id);
       if (!result) {
@@ -74,7 +83,7 @@ export function useDocumentReader({
       if (!cur) return; // 읽는 사이 지운 첨부
 
       let next = cur;
-      if (result.imageJpegBase64) {
+      if (replaceImage && result.imageJpegBase64) {
         const upright = fileFromOcrImage(cur.file, result.imageJpegBase64);
         const total = current.reduce((sum, f) => sum + f.file.size, 0) - cur.file.size + (upright?.size ?? 0);
         if (upright && total <= MAX_TOTAL_FILE_SIZE) {
@@ -93,7 +102,7 @@ export function useDocumentReader({
       }
       callbacksRef.current.onDocumentRead?.(item.id, result);
     },
-    [filesRef, finish, fillDocumentType, markSkipped]
+    [filesRef, finish, fillDocumentType, markSkipped, purpose, replaceImage]
   );
 
   /** 새로 붙인 첨부를 읽기 시작한다 (기다리지 않는다) */

@@ -4,7 +4,7 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
-import { OCR_SYSTEM, buildOcrPrompt, ocrModelSchema, toOcrFields, toRotation } from "./prompt";
+import { OCR_SYSTEM, TAX_INVOICE_OCR_PROMPT, buildOcrPrompt, ocrModelSchema, taxInvoiceModelSchema, toOcrFields, toTaxInvoiceOcrFields, toRotation } from "./prompt";
 import { heicToJpeg, isHeicMime, makeOutputImage, rotateJpeg, tileImageForModel, toJpegForModel, type Degrees } from "./image";
 import type { OcrFields, OcrResult } from "./types";
 
@@ -57,6 +57,7 @@ export interface OcrEngineConfig {
   effort?: "low" | "medium" | "high";
   /** 프롬프트의 "이 파일은 ○○입니다" 앞부분 */
   context?: string;
+  purpose?: "tax-invoice";
   /** 모델 호출 전체 시한. 기본 30000 (maxDuration 60s 안에서 끝나도록) */
   deadlineMs?: number;
   /** 로그 훅. 기본은 console (usage → info "[ocr]", error → error "[ocr] ...") */
@@ -81,7 +82,9 @@ export function createOcrEngine(config: OcrEngineConfig): OcrEngine {
   const effort = config.effort ?? "low";
   const deadlineMs = config.deadlineMs ?? OCR_DEFAULT_DEADLINE_MS;
   const log = config.onLog ?? defaultOcrLog;
-  const prompt = buildOcrPrompt({ context: config.context });
+  const taxInvoice = config.purpose === "tax-invoice";
+  const prompt = taxInvoice ? TAX_INVOICE_OCR_PROMPT : buildOcrPrompt({ context: config.context });
+  const outputFormat = taxInvoice ? zodOutputFormat(taxInvoiceModelSchema) : zodOutputFormat(ocrModelSchema);
 
   let client: Anthropic | null = null;
   function getClient(): Anthropic {
@@ -107,7 +110,7 @@ export function createOcrEngine(config: OcrEngineConfig): OcrEngine {
           max_tokens: MAX_TOKENS,
           system: OCR_SYSTEM,
           messages: [{ role: "user", content: [...(Array.isArray(media) ? media : [media]), { type: "text", text: prompt + extraInstruction }] }],
-          output_config: { effort, format: zodOutputFormat(ocrModelSchema) },
+          output_config: { effort, format: outputFormat },
         },
         { signal: AbortSignal.timeout(remaining) }
       );
@@ -123,14 +126,17 @@ export function createOcrEngine(config: OcrEngineConfig): OcrEngine {
     if (response.stop_reason === "refusal") throw new OcrUpstreamError("이 문서는 자동 인식할 수 없습니다.");
     if (response.stop_reason === "max_tokens") throw new OcrUpstreamError("증빙 인식 결과를 해석하지 못했습니다.");
     const textBlock = response.content.find((b): b is Anthropic.TextBlock => b.type === "text");
-    let parsed;
     try {
-      parsed = ocrModelSchema.safeParse(JSON.parse(textBlock?.text ?? ""));
+      const output: unknown = JSON.parse(textBlock?.text ?? "");
+      if (taxInvoice) {
+        const data = taxInvoiceModelSchema.parse(output);
+        return { fields: toTaxInvoiceOcrFields(data), rotation: toRotation(data.text_top) };
+      }
+      const data = ocrModelSchema.parse(output);
+      return { fields: toOcrFields(data), rotation: toRotation(data.text_top) };
     } catch {
-      parsed = null;
+      throw new OcrUpstreamError("증빙 인식 결과를 해석하지 못했습니다.");
     }
-    if (!parsed || !parsed.success) throw new OcrUpstreamError("증빙 인식 결과를 해석하지 못했습니다.");
-    return { fields: toOcrFields(parsed.data), rotation: toRotation(parsed.data.text_top) };
   }
 
   async function run(input: {

@@ -5,7 +5,8 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import sharp from "sharp";
 import Anthropic from "@anthropic-ai/sdk";
-import { ocrModelSchema, toOcrFields, toRotation, type OcrModelOutput } from "./prompt";
+import { ocrModelSchema, taxInvoiceModelSchema, toOcrFields, toTaxInvoiceOcrFields, toRotation, type OcrModelOutput } from "./prompt";
+import { taxInvoiceOcrSuggestion } from "../tax-invoice-ocr";
 import { makeOutputImage, planImageTiles, tileImageForModel, rotateJpeg, toJpegForModel, verifyMagic } from "./image";
 import { createRateLimiter } from "./rate-limit";
 import { MAX_PIXELS } from "./image";
@@ -71,6 +72,33 @@ describe("toOcrFields", () => {
     assert.equal(toRotation("right"), 270);
     assert.equal(toRotation("down"), 180);
     assert.equal(toRotation("left"), 90);
+  });
+});
+
+describe("세금계산서 발행용 OCR", () => {
+  const invoice = {
+    ...base,
+    buyer_name: "매입처 예시", buyer_biz_no: "123-45-67891", buyer_ceo: null,
+    buyer_email: null, buyer_address: null, items: "품목 A", supply_date: "2026-11-17",
+    supply_amount: 10000, vat_amount: 1000, total_amount: 11000,
+  };
+  const suggest = (input: typeof invoice) => taxInvoiceOcrSuggestion(toTaxInvoiceOcrFields(taxInvoiceModelSchema.parse(input)));
+
+  it("판매자·카드 정보를 사용하지 않고 공급받는 자와 명시된 원화 금액을 제안한다", () => {
+    const fields = toTaxInvoiceOcrFields(taxInvoiceModelSchema.parse(invoice));
+    const suggestion = taxInvoiceOcrSuggestion(fields);
+    assert.equal(fields.merchantName, null);
+    assert.equal(fields.cardLast4, null);
+    assert.equal(suggestion.buyerName, "매입처 예시");
+    assert.equal(suggestion.buyerBizNo, "1234567891");
+    assert.deepEqual(suggestion.exact, { supply: 10000, vat: 1000 });
+  });
+
+  it("음수·외화·합계 불일치 금액과 존재하지 않는 공급일은 제안하지 않는다", () => {
+    assert.equal(suggest({ ...invoice, supply_amount: -10000 }).exact, null);
+    assert.equal(suggest({ ...invoice, currency: "USD" }).exact, null);
+    assert.equal(suggest({ ...invoice, total_amount: 12000 }).exact, null);
+    assert.equal(suggest({ ...invoice, supply_date: "2026-02-30" }).supplyDate, null);
   });
 });
 

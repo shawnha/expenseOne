@@ -1,11 +1,13 @@
 import type { ChargeType, IssuerCode } from "@/lib/tax-invoice";
 import type { ErpSalesDoc } from "@/services/tax-invoice.service";
+import type { TaxInvoiceAttachment } from "@/lib/tax-invoice-attachments";
 import { todayKST } from "./api";
 
 // 세금계산서 요청 폼의 처음 값. 서버 화면(새 요청·딥링크·수정)이 만들어 넘기므로 "use client" 밖에 둔다.
 
 export interface TaxInvoiceFormInitial {
   id?: string;
+  attachments?: TaxInvoiceAttachment[];
   issuerCode: IssuerCode;
   buyerName: string;
   buyerBizNo: string;

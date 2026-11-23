@@ -26,6 +26,7 @@ import {
   type TaxInvoiceStatus,
 } from "@/lib/tax-invoice";
 import type { TaxInvoiceView } from "@/services/tax-invoice.service";
+import { TaxInvoiceAttachmentLink } from "./tax-invoice-documents";
 import { taxFetch, todayKST, won } from "./api";
 
 // ---------------------------------------------------------------------------
@@ -272,6 +273,17 @@ function RequestCard({ item, isAdmin, focused }: { item: TaxInvoiceView; isAdmin
           </>
         )}
       </dl>
+
+      {item.attachments.length > 0 && (
+        <section aria-label="첨부 파일" className="border-t border-[var(--apple-separator)] pt-2">
+          <h3 className="text-footnote font-semibold">첨부 파일 {item.attachments.length}개</h3>
+          <ul>
+            {item.attachments.map((attachment) => (
+              <li key={attachment.id}><TaxInvoiceAttachmentLink requestId={item.id} attachment={attachment} /></li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <p className="text-caption1 text-[var(--apple-secondary-label)]">
         {item.requestedByName ?? "알 수 없음"} · {kstStamp(item.createdAt)} 요청

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, ArrowLeft, Building2, FileSpreadsheet, Search } from "lucide-react";
@@ -25,7 +25,10 @@ import {
 import type { BuyerSuggestion, ErpSalesDoc } from "@/services/tax-invoice.service";
 import { ScrollFade } from "@/components/ui/scroll-fade";
 import { taxFetch, todayKST, won } from "./api";
-import type { TaxInvoiceFormInitial } from "./initial";
+import { emptyTaxInvoiceInitial, type TaxInvoiceFormInitial } from "./initial";
+import { TaxInvoiceDocumentPicker, TaxInvoiceDocuments, useTaxInvoiceDocuments } from "./tax-invoice-documents";
+import { taxInvoiceAttachmentLimit } from "@/lib/tax-invoice-attachments";
+import type { TaxInvoiceOcrSuggestion } from "@/lib/tax-invoice-ocr";
 
 // ---------------------------------------------------------------------------
 // 세금계산서 발행 요청 폼 (새 요청 · 수정 공용).
@@ -37,6 +40,12 @@ import type { TaxInvoiceFormInitial } from "./initial";
 
 const fieldClass = "h-11 rounded-xl";
 
+interface Draft {
+  id: string;
+  documentIds: string[];
+  sent?: boolean;
+}
+
 export function TaxInvoiceForm({
   initial,
   canUseErp,
@@ -46,7 +55,128 @@ export function TaxInvoiceForm({
   canUseErp: boolean;
 }) {
   const router = useRouter();
+  const [drafts, setDrafts] = useState<Draft[]>([{ id: "initial", documentIds: [] }]);
+  const [active, setActive] = useState("initial");
+  const [saving, setSaving] = useState(false);
+  const documents = useTaxInvoiceDocuments();
+  const { files, addFiles, preparing, error, removeFile, results, readingIds, retry } = documents;
+  const busy = saving || preparing;
+  const blank = { ...emptyTaxInvoiceInitial(), issuerCode: initial.issuerCode };
+
+  async function onPick(picked: File[]) {
+    if (busy) return;
+    const ids = await addFiles(picked);
+    if (ids.length) setDrafts((current) => current.map((draft) => draft.id === active
+      ? { ...draft, documentIds: [...draft.documentIds, ...ids] } : draft));
+  }
+
+  function split(draft: Draft) {
+    const [first, ...rest] = draft.documentIds;
+    const additional = rest.map((documentId) => ({ id: crypto.randomUUID(), documentIds: [documentId] }));
+    setDrafts((current) => current.flatMap((entry) => entry.id === draft.id
+      ? [{ ...entry, documentIds: [first] }, ...additional] : [entry]));
+  }
+
+  function saved(draft: Draft, requestId: string) {
+    const next = drafts.find((entry) => entry.id !== draft.id && !entry.sent);
+    if (next) {
+      draft.documentIds.forEach(removeFile);
+      setDrafts((current) => current.map((entry) => entry.id === draft.id ? { ...entry, documentIds: [], sent: true } : entry));
+      setActive(next.id);
+      window.scrollTo({ top: 0 });
+      return;
+    }
+    router.push(`/tax-invoices?focus=${requestId}`);
+    router.refresh();
+  }
+
+  function dropDraft() {
+    const draft = drafts.find((entry) => entry.id === active && !entry.sent);
+    const next = drafts.find((entry) => entry.id !== active && !entry.sent);
+    if (!draft || !next) return;
+    draft.documentIds.forEach(removeFile);
+    setDrafts((current) => current.filter((entry) => entry.id !== active));
+    setActive(next.id);
+  }
+
+  return (
+    <div className="mx-auto max-w-2xl space-y-5">
+      <div className="flex items-center gap-3 animate-fade-up">
+        <Link href="/tax-invoices" aria-label="세금계산서 요청 목록으로"
+          className="flex size-11 shrink-0 items-center justify-center rounded-full glass-subtle text-[var(--apple-secondary-label)] transition-colors hover:text-[var(--apple-label)]">
+          <ArrowLeft className="size-4" />
+        </Link>
+        <div>
+          <h1 className="text-title3 text-[var(--apple-label)]">{initial.id ? "발행 요청 수정" : "세금계산서 발행 요청"}</h1>
+          <p className="mt-0.5 break-keep text-footnote text-[var(--apple-secondary-label)]">매출 세금계산서 발행을 관리자에게 요청합니다.</p>
+        </div>
+      </div>
+      <TaxInvoiceDocumentPicker onPick={(picked) => void onPick(picked)} busy={busy} preparing={preparing} error={error} />
+      {drafts.length > 1 && (
+        <section className="glass space-y-2 p-4" aria-label="파일별 발행 요청">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold">검토할 요청</h2>
+            {drafts.filter((draft) => !draft.sent).length > 1 && (
+              <Button type="button" variant="ghost" className="min-h-11 rounded-full" disabled={busy} onClick={dropDraft}>
+                이 요청 빼기
+              </Button>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {drafts.map((draft, index) => (
+              <Button key={draft.id} type="button" variant={draft.id === active ? "default" : "outline"}
+                className="min-h-11 max-w-full rounded-full" aria-pressed={draft.id === active}
+                disabled={busy || draft.sent} onClick={() => setActive(draft.id)}>
+                요청 {index + 1}{draft.sent ? " · 보냄" : ""}
+              </Button>
+            ))}
+          </div>
+        </section>
+      )}
+      {drafts.map((draft) => (
+        <div key={draft.id} hidden={draft.id !== active}>
+          <TaxInvoiceDraft
+            initial={draft.id === "initial" ? initial : blank}
+            canUseErp={canUseErp}
+            files={files.filter(({ id }) => draft.documentIds.includes(id))}
+            results={results}
+            readingIds={readingIds}
+            onRemove={(id) => {
+              removeFile(id);
+              setDrafts((current) => current.map((entry) => entry.id === draft.id
+                ? { ...entry, documentIds: entry.documentIds.filter((key) => key !== id) } : entry));
+            }}
+            onRetry={retry}
+            onSplit={initial.id ? undefined : () => split(draft)}
+            onSavingChange={setSaving}
+            onSaved={(id) => saved(draft, id)}
+            preparing={preparing}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TaxInvoiceDraft({ initial, canUseErp, files, results, readingIds, onRemove, onRetry, onSplit, onSavingChange, onSaved, preparing }: {
+  initial: TaxInvoiceFormInitial;
+  canUseErp: boolean;
+  files: Parameters<typeof TaxInvoiceDocuments>[0]["files"];
+  results: Parameters<typeof TaxInvoiceDocuments>[0]["results"];
+  readingIds: ReadonlySet<string>;
+  onRemove: (id: string) => void;
+  onRetry: Parameters<typeof TaxInvoiceDocuments>[0]["onRetry"];
+  onSplit?: () => void;
+  onSavingChange: (saving: boolean) => void;
+  onSaved: (requestId: string) => void;
+  preparing: boolean;
+}) {
+  const fieldId = useId();
   const editing = Boolean(initial.id);
+  const requestKey = useRef<string | null>(null);
+  const savedFiles = initial.attachments ?? [];
+  const [removeAttachmentIds, setRemoveAttachmentIds] = useState<string[]>([]);
+  const remainingFiles = savedFiles.filter(({ id }) => !removeAttachmentIds.includes(id));
 
   const [issuerCode, setIssuerCode] = useState<IssuerCode>(initial.issuerCode);
   const [buyerName, setBuyerName] = useState(initial.buyerName);
@@ -56,6 +186,7 @@ export function TaxInvoiceForm({
   const [buyerAddress, setBuyerAddress] = useState(initial.buyerAddress);
   const [items, setItems] = useState(initial.items);
   const [supplyDate, setSupplyDate] = useState(initial.supplyDate);
+  const dateEdited = useRef(editing || Boolean(initial.erpDocumentNo));
   const [chargeType, setChargeType] = useState<ChargeType>(initial.chargeType);
   const [memo, setMemo] = useState(initial.memo);
   const [erpRef, setErpRef] = useState<{ date: string; doc: string } | null>(
@@ -91,6 +222,7 @@ export function TaxInvoiceForm({
     setBuyerName(doc.payeeName);
     setItems(doc.items);
     setSupplyDate(doc.salesDate);
+    dateEdited.current = true;
     setExact({ supply: doc.supplyAmount, vat: doc.vatAmount });
     setAmountText(doc.total.toLocaleString("ko-KR"));
     setErpRef({ date: doc.salesDate, doc: doc.documentNo });
@@ -105,13 +237,39 @@ export function TaxInvoiceForm({
     if (b.address) setBuyerAddress(b.address);
   }, []);
 
-  const handleSubmit = useCallback(async () => {
-    if (lock.current) return;
+  function applyOcr(suggestion: TaxInvoiceOcrSuggestion) {
+    const sameBizNo = Boolean(bizDigits && suggestion.buyerBizNo === bizDigits);
+    const differentBuyer = (bizDigits && suggestion.buyerBizNo && bizDigits !== suggestion.buyerBizNo) ||
+      (!sameBizNo && buyerName.trim() && suggestion.buyerName && buyerName.trim() !== suggestion.buyerName);
+    if (differentBuyer) {
+      toast.error("현재 입력한 거래처와 인식한 거래처가 다릅니다. 원본을 확인해 주세요.");
+      return;
+    }
+    if (!buyerName && suggestion.buyerName) setBuyerName(suggestion.buyerName);
+    if (!bizDigits && suggestion.buyerBizNo) setBuyerBizNo(formatBizNo(suggestion.buyerBizNo));
+    if (!buyerCeo && suggestion.buyerCeo) setBuyerCeo(suggestion.buyerCeo);
+    if (!buyerEmail && suggestion.buyerEmail) setBuyerEmail(suggestion.buyerEmail);
+    if (!buyerAddress && suggestion.buyerAddress) setBuyerAddress(suggestion.buyerAddress);
+    if (!items && suggestion.items) setItems(suggestion.items);
+    if (!dateEdited.current && suggestion.supplyDate) {
+      setSupplyDate(suggestion.supplyDate);
+      dateEdited.current = true;
+    }
+    if (!amountText && suggestion.exact) {
+      setExact(suggestion.exact);
+      setAmountText((suggestion.exact.supply + suggestion.exact.vat).toLocaleString("ko-KR"));
+    }
+  }
+
+  async function handleSubmit() {
+    if (lock.current || preparing) return;
     if (!buyerName.trim()) return toast.error("거래처 상호를 입력해주세요.");
     if (bizDigits.length !== 10) return toast.error("사업자등록번호 10자리를 입력해주세요.");
     if (!items.trim()) return toast.error("품목을 입력해주세요.");
     if (breakdown.supply <= 0) return toast.error("금액을 입력해주세요.");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(supplyDate)) return toast.error("작성일자를 선택해주세요.");
+    const limitError = taxInvoiceAttachmentLimit([...remainingFiles, ...files.map(({ file }) => ({ fileSize: file.size }))]);
+    if (limitError) return toast.error(limitError);
 
     const body = {
       issuerCode,
@@ -128,41 +286,35 @@ export function TaxInvoiceForm({
       memo: memo.trim() || null,
       erpSalesDate: erpRef?.date ?? null,
       erpDocumentNo: erpRef?.doc ?? null,
+      ...(editing ? { removeAttachmentIds } : { requestKey: requestKey.current ??= crypto.randomUUID() }),
     };
+    let payload: string | FormData = JSON.stringify(body);
+    if (files.length) {
+      const multipart = new FormData();
+      multipart.set("payload", payload);
+      for (const { file } of files) multipart.append("files", file);
+      payload = multipart;
+    }
 
     lock.current = true;
     setSaving(true);
+    onSavingChange(true);
     const res = editing
-      ? await taxFetch<{ id: string }>(`/api/tax-invoices/${initial.id}`, { method: "PATCH", body: JSON.stringify(body) })
-      : await taxFetch<{ id: string }>("/api/tax-invoices", { method: "POST", body: JSON.stringify(body) });
+      ? await taxFetch<{ id: string }>(`/api/tax-invoices/${initial.id}`, { method: "PATCH", body: payload })
+      : await taxFetch<{ id: string }>("/api/tax-invoices", { method: "POST", body: payload });
     setSaving(false);
+    onSavingChange(false);
     lock.current = false;
     if (!res.ok) return toast.error(res.message);
     toast.success(editing ? "요청을 수정했습니다." : "발행 요청을 보냈습니다. 관리자에게 알림이 갑니다.");
-    router.push(`/tax-invoices?focus=${res.data.id}`);
-    router.refresh();
-  }, [
-    buyerName, bizDigits, items, breakdown, supplyDate, issuerCode, buyerCeo, buyerEmail, buyerAddress,
-    chargeType, memo, erpRef, editing, initial.id, router,
-  ]);
+    onSaved(res.data.id);
+  }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5">
-      <div className="flex items-center gap-3 animate-fade-up">
-        <Link
-          href="/tax-invoices"
-          aria-label="세금계산서 요청 목록으로"
-          className="flex size-11 items-center justify-center rounded-full glass-subtle text-[var(--apple-secondary-label)] transition-colors hover:text-[var(--apple-label)]"
-        >
-          <ArrowLeft className="size-4" />
-        </Link>
-        <div>
-          <h1 className="text-title3 text-[var(--apple-label)]">{editing ? "발행 요청 수정" : "세금계산서 발행 요청"}</h1>
-          <p className="mt-0.5 text-footnote text-[var(--apple-secondary-label)]">
-            약국·의원 등에 판 건의 매출 세금계산서를 관리자에게 요청합니다.
-          </p>
-        </div>
-      </div>
+    <div className="space-y-5">
+      <TaxInvoiceDocuments files={files} results={results} readingIds={readingIds} saved={remainingFiles}
+        requestId={initial.id} saving={saving || preparing} onApply={applyOcr} onRemove={onRemove} onRetry={onRetry} onSplit={onSplit}
+        onRemoveSaved={(id) => setRemoveAttachmentIds((ids) => [...ids, id])} />
 
       {/* 발행 법인 */}
       <section className="glass p-5 sm:p-6 space-y-3">
@@ -194,11 +346,11 @@ export function TaxInvoiceForm({
       {/* 공급받는 자 */}
       <section className="glass p-5 sm:p-6 space-y-4">
         <h2 className="text-subheadline font-semibold text-[var(--apple-label)]">공급받는 자</h2>
-        <BuyerNameField value={buyerName} onChange={setBuyerName} onPick={applyBuyer} />
+        <BuyerNameField id={`${fieldId}-buyer`} value={buyerName} onChange={setBuyerName} onPick={applyBuyer} />
         <div className="space-y-1.5">
-          <Label htmlFor="ti-biz">사업자등록번호 <span className="text-[var(--apple-red)]">*</span></Label>
+          <Label htmlFor={`${fieldId}-biz`}>사업자등록번호 <span className="text-[var(--apple-red)]">*</span></Label>
           <Input
-            id="ti-biz"
+            id={`${fieldId}-biz`}
             inputMode="numeric"
             placeholder="123-45-67890"
             value={buyerBizNo}
@@ -215,13 +367,13 @@ export function TaxInvoiceForm({
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="ti-ceo">대표자</Label>
-            <Input id="ti-ceo" value={buyerCeo} onChange={(e) => setBuyerCeo(e.target.value)} className={fieldClass} />
+            <Label htmlFor={`${fieldId}-ceo`}>대표자</Label>
+            <Input id={`${fieldId}-ceo`} value={buyerCeo} onChange={(e) => setBuyerCeo(e.target.value)} className={fieldClass} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="ti-email">받을 이메일</Label>
+            <Label htmlFor={`${fieldId}-email`}>받을 이메일</Label>
             <Input
-              id="ti-email"
+              id={`${fieldId}-email`}
               type="email"
               inputMode="email"
               placeholder="계산서를 받을 주소"
@@ -232,8 +384,8 @@ export function TaxInvoiceForm({
           </div>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="ti-address">주소</Label>
-          <Input id="ti-address" value={buyerAddress} onChange={(e) => setBuyerAddress(e.target.value)} className={fieldClass} />
+          <Label htmlFor={`${fieldId}-address`}>주소</Label>
+          <Input id={`${fieldId}-address`} value={buyerAddress} onChange={(e) => setBuyerAddress(e.target.value)} className={fieldClass} />
         </div>
       </section>
 
@@ -241,15 +393,15 @@ export function TaxInvoiceForm({
       <section className="glass p-5 sm:p-6 space-y-4">
         <h2 className="text-subheadline font-semibold text-[var(--apple-label)]">계산서 내용</h2>
         <div className="space-y-1.5">
-          <Label htmlFor="ti-items">품목 <span className="text-[var(--apple-red)]">*</span></Label>
-          <Textarea id="ti-items" rows={2} value={items} onChange={(e) => setItems(e.target.value)} placeholder="예: 릴리)마운자로 펜 5mg 외 2건" />
+          <Label htmlFor={`${fieldId}-items`}>품목 <span className="text-[var(--apple-red)]">*</span></Label>
+          <Textarea id={`${fieldId}-items`} rows={2} value={items} onChange={(e) => setItems(e.target.value)} placeholder="예: 릴리)마운자로 펜 5mg 외 2건" />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="ti-amount">금액 <span className="text-[var(--apple-red)]">*</span></Label>
+          <Label htmlFor={`${fieldId}-amount`}>금액 <span className="text-[var(--apple-red)]">*</span></Label>
           <div className="relative">
             <Input
-              id="ti-amount"
+              id={`${fieldId}-amount`}
               inputMode="numeric"
               placeholder="0"
               value={amountText}
@@ -264,7 +416,7 @@ export function TaxInvoiceForm({
           </div>
           {exact ? (
             <p className="text-caption1 text-[var(--apple-secondary-label)]">
-              전표 금액 그대로입니다. 금액을 고치면 부가세를 다시 계산합니다.
+              공급가액과 세액을 그대로 사용합니다. 금액을 고치면 부가세를 다시 계산합니다.
             </p>
           ) : (
             <VatModeSelect value={vatMode} onChange={setVatMode} />
@@ -285,8 +437,8 @@ export function TaxInvoiceForm({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="ti-date">작성일자(공급일) <span className="text-[var(--apple-red)]">*</span></Label>
-            <Input id="ti-date" type="date" value={supplyDate} onChange={(e) => setSupplyDate(e.target.value)} className={fieldClass} />
+            <Label htmlFor={`${fieldId}-date`}>작성일자(공급일) <span className="text-[var(--apple-red)]">*</span></Label>
+            <Input id={`${fieldId}-date`} type="date" value={supplyDate} onChange={(e) => { dateEdited.current = true; setSupplyDate(e.target.value); }} className={fieldClass} />
             {/^\d{4}-\d{2}-\d{2}$/.test(supplyDate) && (
               <p className="text-caption1 text-[var(--apple-secondary-label)]">
                 발행 기한 {issueDeadline(supplyDate).slice(5).replace("-", "월 ")}일까지
@@ -317,8 +469,8 @@ export function TaxInvoiceForm({
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="ti-memo">관리자에게 메모</Label>
-          <Textarea id="ti-memo" rows={2} value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="예: 월말 합산 발행 원하심, 담당 약사님께 연락 후 발행" />
+          <Label htmlFor={`${fieldId}-memo`}>관리자에게 메모</Label>
+          <Textarea id={`${fieldId}-memo`} rows={2} value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="예: 월말 합산 발행 원하심, 담당 약사님께 연락 후 발행" />
         </div>
       </section>
 
@@ -326,7 +478,7 @@ export function TaxInvoiceForm({
         <Button
           type="button"
           onClick={() => void handleSubmit()}
-          disabled={saving}
+          disabled={saving || preparing}
           className="h-11 w-full rounded-full bg-[var(--apple-blue)] px-6 text-white hover:bg-[color-mix(in_srgb,var(--apple-blue)_90%,black)] sm:w-auto"
         >
           {saving ? "보내는 중…" : editing ? "수정 저장" : "발행 요청 보내기"}
@@ -341,10 +493,12 @@ export function TaxInvoiceForm({
 // ---------------------------------------------------------------------------
 
 function BuyerNameField({
+  id,
   value,
   onChange,
   onPick,
 }: {
+  id: string;
   value: string;
   onChange: (v: string) => void;
   onPick: (b: BuyerSuggestion) => void;
@@ -368,9 +522,9 @@ function BuyerNameField({
 
   return (
     <div className="relative space-y-1.5">
-      <Label htmlFor="ti-buyer">상호 <span className="text-[var(--apple-red)]">*</span></Label>
+      <Label htmlFor={id}>상호 <span className="text-[var(--apple-red)]">*</span></Label>
       <Input
-        id="ti-buyer"
+        id={id}
         value={value}
         autoComplete="off"
         placeholder="예: 행복약국 — 두 글자 넘게 치면 전에 요청한 곳을 찾아 줍니다"

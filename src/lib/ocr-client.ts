@@ -36,12 +36,13 @@ function withTimeout(signal?: AbortSignal): AbortSignal {
   return signal && typeof AbortSignal.any === "function" ? AbortSignal.any([signal, timeout]) : timeout;
 }
 
-export async function readDocument(file: File, signal?: AbortSignal): Promise<OcrResult | null> {
+export async function readDocument(file: File, signal?: AbortSignal, purpose?: "tax-invoice"): Promise<OcrResult | null> {
   if (!canReadDocument(file)) return null;
   try {
     const body = new FormData();
     body.append("file", file);
-    const res = await fetch("/api/ocr", { method: "POST", body, signal: withTimeout(signal) });
+    const endpoint = purpose === "tax-invoice" ? "/api/ocr?purpose=tax-invoice" : "/api/ocr";
+    const res = await fetch(endpoint, { method: "POST", body, signal: withTimeout(signal) });
     if (res.status === 503) {
       // 키가 없어 꺼진 경우만 이 페이지에서 다시 묻지 않는다 (일시적 503은 다음 첨부 때 다시 시도)
       const json = (await res.json().catch(() => null)) as { error?: { code?: string } } | null;

@@ -9,7 +9,7 @@ import { OCR_ACCEPTED_TYPES, OCR_DISABLED_CODE, OCR_MAX_UPLOAD_BYTES, type OcrRe
 
 export interface OcrRouteHandlerOptions {
   /** 엔진을 돌려준다. null 이면 기능 꺼짐 → 503 OCR_DISABLED */
-  engine: () => OcrEngine | null;
+  engine: (request: Request) => OcrEngine | null;
   /** 인증 훅. { key } 는 레이트 리밋 키(보통 사용자 id), Response 를 돌려주면 그대로 응답한다 */
   identify: (req: Request) => Promise<{ key: string } | Response>;
   /** 기본: 30회 / 10분 */
@@ -39,7 +39,7 @@ export function createOcrRouteHandler(options: OcrRouteHandlerOptions): (req: Re
       const who = await options.identify(request);
       if (who instanceof Response) return who;
 
-      const engine = options.engine();
+      const engine = options.engine(request);
       if (!engine) return err(OCR_DISABLED_CODE, "증빙 자동 인식이 꺼져 있습니다.", 503);
 
       // 본문을 읽기 전에 센다. 인스턴스별 best-effort (서버리스에서는 인스턴스마다 따로 센다)
