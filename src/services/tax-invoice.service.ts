@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
@@ -10,6 +11,8 @@ import {
   type TaxInvoiceStatus,
 } from "@/lib/tax-invoice";
 import type { CreateTaxInvoiceInput, UpdateTaxInvoiceInput } from "@/lib/validations/tax-invoice";
+import type { TaxInvoiceAttachment } from "@/lib/tax-invoice-attachments";
+import { listTaxInvoiceAttachments, writeTaxInvoiceWithAttachments } from "./tax-invoice-attachments.service";
 import { AppError } from "./attachment.service";
 import { notifyTaxInvoiceIssued, notifyTaxInvoiceRequested } from "./notification.service";
 
@@ -57,6 +60,7 @@ export interface TaxInvoiceView {
   hometaxMatch: HometaxInvoiceRef | null;
   /** 이 사람이 고치거나 취소할 수 있나(발행 대기 + 본인 또는 관리자). */
   canEdit: boolean;
+  attachments: TaxInvoiceAttachment[];
 }
 
 const iso = (v: Date | string | null) => (v == null ? null : new Date(v).toISOString());
@@ -94,11 +98,20 @@ function toColumns(input: CreateTaxInvoiceInput) {
 
 // --- 쓰기 -----------------------------------------------------------------------------
 
-export async function createTaxInvoiceRequest(actor: Actor, input: CreateTaxInvoiceInput) {
-  const [row] = await db
-    .insert(taxInvoiceRequests)
-    .values({ ...toColumns(input), requestedById: actor.id })
-    .returning();
+export async function createTaxInvoiceRequest(actor: Actor, input: CreateTaxInvoiceInput, files: File[] = []) {
+  const id = input.requestKey ?? randomUUID();
+  const { row, changed } = await writeTaxInvoiceWithAttachments(id, files, [], async (tx) => {
+    const [inserted] = await tx.insert(taxInvoiceRequests)
+      .values({ ...toColumns(input), id, requestedById: actor.id })
+      .onConflictDoNothing({ target: taxInvoiceRequests.id }).returning();
+    if (inserted) return { row: inserted, changed: true };
+    const [existing] = await tx.select().from(taxInvoiceRequests).where(and(
+      eq(taxInvoiceRequests.id, id), eq(taxInvoiceRequests.requestedById, actor.id),
+    ));
+    if (!existing) throw new AppError("VALIDATION_ERROR", "발행 요청을 새로 작성해 주세요.");
+    return { row: existing, changed: false };
+  });
+  if (!changed) return row;
 
   // 알림이 실패해도 요청은 이미 들어갔다.
   try {
@@ -115,20 +128,19 @@ export async function createTaxInvoiceRequest(actor: Actor, input: CreateTaxInvo
   return row;
 }
 
-export async function updateTaxInvoiceRequest(actor: Actor, id: string, input: UpdateTaxInvoiceInput) {
+export async function updateTaxInvoiceRequest(actor: Actor, id: string, input: UpdateTaxInvoiceInput, files: File[] = []) {
   const row = await loadRow(id);
   assertCanTouch(actor, row);
   if (row.status !== "REQUESTED") {
     throw new AppError("VALIDATION_ERROR", "발행 대기 중인 요청만 고칠 수 있습니다.");
   }
-  const [updated] = await db
-    .update(taxInvoiceRequests)
-    .set({ ...toColumns(input), updatedAt: sql`now()` })
-    // 그사이 발행·취소됐으면 0행 — 발행된 계산서와 다른 내용으로 요청이 바뀌면 안 된다.
-    .where(and(eq(taxInvoiceRequests.id, id), eq(taxInvoiceRequests.status, "REQUESTED")))
-    .returning();
-  if (!updated) throw new AppError("VALIDATION_ERROR", "그사이 발행되었거나 취소되었습니다. 새로고침해주세요.");
-  return updated;
+  const result = await writeTaxInvoiceWithAttachments(id, files, input.removeAttachmentIds ?? [], async (tx) => {
+    const [updated] = await tx.update(taxInvoiceRequests).set({ ...toColumns(input), updatedAt: sql`now()` })
+      .where(and(eq(taxInvoiceRequests.id, id), eq(taxInvoiceRequests.status, "REQUESTED"))).returning();
+    if (!updated) throw new AppError("VALIDATION_ERROR", "그사이 발행되었거나 취소되었습니다. 새로고침해주세요.");
+    return { row: updated, changed: true };
+  });
+  return result.row;
 }
 
 /** 관리자: 발행 완료 ↔ 발행 대기. 잘못 눌렀을 때 되돌릴 수 있어야 또 놓치지 않는다. */
@@ -205,7 +217,10 @@ export async function listTaxInvoiceRequests(actor: Actor): Promise<TaxInvoiceVi
     )
     .limit(300);
 
-  const hometax = actor.role === "ADMIN" ? await loadHometaxCandidates(rows.map((x) => x.r)) : [];
+  const [hometax, attachments] = await Promise.all([
+    actor.role === "ADMIN" ? loadHometaxCandidates(rows.map((x) => x.r)) : [],
+    listTaxInvoiceAttachments(rows.map(({ r }) => r.id)),
+  ]);
 
   return rows.map(({ r, requestedByName, issuedByName }) => {
     const total = r.supplyAmount + r.vatAmount;
@@ -243,6 +258,7 @@ export async function listTaxInvoiceRequests(actor: Actor): Promise<TaxInvoiceVi
             )
           : null,
       canEdit: r.status === "REQUESTED" && (actor.role === "ADMIN" || r.requestedById === actor.id),
+      attachments: attachments.get(r.id) ?? [],
     };
   });
 }

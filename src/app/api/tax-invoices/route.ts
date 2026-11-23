@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { handleError, requireAuth, validateOrigin } from "@/lib/api-utils";
-import { parseBody, toActor } from "@/lib/tax-invoice-api";
+import { parseTaxInvoiceRequest, toActor } from "@/lib/tax-invoice-api";
 import { createTaxInvoiceSchema } from "@/lib/validations/tax-invoice";
 import { createTaxInvoiceRequest, listTaxInvoiceRequests } from "@/services/tax-invoice.service";
 
@@ -9,6 +9,7 @@ import { createTaxInvoiceRequest, listTaxInvoiceRequests } from "@/services/tax-
 // POST /api/tax-invoices — 세금계산서 발행 요청(누구나). 관리자에게 알림.
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function GET() {
   try {
@@ -24,8 +25,8 @@ export async function POST(request: NextRequest) {
     const csrfError = validateOrigin(request);
     if (csrfError) return csrfError;
     const user = await requireAuth();
-    const input = await parseBody(request, createTaxInvoiceSchema);
-    const row = await createTaxInvoiceRequest(toActor(user), input);
+    const { input, files } = await parseTaxInvoiceRequest(request, createTaxInvoiceSchema);
+    const row = await createTaxInvoiceRequest(toActor(user), input, files);
     revalidatePath("/tax-invoices");
     return NextResponse.json({ data: { id: row.id } }, { status: 201 });
   } catch (err) {

@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getCachedCurrentUser } from "@/lib/supabase/cached";
 import { getTaxInvoiceRequest } from "@/services/tax-invoice.service";
+import { listTaxInvoiceAttachments } from "@/services/tax-invoice-attachments.service";
 import { TaxInvoiceForm } from "@/components/tax-invoices/tax-invoice-form";
 import type { ChargeType, IssuerCode } from "@/lib/tax-invoice";
 
@@ -27,12 +28,14 @@ export default async function EditTaxInvoicePage({ params }: PageProps) {
   if (row.status !== "REQUESTED" || (user.role !== "ADMIN" && row.requestedById !== user.id)) {
     redirect(`/tax-invoices?focus=${id}`);
   }
+  const attachments = (await listTaxInvoiceAttachments([id])).get(id) ?? [];
 
   return (
     <TaxInvoiceForm
       canUseErp={user.role === "ADMIN"}
       initial={{
         id: row.id,
+        attachments,
         issuerCode: row.issuerCode as IssuerCode,
         buyerName: row.buyerName,
         buyerBizNo: row.buyerBizNo,

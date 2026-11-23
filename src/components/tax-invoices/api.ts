@@ -6,7 +6,11 @@ export async function taxFetch<T>(url: string, init?: RequestInit): Promise<ApiR
   try {
     const res = await fetch(url, {
       ...init,
-      headers: { "Content-Type": "application/json", Accept: "application/json", ...(init?.headers ?? {}) },
+      headers: {
+        ...(init?.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
+        Accept: "application/json",
+        ...(init?.headers ?? {}),
+      },
     });
     const json = await res.json().catch(() => null);
     if (!res.ok) {

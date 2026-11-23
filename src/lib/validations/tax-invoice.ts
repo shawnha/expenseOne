@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { CHARGE_TYPES, ISSUER_CODES, bizNoDigits } from "@/lib/tax-invoice";
+import { MAX_TAX_INVOICE_ATTACHMENTS } from "@/lib/tax-invoice-attachments";
 
 // ---------------------------------------------------------------------------
 // 세금계산서 발행 요청 입력 검증 (서버 라우트 + 폼 공용). DB CHECK(drizzle/0026)와 같은 범위.
@@ -46,13 +47,15 @@ const erpPair = (d: { erpSalesDate?: string | null; erpDocumentNo?: string | nul
   (d.erpSalesDate == null) === (d.erpDocumentNo == null);
 
 export const createTaxInvoiceSchema = z
-  .object(fields)
+  .object({ ...fields, requestKey: z.uuid().optional() })
   .refine(erpPair, { message: "SIMS 전표는 날짜와 번호가 함께 있어야 합니다", path: ["erpDocumentNo"] });
 export type CreateTaxInvoiceInput = z.infer<typeof createTaxInvoiceSchema>;
 
 /** 수정은 발행 대기일 때만. 같은 모양 전체를 다시 보낸다(폼이 전부 들고 있다). */
-export const updateTaxInvoiceSchema = createTaxInvoiceSchema;
-export type UpdateTaxInvoiceInput = CreateTaxInvoiceInput;
+export const updateTaxInvoiceSchema = z
+  .object({ ...fields, removeAttachmentIds: z.array(z.uuid()).max(MAX_TAX_INVOICE_ATTACHMENTS).optional() })
+  .refine(erpPair, { message: "SIMS 전표는 날짜와 번호가 함께 있어야 합니다", path: ["erpDocumentNo"] });
+export type UpdateTaxInvoiceInput = z.infer<typeof updateTaxInvoiceSchema>;
 
 export const taxInvoiceIssuedSchema = z.object({ issued: z.boolean() });
 export const taxInvoiceCancelSchema = z.object({

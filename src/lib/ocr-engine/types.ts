@@ -46,6 +46,16 @@ export interface OcrFields {
   confidence: "high" | "medium" | "low";
   /** 특이사항 한 줄 (손글씨, 여러 금액 중 고른 근거 등) */
   note: string;
+  /** 발행 요청용 OCR에서만 추출한 공급받는 자와 계산서 내용. */
+  taxInvoice?: {
+    buyerName: string | null;
+    buyerBizNo: string | null;
+    buyerCeo: string | null;
+    buyerEmail: string | null;
+    buyerAddress: string | null;
+    items: string | null;
+    supplyDate: string | null;
+  };
 }
 
 export interface OcrResult {

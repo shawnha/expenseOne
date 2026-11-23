@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, date, index, integer, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
+import { check, date, index, integer, text, timestamp, unique, uuid, varchar } from "drizzle-orm/pg-core";
 import { expenseSchema, users } from "./schema";
 
 /**
@@ -48,3 +48,16 @@ export const taxInvoiceRequests = expenseSchema.table(
 );
 
 export type TaxInvoiceRequestRow = typeof taxInvoiceRequests.$inferSelect;
+
+export const taxInvoiceAttachments = expenseSchema.table("tax_invoice_attachments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  requestId: uuid("request_id").notNull().references(() => taxInvoiceRequests.id, { onDelete: "restrict" }),
+  fileName: text("file_name").notNull(),
+  fileSize: integer("file_size").notNull(),
+  fileHash: text("file_hash").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_tax_invoice_attachments_request").on(t.requestId, t.createdAt, t.id),
+  check("tax_invoice_attachment_size", sql`${t.fileSize} BETWEEN 1 AND 4194304`),
+  unique().on(t.requestId, t.fileHash),
+]);
