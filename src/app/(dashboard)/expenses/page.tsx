@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
+import { SettlementReviewLink } from "@/components/expenses/settlement-review-link";
 import { ExpenseFilters } from "@/components/expenses/expense-filters";
 import { ExpenseTable } from "@/components/expenses/expense-table";
 import { Pagination } from "@/components/expenses/pagination";
@@ -154,6 +155,10 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
           </Link>
         </div>
       </div>
+
+      <Suspense fallback={null}>
+        <SettlementReviewLink userId={currentUserId} />
+      </Suspense>
 
       {/* Filters */}
       <Suspense fallback={<div className="h-10 animate-pulse rounded-xl glass-subtle" />}>
