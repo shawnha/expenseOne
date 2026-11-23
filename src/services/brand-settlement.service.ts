@@ -4,6 +4,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { companies, expenses, users } from "@/lib/db/schema";
 import { brandSettlementSubjects, brandSettlementViewers } from "@/lib/db/schema-brand-settlement";
+import { visibleExpenseCompanies } from "@/lib/db/expense-company-access";
 import { rowsOf } from "@/lib/plans/rows";
 import type { SettlementSource, SettlementSubject } from "@/lib/validations/brand-settlement";
 import type { DocumentType, ExpenseStatus } from "@/types";
@@ -11,18 +12,9 @@ import { AppError } from "./attachment.service";
 
 const PAGE_SIZE = 20;
 
-const visibleCompanies = (userId: string) => sql`
-  SELECT c.id, c.name, c.slug, c.sort_order
-    FROM expenseone.companies c
-    JOIN expenseone.users u ON u.id = ${userId}::uuid AND u.is_active = true
-   WHERE u.role = 'ADMIN' OR (c.is_active = true AND EXISTS (
-       SELECT 1 FROM expenseone.brand_settlement_viewers v
-       WHERE v.user_id = u.id AND v.company_id = c.id
-     ))`;
-
 export async function getSettlementCompanies(userId: string) {
   return rowsOf<{ id: string; name: string; slug: string }>(
-    await db.execute(sql`SELECT id, name, slug FROM (${visibleCompanies(userId)}) c ORDER BY sort_order, name`),
+    await db.execute(sql`SELECT id, name, slug FROM (${visibleExpenseCompanies(userId)}) c ORDER BY sort_order, name`),
   );
 }
 
@@ -194,7 +186,7 @@ export async function getSettlementReview(userId: string, filters: {
   const searchTerm = search ? `%${search.replace(/[%_\\]/g, "\\$&")}%` : undefined;
 
   const rows = rowsOf<SettlementRow>(await db.execute(sql`
-    WITH companies AS (${visibleCompanies(userId)}),
+    WITH companies AS (${visibleExpenseCompanies(userId)}),
     subjects AS (
       SELECT s.*, c.name AS company_name
       FROM expenseone.brand_settlement_subjects s JOIN companies c ON c.id = s.company_id

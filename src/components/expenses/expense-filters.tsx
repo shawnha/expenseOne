@@ -49,6 +49,7 @@ const AUTO_CLASSIFIED_OPTIONS = [
 
 interface ExpenseFiltersProps {
   showAdminFilters?: boolean;
+  companyOptions?: { slug: string; name: string }[];
 }
 
 function parseISODate(value: string | null | undefined): Date | undefined {
@@ -64,7 +65,7 @@ function toISODate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-export function ExpenseFilters({ showAdminFilters = false }: ExpenseFiltersProps = {}) {
+export function ExpenseFilters({ showAdminFilters = false, companyOptions }: ExpenseFiltersProps = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -249,6 +250,7 @@ export function ExpenseFilters({ showAdminFilters = false }: ExpenseFiltersProps
 
   const hasActiveFilters = !!(
     startDateParam || endDateParam ||
+    (companyOptions && searchParams.get("company")) ||
     searchParams.get("type") ||
     searchParams.get("status") ||
     searchParams.get("category") ||
@@ -256,6 +258,10 @@ export function ExpenseFilters({ showAdminFilters = false }: ExpenseFiltersProps
     freelancerActive ||
     prePaidActive
   );
+  const company = searchParams.get("company") || "__all__";
+  const selectedCompany = companyOptions?.find(({ slug }) => slug === company);
+  const unavailableCompany = company !== "__all__" && !selectedCompany;
+  const typeOptions = companyOptions ? TYPE_OPTIONS.filter(({ value }) => value !== "REFUND") : TYPE_OPTIONS;
 
   return (
     <div
@@ -268,7 +274,7 @@ export function ExpenseFilters({ showAdminFilters = false }: ExpenseFiltersProps
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[var(--apple-secondary-label)]" />
           <Input
-            placeholder="제목, 가맹점, 제출자, 예금주, 카드번호 검색..."
+            placeholder={companyOptions ? "제목, 가맹점, 제출자 검색" : "제목, 가맹점, 제출자, 예금주, 카드번호 검색..."}
             defaultValue={searchParams.get("search") ?? ""}
             onChange={handleSearchChange}
             className="pl-9"
@@ -292,17 +298,29 @@ export function ExpenseFilters({ showAdminFilters = false }: ExpenseFiltersProps
 
       {/* Filter dropdowns - always visible on sm+, toggleable on mobile */}
       <div className={`${mobileFiltersOpen ? "flex" : "hidden"} sm:flex flex-col sm:flex-row gap-3 sm:items-center sm:flex-wrap w-full sm:w-auto`}>
+        {companyOptions && (
+          <Select value={company} onValueChange={(v) => v && handleFilterChange("company", v)}>
+            <SelectTrigger className="h-11 sm:h-8 w-full sm:w-auto rounded-xl glass-input" aria-label="법인 필터">
+              <SelectValue>{unavailableCompany ? "조회할 수 없는 법인" : selectedCompany?.name ?? "전체 담당 법인"}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">전체 담당 법인</SelectItem>
+              {companyOptions.map(({ slug, name }) => <SelectItem key={slug} value={slug}>{name}</SelectItem>)}
+              {unavailableCompany && <SelectItem value={company} disabled>조회할 수 없는 법인</SelectItem>}
+            </SelectContent>
+          </Select>
+        )}
         <Select
           value={searchParams.get("type") ?? "__all__"}
           onValueChange={(v) => v && handleFilterChange("type", v)}
         >
           <SelectTrigger className="h-11 sm:h-8 w-full sm:w-auto rounded-xl glass-input" aria-label="비용 유형 필터">
             <SelectValue>
-              {TYPE_OPTIONS.find((o) => o.value === (searchParams.get("type") || "__all__"))?.label}
+              {typeOptions.find((o) => o.value === (searchParams.get("type") || "__all__"))?.label}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            {TYPE_OPTIONS.map((opt) => (
+            {typeOptions.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
                 {opt.label}
               </SelectItem>

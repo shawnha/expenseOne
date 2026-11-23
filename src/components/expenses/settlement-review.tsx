@@ -40,7 +40,7 @@ export async function SettlementReview({ params }: {
 
   const isAdmin = viewer.role === "ADMIN";
   const showRequests = isAdmin && params.scope !== "registered";
-  const search = typeof params.search === "string" ? params.search.trim().slice(0, 100) : showRequests ? "정산" : "";
+  const search = typeof params.search === "string" ? params.search.trim().slice(0, 100) : "";
   const month = settlementMonthSchema.safeParse(params.month).data ?? currentSettlementMonth();
   const page = z.coerce.number().int().min(1).max(10000).safeParse(params.page).data ?? 1;
   const [year, monthNumber] = month.split("-").map(Number);
@@ -56,10 +56,9 @@ export async function SettlementReview({ params }: {
   const total = requests?.meta.total ?? review?.total ?? 0;
   const totalPages = requests?.meta.totalPages ?? review?.totalPages ?? 0;
 
-  const href = (scope: "requests" | "registered", allRequests = false) => {
+  const href = (scope: "requests" | "registered") => {
     const query = new URLSearchParams({ view: "settlements", scope, month });
     if (companyId) query.set("company", companyId);
-    if (allRequests) query.set("search", "");
     return `/expenses?${query}`;
   };
 
@@ -67,7 +66,7 @@ export async function SettlementReview({ params }: {
     <div className="flex max-w-5xl flex-col gap-4 sm:gap-5">
       <div>
         <h1 className="text-title3 text-[var(--apple-label)]">비용 목록</h1>
-        <div className="mt-3"><ExpenseReviewNavigation active /></div>
+        <div className="mt-3"><ExpenseReviewNavigation view="settlements" /></div>
       </div>
       <section aria-label="정산 확인" className="flex flex-col gap-4">
         {isAdmin && (
@@ -106,7 +105,7 @@ export async function SettlementReview({ params }: {
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-[var(--apple-secondary-label)]">
           <p>{showRequests ? "입금요청" : "정산 대상"} <span className="font-semibold tabular-nums text-[var(--apple-label)]">{total}건</span></p>
           {showRequests && search ? (
-            <Link href={href("requests", true)} className="text-sm font-medium text-[var(--apple-blue)]">해당 월 입금요청 전체</Link>
+            <Link href={href("requests")} className="text-sm font-medium text-[var(--apple-blue)]">해당 월 입금요청 전체</Link>
           ) : (
             <p className="text-xs">실제 송금은 이체 내역에서 확인해 주세요.</p>
           )}

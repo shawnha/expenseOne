@@ -44,7 +44,6 @@ interface ExpenseRow {
   submitter: {
     id: string;
     name: string;
-    email: string;
   } | null;
   isUrgent?: boolean;
   autoClassified?: boolean;
@@ -104,6 +103,7 @@ interface ExpenseTableProps {
   expenses: ExpenseRow[];
   showSubmitter?: boolean;
   isAdmin?: boolean;
+  readOnly?: boolean;
   /** 현재 로그인 사용자 id — 본인 행의 후지급 배지를 "요청 필요"로 보여주는 데 쓴다. */
   currentUserId?: string;
   /** 입금 기일 칸을 보여 준다(목록 위 처리 대기 칸). */
@@ -166,7 +166,7 @@ function formatDateKR(dateStr: string): string {
   return `${year}.${month}.${day}`;
 }
 
-export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false, currentUserId, showDueDate = false }: ExpenseTableProps) {
+export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false, readOnly = false, currentUserId, showDueDate = false }: ExpenseTableProps) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
@@ -366,11 +366,11 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false,
               return (
                 <TableRow
                   key={expense.id}
-                  className="cursor-pointer hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)] transition-colors"
-                  onClick={() => router.push(`/expenses/${expense.id}`)}
-                  tabIndex={0}
-                  aria-label={`${expense.title} 상세 보기`}
-                  onKeyDown={(e) => {
+                  className={cn(!readOnly && "cursor-pointer hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)] transition-colors")}
+                  onClick={readOnly ? undefined : () => router.push(`/expenses/${expense.id}`)}
+                  tabIndex={readOnly ? undefined : 0}
+                  aria-label={readOnly ? undefined : `${expense.title} 상세 보기`}
+                  onKeyDown={readOnly ? undefined : (e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
                       router.push(`/expenses/${expense.id}`);
@@ -393,8 +393,8 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false,
                     </TableCell>
                   )}
                   <TableCell className="font-medium max-w-[200px] text-[var(--apple-label)]">
-                    <span className="flex items-center gap-1.5">
-                      <span className="truncate">{expense.title}</span>
+                    <span className={cn("flex items-center gap-1.5", readOnly && "flex-wrap")}>
+                      <span className={readOnly ? "min-w-0 whitespace-normal break-words" : "truncate"}>{expense.title}</span>
                       {expense.isUrgent && <span className="glass-badge glass-badge-red shrink-0">긴급</span>}
                       <PrePaidBadge isPrePaid={expense.isPrePaid} percentage={expense.prePaidPercentage} fixedAmount={expense.prePaidFixedAmount} />
                       <WithholdingBadge applied={expense.hasFreelancerWithholding} />
@@ -487,6 +487,7 @@ export function ExpenseTable({ expenses, showSubmitter = false, isAdmin = false,
               expense={expense}
               showSubmitter={showSubmitter}
               isAdmin={isAdmin}
+              readOnly={readOnly}
               currentUserId={currentUserId}
               showDueDate={showDueDate}
               onQuickEdit={handleQuickEdit}
@@ -571,6 +572,7 @@ function MobileExpenseCard({
   expense,
   showSubmitter,
   isAdmin,
+  readOnly,
   currentUserId,
   showDueDate,
   onQuickEdit,
@@ -578,6 +580,7 @@ function MobileExpenseCard({
   expense: ExpenseRow;
   showSubmitter: boolean;
   isAdmin: boolean;
+  readOnly: boolean;
   currentUserId?: string;
   showDueDate: boolean;
   onQuickEdit: (expense: ExpenseRow) => void;
@@ -590,6 +593,7 @@ function MobileExpenseCard({
 
   const actions: SwipeAction[] = useMemo(() => {
     const result: SwipeAction[] = [];
+    if (readOnly) return result;
 
     if (isAdmin) {
       // Admin: swipe shows edit (quick popup) and delete
@@ -643,23 +647,23 @@ function MobileExpenseCard({
     }
 
     return result;
-  }, [expense, isAdmin, canDelete, router, onQuickEdit]);
+  }, [expense, isAdmin, readOnly, canDelete, router, onQuickEdit]);
 
   return (
     <SwipeableRow
       id={expense.id}
       actions={actions}
-      onTap={() => router.push(`/expenses/${expense.id}`)}
+      onTap={readOnly ? undefined : () => router.push(`/expenses/${expense.id}`)}
       className="rounded-xl"
       enabled={actions.length > 0}
     >
       <div
-        className="group relative flex flex-col gap-2 p-4 text-left rounded-xl bg-[var(--apple-system-background)] border border-[var(--glass-border)] shadow-sm cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--apple-blue)] focus-visible:ring-offset-1 outline-none"
-        aria-label={`${expense.title} 상세 보기`}
+        className={cn("group relative flex flex-col gap-2 p-4 text-left rounded-xl bg-[var(--apple-system-background)] border border-[var(--glass-border)] shadow-sm", !readOnly && "cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--apple-blue)] focus-visible:ring-offset-1 outline-none")}
+        aria-label={readOnly ? undefined : `${expense.title} 상세 보기`}
       >
-        <div className="flex items-center justify-between gap-2">
-          <span className="flex items-center gap-1.5 min-w-0">
-            <span className="text-sm font-medium text-[var(--apple-label)] truncate">{expense.title}</span>
+        <div className={cn("flex items-center justify-between gap-2", readOnly && "flex-wrap")}>
+          <span className={cn("flex min-w-0 items-center gap-1.5", readOnly && "flex-wrap")}>
+            <span className={cn("min-w-0 text-sm font-medium text-[var(--apple-label)]", readOnly ? "break-words" : "truncate")}>{expense.title}</span>
             {expense.isUrgent && <span className="glass-badge glass-badge-red shrink-0">긴급</span>}
             <PrePaidBadge isPrePaid={expense.isPrePaid} percentage={expense.prePaidPercentage} fixedAmount={expense.prePaidFixedAmount} />
             <WithholdingBadge applied={expense.hasFreelancerWithholding} />
