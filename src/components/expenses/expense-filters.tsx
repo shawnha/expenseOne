@@ -7,6 +7,7 @@ import { format, startOfMonth, endOfMonth, subMonths, subDays, startOfYear, endO
 import { ko } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -17,18 +18,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CATEGORY_OPTIONS } from "@/lib/validations/expense-form";
+import { expenseListPeriod } from "@/lib/expenses/list-period";
 import { cn } from "@/lib/utils";
-
-function getDefaultDateRange() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  return {
-    startDate: `${year}-${month}-01`,
-    endDate: `${year}-${month}-${String(lastDay).padStart(2, "0")}`,
-  };
-}
 
 const TYPE_OPTIONS = [
   { value: "__all__", label: "전체 유형" },
@@ -78,10 +69,15 @@ export function ExpenseFilters({ showAdminFilters = false }: ExpenseFiltersProps
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
-  const defaults = useMemo(() => getDefaultDateRange(), []);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [dateOpen, setDateOpen] = useState(false);
+  const [draftRange, setDraftRange] = useState<DateRange>();
+  const latestQuery = useRef(searchParams.toString());
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    latestQuery.current = searchParams.toString();
+  }, [searchParams]);
 
   // Cleanup debounce timer on unmount
   useEffect(() => {
@@ -92,7 +88,7 @@ export function ExpenseFilters({ showAdminFilters = false }: ExpenseFiltersProps
 
   const createQueryString = useCallback(
     (params: Record<string, string | null>) => {
-      const current = new URLSearchParams(searchParams.toString());
+      const current = new URLSearchParams(latestQuery.current);
       Object.entries(params).forEach(([key, value]) => {
         if (value === null || value === "") {
           current.delete(key);
@@ -101,9 +97,10 @@ export function ExpenseFilters({ showAdminFilters = false }: ExpenseFiltersProps
         }
       });
       current.delete("page");
-      return current.toString();
+      latestQuery.current = current.toString();
+      return latestQuery.current;
     },
-    [searchParams]
+    []
   );
 
   const handleFilterChange = useCallback(
@@ -178,8 +175,10 @@ export function ExpenseFilters({ showAdminFilters = false }: ExpenseFiltersProps
     [handleDateRangeChange]
   );
 
-  const startDateParam = searchParams.get("startDate") ?? defaults.startDate;
-  const endDateParam = searchParams.get("endDate") ?? defaults.endDate;
+  const { startDate: startDateParam, endDate: endDateParam } = expenseListPeriod({
+    startDate: searchParams.get("startDate"),
+    endDate: searchParams.get("endDate"),
+  });
   const selectedRange: DateRange | undefined = useMemo(() => {
     const from = parseISODate(startDateParam);
     const to = parseISODate(endDateParam);
@@ -190,12 +189,27 @@ export function ExpenseFilters({ showAdminFilters = false }: ExpenseFiltersProps
   const dateLabel = useMemo(() => {
     const from = parseISODate(startDateParam);
     const to = parseISODate(endDateParam);
-    if (!from && !to) return "기간 선택";
+    if (!from && !to) return "전체 기간";
     const fromStr = from ? format(from, "yy.MM.dd", { locale: ko }) : "—";
     const toStr = to ? format(to, "yy.MM.dd", { locale: ko }) : "—";
     if (from && to && fromStr === toStr) return fromStr;
     return `${fromStr} ~ ${toStr}`;
   }, [startDateParam, endDateParam]);
+
+  function handleDatePopover(open: boolean) {
+    if (open) setDraftRange(selectedRange);
+    setDateOpen(open);
+  }
+
+  function applyDraftPeriod() {
+    handleDateRangeChange(draftRange);
+    setDateOpen(false);
+  }
+
+  function clearPeriod() {
+    handleDateRangeChange(undefined);
+    setDateOpen(false);
+  }
 
   const freelancerActive = searchParams.get("freelancer") === "true";
 
@@ -234,6 +248,7 @@ export function ExpenseFilters({ showAdminFilters = false }: ExpenseFiltersProps
   );
 
   const hasActiveFilters = !!(
+    startDateParam || endDateParam ||
     searchParams.get("type") ||
     searchParams.get("status") ||
     searchParams.get("category") ||
@@ -415,24 +430,31 @@ export function ExpenseFilters({ showAdminFilters = false }: ExpenseFiltersProps
           </Select>
         )}
 
-        <Popover open={dateOpen} onOpenChange={setDateOpen}>
+        <Popover open={dateOpen} onOpenChange={handleDatePopover}>
           <PopoverTrigger
             className={cn(
               "h-11 sm:h-8 w-full sm:w-auto rounded-xl glass-input px-3 inline-flex items-center justify-start gap-2 text-sm",
               "text-[var(--apple-label)] hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(0,122,255,0.4)]",
             )}
-            aria-label="기간 선택"
+            aria-label={`기간 선택 · ${dateLabel}`}
           >
             <CalendarIcon className="size-4 text-[var(--apple-secondary-label)] shrink-0" />
             <span className="tabular-nums truncate">{dateLabel}</span>
           </PopoverTrigger>
           <PopoverContent
-            className="w-auto p-0 rounded-2xl glass-strong border-0 overflow-hidden"
+            className="w-auto max-w-[calc(100vw-2rem)] p-0 rounded-2xl glass-strong border-0 overflow-hidden"
             align="end"
             sideOffset={8}
           >
             <div className="flex flex-col sm:flex-row">
-              <div className="flex sm:flex-col gap-1 p-2 sm:p-2.5 sm:border-r sm:border-[var(--apple-separator)] overflow-x-auto sm:overflow-visible sm:min-w-[112px]">
+              <div className="flex flex-wrap gap-1 p-2 sm:min-w-28 sm:flex-col sm:border-r sm:border-[var(--apple-separator)] sm:p-2.5">
+                <button
+                  type="button"
+                  onClick={clearPeriod}
+                  className="shrink-0 rounded-lg px-2.5 py-1.5 text-left text-sm font-medium text-[var(--apple-blue)] hover:bg-[var(--apple-tertiary-system-fill)]"
+                >
+                  전체 기간
+                </button>
                 {[
                   { key: "thisMonth", label: "이번 달" },
                   { key: "lastMonth", label: "지난 달" },
@@ -453,13 +475,19 @@ export function ExpenseFilters({ showAdminFilters = false }: ExpenseFiltersProps
               <div className="p-2 sm:p-2.5">
                 <Calendar
                   mode="range"
-                  selected={selectedRange}
-                  onSelect={(range) => handleDateRangeChange(range)}
+                  selected={draftRange}
+                  onSelect={setDraftRange}
                   numberOfMonths={1}
                   locale={ko}
                   defaultMonth={selectedRange?.from ?? new Date()}
                 />
               </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--apple-separator)] px-3 py-2.5">
+              <p className="max-w-56 text-xs text-[var(--apple-secondary-label)]">거래일과 후지급 요청·승인일로 찾아요.</p>
+              <Button type="button" size="sm" onClick={applyDraftPeriod} disabled={!draftRange?.from && !draftRange?.to}>
+                적용
+              </Button>
             </div>
           </PopoverContent>
         </Popover>

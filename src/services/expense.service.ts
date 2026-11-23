@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { expenseDateRange, remainingPaymentDateLabels } from "@/lib/db/remaining-payment-dates";
 import {
   expenses,
   attachments,
@@ -469,7 +470,7 @@ const awaitingPayment = and(
 // getExpenses -- list with filters, sort, pagination
 // ---------------------------------------------------------------------------
 export async function getExpenses(
-  query: ExpenseQueryInput,
+  query: ExpenseQueryInput & { includeRemainingPaymentDates?: boolean },
   userId: string,
   userRole: "MEMBER" | "ADMIN",
   ownOnly: boolean = true,
@@ -494,12 +495,8 @@ export async function getExpenses(
   if (query.category) {
     conditions.push(eq(expenses.category, query.category));
   }
-  if (query.startDate) {
-    conditions.push(gte(expenses.transactionDate, query.startDate));
-  }
-  if (query.endDate) {
-    conditions.push(lte(expenses.transactionDate, query.endDate));
-  }
+  const dateRange = expenseDateRange(query.startDate, query.endDate, query.includeRemainingPaymentDates === true);
+  if (dateRange) conditions.push(dateRange);
   if (query.search) {
     const escaped = query.search.replace(/[%_\\]/g, "\\$&");
     const searchTerm = `%${escaped}%`;
@@ -618,6 +615,7 @@ export async function getExpenses(
         companyName: companies.name,
         companySlug: companies.slug,
         prePaidFixedAmount: expensePrePaidAmounts.amount,
+        remainingPaymentDates: query.includeRemainingPaymentDates ? remainingPaymentDateLabels : sql<null>`NULL`,
       })
       .from(expenses)
       .leftJoin(users, eq(expenses.submittedById, users.id))
@@ -654,6 +652,7 @@ export async function getExpenses(
       attachmentCount: Number(row.attachmentCount ?? 0),
       companyName: row.companyName ?? null,
       companySlug: row.companySlug ?? null,
+      ...(query.includeRemainingPaymentDates && { remainingPaymentDates: row.remainingPaymentDates }),
     })),
     meta: {
       page,

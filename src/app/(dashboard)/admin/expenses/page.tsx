@@ -5,6 +5,7 @@ import { ExpenseTable } from "@/components/expenses/expense-table";
 import { Pagination } from "@/components/expenses/pagination";
 import { PendingSection, RestListHeading } from "@/components/expenses/pending-section";
 import { getCachedCurrentUser } from "@/lib/supabase/cached";
+import { expenseListPeriod } from "@/lib/expenses/list-period";
 import { getExpenses } from "@/services/expense.service";
 import { AdminCompanyFilter } from "@/components/admin/company-filter";
 import type { ExpenseQueryInput } from "@/lib/validations/expense";
@@ -30,8 +31,7 @@ async function getAdminExpensesData(searchParams: Record<string, string | string
   const type = typeof searchParams.type === "string" ? searchParams.type : undefined;
   const status = typeof searchParams.status === "string" ? searchParams.status : undefined;
   const category = typeof searchParams.category === "string" ? searchParams.category : undefined;
-  const startDate = typeof searchParams.startDate === "string" ? searchParams.startDate : undefined;
-  const endDate = typeof searchParams.endDate === "string" ? searchParams.endDate : undefined;
+  const { startDate, endDate } = expenseListPeriod(searchParams);
   const search = typeof searchParams.search === "string" ? searchParams.search : undefined;
   const company = typeof searchParams.company === "string" ? searchParams.company : undefined;
   const autoClassifiedParam = typeof searchParams.autoClassified === "string" ? searchParams.autoClassified : undefined;
@@ -48,7 +48,10 @@ async function getAdminExpensesData(searchParams: Record<string, string | string
 
   // 상태를 직접 고르면 나누지 않고 예전처럼 한 목록으로 보여 준다.
   const splitPending = !status;
-  const filters: Omit<ExpenseQueryInput, "page" | "limit"> = {
+  const filters: Omit<ExpenseQueryInput, "page" | "limit"> & { includeRemainingPaymentDates: boolean } = {
+    startDate,
+    endDate,
+    includeRemainingPaymentDates: true,
     type: type as "CORPORATE_CARD" | "DEPOSIT_REQUEST" | "REFUND" | undefined,
     category,
     search,
@@ -64,8 +67,6 @@ async function getAdminExpensesData(searchParams: Record<string, string | string
         page,
         limit: PAGE_SIZE,
         status: status as "SUBMITTED" | "APPROVED" | "REJECTED" | "CANCELLED" | undefined,
-        startDate,
-        endDate,
         pending: splitPending ? "exclude" : undefined,
       },
       user.id,
@@ -97,6 +98,7 @@ async function getAdminExpensesData(searchParams: Record<string, string | string
     hasFreelancerWithholding: item.hasFreelancerWithholding ?? false,
     remainingPaymentRequested: item.remainingPaymentRequested ?? false,
     remainingPaymentApproved: item.remainingPaymentApproved ?? false,
+    remainingPaymentDates: item.remainingPaymentDates,
     dueDate: item.dueDate ?? null,
   });
   const expenses = result.data.map(toRow);
@@ -141,7 +143,7 @@ export default async function AdminExpensesPage({ searchParams }: AdminExpensesP
         </div>
       </Suspense>
 
-      {/* 처리 대기 — 기간과 상관없이 맨 위에 */}
+      {/* 처리 대기 */}
       {pending && (
         <PendingSection expenses={pending.expenses} total={pending.total} isAdmin currentUserId={currentUserId} />
       )}
