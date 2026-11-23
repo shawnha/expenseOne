@@ -28,6 +28,9 @@ interface Company {
   slug: string;
 }
 
+import { PersonalCards } from "./personal-cards";
+import { CommonCardUsage } from "./common-card-usage";
+
 interface SettingsFormProps {
   user: {
     name: string;
@@ -263,7 +266,14 @@ export function SettingsForm({ user }: SettingsFormProps) {
           </h3>
         </div>
 
-        <MyCardMappings />
+        <div className="space-y-5">
+          <PersonalCards companies={companies} preferredCompany={companyId} />
+          <div className="border-t border-[var(--apple-separator)] pt-4"><CommonCardUsage /></div>
+          <div className="space-y-2 border-t border-[var(--apple-separator)] pt-4">
+            <h4 className="text-sm font-semibold">거래 알림 연결</h4>
+            <MyCardMappings />
+          </div>
+        </div>
       </div>
 
       {/* Save / Cancel buttons */}

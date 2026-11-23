@@ -1,3 +1,4 @@
+import { getPersonalCardForExpense } from "@/services/personal-card.service";
 import { db } from "@/lib/db";
 import { expenseDateRange, remainingPaymentDateLabels } from "@/lib/db/remaining-payment-dates";
 import {
@@ -191,13 +192,12 @@ export async function createExpense(
     baseData.isUrgent = input.isUrgent ?? false;
     // Auto-approve corporate card
     baseData.approvedAt = new Date();
-    // Get card last four from user profile
-    const [userProfile] = await db
-      .select({ cardLastFour: users.cardLastFour })
-      .from(users)
-      .where(eq(users.id, userId));
-    if (userProfile?.cardLastFour) {
-      baseData.cardLastFour = userProfile.cardLastFour;
+    if (input.personalCardId) {
+      baseData.cardLastFour = await getPersonalCardForExpense(userId, companyId, input.personalCardId);
+    } else {
+      const [userProfile] = await db.select({ cardLastFour: users.cardLastFour })
+        .from(users).where(eq(users.id, userId));
+      if (userProfile?.cardLastFour) baseData.cardLastFour = userProfile.cardLastFour;
     }
   } else {
     baseData.bankName = input.bankName;
