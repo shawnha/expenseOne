@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Copy, FileSpreadsheet, Pencil, Plus, RotateCcw, XCircle } from "lucide-react";
@@ -67,6 +67,19 @@ export function TaxInvoiceList({
   }, [items]);
   const focused = items.find((i) => i.id === focusId);
   const [filter, setFilter] = useState<Filter>(focused ? (focused.status as Filter) : counts.REQUESTED > 0 ? "REQUESTED" : "ALL");
+  const resultsId = useId();
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const previousFilter = useRef(filter);
+  useEffect(() => {
+    if (previousFilter.current === filter) return;
+    previousFilter.current = filter;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const animation = resultsRef.current?.animate?.(
+      [{ opacity: 0.85, transform: "translateY(3px)" }, { opacity: 1, transform: "translateY(0)" }],
+      { duration: 160, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" },
+    );
+    return () => animation?.cancel();
+  }, [filter]);
   const visible = filter === "ALL" ? items : items.filter((i) => i.status === filter);
   const pendingTotal = items.filter((i) => i.status === "REQUESTED").reduce((a, i) => a + i.total, 0);
   const overdue = items.filter((i) => i.status === "REQUESTED" && issueDeadline(i.supplyDate) < todayKST()).length;
@@ -108,7 +121,7 @@ export function TaxInvoiceList({
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2" role="tablist" aria-label="상태">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="발행 상태 필터">
         {(
           [
             ["REQUESTED", `발행 대기 ${counts.REQUESTED}`],
@@ -120,11 +133,11 @@ export function TaxInvoiceList({
           <button
             key={key}
             type="button"
-            role="tab"
-            aria-selected={filter === key}
+            aria-pressed={filter === key}
+            aria-controls={resultsId}
             onClick={() => setFilter(key)}
             className={cn(
-              "min-h-11 rounded-full px-4 text-[14px] font-medium tabular-nums transition-colors",
+              "min-h-11 rounded-full px-4 text-[14px] font-medium tabular-nums focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--apple-blue)] motion-safe:transition-[background-color,color,box-shadow,scale] motion-safe:duration-150 motion-safe:active:scale-[0.97] motion-reduce:transition-none",
               filter === key
                 ? "bg-[var(--apple-blue)] text-white shadow-[0_2px_8px_rgba(0,122,255,0.25)]"
                 : "glass-button text-[var(--apple-label)]",
@@ -135,20 +148,22 @@ export function TaxInvoiceList({
         ))}
       </div>
 
-      {visible.length === 0 ? (
-        <div className="glass px-6 py-12 text-center">
-          <p className="text-headline text-[var(--apple-label)]">요청이 없습니다</p>
-          <p className="mt-1 text-footnote text-[var(--apple-secondary-label)]">
-            약국·의원에 판 건의 세금계산서가 필요하면 「새 요청」을 눌러주세요.
-          </p>
-        </div>
-      ) : (
-        <div className="grid gap-3 lg:grid-cols-2">
-          {visible.map((item) => (
-            <RequestCard key={item.id} item={item} isAdmin={isAdmin} focused={item.id === focusId} />
-          ))}
-        </div>
-      )}
+      <div id={resultsId} ref={resultsRef}>
+        {visible.length === 0 ? (
+          <div className="glass px-6 py-12 text-center">
+            <p className="text-headline text-[var(--apple-label)]">요청이 없습니다</p>
+            <p className="mt-1 text-footnote text-[var(--apple-secondary-label)]">
+              약국·의원에 판 건의 세금계산서가 필요하면 「새 요청」을 눌러주세요.
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {visible.map((item) => (
+              <RequestCard key={item.id} item={item} isAdmin={isAdmin} focused={item.id === focusId} />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
