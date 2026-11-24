@@ -30,6 +30,8 @@ import type { PersonalCardNumber } from "@/services/personal-card.service";
 import type { MerchantSuggestion } from "@/services/autofill.service";
 import { merchantKey } from "@/lib/utils/autofill";
 import { CompanySelector } from "@/components/forms/company-selector";
+import { VehicleRentalField } from "@/components/forms/vehicle-rental-field";
+import { describeVehicleRental } from "@/lib/vehicle-rental";
 import { FileUpload } from "@/components/forms/file-upload";
 import { OcrNotice, OcrSuggestion } from "@/components/forms/ocr-suggestion";
 import type { OcrFields, OcrResult } from "@/lib/ocr/types";
@@ -201,6 +203,7 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
       title: "",
       merchantName: "",
       description: "",
+      rental: null,
       isUrgent: false,
     },
   });
@@ -395,7 +398,7 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
         body: JSON.stringify({
           type: "CORPORATE_CARD",
           title: data.title,
-          description: data.description || null,
+          description: describeVehicleRental(data.rental, data.description),
           amount: data.amount,
           currency: currency,
           category: data.category,
@@ -747,6 +750,10 @@ export default function CorporateCardForm({ initialCompanies, prefillData, myCat
                 </span>
               </label>
             </div>
+
+            <Controller name="rental" control={control} render={({ field }) => (
+              <VehicleRentalField rental={field.value ?? null} onChange={field.onChange} merchant={typedMerchant} />
+            )} />
 
             {/* 금액 */}
             <div className="space-y-1.5">

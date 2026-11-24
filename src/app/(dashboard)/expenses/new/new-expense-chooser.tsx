@@ -12,16 +12,16 @@ import { pendingCardBatchHref, pendingCardLabel } from "@/lib/card-batch/pending
 
 const expenseTypes = [
   {
-    title: "법카사용 내역",
-    description: "법인카드 사용내역을 제출합니다. 자동 승인됩니다.",
-    href: "/expenses/new/corporate-card",
-    icon: <CreditCard className="size-6 text-[var(--apple-blue)]" />,
-  },
-  {
     title: "입금요청",
     description: "입금을 요청합니다. 증빙서류 첨부 필수, 관리자 승인 후 처리됩니다.",
     href: "/expenses/new/deposit-request",
     icon: <Banknote className="size-6 text-[var(--apple-green)]" />,
+  },
+  {
+    title: "법카 사용",
+    description: "법인카드 사용 내역을 제출합니다. 자동 승인됩니다.",
+    href: "/expenses/new/corporate-card",
+    icon: <CreditCard className="size-6 text-[var(--apple-blue)]" />,
   },
   {
     title: "반품/환불",
@@ -67,9 +67,9 @@ function TypeCard({
     <TiltCard>
       <Link
         href={showPending && pendingHref ? pendingHref : type.href}
-        className={`glass p-5 flex flex-col gap-3 transition-all duration-200 hover:bg-[rgba(0,0,0,0.05)] dark:hover:bg-[rgba(255,255,255,0.08)] hover:shadow-lg hover:scale-[1.02] group apple-press animate-card-enter stagger-${index + 1}`}
+        className={`glass flex h-full flex-col gap-3 p-5 transition-all duration-200 hover:bg-[rgba(0,0,0,0.05)] dark:hover:bg-[rgba(255,255,255,0.08)] hover:shadow-lg hover:scale-[1.02] group apple-press animate-card-enter stagger-${index + 1} lg:p-4`}
       >
-        <div className="flex items-center justify-center size-12 rounded-2xl bg-[var(--apple-secondary-system-background)]">
+        <div className="flex size-12 items-center justify-center rounded-2xl bg-[var(--apple-secondary-system-background)] lg:size-10">
           {type.icon}
         </div>
         <div>
@@ -100,12 +100,12 @@ export function NewExpenseChooser({ plansEnabled, soonPlans }: { plansEnabled: b
   const plansSection = (
     <section aria-labelledby="group-future" className="space-y-3">
       <h2 id="group-future" className="text-footnote font-semibold text-[var(--apple-secondary-label)]">
-        앞으로 쓸 돈
+        새 비용계획
       </h2>
       <TiltCard>
         <Link
           href="/plans?new=1"
-          className="group flex items-center gap-4 rounded-[16px] border border-dashed border-[var(--apple-separator)] p-5 transition-colors hover:border-[var(--apple-blue)] hover:bg-[rgba(0,122,255,0.04)] apple-press animate-card-enter stagger-5"
+          className="group flex items-center gap-4 rounded-[16px] border border-dashed border-[var(--apple-separator)] p-4 transition-colors hover:border-[var(--apple-blue)] hover:bg-[rgba(0,122,255,0.04)] apple-press animate-card-enter"
         >
           <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--apple-secondary-system-background)]">
             <CalendarPlus className="size-6 text-[var(--apple-blue)]" aria-hidden="true" />
@@ -125,40 +125,43 @@ export function NewExpenseChooser({ plansEnabled, soonPlans }: { plansEnabled: b
   );
 
   return (
-    <div className="mx-auto max-w-lg space-y-5">
+    <div className="mx-auto max-w-lg space-y-5 lg:has-[.chooser-plans:not(:empty)]:max-w-5xl">
       <div className="animate-fade-up">
         <h1 className="text-title3 text-[var(--apple-label)]">비용 제출</h1>
         <p className="mt-1 text-footnote text-[var(--apple-secondary-label)]">
-          제출할 유형을 선택해주세요.
+          {plansEnabled ? "비용계획에서 시작하거나 바로 제출할 유형을 선택하세요." : "제출할 유형을 선택하세요."}
         </p>
       </div>
 
-      {soonPlans && <SoonPlansSection plans={soonPlans} />}
-
-      <section aria-labelledby="group-now" className="space-y-3">
-        <h2 id="group-now" className="text-footnote font-semibold text-[var(--apple-secondary-label)]">
-          지금 쓴 돈 · 보낼 돈
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {expenseTypes.map((type, index) => (
-            <TypeCard key={type.href} type={type} index={index} pendingLabel={pendingLabel} pendingHref={pendingHref} />
-          ))}
+      <div className="grid items-start gap-5 lg:gap-6 lg:has-[.chooser-plans:not(:empty)]:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
+        <div className="chooser-plans min-w-0 space-y-5 empty:hidden">
+          {soonPlans && <SoonPlansSection plans={soonPlans} />}
+          {/* 권한이 미확정이면 기존 클라이언트 게이트로 확인한다. */}
+          {plansEnabled === null ? <PlansNavGate>{plansSection}</PlansNavGate> : plansEnabled ? plansSection : null}
         </div>
-      </section>
 
-      {/* 권한이 미확정이면 기존 클라이언트 게이트로 확인한다. */}
-      {plansEnabled === null ? <PlansNavGate>{plansSection}</PlansNavGate> : plansEnabled ? plansSection : null}
+        <div className="min-w-0 space-y-5">
+          <section aria-labelledby="group-now" className="space-y-3">
+            <h2 id="group-now" className="text-footnote font-semibold text-[var(--apple-secondary-label)]">
+              바로 제출
+            </h2>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {expenseTypes.map((type, index) => (
+                <TypeCard key={type.href} type={type} index={index} pendingLabel={pendingLabel} pendingHref={pendingHref} />
+              ))}
+            </div>
+          </section>
 
-      <section aria-labelledby="group-sales" className="space-y-3">
-        <h2 id="group-sales" className="text-footnote font-semibold text-[var(--apple-secondary-label)]">
-          매출
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {salesTypes.map((type, index) => (
-            <TypeCard key={type.href} type={type} index={index} />
-          ))}
+          <section aria-labelledby="group-sales" className="space-y-3">
+            <h2 id="group-sales" className="text-footnote font-semibold text-[var(--apple-secondary-label)]">
+              매출
+            </h2>
+            {salesTypes.map((type, index) => (
+              <TypeCard key={type.href} type={type} index={index} />
+            ))}
+          </section>
         </div>
-      </section>
+      </div>
     </div>
   );
 }
