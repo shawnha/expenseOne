@@ -143,7 +143,7 @@ function RailNavLink({
       onBlur={hideTip}
       aria-label={badgeDesc ? `${item.label}, ${badgeDesc}` : item.label}
       className={cn(
-        "group relative flex shrink-0 items-center justify-center size-9 rounded-xl apple-press overflow-hidden",
+        "group relative flex size-9 shrink-0 items-center justify-center overflow-visible rounded-xl apple-press",
         "transition-all duration-[350ms] ease-[cubic-bezier(0.25,1,0.5,1)]",
         isActive
           ? "text-[var(--apple-blue)]"
@@ -163,16 +163,16 @@ function RailNavLink({
       >
         {item.icon}
       </span>
-      {/* 숫자 배지 — 링크가 overflow-hidden 이라 안쪽 모서리에 둔다(탭 바 알림 배지와 같은 빨강). */}
+      {/* 배지는 둥근 링크 밖으로 살짝 걸치되 사이드바 스크롤 영역 안에 둔다. */}
       {badge != null && (
         <span
           aria-hidden="true"
-          className="absolute right-0 top-0 z-[2] flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--apple-red)] px-1 text-[10px] font-bold leading-none text-white tabular-nums shadow-[0_2px_6px_rgba(255,59,48,0.35)]"
+          className="pointer-events-none absolute -right-1 -top-1 z-[2] flex h-4 min-w-4 items-center justify-center whitespace-nowrap rounded-full bg-[color-mix(in_srgb,var(--apple-red)_76%,black)] px-1 text-[11px] font-bold leading-none text-white tabular-nums"
         >
           {badgeText(badge)}
         </span>
       )}
-      {/* 툴팁 — 링크·nav 가 overflow 를 자르므로 body 로 포털해 fixed 로 그린다. */}
+      {/* 툴팁은 nav 스크롤 영역을 벗어나므로 body에 그린다. */}
       {mounted &&
         tip &&
         createPortal(
