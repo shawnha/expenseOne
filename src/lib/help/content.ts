@@ -1,6 +1,8 @@
 // 앱 안 사용법(/help) 내용. 문구는 여기 한곳에서만 고친다.
 // 화면의 버튼·제목 이름은 실제 화면 글자와 같게 「」로 적는다 — 화면 문구를 바꾸면 여기도 고친다.
 
+export const CARD_MEAL_TRANSPORT_GUIDANCE = "법인카드로 결제한 식비와 교통비는 비용으로 따로 올리지 않아도 돼요.";
+
 export interface HelpItem {
   q: string;
   a: string[];
@@ -55,7 +57,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       },
       {
         q: "식비와 교통비도 올려야 하나요?",
-        a: ["법인카드로 결제한 식비와 교통비는 비용으로 따로 올리지 않아도 돼요."],
+        a: [CARD_MEAL_TRANSPORT_GUIDANCE],
       },
       {
         q: "알림이 오면 무엇을 하나요?",
