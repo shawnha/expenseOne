@@ -39,6 +39,8 @@ import {
 import { FileUpload, FileUploadWithDocType } from "@/components/forms/file-upload";
 import { CompanySelector } from "@/components/forms/company-selector";
 import { CategorySelectField } from "@/components/forms/category-select-field";
+import { VehicleRentalField } from "@/components/forms/vehicle-rental-field";
+import { describeVehicleRental, readVehicleRental } from "@/lib/vehicle-rental";
 import { ConvertToCardDialog } from "@/components/expenses/convert-to-card-dialog";
 import { canShowConvertButton } from "@/lib/expense-convert";
 import {
@@ -245,6 +247,7 @@ function CorporateCardEditForm({
     handleSubmit,
     control,
     setValue,
+    watch,
     formState: { errors, isDirty },
   } = useForm<CorporateCardFormData>({
     resolver: zodResolver(corporateCardFormSchema),
@@ -255,7 +258,7 @@ function CorporateCardEditForm({
       category: expense.category,
       merchantName: expense.merchantName ?? "",
       transactionDate,
-      description: expense.description ?? "",
+      ...readVehicleRental(expense.description),
     },
   });
 
@@ -310,7 +313,7 @@ function CorporateCardEditForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: data.title,
-          description: data.description || null,
+          description: describeVehicleRental(data.rental, data.description),
           // 외화 건은 amount를 보내지 않는다(입금요청 수정 폼과 같은 이유).
           ...(isForeignCurrency ? {} : { amount: data.amount }),
           category: data.category,
@@ -435,6 +438,10 @@ function CorporateCardEditForm({
               <Input id="merchantName" placeholder="예: 교보문고" {...register("merchantName")} />
               {errors.merchantName && <p className="text-xs text-[var(--apple-red)]">{errors.merchantName.message}</p>}
             </div>
+            <Controller name="rental" control={control} render={({ field }) => (
+              <VehicleRentalField rental={field.value ?? null} onChange={field.onChange} merchant={watch("merchantName")} />
+            )} />
+
             <div className="space-y-1.5">
               <Label>거래일 <span className="text-[var(--apple-red)]">*</span></Label>
               <Controller name="transactionDate" control={control} render={({ field }) => (

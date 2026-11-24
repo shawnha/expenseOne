@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { DocumentType } from "@/types";
+import { describeVehicleRental, VEHICLE_MODEL_MAX } from "@/lib/vehicle-rental";
 
 // ============================================================
 // 카테고리 옵션 (UI 표시용) - 기본 프리셋
@@ -79,6 +80,9 @@ export const corporateCardFormSchema = z.object({
   transactionDate: z.date({ message: "거래일을 선택해주세요" }).optional(),
   isUrgent: z.boolean().optional(),
   description: z.string().max(2000, "설명은 2000자 이내로 입력해주세요").optional().or(z.literal("")),
+  rental: z.object({ model: z.string().max(VEHICLE_MODEL_MAX) }).nullish(),
+}).refine(({ description, rental }) => (describeVehicleRental(rental, description)?.length ?? 0) <= 2000, {
+  path: ["description"], message: "렌트 정보를 포함한 설명은 2000자 이내로 입력해주세요",
 });
 
 // 입금요청 폼 스키마
