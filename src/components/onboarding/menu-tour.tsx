@@ -3,9 +3,10 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import { Button } from "@/components/ui/button";
+import { CARD_MEAL_TRANSPORT_GUIDANCE } from "@/lib/help/content";
 
 const STEPS = [
-  { target: "submit", title: "비용 제출", text: "이곳에서 법카 사용을 등록하거나 입금요청을 올려요." },
+  { target: "submit", title: "비용 제출", text: `이곳에서 법카 사용을 등록하거나 입금요청을 올려요. ${CARD_MEAL_TRANSPORT_GUIDANCE}` },
   { target: "expenses", title: "내 비용과 처리 상태", text: "올린 비용을 찾고 승인·반려 상태를 확인해요." },
   { target: "notifications", title: "알림", text: "새 법카 결제나 입금요청 처리 결과가 오면 여기에서 확인해요." },
   { target: "help", title: "사용법", text: "막히면 오른쪽 위 물음표에서 사용법을 찾아요. 이 메뉴 안내도 다시 볼 수 있어요." },

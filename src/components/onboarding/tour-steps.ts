@@ -1,4 +1,6 @@
 // 처음 들어온 사람에게 보여 주는 안내 단계 정의. 문구는 여기 한곳에서만 고친다.
+import { CARD_MEAL_TRANSPORT_GUIDANCE } from "@/lib/help/content";
+
 export type TourRole = "MEMBER" | "ADMIN";
 
 export type TourArt =
@@ -52,9 +54,10 @@ const STEP_DEFS: StepDef[] = [
   {
     id: "card",
     art: "card",
-    title: "법카는 알림이 오면 채우기만",
+    title: "법인카드 사용 내역 올리기",
     body: () => [
-      "법인카드로 결제하면 다음 날 아침 9시쯤 「법카 사용 내역 등록해주세요」 알림이 와요. 알림을 누르면 금액·가맹점이 채워져 있으니 제목과 카테고리만 고르고 제출하면 끝이에요. 법카는 바로 승인돼요.",
+      CARD_MEAL_TRANSPORT_GUIDANCE,
+      "직접 올려야 하는 결제는 다음 날 아침 9시쯤 「법카 사용 내역 등록해주세요」 알림을 확인해요. 알림을 누르면 금액·가맹점이 채워져 있어요. 제목과 카테고리를 고르고 제출하면 바로 승인돼요.",
     ],
   },
   {
