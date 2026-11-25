@@ -32,7 +32,6 @@ import {
 import { cn } from "@/lib/utils";
 import { CompanyBadge } from "@/components/companies/company-badge";
 import { formatKRW } from "@/lib/utils/expense-utils";
-import { monthKeyOf } from "@/lib/plans/diff";
 import { erpMenuLabel } from "@/lib/plans/erp";
 import { paidMenuLabel } from "@/lib/plans/paid";
 import { CHANGE_KIND_LABEL, changeShortText, type ChangeKind } from "@/lib/plans/changes";
@@ -138,7 +137,10 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
   const withErpLock = useSubmitLock();
   /** 지급 완료 표시도 마찬가지. */
   const withPaidLock = useSubmitLock();
-  const isDragging = board?.dragging?.id === card.id;
+  const isDragging = board?.dragging?.some(({ id }) => id === card.id);
+  const selectable = actionable && Boolean(board?.selecting)
+    && (!board?.selectionCompanyId || board.selectionCompanyId === card.companyId);
+  const selected = board?.selectedIds.has(card.id) ?? false;
 
   const surfaceRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -313,7 +315,7 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
 
   // --- HTML5 드래그(데스크톱) ---------------------------------------------------------
 
-  const draggable = actionable && Boolean(board?.canDrag);
+  const draggable = actionable && Boolean(board?.canDrag) && (!board?.selecting || selected);
 
   const onDragStart = useCallback(
     (e: DragEvent<HTMLDivElement>) => {
@@ -323,13 +325,13 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
       }
       e.dataTransfer.effectAllowed = "move";
       e.dataTransfer.setData("text/plain", card.id);
-      board.setDragging({ id: card.id, month: monthKeyOf(card.plannedDate), projectId: card.projectId });
+      board.startDrag(card);
     },
-    [board, draggable, card.id, card.plannedDate, card.projectId],
+    [board, draggable, card],
   );
 
   const onDragEnd = useCallback(() => {
-    board?.setDragging(null);
+    board?.endDrag();
   }, [board]);
 
   // --- 메뉴 --------------------------------------------------------------------------
@@ -379,7 +381,7 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
       setMenuOpen(false);
       setAnchorToButton(false);
     },
-    [armLongPressGuard],
+    [armLongPressGuard, setMenuOpen, setAnchorToButton],
   );
 
   const closeMenu = useCallback(() => {
@@ -388,7 +390,7 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
     g.menuGuardUntil = 0;
     setMenuOpen(false);
     setAnchorToButton(false);
-  }, []);
+  }, [setMenuOpen, setAnchorToButton]);
 
   const showActions = swiping || swipeOpen;
 
@@ -462,6 +464,8 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
               paid && "opacity-65",
               change && CHANGE_RING[change.kind],
               draggable && "cursor-grab active:cursor-grabbing",
+              selectable && "pl-12",
+              selected && "ring-2 ring-[var(--apple-blue)]",
             )}
           >
             {paid ? (
@@ -572,6 +576,18 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
               </>
             )}
           </Link>
+
+          {selectable && board && (
+            <label className="absolute left-0 top-0 z-10 flex size-11 cursor-pointer items-center justify-center">
+              <input
+                type="checkbox"
+                aria-label={`${card.title} 선택`}
+                checked={selected}
+                onChange={() => board.toggleSelected(card)}
+                className="size-4 accent-[var(--apple-blue)]"
+              />
+            </label>
+          )}
 
           {/* 지급 완료 체크. 메뉴를 거치지 않고 카드에서 바로 누른다(오너 피드백 9/23).
               "…" 와 같은 규칙으로 링크의 형제다(44px, z-10). 접힌 카드에서는 세로 가운데. */}

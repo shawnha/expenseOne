@@ -13,6 +13,7 @@ import {
   createProjectSchema,
   issuesMessage,
   linkExpenseSchema,
+  movePlansSchema,
   PLAN_AMOUNT_MAX,
   planErpSchema,
   searchParamsToObject,
@@ -269,5 +270,17 @@ describe("ERP 반영 표시 문구 (lib/plans/erp)", () => {
     assert.equal(erpMenuLabel(true), "ERP 반영 해제");
     assert.equal(erpToggleToast(true), "ERP 반영으로 표시했습니다.");
     assert.equal(erpToggleToast(false), "ERP 반영 표시를 해제했습니다.");
+  });
+});
+
+describe("movePlansSchema", () => {
+  const move = { id: C, version: 1, projectId: P, plannedDate: "2026-12-01" };
+  it("버전이 있는 서로 다른 계획 묶음을 받는다", () => {
+    assert.equal(movePlansSchema.safeParse({ moves: [move, { ...move, id: B }] }).success, true);
+  });
+  it("중복 계획과 빈 묶음, 이동 외 필드를 거부한다", () => {
+    assert.equal(movePlansSchema.safeParse({ moves: [move, { ...move, id: C.toUpperCase() }] }).success, false);
+    assert.equal(movePlansSchema.safeParse({ moves: [] }).success, false);
+    assert.equal(movePlansSchema.safeParse({ moves: [{ ...move, amount: 1000 }] }).success, false);
   });
 });

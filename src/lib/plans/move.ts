@@ -18,6 +18,8 @@ import {
 // 문자열만 다룬다 — diff.ts 와 같은 이유(시간대에 따라 하루가 밀리지 않게).
 // ---------------------------------------------------------------------------
 
+export const MAX_PLAN_MOVE_BATCH = 25;
+
 function pad2(n: number): string {
   return n < 10 ? `0${n}` : String(n);
 }
@@ -39,4 +41,21 @@ export function moveDateToMonth(date: string, precision: DatePrecision, targetMo
 export function shiftDateByMonths(date: string, precision: DatePrecision, delta: number): string | null {
   if (!parseIsoDate(date)) return null;
   return moveDateToMonth(date, precision, addMonths(monthKeyOf(date), delta));
+}
+
+export interface PlanMoveSource {
+  id: string;
+  companyId: string;
+  projectId: string;
+  month: string;
+}
+
+export function canDropPlans(
+  sources: readonly PlanMoveSource[],
+  target: { id: string; companyId: string; canManageMembers: boolean } | undefined,
+  month?: string,
+): boolean {
+  if (target && !target.canManageMembers) return false;
+  return sources.every((source) => !target || source.companyId === target.companyId)
+    && sources.some((source) => (target && source.projectId !== target.id) || (month && source.month !== month));
 }

@@ -4,7 +4,7 @@
  */
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { moveDateToMonth, shiftDateByMonths } from "./move";
+import { canDropPlans, moveDateToMonth, shiftDateByMonths } from "./move";
 
 describe("moveDateToMonth — DAY 는 날짜 유지, 없는 날은 말일로", () => {
   it("같은 일자로 옮긴다", () => {
@@ -67,5 +67,20 @@ describe("shiftDateByMonths — 이전 달 / 다음 달", () => {
   });
   it("잘못된 날짜는 null", () => {
     assert.equal(shiftDateByMonths("2026-9-1", "DAY", 1), null);
+  });
+});
+
+describe("계획 드롭 범위", () => {
+  const source = { id: "one", companyId: "A", projectId: "source", month: "2026-11" };
+  const target = { id: "next", companyId: "A", canManageMembers: true };
+  it("같은 법인의 다른 프로젝트면 날짜를 유지하는 드롭도 허용한다", () => {
+    assert.equal(canDropPlans([source], target), true);
+    assert.equal(canDropPlans([source], { ...target, id: "source" }), false);
+    assert.equal(canDropPlans([source], { ...target, id: "source" }, "2026-12"), true);
+  });
+  it("묶음에 다른 법인 계획이 하나라도 있거나 대상이 조회 전용이면 거부한다", () => {
+    assert.equal(canDropPlans([source, { ...source, id: "two", companyId: "B" }], target, "2026-12"), false);
+    assert.equal(canDropPlans([source], { ...target, canManageMembers: false }, "2026-12"), false);
+    assert.equal(canDropPlans([], target), false);
   });
 });

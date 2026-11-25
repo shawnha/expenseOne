@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
+import type { PlanMoveSource } from "@/lib/plans/move";
 import type { PlanCard } from "@/services/plan.service";
 
 // ---------------------------------------------------------------------------
@@ -9,21 +10,19 @@ import type { PlanCard } from "@/services/plan.service";
 // 카드는 링크로만 동작한다.
 // ---------------------------------------------------------------------------
 
-export interface DragState {
-  id: string;
-  /** 출발 달 "YYYY-MM" — 같은 달에는 떨어뜨릴 수 없다. */
-  month: string;
-  /** 프로젝트 서랍 안에서는 같은 프로젝트의 달 칸에만 떨어뜨릴 수 있다. */
-  projectId: string;
-}
+export type DragState = readonly PlanMoveSource[];
 
 export interface PlanBoardActions {
   /** 마우스(hover + fine pointer) 환경. 터치에서는 HTML5 드래그 대신 빠른 메뉴를 쓴다. */
   canDrag: boolean;
   dragging: DragState | null;
-  setDragging: (state: DragState | null) => void;
-  /** 카드를 다른 달로. 낙관적으로 먼저 옮기고 PATCH, 실패하면 되돌린다. */
-  moveToMonth: (cardId: string, targetMonth: string) => void;
+  startDrag: (card: PlanCard) => void;
+  endDrag: () => void;
+  dropPlans: (projectId?: string, month?: string) => void;
+  selecting: boolean;
+  selectedIds: ReadonlySet<string>;
+  selectionCompanyId?: string;
+  toggleSelected: (card: PlanCard) => void;
   /** 이전 달(-1) / 다음 달(+1). */
   shiftMonth: (cardId: string, delta: 1 | -1) => void;
   openEdit: (card: PlanCard) => void;
