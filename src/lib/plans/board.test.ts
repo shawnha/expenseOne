@@ -17,8 +17,8 @@ import {
 } from "./board";
 
 const projects: BoardProjectRef[] = [
-  { id: "p1", name: "리브랜딩", companyId: "c1", companyName: "코리아", companySlug: "korea", memberCount: 3 },
-  { id: "p2", name: "신제품", companyId: "c2", companyName: "리테일", companySlug: "retail", memberCount: 1 },
+  { id: "p1", name: "리브랜딩", companyId: "c1", companyName: "코리아", companySlug: "korea", memberCount: 3, canManageMembers: true },
+  { id: "p2", name: "신제품", companyId: "c2", companyName: "리테일", companySlug: "retail", memberCount: 1, canManageMembers: false },
 ];
 const keys = ["2026-09", "2026-10"];
 const item = (id: string, projectId: string, plannedDate: string, amount: number, status = "PLANNED") => ({

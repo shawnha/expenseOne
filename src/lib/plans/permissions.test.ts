@@ -1,6 +1,6 @@
 /**
  * 비용계획 권한 순수 술어 단위 테스트 (SCHEMA.md 3절).
- * created_by_id 는 어디에도 등장하지 않는다 — 권한 근거는 참여자 행뿐(V-SECURITY-1).
+ * created_by_id 는 조회·수정의 권한 근거가 아니다.
  * 실행: npm run test:unit
  */
 import { describe, it } from "node:test";
@@ -11,6 +11,7 @@ import {
   canRemoveMember,
   isPlannableCompany,
   memberProjectIdsSql,
+  projectReadScopeSql,
   projectScopeSql,
 } from "./permissions";
 import { sql, type BuildQueryConfig } from "drizzle-orm";
@@ -79,5 +80,22 @@ describe("SQL 조각", () => {
     const member = projectScopeSql({ userId: ME, isExecutive: false }, sql`p.project_id`).toQuery(QUERY_CONFIG);
     assert.match(member.sql, /^p\.project_id IN \(SELECT m\.project_id/);
     assert.deepEqual(member.params, [ME]);
+  });
+  it("리더 조회는 명시적으로 담당 법인을 확인하며 수정 범위는 그대로다", () => {
+    const actor = { userId: ME, isExecutive: false, role: "MEMBER" } as const;
+    const project = sql`p.project_id`;
+    const visible = projectReadScopeSql(actor, project).toQuery(QUERY_CONFIG);
+    assert.match(visible.sql, /lp.id = p.project_id/);
+    assert.match(visible.sql, /v.user_id = lu.id AND v.company_id = lp.company_id/);
+    assert.match(visible.sql, /lu.is_active = true AND lu.role = 'MEMBER'/);
+    assert.match(visible.sql, /lc.is_active = true AND lc.currency = 'KRW'/);
+    assert.doesNotMatch(visible.sql, /lu.company_id|created_by/);
+    assert.doesNotMatch(projectScopeSql(actor, project).toQuery(QUERY_CONFIG).sql, /brand_settlement_viewers/);
+  });
+  it("일반 관리자의 프로젝트 권한과 대표의 전체 권한은 그대로다", () => {
+    const project = sql`p.project_id`;
+    const admin = { userId: ME, isExecutive: false, role: "ADMIN" } as const;
+    assert.deepEqual(projectReadScopeSql(admin, project).toQuery(QUERY_CONFIG), projectScopeSql(admin, project).toQuery(QUERY_CONFIG));
+    assert.equal(projectReadScopeSql({ ...admin, isExecutive: true }, project).toQuery(QUERY_CONFIG).sql, "TRUE");
   });
 });

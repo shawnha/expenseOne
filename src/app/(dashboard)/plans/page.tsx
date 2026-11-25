@@ -56,6 +56,8 @@ export default async function PlansPage({ searchParams }: PlansPageProps) {
     throw toSafeError(err);
   }
   const currentMonth = currentMonthKST();
+  const visibleProjects = query.projectId ? board.projects.filter((project) => project.id === query.projectId) : board.projects;
+  const canCreatePlan = visibleProjects.length === 0 || visibleProjects.some((project) => project.canManageMembers);
 
   return (
     <div className="flex flex-col gap-4 sm:gap-5 lg:gap-6">
@@ -66,12 +68,13 @@ export default async function PlansPage({ searchParams }: PlansPageProps) {
             앞으로 나갈 돈을 달별로 세워 두고, 실제 쓴 돈과 맞춰 봅니다.
           </p>
         </div>
-        {/* 프로젝트 만들기·참여자는 툴바의 '＋ 프로젝트' 칩이 연다(프로젝트가 최상위, v1.1). */}
-        <PlanCreateButton
-          defaultCompanyId={query.companyId}
-          defaultProjectId={query.projectId}
-          openOnMount={params.new === "1"}
-        />
+        {canCreatePlan && (
+          <PlanCreateButton
+            defaultCompanyId={query.companyId}
+            defaultProjectId={query.projectId}
+            openOnMount={params.new === "1"}
+          />
+        )}
       </header>
 
       {/* 지난번 보신 뒤 다른 사람이 추가·수정·취소한 계획(0027) — 비용계획에서 제일 먼저 봐야 할 것 */}

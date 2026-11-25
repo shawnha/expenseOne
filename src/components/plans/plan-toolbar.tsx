@@ -46,7 +46,7 @@ export function PlanToolbar({ board, currentMonth }: PlanToolbarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
-  const [projectDialogOpen, setProjectDialogOpen] = useState(false);
+  const [projectDialog, setProjectDialog] = useState<{ projectId?: string; viewMembers?: boolean } | null>(null);
   /** 선택된 프로젝트 칩의 관리 메뉴(⋯ 또는 칩 오른쪽 클릭). */
   const [chipMenuOpen, setChipMenuOpen] = useState(false);
 
@@ -210,7 +210,7 @@ export function PlanToolbar({ board, currentMonth }: PlanToolbarProps) {
                   onOpenChange={setChipMenuOpen}
                   onManageMembers={() => {
                     setChipMenuOpen(false);
-                    setProjectDialogOpen(true);
+                    setProjectDialog({ projectId: p.id, viewMembers: !p.canManageMembers });
                   }}
                   onDeleted={() => {
                     setParams({ projectId: null });
@@ -225,7 +225,7 @@ export function PlanToolbar({ board, currentMonth }: PlanToolbarProps) {
           )}
           <button
             type="button"
-            onClick={() => setProjectDialogOpen(true)}
+            onClick={() => setProjectDialog({})}
             className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-full border border-dashed border-[var(--apple-separator)] px-3 text-[0.8rem] font-medium text-[var(--apple-blue)] transition-colors hover:bg-[var(--apple-blue)]/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--apple-blue)]"
           >
             <Plus className="size-3.5" aria-hidden="true" />
@@ -290,7 +290,16 @@ export function PlanToolbar({ board, currentMonth }: PlanToolbarProps) {
         )}
       </div>
 
-      {projectDialogOpen && <ProjectDialog open onOpenChange={setProjectDialogOpen} />}
+      {projectDialog && (
+        <ProjectDialog
+          open
+          projectId={projectDialog.projectId}
+          viewMembers={projectDialog.viewMembers}
+          onOpenChange={(open) => {
+            if (!open) setProjectDialog(null);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -26,7 +26,7 @@ import type { BoardMonth, BoardResult, PlanCard, PlanErpState, PlanPaidState } f
 import { PlanBoardContext, usePlanBoard, type DragState, type PlanBoardActions } from "./board-context";
 import { PlanCardItem } from "./plan-card";
 import { PlanCreateButton, PlanDialog, type PlanEditTarget } from "./plan-dialog";
-import { ProjectOpenButton } from "./project-dialog";
+import { ProjectDialog, ProjectOpenButton } from "./project-dialog";
 import { jsonBody, monthLabel, planFetch } from "./plan-client";
 import { DESKTOP_POINTER_QUERY, useMediaQuery } from "./use-media-query";
 
@@ -356,6 +356,8 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
     [grouped, items, shelf, keys],
   );
 
+  const hasEditablePlans = items.some((card) => card.canManage && card.status === "PLANNED");
+
   const editTarget: PlanEditTarget | null = dialog
     ? {
         id: dialog.card.id,
@@ -375,25 +377,29 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
       }
     : null;
 
-  if (items.length === 0) {
+  if (items.length === 0 && !grouped) {
     return <BoardEmptyState hasProject={board.projects.length > 0} companyId={companyId} />;
   }
 
   return (
     <PlanBoardContext.Provider value={actions}>
       {/* 달 탭을 바꿀 때 스크롤을 올릴 자리. 높이 0 — 부모 flex 의 gap(모바일 16px)은 -mb-4 로 상쇄한다. */}
-      <div ref={tabsTopRef} aria-hidden="true" className="-mb-4 sm:hidden" />
-      <MonthTabs
-        months={months}
-        shown={shownMonth}
-        currentMonth={currentMonth}
-        busy={rangePending}
-        onSelect={selectMonth}
-        onStep={stepMonth}
-      />
+      {items.length > 0 && (
+        <>
+          <div ref={tabsTopRef} aria-hidden="true" className="-mb-4 sm:hidden" />
+          <MonthTabs
+            months={months}
+            shown={shownMonth}
+            currentMonth={currentMonth}
+            busy={rangePending}
+            onSelect={selectMonth}
+            onStep={stepMonth}
+          />
+        </>
+      )}
       {grouped ? (
         <div className="flex flex-col gap-4">
-          {shouldShowSummaryStrip(groups.length) && <SummaryStrip months={months} currentMonth={currentMonth} />}
+          {items.length > 0 && shouldShowSummaryStrip(groups.length) && <SummaryStrip months={months} currentMonth={currentMonth} />}
           {groups.map((group, index) => (
             <ProjectDrawer
               key={group.project.id}
@@ -422,7 +428,7 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
         </div>
       )}
 
-      {canDrag && (
+      {canDrag && hasEditablePlans && (
         <p className="text-caption2 text-[var(--apple-tertiary-label)]">
           카드를 다른 달 칸으로 끌어다 놓으면 예정일이 그 달로 옮겨집니다. 오른쪽 클릭이나 … 버튼으로도 옮길 수 있습니다.
         </p>
@@ -659,6 +665,7 @@ function ProjectDrawer({
 }) {
   const { project } = group;
   const [collapsed, setCollapsed] = useState(false);
+  const [membersOpen, setMembersOpen] = useState(false);
   const bodyId = `plan-drawer-${project.id}`;
 
   // 저장된 접힘은 마운트 뒤에 읽는다 — 렌더 중에 읽으면 서버 HTML 과 어긋난다(하이드레이션 오류).
@@ -681,30 +688,38 @@ function ProjectDrawer({
       className="rounded-[22px] border border-[var(--apple-separator)] p-2 sm:p-3 animate-fade-up"
       style={{ animationDelay: `${index * 50}ms` }}
     >
-      <button
-        type="button"
-        onClick={toggle}
-        aria-expanded={!collapsed}
-        aria-controls={bodyId}
-        className="flex min-h-11 w-full items-center gap-2 rounded-2xl px-2 py-1.5 text-left transition-colors hover:bg-[var(--apple-tertiary-system-fill)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--apple-blue)]"
-      >
-        <ChevronDown
-          className={cn(
-            "size-5 shrink-0 text-[var(--apple-secondary-label)] transition-transform duration-200",
-            collapsed && "-rotate-90",
-          )}
-          aria-hidden="true"
-        />
-        <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-          <span id={`${bodyId}-title`} className="inline-block max-w-full truncate align-bottom text-headline text-[var(--apple-label)]">
-            {project.name}
-          </span>
-          <CompanyBadge name={project.companyName} slug={project.companySlug} />
-          <span className="inline-flex items-center gap-1 text-caption1 text-[var(--apple-secondary-label)]">
-            <Users className="size-3.5" aria-hidden="true" />
-            참여자 {project.memberCount}
-          </span>
-        </span>
+      <div className="flex items-center justify-between gap-2 px-1 sm:px-2">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2">
+          <button
+            type="button"
+            onClick={toggle}
+            aria-expanded={!collapsed}
+            aria-controls={bodyId}
+            className="flex min-h-11 min-w-0 max-w-full flex-wrap items-center gap-x-2 gap-y-0.5 rounded-xl px-1.5 py-1.5 text-left transition-colors hover:bg-[var(--apple-tertiary-system-fill)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--apple-blue)]"
+          >
+            <ChevronDown
+              className={cn(
+                "size-5 shrink-0 text-[var(--apple-secondary-label)] transition-transform duration-200",
+                collapsed && "-rotate-90",
+              )}
+              aria-hidden="true"
+            />
+            <span id={`${bodyId}-title`} className="min-w-0 flex-1 truncate text-headline text-[var(--apple-label)]">
+              {project.name}
+            </span>
+            <CompanyBadge name={project.companyName} slug={project.companySlug} />
+          </button>
+          <button
+            type="button"
+            aria-label={`${project.name} 참여자 ${project.memberCount}명 ${project.canManageMembers ? "관리" : "보기"}`}
+            aria-haspopup="dialog"
+            onClick={() => setMembersOpen(true)}
+            className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border border-[var(--apple-separator)] bg-[var(--apple-tertiary-system-fill)] px-3 text-sm font-semibold text-[var(--apple-label)] transition-colors hover:border-[var(--apple-blue)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--apple-blue)]"
+          >
+            <Users className="size-4" aria-hidden="true" />
+            참여자 {project.memberCount}명
+          </button>
+        </div>
         <span className="shrink-0 text-right">
           <span className="block text-[15px] font-semibold tabular-nums text-[var(--apple-label)]">
             {formatKRW(group.total)}
@@ -713,19 +728,22 @@ function ProjectDrawer({
             {group.count}건
           </span>
         </span>
-      </button>
+      </div>
+      {membersOpen && <ProjectDialog open projectId={project.id} viewMembers={!project.canManageMembers} onOpenChange={setMembersOpen} />}
 
       <div id={bodyId} hidden={collapsed} className="mt-2">
         {group.count === 0 ? (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-dashed border-[var(--apple-separator)] px-4 py-3">
             <p className="text-footnote text-[var(--apple-secondary-label)]">이 기간에 계획이 없습니다.</p>
-            <PlanCreateButton
-              label="계획 추가"
-              variant="outline"
-              size="sm"
-              defaultCompanyId={project.companyId}
-              defaultProjectId={project.id}
-            />
+            {project.canManageMembers && (
+              <PlanCreateButton
+                label="계획 추가"
+                variant="outline"
+                size="sm"
+                defaultCompanyId={project.companyId}
+                defaultProjectId={project.id}
+              />
+            )}
           </div>
         ) : (
           // grid-cols-1 — 위 보드 격자와 같은 이유(모바일에서 긴 제목이 열을 넓히지 않게).

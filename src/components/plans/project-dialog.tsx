@@ -40,15 +40,18 @@ interface ProjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved?: () => void;
+  projectId?: string;
+  viewMembers?: boolean;
 }
 
-export function ProjectDialog({ open, onOpenChange, onSaved }: ProjectDialogProps) {
+export function ProjectDialog({ open, onOpenChange, onSaved, projectId, viewMembers = false }: ProjectDialogProps) {
   const router = useRouter();
 
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [users, setUsers] = useState<UserOption[] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [busyProject, setBusyProject] = useState<string | null>(null);
   // 같은 틱의 두 번째 클릭을 막는다(QA D-04). creating/busyProject 는 화면용, 이 잠금이 실제 문지기다.
@@ -73,11 +76,11 @@ export function ProjectDialog({ open, onOpenChange, onSaved }: ProjectDialogProp
       companies: CompanyOption[];
       isExecutive: boolean;
       viewerId: string;
-    }>("/api/plans/projects").then((res) => {
+    }>("/api/plans/projects?includeReadOnly=1").then((res) => {
       if (!alive) return;
       setLoading(false);
       if (!res.ok) {
-        toast.error(res.message);
+        setLoadError(res.message);
         return;
       }
       setProjects(res.data.projects);
@@ -176,14 +179,19 @@ export function ProjectDialog({ open, onOpenChange, onSaved }: ProjectDialogProp
     }
   }, []);
 
+  const saving = creating || busyProject !== null;
   const handleClose = useCallback(() => {
+    if (saving) return;
     onOpenChange(false);
     // 참여자가 바뀌면 보드에 보이는 계획의 범위 자체가 달라진다. 바뀐 게 있을 때만 다시 읽는다.
     if (touched) {
       if (onSaved) onSaved();
       else router.refresh();
     }
-  }, [onOpenChange, onSaved, router, touched]);
+  }, [onOpenChange, onSaved, router, saving, touched]);
+
+  const visibleProjects = projectId ? projects.filter((project) => project.id === projectId) : projects;
+  const canManageTarget = visibleProjects[0]?.canManageMembers ?? !viewMembers;
 
   return (
     <Dialog
@@ -195,12 +203,12 @@ export function ProjectDialog({ open, onOpenChange, onSaved }: ProjectDialogProp
     >
       <DialogContent showCloseButton={false} className="sm:max-w-lg max-h-[86dvh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-headline text-[var(--apple-label)]">프로젝트</DialogTitle>
+          <DialogTitle className="text-headline text-[var(--apple-label)]">{projectId ? (canManageTarget ? "참여자 관리" : "참여자") : "프로젝트"}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
           {/* 만들기 */}
-          {showForm ? (
+          {projectId || loadError ? null : showForm ? (
             <div className="space-y-3 rounded-2xl border border-[var(--apple-separator)] p-3">
               <div className="flex flex-col gap-1.5">
                 <Label className="text-footnote text-[var(--apple-secondary-label)]">법인</Label>
@@ -291,22 +299,30 @@ export function ProjectDialog({ open, onOpenChange, onSaved }: ProjectDialogProp
             </Button>
           )}
 
+          {projectId && visibleProjects.length > 0 && canManageTarget && (
+            <p className="break-keep text-sm text-[var(--apple-secondary-label)]">
+              추가한 직원은 이 프로젝트의 비용계획을 보고 수정할 수 있습니다.
+            </p>
+          )}
+
           {/* 목록 */}
           <div className="space-y-2">
-            {loading && projects.length === 0 ? (
-              <div className="h-16 rounded-2xl bg-[var(--apple-tertiary-system-fill)] animate-pulse" />
-            ) : projects.length === 0 ? (
+            {loading ? (
+              <p role="status" className="py-4 text-center text-footnote text-[var(--apple-secondary-label)]">참여자를 불러오는 중…</p>
+            ) : loadError ? (
+              <p role="alert" className="py-4 text-center text-footnote text-[var(--apple-label)]">{loadError}</p>
+            ) : visibleProjects.length === 0 ? (
               <p className="py-4 text-center text-footnote text-[var(--apple-secondary-label)]">
-                참여 중인 프로젝트가 없습니다.
+                {projectId ? "이 프로젝트를 열 수 없습니다." : "참여 중인 프로젝트가 없습니다."}
               </p>
             ) : (
-              projects.map((project) => (
+              visibleProjects.map((project) => (
                 <ProjectRow
                   key={project.id}
                   project={project}
                   users={users}
                   busy={busyProject === project.id}
-                  canDelete={Boolean(viewer && (viewer.isExecutive || project.createdById === viewer.id))}
+                  canDelete={!projectId && project.canManageMembers && Boolean(viewer && (viewer.isExecutive || project.createdById === viewer.id))}
                   onDelete={() => void handleDeleteProject(project)}
                   onOpenPicker={() => void ensureUsers()}
                   onAdd={(userId) =>
@@ -332,7 +348,7 @@ export function ProjectDialog({ open, onOpenChange, onSaved }: ProjectDialogProp
         </div>
 
         <DialogFooter>
-          <Button type="button" variant="outline" size="lg" onClick={handleClose}>
+          <Button type="button" variant="outline" size="lg" onClick={handleClose} disabled={saving}>
             닫기
           </Button>
         </DialogFooter>
@@ -360,7 +376,7 @@ function MemberChips({
 }: {
   members: UserOption[];
   users: UserOption[] | null;
-  /** true 면 X 를 누르는 즉시 뺀다(아직 저장 전인 만들기 폼). */
+  /** 수정 가능한 목록에서만 추가·제거 버튼을 표시한다. */
   removable: boolean;
   disabled?: boolean;
   /** X 만 따로 막을 때(마지막 참여자). 추가 팝오버는 그대로 열린다. */
@@ -395,44 +411,46 @@ function MemberChips({
           )}
         </span>
       ))}
-      <Popover
-        open={pickerOpen}
-        onOpenChange={(next) => {
-          setPickerOpen(next);
-          if (next) onOpenPicker();
-        }}
-      >
-        <PopoverTrigger
-          disabled={disabled}
-          className="inline-flex min-h-11 items-center gap-1 rounded-full border border-dashed border-[var(--apple-separator)] px-3 py-1 text-caption1 text-[var(--apple-blue)] transition-colors hover:bg-[var(--apple-blue)]/10 disabled:opacity-50"
+      {removable && (
+        <Popover
+          open={pickerOpen}
+          onOpenChange={(next) => {
+            setPickerOpen(next);
+            if (next) onOpenPicker();
+          }}
         >
-          <UserPlus className="size-3" aria-hidden="true" />
-          참여자 추가
-        </PopoverTrigger>
-        <PopoverContent className="w-[240px] p-0" align="start">
-          <Command>
-            <CommandInput placeholder="직원 검색..." />
-            <CommandList>
-              <CommandEmpty>{users ? "검색 결과가 없습니다." : "불러오는 중..."}</CommandEmpty>
-              <CommandGroup>
-                {(users ?? []).map((user) => (
-                  <CommandItem
-                    key={user.id}
-                    value={user.name}
-                    onSelect={() => {
-                      setPickerOpen(false);
-                      if (!memberIds.has(user.id)) onAdd(user);
-                    }}
-                  >
-                    <Check className={memberIds.has(user.id) ? "size-4 opacity-100" : "size-4 opacity-0"} />
-                    <span className="truncate">{user.name}</span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
+          <PopoverTrigger
+            disabled={disabled}
+            className="inline-flex min-h-11 items-center gap-1 rounded-full border border-dashed border-[var(--apple-separator)] px-3 py-1 text-caption1 text-[var(--apple-blue)] transition-colors hover:bg-[var(--apple-blue)]/10 disabled:opacity-50"
+          >
+            <UserPlus className="size-3" aria-hidden="true" />
+            참여자 추가
+          </PopoverTrigger>
+          <PopoverContent className="w-[240px] p-0" align="start">
+            <Command>
+              <CommandInput placeholder="직원 검색..." />
+              <CommandList>
+                <CommandEmpty>{users ? "검색 결과가 없습니다." : "불러오는 중..."}</CommandEmpty>
+                <CommandGroup>
+                  {(users ?? []).map((user) => (
+                    <CommandItem
+                      key={user.id}
+                      value={user.name}
+                      onSelect={() => {
+                        setPickerOpen(false);
+                        if (!memberIds.has(user.id)) onAdd(user);
+                      }}
+                    >
+                      <Check className={memberIds.has(user.id) ? "size-4 opacity-100" : "size-4 opacity-0"} />
+                      <span className="truncate">{user.name}</span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+      )}
     </div>
   );
 }
@@ -522,7 +540,7 @@ function ProjectRow({
         <MemberChips
           members={project.members}
           users={users}
-          removable
+          removable={project.canManageMembers}
           disabled={busy}
           removeDisabled={lastOne}
           removeTitle={lastOne ? "마지막 참여자는 제거할 수 없습니다" : "참여자 제거"}
