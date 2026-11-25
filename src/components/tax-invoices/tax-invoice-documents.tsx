@@ -219,7 +219,7 @@ function DocumentResult({ result, saving, onApply }: {
           빈 항목에 반영
         </Button>
       </div>
-      <p className="text-sm text-[var(--apple-secondary-label)]">
+      <p className="break-keep text-sm text-[var(--apple-secondary-label)]">
         {result.fields.confidence === "low" ? "인식이 불확실합니다. 원본과 대조한 뒤 반영해 주세요." : "인식한 내용을 확인한 뒤 반영해 주세요."}
       </p>
       <details className="group/details">
