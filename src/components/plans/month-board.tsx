@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CalendarRange, ChevronDown, ChevronLeft, ChevronRight, Users } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { CompanyBadge } from "@/components/companies/company-badge";
 import { formatKRW } from "@/lib/utils/expense-utils";
 import {
@@ -16,13 +17,14 @@ import {
   shouldShowSummaryStrip,
   stepMobileMonth,
   type MobileMonthState,
+  type BoardProjectRef,
   type ProjectGroup,
 } from "@/lib/plans/board";
 import { groupByMonth, monthRange, parseMonth, plannedDateLabel } from "@/lib/plans/diff";
-import { moveDateToMonth, shiftDateByMonths } from "@/lib/plans/move";
+import { canDropPlans, MAX_PLAN_MOVE_BATCH, moveDateToMonth, shiftDateByMonths } from "@/lib/plans/move";
 import { erpToggleToast } from "@/lib/plans/erp";
 import { paidToggleToast, unpaidNote } from "@/lib/plans/paid";
-import type { BoardMonth, BoardResult, PlanCard, PlanErpState, PlanPaidState } from "@/services/plan.service";
+import type { BoardMonth, BoardProject, BoardResult, PlanCard, PlanErpState, PlanPaidState } from "@/services/plan.service";
 import { PlanBoardContext, usePlanBoard, type DragState, type PlanBoardActions } from "./board-context";
 import { PlanCardItem } from "./plan-card";
 import { PlanCreateButton, PlanDialog, type PlanEditTarget } from "./plan-dialog";
@@ -36,7 +38,7 @@ import { DESKTOP_POINTER_QUERY, useMediaQuery } from "./use-media-query";
 // 첫 버전은 서버 컴포넌트였다. 이제 카드를 다른 달로 끌어다 놓고(낙관적 갱신 + 되돌리기),
 // 프로젝트 서랍을 접었다 펴고, 카드 메뉴에서 바로 수정·삭제를 열어야 하므로 보드 전체가
 // 클라이언트로 내려왔다. 데이터는 여전히 서버가 한 번에 준다(BoardResult) — 여기서는 그 위에
-// "아직 서버가 모르는 이동" 만 겹쳐 그린다. 서버가 새로 그려 주면(router.refresh) 겹친 것은 버린다.
+// 저장 중인 이동을 먼저 겹쳐 그린다. 서버가 새로 그려 주면(router.refresh) 겹친 것은 버린다.
 //
 // 프로젝트가 최상위다: 필터가 '전체'이고 범위 안 프로젝트가 둘 이상이면 프로젝트마다 서랍 하나.
 // 데스크톱은 달을 나란히(최대 4열), 모바일은 위에서 아래로 쌓는다.
@@ -55,15 +57,20 @@ interface MonthBoardProps {
 }
 
 /**
- * 서버가 준 카드 위에 겹치는 값. 달 이동이 바꾸는 것은 예정일과 version 뿐이다.
+ * 서버가 준 카드 위에 겹치는 값. 이동은 프로젝트·예정일·버전을 바꾼다.
  * "ERP 반영함"·"지급 완료" 표시는 version 을 올리지 않으므로 따로 겹친다.
  */
 interface LocalPatch {
+  projectId: string;
+  projectName: string;
   plannedDate: string;
   version: number;
   erpApplied: boolean;
   paid: boolean;
 }
+
+type MovePosition = Pick<LocalPatch, "projectId" | "projectName" | "plannedDate">;
+type MoveTarget = MovePosition & { id: string; expectedVersion?: number };
 
 interface DialogState {
   card: PlanCard;
@@ -97,6 +104,8 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
         if (!p) return card;
         return {
           ...card,
+          projectId: p.projectId,
+          projectName: p.projectName,
           plannedDate: p.plannedDate,
           plannedDateLabel: plannedDateLabel(p.plannedDate, card.datePrecision),
           version: p.version,
@@ -133,6 +142,8 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
       const current = itemsRef.current.find((c) => c.id === cardId);
       if (!current) return prev;
       const merged: LocalPatch = {
+        projectId: patch.projectId ?? map[cardId]?.projectId ?? current.projectId,
+        projectName: patch.projectName ?? map[cardId]?.projectName ?? current.projectName,
         plannedDate: patch.plannedDate ?? map[cardId]?.plannedDate ?? current.plannedDate,
         version: patch.version ?? map[cardId]?.version ?? current.version,
         erpApplied: patch.erpApplied ?? map[cardId]?.erpApplied ?? current.erpApplied,
@@ -148,89 +159,151 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
   /** PATCH 가 나가 있는 카드. 같은 카드를 연달아 옮기면 두 번째는 옛 version 으로 나가 409 가 된다(QA D-04). */
   const inflight = useRef(new Set<string>());
 
-  // --- 달 옮기기: 낙관적 갱신 → PATCH → 실패면 원위치, 성공이면 '되돌리기' 토스트 ---------------
+  const [selection, setSelection] = useState<{ board: BoardResult; ids: ReadonlySet<string> } | null>(null);
+  const selecting = selection?.board === board;
+  const selectedCards = items.filter((card) => selecting && selection.ids.has(card.id) && card.canManage && card.status === "PLANNED");
+  const selectedIds = new Set(selectedCards.map(({ id }) => id));
+  const selectionCompanyId = selectedCards[0]?.companyId;
+  const [moving, setMoving] = useState(false);
+  const moveLock = useRef(false);
 
-  const patchDate = useCallback(
-    (cardId: string, version: number, plannedDate: string) =>
-      planFetch<{ id: string; version: number }>(`/api/plans/items/${cardId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ version, plannedDate }),
-      }),
-    [],
-  );
-
-  /**
-   * 한 번의 이동: 낙관적으로 먼저 옮기고 PATCH, 실패면 원위치. 성공하면 이동 전 날짜를 돌려준다.
-   * 토스트는 부르는 쪽이 띄운다(처음 이동과 되돌리기가 다른 말을 한다).
-   */
-  const performMove = useCallback(
-    async (cardId: string, nextDate: string): Promise<{ title: string; prevDate: string } | null> => {
-      const card = itemsRef.current.find((c) => c.id === cardId);
-      if (!card || card.status !== "PLANNED") return null;
-      if (inflight.current.has(cardId)) return null;
-      const prevDate = card.plannedDate;
-      if (nextDate === prevDate) return null;
-
-      inflight.current.add(cardId);
-      applyPatch(cardId, { plannedDate: nextDate });
-      try {
-        const res = await patchDate(cardId, card.version, nextDate);
-        if (!res.ok) {
-          applyPatch(cardId, { plannedDate: prevDate });
-          toast.error(res.message);
-          // 낙관적 잠금에 걸렸으면 화면의 version 이 옛것이다. 서버 것으로 다시 그린다.
-          if (res.code === "CONFLICT") router.refresh();
-          return null;
-        }
-        applyPatch(cardId, { version: res.data.version });
-        return { title: card.title, prevDate };
-      } finally {
-        inflight.current.delete(cardId);
+  function toggleSelected(card: PlanCard) {
+    if (moveLock.current || !card.canManage || card.status !== "PLANNED") return;
+    const ids = new Set(selectedIds);
+    if (ids.has(card.id)) ids.delete(card.id);
+    else {
+      if (selectionCompanyId && selectionCompanyId !== card.companyId) return;
+      if (ids.size >= MAX_PLAN_MOVE_BATCH) {
+        toast.error(`한 번에 ${MAX_PLAN_MOVE_BATCH}건까지 이동할 수 있습니다.`);
+        return;
       }
-    },
-    [applyPatch, patchDate, router],
-  );
+      ids.add(card.id);
+    }
+    setSelection({ board, ids });
+  }
 
-  const moveTo = useCallback(
-    async (cardId: string, nextDate: string) => {
-      const moved = await performMove(cardId, nextDate);
-      if (!moved) return;
-      const targetMonth = nextDate.slice(0, 7);
-      const outside = !keys.includes(targetMonth);
-      toast.success(`'${clipTitle(moved.title)}' → ${monthLabel(targetMonth)}${outside ? " (지금 범위 밖)" : ""}`, {
-        duration: 6000,
-        action: {
-          label: "되돌리기",
-          onClick: () => {
-            void performMove(cardId, moved.prevDate).then((undone) => {
-              if (undone) toast.success(`'${clipTitle(undone.title)}' 계획을 되돌렸습니다.`);
-            });
-          },
+  async function performMove(targets: MoveTarget[]) {
+    if (moveLock.current || targets.length === 0) return null;
+    const currentBoard = boardRef.current;
+    const source = new Map(itemsRef.current.map((card) => [card.id, card]));
+    const moves = targets.flatMap((target) => {
+      const card = source.get(target.id);
+      if (!card?.canManage || card.status !== "PLANNED" || inflight.current.has(target.id)
+        || (target.expectedVersion !== undefined && card.version !== target.expectedVersion)) return [];
+      return [{ target, card }];
+    });
+    if (moves.length !== targets.length) {
+      toast.error("이미 바뀌었거나 옮길 수 없는 계획이 있습니다. 다시 선택해 주세요.");
+      return null;
+    }
+    const changed = moves.filter(({ target, card }) =>
+      target.projectId !== card.projectId || target.plannedDate !== card.plannedDate,
+    );
+    if (changed.length === 0) {
+      toast.info("이미 선택한 프로젝트와 예정월에 있습니다.");
+      return null;
+    }
+
+    moveLock.current = true;
+    setMoving(true);
+    for (const { target } of changed) {
+      inflight.current.add(target.id);
+      applyPatch(target.id, target);
+    }
+    try {
+      const res = await planFetch<{ items: { id: string; version: number }[] }>("/api/plans/items/move", jsonBody({
+        moves: changed.map(({ target, card }) => ({
+          id: target.id, version: card.version, projectId: target.projectId, plannedDate: target.plannedDate,
+        })),
+      }));
+      if (!res.ok) {
+        if (boardRef.current === currentBoard) {
+          for (const { card } of changed) applyPatch(card.id, {
+            projectId: card.projectId, projectName: card.projectName, plannedDate: card.plannedDate,
+          });
+        }
+        toast.error(res.message);
+        if (res.code === "CONFLICT" || res.code === "NOT_FOUND" || !res.code) router.refresh();
+        return null;
+      }
+      const versions = new Map(res.data.items.map((item) => [item.id, item.version]));
+      if (boardRef.current !== currentBoard) {
+        router.refresh();
+        return null;
+      }
+      for (const item of res.data.items) applyPatch(item.id, { version: item.version });
+      return changed.map(({ card }) => ({
+        id: card.id, projectId: card.projectId, projectName: card.projectName, plannedDate: card.plannedDate,
+        expectedVersion: versions.get(card.id),
+      }));
+    } finally {
+      for (const { target } of changed) inflight.current.delete(target.id);
+      moveLock.current = false;
+      setMoving(false);
+    }
+  }
+
+  async function moveTo(targets: MoveTarget[], destination: string, clearSelection = false) {
+    const previous = await performMove(targets);
+    if (!previous) return;
+    if (clearSelection) setSelection(null);
+    const first = itemsRef.current.find((card) => card.id === previous[0].id);
+    const label = previous.length === 1 && first ? `'${clipTitle(first.title)}'` : `계획 ${previous.length}건`;
+    toast.success(`${label} → ${destination}`, {
+      duration: 6000,
+      action: {
+        label: "되돌리기",
+        onClick: () => {
+          void performMove(previous).then((undone) => {
+            if (undone) toast.success(`계획 ${undone.length}건을 되돌렸습니다.`);
+          });
         },
-      });
-    },
-    [performMove, keys],
-  );
+      },
+    });
+  }
 
-  const moveToMonth = useCallback(
-    (cardId: string, targetMonth: string) => {
-      const card = itemsRef.current.find((c) => c.id === cardId);
-      if (!card || !parseMonth(targetMonth)) return;
-      const next = moveDateToMonth(card.plannedDate, card.datePrecision, targetMonth);
-      if (next) void moveTo(cardId, next);
-    },
-    [moveTo],
-  );
+  function moveCards(ids: readonly string[], targetProjectId?: string, month?: string, clearSelection = false) {
+    const project = boardRef.current.projects.find(({ id }) => id === targetProjectId);
+    if (targetProjectId && !project?.canManageMembers) return;
+    if (month && !parseMonth(month)) return;
+    const current = new Map(itemsRef.current.map((card) => [card.id, card]));
+    const targets = ids.flatMap((id) => {
+      const card = current.get(id);
+      if (!card || (project && project.companyId !== card.companyId)) return [];
+      const plannedDate = month ? moveDateToMonth(card.plannedDate, card.datePrecision, month) : card.plannedDate;
+      if (!plannedDate) return [];
+      return [{ id, plannedDate, projectId: project?.id ?? card.projectId, projectName: project?.name ?? card.projectName }];
+    });
+    if (targets.length !== ids.length) return;
+    const destination = [project?.name, month && monthLabel(month)].filter(Boolean).join(" · ");
+    void moveTo(targets, destination, clearSelection);
+  }
 
-  const shiftMonth = useCallback(
-    (cardId: string, delta: 1 | -1) => {
-      const card = itemsRef.current.find((c) => c.id === cardId);
-      if (!card) return;
-      const next = shiftDateByMonths(card.plannedDate, card.datePrecision, delta);
-      if (next) void moveTo(cardId, next);
-    },
-    [moveTo],
-  );
+  function startDrag(card: PlanCard) {
+    if (moveLock.current) return;
+    const cards = selectedIds.has(card.id) ? selectedCards : [card];
+    setDragging(cards.map(({ id, companyId, projectId, plannedDate }) => ({
+      id, companyId, projectId, month: plannedDate.slice(0, 7),
+    })));
+  }
+
+  function dropPlans(targetProjectId?: string, month?: string) {
+    if (!dragging) return;
+    const ids = dragging.map(({ id }) => id);
+    setDragging(null);
+    moveCards(ids, targetProjectId, month, ids.some((id) => selectedIds.has(id)));
+  }
+
+  function shiftMonth(cardId: string, delta: 1 | -1) {
+    const card = itemsRef.current.find((item) => item.id === cardId);
+    if (!card) return;
+    const next = shiftDateByMonths(card.plannedDate, card.datePrecision, delta);
+    if (!next) return;
+    const month = next.slice(0, 7);
+    const outside = !keys.includes(month);
+    void moveTo([{ id: cardId, projectId: card.projectId, projectName: card.projectName, plannedDate: next }],
+      `${monthLabel(month)}${outside ? " (지금 범위 밖)" : ""}`);
+  }
 
   // --- ERP 반영 표시(대표): 낙관적 갱신 → POST → 실패면 원래대로 -------------------------------
   // version 을 건드리지 않는 표시라 달 이동과 서로 막지 않는다. 이중 제출은 카드의 useSubmitLock 이 막는다.
@@ -277,26 +350,28 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
     [applyPatch],
   );
 
-  const actions = useMemo<PlanBoardActions>(
-    () => ({
-      canDrag,
-      dragging,
-      setDragging,
-      moveToMonth,
-      shiftMonth,
-      openEdit: (card) => setDialog({ card, mode: "edit" }),
-      createDepositRequest: (card) => router.push(`/expenses/new/deposit-request?plan=${card.id}`),
-      prefetchDepositRequest: (card) => router.prefetch(`/expenses/new/deposit-request?plan=${card.id}`),
-      linkCardPayment: (card) => router.push(`/plans/${card.id}?link=card`),
-      openDelete: (card) => setDialog({ card, mode: "cancel" }),
-      swipeOpenId,
-      setSwipeOpenId,
-      isExecutive: board.isExecutive,
-      toggleErpApplied,
-      togglePaid,
-    }),
-    [canDrag, dragging, moveToMonth, shiftMonth, swipeOpenId, board.isExecutive, toggleErpApplied, togglePaid, router],
-  );
+  const actions: PlanBoardActions = {
+    canDrag: canDrag && !moving,
+    dragging,
+    startDrag,
+    endDrag: () => setDragging(null),
+    dropPlans,
+    selecting,
+    selectedIds,
+    selectionCompanyId,
+    toggleSelected,
+    shiftMonth,
+    openEdit: (card) => setDialog({ card, mode: "edit" }),
+    createDepositRequest: (card) => router.push(`/expenses/new/deposit-request?plan=${card.id}`),
+    prefetchDepositRequest: (card) => router.prefetch(`/expenses/new/deposit-request?plan=${card.id}`),
+    linkCardPayment: (card) => router.push(`/plans/${card.id}?link=card`),
+    openDelete: (card) => setDialog({ card, mode: "cancel" }),
+    swipeOpenId,
+    setSwipeOpenId,
+    isExecutive: board.isExecutive,
+    toggleErpApplied,
+    togglePaid,
+  };
 
   // --- 모바일 달 탭: 한 달씩 보기(lib/plans/board.ts) ------------------------------------
   // 데스크톱·태블릿(sm 이상)은 달을 나란히 놓으므로 탭이 없다 — 숨기는 것도 CSS(max-sm:hidden)라 영향이 없다.
@@ -397,6 +472,29 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
           />
         </>
       )}
+      {hasEditablePlans && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="outline" size="lg" disabled={moving}
+            aria-pressed={selecting} onClick={() => setSelection(selecting ? null : { board, ids: new Set() })}>
+            {selecting ? "선택 종료" : "여러 건 선택"}
+          </Button>
+          {selecting && (
+            <>
+              <span role="status" className="text-sm text-[var(--apple-secondary-label)]">
+                {selectedIds.size ? `${selectedIds.size}건 선택` : "같은 법인의 계획을 선택하세요."}
+              </span>
+              {selectionCompanyId && (
+                <MoveSelectionForm
+                  projects={board.projects.filter((project) => project.canManageMembers && project.companyId === selectionCompanyId)}
+                  months={keys}
+                  moving={moving}
+                  onMove={(projectId, month) => moveCards([...selectedIds], projectId, month, true)}
+                />
+              )}
+            </>
+          )}
+        </div>
+      )}
       {grouped ? (
         <div className="flex flex-col gap-4">
           {items.length > 0 && shouldShowSummaryStrip(groups.length) && <SummaryStrip months={months} currentMonth={currentMonth} />}
@@ -430,7 +528,7 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
 
       {canDrag && hasEditablePlans && (
         <p className="text-caption2 text-[var(--apple-tertiary-label)]">
-          카드를 다른 달 칸으로 끌어다 놓으면 예정일이 그 달로 옮겨집니다. 오른쪽 클릭이나 … 버튼으로도 옮길 수 있습니다.
+          같은 법인의 다른 프로젝트 제목으로 끌면 예정일을 유지한 채 이동합니다. 월 칸으로 끌면 예정월도 바뀝니다.
         </p>
       )}
 
@@ -448,6 +546,34 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
   );
 }
 
+function MoveSelectionForm({ projects, months, moving, onMove }: {
+  projects: BoardProject[];
+  months: string[];
+  moving: boolean;
+  onMove: (projectId: string, month?: string) => void;
+}) {
+  const fieldClass = "glass-input min-h-11 rounded-xl px-2 text-sm";
+  return (
+    <form className="flex w-full flex-wrap items-center gap-2 sm:w-auto" onSubmit={(event) => {
+      event.preventDefault();
+      const data = new FormData(event.currentTarget);
+      const projectId = data.get("projectId");
+      const month = data.get("month");
+      if (typeof projectId === "string" && projectId) onMove(projectId, typeof month === "string" && month ? month : undefined);
+    }}>
+      <select name="projectId" aria-label="대상 프로젝트" defaultValue="" required disabled={moving} className={`${fieldClass} max-w-full min-w-0`}>
+        <option value="" disabled>대상 프로젝트 선택</option>
+        {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+      </select>
+      <select name="month" aria-label="대상 예정월" defaultValue="" disabled={moving} className={fieldClass}>
+        <option value="">예정일 유지</option>
+        {months.map((month) => <option key={month} value={month}>{monthLabel(month)}</option>)}
+      </select>
+      <Button type="submit" size="lg" disabled={moving}>{moving ? "이동 중…" : "이동"}</Button>
+    </form>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // 달 칸 하나 = 드롭 대상(머리 + 몸통 전체).
 // ---------------------------------------------------------------------------
@@ -458,7 +584,7 @@ function MonthColumn({
   currentMonth,
   showCompany,
   showProject,
-  dropProjectId,
+  dropProject,
   compactWhenEmpty = false,
   hiddenOnMobile = false,
 }: {
@@ -467,8 +593,7 @@ function MonthColumn({
   currentMonth?: string;
   showCompany: boolean;
   showProject: boolean;
-  /** 서랍 안에서는 같은 프로젝트의 카드만 받는다. 없으면(서랍 밖) 아무 카드나. */
-  dropProjectId?: string;
+  dropProject?: BoardProjectRef;
   /**
    * 모바일(sm 미만)에서 빈 달을 한 줄("10월 · 계획 없음")로 접는다(QA D2-08) — 서랍마다 빈 칸 4개가
    * 세로로 쌓이면 프로젝트 5개에 8화면이 넘는다. 모바일엔 드래그가 없으니 드롭 대상도 필요 없다.
@@ -479,10 +604,7 @@ function MonthColumn({
 }) {
   const board = usePlanBoardStrict();
   const dragging = board.dragging;
-  const accepts =
-    dragging !== null &&
-    dragging.month !== month.month &&
-    (dropProjectId === undefined || dragging.projectId === dropProjectId);
+  const accepts = dragging !== null && canDropPlans(dragging, dropProject, month.month);
 
   const [over, setOver] = useState(false);
   const depth = useRef(0);
@@ -525,10 +647,9 @@ function MonthColumn({
       depth.current = 0;
       setOver(false);
       if (!accepts || !dragging) return;
-      board.moveToMonth(dragging.id, month.month);
-      board.setDragging(null);
+      board.dropPlans(dropProject?.id, month.month);
     },
-    [accepts, dragging, board, month.month],
+    [accepts, dragging, board, dropProject, month.month],
   );
 
   const highlight = accepts && over;
@@ -664,6 +785,8 @@ function ProjectDrawer({
   mobileMonth: string;
 }) {
   const { project } = group;
+  const board = usePlanBoardStrict();
+  const acceptsHeader = board.dragging !== null && canDropPlans(board.dragging, project);
   const [collapsed, setCollapsed] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
   const bodyId = `plan-drawer-${project.id}`;
@@ -688,7 +811,19 @@ function ProjectDrawer({
       className="rounded-[22px] border border-[var(--apple-separator)] p-2 sm:p-3 animate-fade-up"
       style={{ animationDelay: `${index * 50}ms` }}
     >
-      <div className="flex items-center justify-between gap-2 px-1 sm:px-2">
+      <div
+        className={cn("flex items-center justify-between gap-2 rounded-xl px-1 sm:px-2", acceptsHeader && "ring-1 ring-[var(--apple-blue)]")}
+        onDragOver={(event) => {
+          if (!acceptsHeader) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "move";
+        }}
+        onDrop={(event) => {
+          if (!acceptsHeader) return;
+          event.preventDefault();
+          board.dropPlans(project.id);
+        }}
+      >
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2">
           <button
             type="button"
@@ -714,10 +849,12 @@ function ProjectDrawer({
             aria-label={`${project.name} 참여자 ${project.memberCount}명 ${project.canManageMembers ? "관리" : "보기"}`}
             aria-haspopup="dialog"
             onClick={() => setMembersOpen(true)}
-            className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border border-[var(--apple-separator)] bg-[var(--apple-tertiary-system-fill)] px-3 text-sm font-semibold text-[var(--apple-label)] transition-colors hover:border-[var(--apple-blue)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--apple-blue)]"
+            className="group inline-flex min-h-11 shrink-0 items-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--apple-blue)] pointer-fine:min-h-8"
           >
-            <Users className="size-4" aria-hidden="true" />
-            참여자 {project.memberCount}명
+            <span className="inline-flex h-6 items-center gap-1 rounded-full border border-[var(--apple-separator)] bg-[var(--apple-tertiary-system-fill)] px-2 text-caption1 font-medium text-[var(--apple-label)] transition-colors group-hover:border-[var(--apple-blue)]">
+              <Users className="size-3.5" aria-hidden="true" />
+              참여자 {project.memberCount}명
+            </span>
           </button>
         </div>
         <span className="shrink-0 text-right">
@@ -757,7 +894,7 @@ function ProjectDrawer({
                 // 서랍 머리가 법인·프로젝트를 이미 말한다 — 카드마다 되풀이하지 않는다.
                 showCompany={false}
                 showProject={false}
-                dropProjectId={project.id}
+                dropProject={project}
                 compactWhenEmpty
                 hiddenOnMobile={mobileMonth !== ALL_MONTHS && month.month !== mobileMonth}
               />

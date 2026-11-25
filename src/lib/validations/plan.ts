@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_PLAN_MOVE_BATCH } from "@/lib/plans/move";
 import { withJosa } from "@/lib/plans/josa";
 
 // ---------------------------------------------------------------------------
@@ -139,6 +140,19 @@ export const updatePlanSchema = z
     { message: "변경할 내용이 없습니다" },
   );
 export type UpdatePlanInput = z.infer<typeof updatePlanSchema>;
+
+export const movePlansSchema = z.object({
+  moves: z.array(z.object({
+    id: uuidField("계획").transform((id) => id.toLowerCase()),
+    version: versionField,
+    projectId: uuidField("프로젝트").transform((id) => id.toLowerCase()),
+    plannedDate: isoDateField,
+  }).strict()).min(1).max(MAX_PLAN_MOVE_BATCH),
+}).strict().refine(({ moves }) => new Set(moves.map(({ id }) => id)).size === moves.length, {
+  path: ["moves"],
+  message: "같은 계획을 두 번 옮길 수 없습니다.",
+});
+export type MovePlansInput = z.infer<typeof movePlansSchema>;
 
 export const cancelPlanSchema = z.object({
   version: versionField,

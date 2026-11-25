@@ -62,6 +62,7 @@ import type {
   CreateBrandInput,
   CreatePlanInput,
   CreateProjectInput,
+  MovePlansInput,
   UpdatePlanInput,
 } from "@/lib/validations/plan";
 
@@ -1138,98 +1139,117 @@ export async function createPlan(actor: PlanActorInput, input: CreatePlanInput):
  * 수정: 낙관적 잠금. (c) 로 행을 잠그고 version 이 같을 때만 쓴다. 0행이면 409(T15).
  * company_id·created_by_id 는 바꾸지 않는다. 사업 이동은 같은 법인 안에서만.
  */
-export async function updatePlan(
+async function updatePlanInTx(
+  tx: PlanTx,
+  access: PlanAccess,
   actor: PlanActorInput,
   planId: string,
-  input: UpdatePlanInput,
-): Promise<{ id: string; version: number }> {
-  const push: { ev: PlanPushEvent | null } = { ev: null };
-  const result = await withPlanTx(async (tx) => {
-    const access = await loadAccess(tx, actorAccess(actor));
-    await requirePlanAccess(tx, access, planId, { forUpdate: true });
-    const current = await loadPlanFields(tx, planId);
-    if (current.status !== "PLANNED") {
-      throw new PlanError("CONFLICT", "취소되었거나 마감된 계획은 수정할 수 없습니다.");
-    }
-    if (current.version !== input.version) {
-      throw new PlanError("CONFLICT", "다른 사람이 먼저 수정했습니다. 새로고침 후 다시 시도해주세요.");
-    }
+  input: Partial<UpdatePlanInput> & Pick<UpdatePlanInput, "version">,
+): Promise<{ result: { id: string; version: number }; event: PlanPushEvent | null }> {
+  await requirePlanAccess(tx, access, planId, { forUpdate: true });
+  const current = await loadPlanFields(tx, planId);
+  if (current.status !== "PLANNED") {
+    throw new PlanError("CONFLICT", "취소되었거나 마감된 계획은 수정할 수 없습니다.");
+  }
+  if (current.version !== input.version) {
+    throw new PlanError("CONFLICT", "다른 사람이 먼저 수정했습니다. 새로고침 후 다시 시도해주세요.");
+  }
 
-    const assignments: SQL[] = [];
-    const before: Record<string, unknown> = {};
-    const after: Record<string, unknown> = {};
+  const assignments: SQL[] = [];
+  const before: Record<string, unknown> = {};
+  const after: Record<string, unknown> = {};
 
-    if (input.projectId !== undefined && input.projectId !== current.projectId) {
-      const target = await requireProjectAccess(tx, access, input.projectId);
-      if (target.companyId !== current.companyId) {
-        throw new PlanError("VALIDATION_ERROR", "같은 법인의 프로젝트로만 옮길 수 있습니다.");
-      }
-      assignments.push(sql`project_id = ${input.projectId}::uuid`);
-      before.projectId = current.projectId;
-      after.projectId = input.projectId;
+  if (input.projectId !== undefined && input.projectId !== current.projectId) {
+    const target = await requireProjectAccess(tx, access, input.projectId);
+    if (target.companyId !== current.companyId) {
+      throw new PlanError("VALIDATION_ERROR", "같은 법인의 프로젝트로만 옮길 수 있습니다.");
     }
-    if (input.brandId !== undefined && input.brandId !== current.brandId) {
-      if (input.brandId) await assertBrandInCompany(tx, input.brandId, current.companyId);
-      assignments.push(sql`brand_id = ${input.brandId}::uuid`);
-      before.brandId = current.brandId;
-      after.brandId = input.brandId;
+    assignments.push(sql`project_id = ${input.projectId}::uuid`);
+    before.projectId = current.projectId;
+    after.projectId = input.projectId;
+  }
+  if (input.brandId !== undefined && input.brandId !== current.brandId) {
+    if (input.brandId) await assertBrandInCompany(tx, input.brandId, current.companyId);
+    assignments.push(sql`brand_id = ${input.brandId}::uuid`);
+    before.brandId = current.brandId;
+    after.brandId = input.brandId;
+  }
+  if (input.title !== undefined && input.title !== current.title) {
+    assignments.push(sql`title = ${input.title}`);
+    before.title = current.title;
+    after.title = input.title;
+  }
+  if (input.amount !== undefined && input.amount !== current.amount) {
+    assignments.push(sql`amount = ${input.amount}`);
+    before.amount = current.amount;
+    after.amount = input.amount;
+  }
+  if (input.vendorName !== undefined && input.vendorName !== current.vendorName) {
+    assignments.push(sql`vendor_name = ${input.vendorName}`);
+    before.vendorName = current.vendorName;
+    after.vendorName = input.vendorName;
+  }
+  if (input.description !== undefined && input.description !== current.description) {
+    assignments.push(sql`description = ${input.description}`);
+    before.description = current.description;
+    after.description = input.description;
+  }
+  if (input.plannedDate !== undefined || input.datePrecision !== undefined) {
+    const precision = input.datePrecision ?? current.datePrecision;
+    const normalized = normalizePlannedDate(input.plannedDate ?? current.plannedDate, precision);
+    if (!normalized) throw new PlanError("VALIDATION_ERROR", "날짜가 올바르지 않습니다.");
+    if (normalized !== current.plannedDate) {
+      assignments.push(sql`planned_date = ${normalized}::date`);
+      before.plannedDate = current.plannedDate;
+      after.plannedDate = normalized;
     }
-    if (input.title !== undefined && input.title !== current.title) {
-      assignments.push(sql`title = ${input.title}`);
-      before.title = current.title;
-      after.title = input.title;
+    if (precision !== current.datePrecision) {
+      assignments.push(sql`date_precision = ${precision}`);
+      before.datePrecision = current.datePrecision;
+      after.datePrecision = precision;
     }
-    if (input.amount !== undefined && input.amount !== current.amount) {
-      assignments.push(sql`amount = ${input.amount}`);
-      before.amount = current.amount;
-      after.amount = input.amount;
-    }
-    if (input.vendorName !== undefined && input.vendorName !== current.vendorName) {
-      assignments.push(sql`vendor_name = ${input.vendorName}`);
-      before.vendorName = current.vendorName;
-      after.vendorName = input.vendorName;
-    }
-    if (input.description !== undefined && input.description !== current.description) {
-      assignments.push(sql`description = ${input.description}`);
-      before.description = current.description;
-      after.description = input.description;
-    }
-    if (input.plannedDate !== undefined || input.datePrecision !== undefined) {
-      const precision = input.datePrecision ?? current.datePrecision;
-      const normalized = normalizePlannedDate(input.plannedDate ?? current.plannedDate, precision);
-      if (!normalized) throw new PlanError("VALIDATION_ERROR", "날짜가 올바르지 않습니다.");
-      if (normalized !== current.plannedDate) {
-        assignments.push(sql`planned_date = ${normalized}::date`);
-        before.plannedDate = current.plannedDate;
-        after.plannedDate = normalized;
-      }
-      if (precision !== current.datePrecision) {
-        assignments.push(sql`date_precision = ${precision}`);
-        before.datePrecision = current.datePrecision;
-        after.datePrecision = precision;
-      }
-    }
+  }
 
-    // 값이 하나도 안 바뀌면 아무것도 하지 않는다(QA D-10) — version 이 오르고 빈 이력·푸시가 남는 것을 막는다.
-    if (assignments.length === 0) return { id: planId, version: current.version };
+  // 값이 하나도 안 바뀌면 아무것도 하지 않는다(QA D-10) — version 이 오르고 빈 이력·푸시가 남는 것을 막는다.
+  if (assignments.length === 0) return { result: { id: planId, version: current.version }, event: null };
 
-    const version = await bumpPlanVersion(tx, planId, input.version, actor.id, assignments);
-    await logChange(tx, {
-      companyId: current.companyId,
-      projectId: (after.projectId as string | undefined) ?? current.projectId,
-      planId,
-      entityType: "plan",
-      entityId: planId,
-      action: "UPDATE",
-      actorId: actor.id,
-      before,
-      after: { ...after, version },
-    });
-    push.ev = await pushEventFor(tx, "plan_updated", actor, current.projectId, { id: planId, title: input.title ?? current.title });
-    return { id: planId, version };
+  const version = await bumpPlanVersion(tx, planId, input.version, actor.id, assignments);
+  await logChange(tx, {
+    companyId: current.companyId,
+    projectId: (after.projectId as string | undefined) ?? current.projectId,
+    planId,
+    entityType: "plan",
+    entityId: planId,
+    action: "UPDATE",
+    actorId: actor.id,
+    before,
+    after: { ...after, version },
   });
-  await dispatchPlanPush(push.ev);
-  return result;
+  const event = await pushEventFor(tx, "plan_updated", actor, current.projectId, { id: planId, title: input.title ?? current.title });
+  return { result: { id: planId, version }, event };
+}
+
+export async function updatePlan(actor: PlanActorInput, planId: string, input: UpdatePlanInput) {
+  const outcome = await withPlanTx(async (tx) => {
+    const access = await loadAccess(tx, actorAccess(actor));
+    return updatePlanInTx(tx, access, actor, planId, input);
+  });
+  await dispatchPlanPush(outcome.event);
+  return outcome.result;
+}
+
+export async function movePlans(actor: PlanActorInput, input: MovePlansInput) {
+  const outcomes = await withPlanTx(async (tx) => {
+    const access = await loadAccess(tx, actorAccess(actor));
+    const results = [];
+    // 동일 카드 묶음을 동시에 옮겨도 같은 순서로 잠근다.
+    for (const { id, ...move } of [...input.moves].sort((left, right) => left.id.localeCompare(right.id))) {
+      results.push(await updatePlanInTx(tx, access, actor, id, move));
+    }
+    return results;
+  });
+  await Promise.all(outcomes.map(({ event }) => dispatchPlanPush(event)));
+  return { items: outcomes.map(({ result }) => result) };
 }
 
 /** 취소: 하드 삭제는 없다. status 만 CANCELLED 로 바꾸고 사유를 이력에 남긴다. */
