@@ -41,9 +41,10 @@ interface ProjectDialogProps {
   onOpenChange: (open: boolean) => void;
   onSaved?: () => void;
   projectId?: string;
+  viewMembers?: boolean;
 }
 
-export function ProjectDialog({ open, onOpenChange, onSaved, projectId }: ProjectDialogProps) {
+export function ProjectDialog({ open, onOpenChange, onSaved, projectId, viewMembers = false }: ProjectDialogProps) {
   const router = useRouter();
 
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
@@ -75,7 +76,7 @@ export function ProjectDialog({ open, onOpenChange, onSaved, projectId }: Projec
       companies: CompanyOption[];
       isExecutive: boolean;
       viewerId: string;
-    }>("/api/plans/projects").then((res) => {
+    }>("/api/plans/projects?includeReadOnly=1").then((res) => {
       if (!alive) return;
       setLoading(false);
       if (!res.ok) {
@@ -190,6 +191,7 @@ export function ProjectDialog({ open, onOpenChange, onSaved, projectId }: Projec
   }, [onOpenChange, onSaved, router, saving, touched]);
 
   const visibleProjects = projectId ? projects.filter((project) => project.id === projectId) : projects;
+  const canManageTarget = visibleProjects[0]?.canManageMembers ?? !viewMembers;
 
   return (
     <Dialog
@@ -201,7 +203,7 @@ export function ProjectDialog({ open, onOpenChange, onSaved, projectId }: Projec
     >
       <DialogContent showCloseButton={false} className="sm:max-w-lg max-h-[86dvh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-headline text-[var(--apple-label)]">{projectId ? "참여자 관리" : "프로젝트"}</DialogTitle>
+          <DialogTitle className="text-headline text-[var(--apple-label)]">{projectId ? (canManageTarget ? "참여자 관리" : "참여자") : "프로젝트"}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -297,7 +299,7 @@ export function ProjectDialog({ open, onOpenChange, onSaved, projectId }: Projec
             </Button>
           )}
 
-          {projectId && visibleProjects.length > 0 && (
+          {projectId && visibleProjects.length > 0 && canManageTarget && (
             <p className="break-keep text-sm text-[var(--apple-secondary-label)]">
               추가한 직원은 이 프로젝트의 비용계획을 보고 수정할 수 있습니다.
             </p>
@@ -320,7 +322,7 @@ export function ProjectDialog({ open, onOpenChange, onSaved, projectId }: Projec
                   project={project}
                   users={users}
                   busy={busyProject === project.id}
-                  canDelete={!projectId && Boolean(viewer && (viewer.isExecutive || project.createdById === viewer.id))}
+                  canDelete={!projectId && project.canManageMembers && Boolean(viewer && (viewer.isExecutive || project.createdById === viewer.id))}
                   onDelete={() => void handleDeleteProject(project)}
                   onOpenPicker={() => void ensureUsers()}
                   onAdd={(userId) =>
@@ -374,7 +376,7 @@ function MemberChips({
 }: {
   members: UserOption[];
   users: UserOption[] | null;
-  /** true 면 X 를 누르는 즉시 뺀다(아직 저장 전인 만들기 폼). */
+  /** 수정 가능한 목록에서만 추가·제거 버튼을 표시한다. */
   removable: boolean;
   disabled?: boolean;
   /** X 만 따로 막을 때(마지막 참여자). 추가 팝오버는 그대로 열린다. */
@@ -409,44 +411,46 @@ function MemberChips({
           )}
         </span>
       ))}
-      <Popover
-        open={pickerOpen}
-        onOpenChange={(next) => {
-          setPickerOpen(next);
-          if (next) onOpenPicker();
-        }}
-      >
-        <PopoverTrigger
-          disabled={disabled}
-          className="inline-flex min-h-11 items-center gap-1 rounded-full border border-dashed border-[var(--apple-separator)] px-3 py-1 text-caption1 text-[var(--apple-blue)] transition-colors hover:bg-[var(--apple-blue)]/10 disabled:opacity-50"
+      {removable && (
+        <Popover
+          open={pickerOpen}
+          onOpenChange={(next) => {
+            setPickerOpen(next);
+            if (next) onOpenPicker();
+          }}
         >
-          <UserPlus className="size-3" aria-hidden="true" />
-          참여자 추가
-        </PopoverTrigger>
-        <PopoverContent className="w-[240px] p-0" align="start">
-          <Command>
-            <CommandInput placeholder="직원 검색..." />
-            <CommandList>
-              <CommandEmpty>{users ? "검색 결과가 없습니다." : "불러오는 중..."}</CommandEmpty>
-              <CommandGroup>
-                {(users ?? []).map((user) => (
-                  <CommandItem
-                    key={user.id}
-                    value={user.name}
-                    onSelect={() => {
-                      setPickerOpen(false);
-                      if (!memberIds.has(user.id)) onAdd(user);
-                    }}
-                  >
-                    <Check className={memberIds.has(user.id) ? "size-4 opacity-100" : "size-4 opacity-0"} />
-                    <span className="truncate">{user.name}</span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
+          <PopoverTrigger
+            disabled={disabled}
+            className="inline-flex min-h-11 items-center gap-1 rounded-full border border-dashed border-[var(--apple-separator)] px-3 py-1 text-caption1 text-[var(--apple-blue)] transition-colors hover:bg-[var(--apple-blue)]/10 disabled:opacity-50"
+          >
+            <UserPlus className="size-3" aria-hidden="true" />
+            참여자 추가
+          </PopoverTrigger>
+          <PopoverContent className="w-[240px] p-0" align="start">
+            <Command>
+              <CommandInput placeholder="직원 검색..." />
+              <CommandList>
+                <CommandEmpty>{users ? "검색 결과가 없습니다." : "불러오는 중..."}</CommandEmpty>
+                <CommandGroup>
+                  {(users ?? []).map((user) => (
+                    <CommandItem
+                      key={user.id}
+                      value={user.name}
+                      onSelect={() => {
+                        setPickerOpen(false);
+                        if (!memberIds.has(user.id)) onAdd(user);
+                      }}
+                    >
+                      <Check className={memberIds.has(user.id) ? "size-4 opacity-100" : "size-4 opacity-0"} />
+                      <span className="truncate">{user.name}</span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+      )}
     </div>
   );
 }
@@ -536,7 +540,7 @@ function ProjectRow({
         <MemberChips
           members={project.members}
           users={users}
-          removable
+          removable={project.canManageMembers}
           disabled={busy}
           removeDisabled={lastOne}
           removeTitle={lastOne ? "마지막 참여자는 제거할 수 없습니다" : "참여자 제거"}

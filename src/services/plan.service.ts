@@ -37,6 +37,7 @@ import {
   canRemoveMember,
   isPlannableCompany,
   loadAccess,
+  projectReadScopeSql,
   projectScopeSql,
   requireExecutive,
   requirePlanAccess,
@@ -216,6 +217,7 @@ export interface ProjectSummary {
   /** 만든 사람(표시·삭제 버튼 노출용). 접근 판정에는 쓰지 않는다. */
   createdById: string | null;
   members: UserOption[];
+  canManageMembers: boolean;
 }
 
 export interface ProjectListResult {
@@ -230,8 +232,11 @@ async function loadProjectsInScope(
   tx: PlanTx,
   access: PlanAccess,
   companyId?: string,
+  includeReadOnly = false,
 ): Promise<ProjectSummary[]> {
   const companyFilter = companyId ? sql` AND j.company_id = ${companyId}::uuid` : sql``;
+  const editable = projectScopeSql(access, sql`j.id`);
+  const visible = includeReadOnly ? projectReadScopeSql(access, sql`j.id`) : editable;
   const rows = rowsOf<{
     id: string;
     company_id: string;
@@ -241,13 +246,15 @@ async function loadProjectsInScope(
     description: string | null;
     created_at: Date;
     created_by_id: string | null;
+    can_manage: boolean;
   }>(
     await tx.execute(sql`SELECT j.id, j.company_id, c.name AS company_name, c.slug AS company_slug,
-                                j.name, j.description, j.created_at, j.created_by_id
+                                j.name, j.description, j.created_at, j.created_by_id,
+                                ${includeReadOnly ? editable : sql`TRUE`} AS can_manage
         FROM expenseone.plan_projects j
         JOIN expenseone.companies c ON c.id = j.company_id
        WHERE j.deleted_at IS NULL AND c.is_active = true AND c.currency = 'KRW'
-         AND ${projectScopeSql(access, sql`j.id`)}${companyFilter}
+         AND ${visible}${companyFilter}
        ORDER BY c.sort_order, j.name`),
   );
   if (rows.length === 0) return [];
@@ -282,13 +289,14 @@ async function loadProjectsInScope(
     createdAt: new Date(r.created_at).toISOString(),
     createdById: r.created_by_id,
     members: byProject.get(r.id) ?? [],
+    canManageMembers: r.can_manage,
   }));
 }
 
-export async function listProjects(actor: PlanActorInput, companyId?: string): Promise<ProjectListResult> {
+export async function listProjects(actor: PlanActorInput, companyId?: string, includeReadOnly = false): Promise<ProjectListResult> {
   return withPlanTx(async (tx) => {
     const access = await loadAccess(tx, actorAccess(actor));
-    const projects = await loadProjectsInScope(tx, access, companyId);
+    const projects = await loadProjectsInScope(tx, access, companyId, includeReadOnly);
     const companies = await loadPlannableCompanies(tx);
     return { projects, companies, isExecutive: access.isExecutive, viewerId: actor.id };
   }, { readOnly: true });
@@ -684,6 +692,7 @@ export interface PlanCard {
   change: ChangeMark | null;
   /** 반복 지급이 깐 계획이면 그 반복 id(0029). 카드에 '반복' 표시, 상세에서 반복 설정으로 가는 길. */
   recurringId: string | null;
+  canManage: boolean;
 }
 
 // --- "지난번 본 뒤 바뀐 것" (drizzle/0027, lib/plans/changes.ts) ------------------------------
@@ -745,7 +754,7 @@ interface CardFilters {
 
 /**
  * (b) 목록/보드 한 문장. 연결 합계(스냅샷 고정)와 읽지 않은 메모 수를 LATERAL 로 같이 가져온다.
- * 범위 술어는 항상 projectScopeSql — 대표가 아니면 참여 중인 사업의 항목만 나온다.
+ * 보드와 목록은 조회 범위를 쓴다. 수정 여부는 별도로 내려준다.
  */
 async function loadPlanCards(tx: PlanTx, access: PlanAccess, f: CardFilters): Promise<PlanCard[]> {
   const statusFilter = f.status === "ALL" ? sql`` : sql` AND p.status = 'PLANNED'`;
@@ -788,6 +797,7 @@ async function loadPlanCards(tx: PlanTx, access: PlanAccess, f: CardFilters): Pr
     paid: boolean;
     changes: unknown;
     recurring_id: string | null;
+    can_manage: boolean;
   }>(
     await tx.execute(sql`SELECT p.id, p.company_id, c.name AS company_name, c.slug AS company_slug,
                                 p.project_id, j.name AS project_name,
@@ -802,7 +812,8 @@ async function loadPlanCards(tx: PlanTx, access: PlanAccess, f: CardFilters): Pr
                                 p.erp_applied_at IS NOT NULL AS erp_applied,
                                 p.paid_at IS NOT NULL AS paid,
                                 ch.changes,
-                                ro.recurring_expense_id AS recurring_id
+                                ro.recurring_expense_id AS recurring_id,
+                                ${projectScopeSql(access, sql`p.project_id`)} AS can_manage
         FROM expenseone.cost_plans p
         JOIN expenseone.companies c ON c.id = p.company_id
         JOIN expenseone.plan_projects j ON j.id = p.project_id
@@ -826,7 +837,7 @@ async function loadPlanCards(tx: PlanTx, access: PlanAccess, f: CardFilters): Pr
         LEFT JOIN LATERAL (SELECT ${unseenChangesSql(access.userId, sql`p.id`)} AS changes) ch ON true
        WHERE p.deleted_at IS NULL AND j.deleted_at IS NULL
          AND p.planned_date >= ${f.fromDate}::date AND p.planned_date < ${f.toDate}::date
-         AND ${projectScopeSql(access, sql`p.project_id`)}${statusFilter}${companyFilter}${projectFilter}${brandFilter}${brandNameFilter}
+         AND ${projectReadScopeSql(access, sql`p.project_id`)}${statusFilter}${companyFilter}${projectFilter}${brandFilter}${brandNameFilter}
        -- 지급 완료는 달 안에서 맨 아래로(0025). 보드·목록이 같은 순서를 쓴다.
        ORDER BY (p.paid_at IS NOT NULL), p.planned_date, p.created_at`),
   );
@@ -861,6 +872,7 @@ async function loadPlanCards(tx: PlanTx, access: PlanAccess, f: CardFilters): Pr
       paid: r.paid === true,
       change: summarizeChanges(parseChangeEntries(r.changes)),
       recurringId: r.recurring_id,
+      canManage: r.can_manage,
     };
   });
 }
@@ -885,6 +897,7 @@ export interface BoardProject {
   memberCount: number;
   /** 보드의 참여자 미리보기. 프로젝트 접근 범위에서 이름만 내려준다. */
   memberNames: string[];
+  canManageMembers: boolean;
   /** 이 사람이 지울 수 있나(만든 사람 또는 대표). 화면의 삭제 메뉴 노출용 — 서버 DELETE 가 최종 판정. */
   canDelete: boolean;
 }
@@ -919,7 +932,7 @@ export interface UnseenPlanSummary {
 
 const UNSEEN_LIST_LIMIT = 50;
 
-/** 범위 안(참여 프로젝트, 대표는 전부) 계획 중 안 본 변경이 있는 것. 취소된 계획도 포함 — 취소도 소식이다. */
+/** 조회 가능한 계획 중 안 본 변경이 있는 것. 취소된 계획도 포함 — 취소도 소식이다. */
 async function loadUnseenSummary(tx: PlanTx, access: PlanAccess): Promise<UnseenPlanSummary> {
   const rows = rowsOf<{
     id: string;
@@ -936,7 +949,7 @@ async function loadUnseenSummary(tx: PlanTx, access: PlanAccess): Promise<Unseen
         JOIN expenseone.plan_projects j ON j.id = p.project_id AND j.deleted_at IS NULL
         CROSS JOIN LATERAL (SELECT ${unseenChangesSql(access.userId, sql`p.id`)} AS changes) ch
        WHERE p.deleted_at IS NULL AND ch.changes IS NOT NULL
-         AND ${projectScopeSql(access, sql`p.project_id`)}`),
+         AND ${projectReadScopeSql(access, sql`p.project_id`)}`),
   );
   const items: UnseenPlanItem[] = [];
   const counts: Record<ChangeKind, number> = { NEW: 0, UPDATED: 0, CANCELLED: 0 };
@@ -972,7 +985,7 @@ export async function getBoard(actor: PlanActorInput, query: BoardQueryInput): P
       brandName: query.brandName,
       status: query.status,
     });
-    const projects = await loadProjectsInScope(tx, access, query.companyId);
+    const projects = await loadProjectsInScope(tx, access, query.companyId, true);
     const companies = await loadPlannableCompanies(tx);
     const brands = await loadBrands(tx, query.companyId);
 
@@ -990,7 +1003,8 @@ export async function getBoard(actor: PlanActorInput, query: BoardQueryInput): P
         companySlug: p.companySlug,
         memberCount: p.members.length,
         memberNames: p.members.map((member) => member.name),
-        canDelete: access.isExecutive || p.createdById === actor.id,
+        canManageMembers: p.canManageMembers,
+        canDelete: p.canManageMembers && (access.isExecutive || p.createdById === actor.id),
       })),
       brands,
       changes: await loadUnseenSummary(tx, access),
@@ -1708,7 +1722,7 @@ async function loadComments(tx: PlanTx, planId: string, userId: string): Promise
 export async function getPlanDetail(actor: PlanActorInput, planId: string): Promise<PlanDetail> {
   return withPlanTx(async (tx) => {
     const access = await loadAccess(tx, actorAccess(actor));
-    await requirePlanAccess(tx, access, planId);
+    const planAccess = await requirePlanAccess(tx, access, planId, { includeReadOnly: true });
 
     const row = rowsOf<{
       id: string;
@@ -1869,8 +1883,7 @@ export async function getPlanDetail(actor: PlanActorInput, planId: string): Prom
         isNew: g.actor_id !== access.userId && new Date(g.created_at).getTime() > seenThreshold,
       })),
       unseen,
-      // 접근할 수 있으면 곧 수정할 수 있다(등급 없음). 취소·마감된 계획만 잠근다.
-      canEdit: row.status === "PLANNED",
+      canEdit: planAccess.canManage && row.status === "PLANNED",
       isExecutive: access.isExecutive,
     };
   }, { readOnly: true });
@@ -1881,7 +1894,7 @@ export async function getPlanDetail(actor: PlanActorInput, planId: string): Prom
 export async function listComments(actor: PlanActorInput, planId: string): Promise<PlanCommentRow[]> {
   return withPlanTx(async (tx) => {
     const access = await loadAccess(tx, actorAccess(actor));
-    await requirePlanAccess(tx, access, planId);
+    await requirePlanAccess(tx, access, planId, { includeReadOnly: true });
     return loadComments(tx, planId, access.userId);
   }, { readOnly: true });
 }
@@ -2005,7 +2018,7 @@ async function requireOwnComment(
 export async function markPlanSeen(actor: PlanActorInput, planId: string): Promise<{ seenAt: string }> {
   return withPlanTx(async (tx) => {
     const access = await loadAccess(tx, actorAccess(actor));
-    await requirePlanAccess(tx, access, planId);
+    await requirePlanAccess(tx, access, planId, { includeReadOnly: true });
     const [row] = await tx
       .insert(planSeen)
       .values({ userId: actor.id, planId })
@@ -2040,7 +2053,7 @@ export async function countPlanAttention(actor: PlanActorInput): Promise<number>
           FROM expenseone.cost_plans p
           JOIN expenseone.plan_projects j ON j.id = p.project_id AND j.deleted_at IS NULL
          WHERE p.deleted_at IS NULL
-           AND ${projectScopeSql(access, sql`p.project_id`)}
+           AND ${projectReadScopeSql(access, sql`p.project_id`)}
            AND (EXISTS (SELECT 1 FROM expenseone.plan_change_log g
                          WHERE g.plan_id = p.id AND g.entity_type IN ('plan', 'link')
                            AND g.actor_id IS DISTINCT FROM ${uid}::uuid
@@ -2060,7 +2073,7 @@ export async function countPlanAttention(actor: PlanActorInput): Promise<number>
 export async function markCommentsRead(actor: PlanActorInput, planId: string): Promise<{ readAt: string }> {
   return withPlanTx(async (tx) => {
     const access = await loadAccess(tx, actorAccess(actor));
-    await requirePlanAccess(tx, access, planId);
+    await requirePlanAccess(tx, access, planId, { includeReadOnly: true });
     const [row] = await tx
       .insert(planCommentReads)
       .values({ planId, userId: actor.id })

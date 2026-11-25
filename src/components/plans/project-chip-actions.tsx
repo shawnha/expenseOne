@@ -88,7 +88,7 @@ export function ProjectChipActions({
         <DropdownMenuContent align="start" sideOffset={6} className="w-48 glass-strong p-1">
           <DropdownMenuItem className="min-h-11" onClick={onManageMembers}>
             <Users className="size-4" aria-hidden="true" />
-            <span>참여자 관리</span>
+            <span>{project.canManageMembers ? "참여자 관리" : "참여자 보기"}</span>
           </DropdownMenuItem>
           {project.canDelete && (
             <>

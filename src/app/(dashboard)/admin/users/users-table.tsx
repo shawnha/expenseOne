@@ -1122,7 +1122,7 @@ export function UsersTable({ users: initialUsers, currentUserId, companies = [],
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{leaderEditor.user.name} 담당 법인</DialogTitle>
-              <DialogDescription>리더가 비용과 브랜드 정산을 조회할 법인을 선택하세요.</DialogDescription>
+              <DialogDescription>리더가 비용, 브랜드 정산, 비용계획을 조회할 법인을 선택하세요.</DialogDescription>
             </DialogHeader>
             <SettlementCompaniesForm
               userId={leaderEditor.user.id}

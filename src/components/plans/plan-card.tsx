@@ -132,7 +132,7 @@ export function PlanCardItem({ card, showCompany = false, showProject = true }: 
     ? `${changeShortText(change)}${change.actorName ? ` · ${change.actorName}` : ""} · 지난번 보신 뒤의 변경 — 열면 무엇이 바뀌었는지 보입니다`
     : undefined;
   // 취소·마감된 계획은 고칠 게 없다 — 메뉴·스와이프·드래그 전부 끈다(서버도 409 로 거부한다).
-  const actionable = board !== null && card.status === "PLANNED";
+  const actionable = board !== null && card.canManage && card.status === "PLANNED";
   const swipeOpen = board?.swipeOpenId === card.id;
   /** 카드 한 장의 ERP 표시 요청은 한 번에 하나(더블탭·연타). */
   const withErpLock = useSubmitLock();

@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   try {
     const actor = await requirePlanActor();
     const query = parseOrThrow(projectsQuerySchema, searchParamsToObject(request.nextUrl.searchParams));
-    return planJson(await listProjects(actor, query.companyId));
+    return planJson(await listProjects(actor, query.companyId, query.includeReadOnly === "1"));
   } catch (err) {
     return handlePlanError(err);
   }

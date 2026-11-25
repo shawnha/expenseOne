@@ -67,6 +67,7 @@ export type ProjectMemberInput = z.infer<typeof projectMemberSchema>;
 
 export const projectsQuerySchema = z.object({
   companyId: uuidField("회사").optional(),
+  includeReadOnly: z.literal("1").optional(),
 });
 
 // --- 분류(plan_brands) ----------------------------------------------------------

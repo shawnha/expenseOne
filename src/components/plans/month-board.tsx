@@ -356,6 +356,8 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
     [grouped, items, shelf, keys],
   );
 
+  const hasEditablePlans = items.some((card) => card.canManage && card.status === "PLANNED");
+
   const editTarget: PlanEditTarget | null = dialog
     ? {
         id: dialog.card.id,
@@ -426,7 +428,7 @@ export function MonthBoard({ board, showCompany, companyId, projectId, currentMo
         </div>
       )}
 
-      {canDrag && items.length > 0 && (
+      {canDrag && hasEditablePlans && (
         <p className="text-caption2 text-[var(--apple-tertiary-label)]">
           카드를 다른 달 칸으로 끌어다 놓으면 예정일이 그 달로 옮겨집니다. 오른쪽 클릭이나 … 버튼으로도 옮길 수 있습니다.
         </p>
@@ -666,6 +668,7 @@ function ProjectDrawer({
   const [membersOpen, setMembersOpen] = useState(false);
   const previewNames = project.memberNames.slice(0, 3);
   const remainingMembers = project.memberCount - previewNames.length;
+  const memberAction = project.canManageMembers ? "참여자 관리" : "참여자 보기";
   const bodyId = `plan-drawer-${project.id}`;
 
   // 저장된 접힘은 마운트 뒤에 읽는다 — 렌더 중에 읽으면 서버 HTML 과 어긋난다(하이드레이션 오류).
@@ -733,27 +736,29 @@ function ProjectDrawer({
         </div>
         <button
           type="button"
-          aria-label={`${project.name} 참여자 관리`}
+          aria-label={`${project.name} ${memberAction}`}
           aria-haspopup="dialog"
           onClick={() => setMembersOpen(true)}
           className="inline-flex min-h-11 shrink-0 items-center rounded-full px-3 text-sm font-semibold text-[var(--apple-label)] hover:bg-[var(--apple-tertiary-system-fill)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
-          참여자 관리
+          {memberAction}
         </button>
       </div>
-      {membersOpen && <ProjectDialog open projectId={project.id} onOpenChange={setMembersOpen} />}
+      {membersOpen && <ProjectDialog open projectId={project.id} viewMembers={!project.canManageMembers} onOpenChange={setMembersOpen} />}
 
       <div id={bodyId} hidden={collapsed} className="mt-2">
         {group.count === 0 ? (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-dashed border-[var(--apple-separator)] px-4 py-3">
             <p className="text-footnote text-[var(--apple-secondary-label)]">이 기간에 계획이 없습니다.</p>
-            <PlanCreateButton
-              label="계획 추가"
-              variant="outline"
-              size="sm"
-              defaultCompanyId={project.companyId}
-              defaultProjectId={project.id}
-            />
+            {project.canManageMembers && (
+              <PlanCreateButton
+                label="계획 추가"
+                variant="outline"
+                size="sm"
+                defaultCompanyId={project.companyId}
+                defaultProjectId={project.id}
+              />
+            )}
           </div>
         ) : (
           // grid-cols-1 — 위 보드 격자와 같은 이유(모바일에서 긴 제목이 열을 넓히지 않게).
