@@ -882,8 +882,9 @@ export interface BoardProject {
   companyId: string;
   companyName: string;
   companySlug: string;
-  /** 서랍 머리의 "참여자 N". 이름은 싣지 않는다 — 보드는 프로젝트 다이얼로그가 아니다. */
   memberCount: number;
+  /** 보드의 참여자 미리보기. 프로젝트 접근 범위에서 이름만 내려준다. */
+  memberNames: string[];
   /** 이 사람이 지울 수 있나(만든 사람 또는 대표). 화면의 삭제 메뉴 노출용 — 서버 DELETE 가 최종 판정. */
   canDelete: boolean;
 }
@@ -988,6 +989,7 @@ export async function getBoard(actor: PlanActorInput, query: BoardQueryInput): P
         companyName: p.companyName,
         companySlug: p.companySlug,
         memberCount: p.members.length,
+        memberNames: p.members.map((member) => member.name),
         canDelete: access.isExecutive || p.createdById === actor.id,
       })),
       brands,

@@ -14,6 +14,7 @@ export interface BoardProjectRef {
   companyName: string;
   companySlug: string;
   memberCount: number;
+  memberNames: readonly string[];
 }
 
 export interface ProjectGroup<T extends MonthGroupItem> {
@@ -76,6 +77,7 @@ export function groupByProject<T extends ProjectGroupItem>(
           companyName: it.companyName,
           companySlug: it.companySlug,
           memberCount: 0,
+          memberNames: [],
         },
         items: [],
       };
