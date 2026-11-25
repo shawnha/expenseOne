@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, Download, FileText, LoaderCircle, Paperclip, X } from "lucide-react";
+import { Camera, ChevronDown, Download, FileText, LoaderCircle, Paperclip, X } from "lucide-react";
 import { useDocumentReader } from "@/components/forms/use-document-reader";
 import { Button } from "@/components/ui/button";
 import { shrinkImageForUpload } from "@/lib/image-resize";
@@ -110,7 +110,7 @@ export function TaxInvoiceDocumentPicker({
   return (
     <section aria-label="문서 첨부" className="glass space-y-3 p-4 sm:p-6">
       <h2 className="text-subheadline font-semibold text-[var(--apple-label)]">문서 첨부</h2>
-      <p className="break-keep text-sm text-[var(--apple-secondary-label)]">사업자등록증, 견적서, 거래명세서 등 PDF·사진을 여러 개 선택하세요. 요청당 합계 4MB까지 첨부할 수 있습니다.</p>
+      <p className="break-keep text-sm text-[var(--apple-secondary-label)]">PDF·사진을 여러 개 선택하면 자동으로 읽습니다. 첨부는 요청당 합계 4MB까지 가능합니다.</p>
       <div className="flex flex-wrap gap-2">
         <Button type="button" variant="outline" className="min-h-11 rounded-full" onClick={() => picker.current?.click()} disabled={busy}>
           <Paperclip aria-hidden /> 파일 선택
@@ -180,7 +180,7 @@ export function TaxInvoiceDocuments({
             ) : (
               <div className="flex flex-wrap items-center gap-2 text-sm text-[var(--apple-secondary-label)]">
                 <span>자동 인식 결과가 없습니다. 내용을 직접 입력할 수 있습니다.</span>
-                {!isOcrDisabledForSession() && <Button type="button" variant="ghost" className="min-h-11" disabled={saving} onClick={() => onRetry(file)}>다시 읽기</Button>}
+                {!isOcrDisabledForSession() && <Button type="button" variant="outline" size="lg" disabled={saving} onClick={() => onRetry(file)}>다시 읽기</Button>}
               </div>
             )}
           </li>
@@ -204,27 +204,39 @@ function DocumentResult({ result, saving, onApply }: {
   ].filter(([, value]) => value !== null);
   if (!recognized.length) return <p className="text-sm text-[var(--apple-secondary-label)]">반영할 항목이 없습니다. 내용을 직접 입력해 주세요.</p>;
 
+  const preview = [buyerName, buyerBizNo && formatBizNo(buyerBizNo), supplyDate, exact && won(exact.supply + exact.vat)]
+    .filter(Boolean).join(" · ") || recognized[0][1];
+
   return (
-    <details className="rounded-xl border border-[var(--apple-separator)] px-3">
-      <summary className="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-medium text-[var(--apple-blue)]">
-        <span>인식 결과</span>
-        {buyerName && <span className="min-w-0 truncate font-normal text-[var(--apple-secondary-label)]">{buyerName}</span>}
-      </summary>
-      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
-        {recognized.map(([label, value]) => (
-          <div key={label} className="contents">
-            <dt className="text-[var(--apple-secondary-label)]">{label}</dt>
-            <dd className="whitespace-pre-line break-words">{value}</dd>
-          </div>
-        ))}
-      </dl>
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 pb-2">
-        <p className="text-xs text-[var(--apple-secondary-label)]">{result.fields.confidence === "low" ? "인식이 불확실합니다. 원본과 대조해 주세요." : "원본과 대조한 뒤 반영해 주세요."}</p>
-        <Button type="button" variant="outline" className="min-h-11 rounded-full" disabled={saving} onClick={() => onApply(suggestion)}>
+    <div className="space-y-2 rounded-xl border border-[var(--apple-separator)] p-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 space-y-1">
+          <p role="status" className="text-sm font-semibold text-[var(--apple-label)]">자동 인식 결과</p>
+          <p className="break-words text-sm text-[var(--apple-secondary-label)]">{preview}</p>
+        </div>
+        <Button type="button" size="lg" className="w-full bg-[#005cbf] px-4 text-white hover:bg-[#004d9f] sm:w-auto"
+          disabled={saving} onClick={() => onApply(suggestion)}>
           빈 항목에 반영
         </Button>
       </div>
-    </details>
+      <p className="text-sm text-[var(--apple-secondary-label)]">
+        {result.fields.confidence === "low" ? "인식이 불확실합니다. 원본과 대조한 뒤 반영해 주세요." : "인식한 내용을 확인한 뒤 반영해 주세요."}
+      </p>
+      <details className="group/details">
+        <summary className="flex min-h-11 w-fit cursor-pointer list-none items-center gap-1.5 rounded-md text-sm font-medium text-[var(--apple-label)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
+          <ChevronDown className="size-4 group-open/details:rotate-180" aria-hidden />
+          인식 항목 자세히 보기
+        </summary>
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 pb-1 text-sm">
+          {recognized.map(([label, value]) => (
+            <div key={label} className="contents">
+              <dt className="text-[var(--apple-secondary-label)]">{label}</dt>
+              <dd className="whitespace-pre-line break-words">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      </details>
+    </div>
   );
 }
 
