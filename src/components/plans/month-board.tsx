@@ -666,9 +666,6 @@ function ProjectDrawer({
   const { project } = group;
   const [collapsed, setCollapsed] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
-  const previewNames = project.memberNames.slice(0, 3);
-  const remainingMembers = project.memberCount - previewNames.length;
-  const memberAction = project.canManageMembers ? "참여자 관리" : "참여자 보기";
   const bodyId = `plan-drawer-${project.id}`;
 
   // 저장된 접힘은 마운트 뒤에 읽는다 — 렌더 중에 읽으면 서버 HTML 과 어긋난다(하이드레이션 오류).
@@ -691,26 +688,38 @@ function ProjectDrawer({
       className="rounded-[22px] border border-[var(--apple-separator)] p-2 sm:p-3 animate-fade-up"
       style={{ animationDelay: `${index * 50}ms` }}
     >
-      <button
-        type="button"
-        onClick={toggle}
-        aria-expanded={!collapsed}
-        aria-controls={bodyId}
-        className="flex min-h-11 w-full items-center gap-2 rounded-2xl px-2 py-1.5 text-left transition-colors hover:bg-[var(--apple-tertiary-system-fill)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--apple-blue)]"
-      >
-        <ChevronDown
-          className={cn(
-            "size-5 shrink-0 text-[var(--apple-secondary-label)] transition-transform duration-200",
-            collapsed && "-rotate-90",
-          )}
-          aria-hidden="true"
-        />
-        <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-          <span id={`${bodyId}-title`} className="inline-block max-w-full truncate align-bottom text-headline text-[var(--apple-label)]">
-            {project.name}
-          </span>
-          <CompanyBadge name={project.companyName} slug={project.companySlug} />
-        </span>
+      <div className="flex items-center justify-between gap-2 px-1 sm:px-2">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2">
+          <button
+            type="button"
+            onClick={toggle}
+            aria-expanded={!collapsed}
+            aria-controls={bodyId}
+            className="flex min-h-11 min-w-0 max-w-full flex-wrap items-center gap-x-2 gap-y-0.5 rounded-xl px-1.5 py-1.5 text-left transition-colors hover:bg-[var(--apple-tertiary-system-fill)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--apple-blue)]"
+          >
+            <ChevronDown
+              className={cn(
+                "size-5 shrink-0 text-[var(--apple-secondary-label)] transition-transform duration-200",
+                collapsed && "-rotate-90",
+              )}
+              aria-hidden="true"
+            />
+            <span id={`${bodyId}-title`} className="min-w-0 flex-1 truncate text-headline text-[var(--apple-label)]">
+              {project.name}
+            </span>
+            <CompanyBadge name={project.companyName} slug={project.companySlug} />
+          </button>
+          <button
+            type="button"
+            aria-label={`${project.name} 참여자 ${project.memberCount}명 ${project.canManageMembers ? "관리" : "보기"}`}
+            aria-haspopup="dialog"
+            onClick={() => setMembersOpen(true)}
+            className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border border-[var(--apple-separator)] bg-[var(--apple-tertiary-system-fill)] px-3 text-sm font-semibold text-[var(--apple-label)] transition-colors hover:border-[var(--apple-blue)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--apple-blue)]"
+          >
+            <Users className="size-4" aria-hidden="true" />
+            참여자 {project.memberCount}명
+          </button>
+        </div>
         <span className="shrink-0 text-right">
           <span className="block text-[15px] font-semibold tabular-nums text-[var(--apple-label)]">
             {formatKRW(group.total)}
@@ -719,30 +728,6 @@ function ProjectDrawer({
             {group.count}건
           </span>
         </span>
-      </button>
-
-      <div className="flex items-center justify-between gap-2 px-2">
-        <div className="flex min-w-0 items-start gap-1.5 text-sm text-[var(--apple-secondary-label)]">
-          <Users className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-          <span className="min-w-0 break-words">
-            {previewNames.length > 0 ? (
-              <>
-                <span className="sr-only">참여자 </span>
-                {previewNames.join(", ")}
-                {remainingMembers > 0 && <span className="whitespace-nowrap"> 외 {remainingMembers}명</span>}
-              </>
-            ) : "등록된 참여자 없음"}
-          </span>
-        </div>
-        <button
-          type="button"
-          aria-label={`${project.name} ${memberAction}`}
-          aria-haspopup="dialog"
-          onClick={() => setMembersOpen(true)}
-          className="inline-flex min-h-11 shrink-0 items-center rounded-full px-3 text-sm font-semibold text-[var(--apple-label)] hover:bg-[var(--apple-tertiary-system-fill)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        >
-          {memberAction}
-        </button>
       </div>
       {membersOpen && <ProjectDialog open projectId={project.id} viewMembers={!project.canManageMembers} onOpenChange={setMembersOpen} />}
 
